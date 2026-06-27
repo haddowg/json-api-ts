@@ -5,10 +5,10 @@
 
 The core runtime does only **light structural guards** (is this a JSON:API document?
 does `data` carry `type`+`id`?) and otherwise trusts the wire — we own both ends (the
-same spec generates the bundle's output *and* this client) and the envelope is invariant,
+same spec generates the bundle's output _and_ this client) and the envelope is invariant,
 so full per-field validation by default would add cost for little benefit. Full
 validation is **opt-in** through a pluggable `validate?` seam fed by the bundle's JSON
-Schemas, validating each resource object by its `type`; the validation *engine* (e.g.
+Schemas, validating each resource object by its `type`; the validation _engine_ (e.g.
 ajv) is brought by the user or an optional adapter, never in the core dependency tree.
 Missing-include is handled **gracefully** — leave the relation as an identifier (+
 dev-mode warning), never throw at the boundary.

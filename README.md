@@ -18,11 +18,11 @@ bundle.
 
 ## Packages
 
-| Package | Role |
-|---|---|
-| [`@haddowg/json-api-client`](./packages/client) | Generic runtime, parameterised by a generated descriptor. |
+| Package                                           | Role                                                                       |
+| ------------------------------------------------- | -------------------------------------------------------------------------- |
+| [`@haddowg/json-api-client`](./packages/client)   | Generic runtime, parameterised by a generated descriptor.                  |
 | [`@haddowg/json-api-codegen`](./packages/codegen) | CLI: OpenAPI (+ JSON Schemas) → descriptor + types + bound `createClient`. |
-| [`@haddowg/json-api-query`](./packages/query) | TanStack Query bindings + normalization. |
+| [`@haddowg/json-api-query`](./packages/query)     | TanStack Query bindings + normalization.                                   |
 
 ## Development
 
@@ -36,9 +36,7 @@ pnpm format           # prettier --write
 pnpm check            # lint + format:check + typecheck
 ```
 
-> The pinned tool versions in `package.json` are **starting points** — run `pnpm
-> install` to resolve and commit the lockfile. `tsdown` (and, if adopted, `oxfmt`) are
-> `0.x`; pin them exactly once resolved.
+> The pinned tool versions in `package.json` are **starting points** — run `pnpm install` to resolve and commit the lockfile. `tsdown` (and, if adopted, `oxfmt`) are `0.x`; pin them exactly once resolved.
 
 ## License
 

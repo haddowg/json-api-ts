@@ -22,11 +22,12 @@ export type JsonApiTransport = (req: TransportRequest) => Promise<TransportRespo
 
 /** The default transport, backed by the global `fetch`. */
 export const fetchTransport: JsonApiTransport = async (req) => {
-  const res = await fetch(req.url, {
-    method: req.method,
-    headers: req.headers,
-    body: req.body,
-  })
+  const init: RequestInit = { method: req.method, headers: req.headers }
+  if (req.body !== undefined) {
+    init.body = req.body
+  }
+
+  const res = await fetch(req.url, init)
 
   const headers: Record<string, string> = {}
   res.headers.forEach((value, key) => {

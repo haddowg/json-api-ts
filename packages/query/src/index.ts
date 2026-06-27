@@ -7,11 +7,21 @@
  * write-through patching — ADR 0003).
  *
  * TODO (build order):
- *  - queryKeys(type, op, id?, rel?, params): deterministic key factory
  *  - queryOptions / mutationOptions factories over the client's fluent surface
  *  - normalize(response): index resources by type:id and patch overlapping queries
  *    in place, preserving edge-local $pivot/$edge
  *  - patch-vs-invalidate split: updates patch; create/delete invalidate list queries
  *  - optimistic updates routed through the normalized patch
  */
-export {}
+
+/** A single segment of a query key. */
+export type QueryKeyPart = string | number | boolean | null | Record<string, unknown>
+
+/**
+ * Deterministic query-key factory seed. The real factory will derive parts from
+ * `(type, operation, id?, rel?, normalized-params)`; this establishes the shape and
+ * gives the normalization layer a stable key contract to build on.
+ */
+export function queryKey(...parts: QueryKeyPart[]): readonly QueryKeyPart[] {
+  return parts
+}

@@ -3,7 +3,7 @@
 A TypeScript monorepo that generates a **JSON:API-flavored, fully typesafe client** from
 the OpenAPI 3.1 spec emitted by the `haddowg/json-api-symfony` bundle.
 
-> This is the *build roadmap*. The **design decisions and their rationale live in
+> This is the _build roadmap_. The **design decisions and their rationale live in
 > [`../CONTEXT.md`](../CONTEXT.md) and [`adr/`](adr/)** — this document does not repeat
 > them; it sequences the work.
 
@@ -30,12 +30,12 @@ optional). Only two `x-` extensions exist today (`x-enum-varnames`,
 
 ## Packages
 
-| Package | Role | Deps |
-|---|---|---|
-| `@haddowg/json-api-client` | Generic runtime: transport seam + `fetch` default, (de)serialise/materialise, typed errors, optional normalized index. Parameterised by the descriptor. | minimal, shallow-tree (ADR 0004) |
-| `@haddowg/json-api-codegen` | CLI: reads OpenAPI (+ JSON Schemas) from URL/file, emits descriptor + types + bound `createClient`. | build-time only |
-| `@haddowg/json-api-query` | TanStack bindings: query/mutation + key factories, `type:id` normalization glue. | peer `@tanstack/query-core` |
-| `@haddowg/json-api-angular` *(later)* | RxJS/injectable surface for non-TanStack users. | peer `@angular/*` |
+| Package                               | Role                                                                                                                                                    | Deps                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `@haddowg/json-api-client`            | Generic runtime: transport seam + `fetch` default, (de)serialise/materialise, typed errors, optional normalized index. Parameterised by the descriptor. | minimal, shallow-tree (ADR 0004) |
+| `@haddowg/json-api-codegen`           | CLI: reads OpenAPI (+ JSON Schemas) from URL/file, emits descriptor + types + bound `createClient`.                                                     | build-time only                  |
+| `@haddowg/json-api-query`             | TanStack bindings: query/mutation + key factories, `type:id` normalization glue.                                                                        | peer `@tanstack/query-core`      |
+| `@haddowg/json-api-angular` _(later)_ | RxJS/injectable surface for non-TanStack users.                                                                                                         | peer `@angular/*`                |
 
 Generated code is committed into the **user's** repo (one file / small dir), not a
 published package. One typed client per server.

@@ -4,13 +4,13 @@
 - **Date:** 2026-06-27
 
 JSON:API's wire shape is invariant, so all real work — serialise, deserialise,
-normalise, resolve includes — is generic runtime machinery; only the *type catalogue*
+normalise, resolve includes — is generic runtime machinery; only the _type catalogue_
 varies per API. We therefore generate a single **runtime descriptor object** (`as const
 satisfies ApiDescriptor`) carrying what types alone can't express at runtime
 (attribute-vs-relation, cardinality, related type(s), per-operation path templates that
 respect `uriType`/server prefixes, paginator kind, create client-id policy), and
 **derive the TypeScript types from it**. The generic runtime in `json-api-client` is
-parameterised by this descriptor; the codegen only *reads* the OpenAPI spec — it never
+parameterised by this descriptor; the codegen only _reads_ the OpenAPI spec — it never
 templates per-path client code.
 
 The alternative, templating a client method per OpenAPI operation (the typical OpenAPI

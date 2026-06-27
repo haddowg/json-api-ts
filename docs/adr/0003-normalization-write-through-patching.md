@@ -10,7 +10,7 @@ library like normy). We keep TanStack's results denormalized (so its devtools, S
 structural sharing all just work) and, on every successful response, index each resource
 (`data` + `included`) by `type:id → query keys`; when a resource changes we **patch
 every cached query that contains that `type:id` in place** — "edit once, updates
-everywhere". Patching replaces a node's *attributes* (the descriptor knows attributes vs
+everywhere". Patching replaces a node's _attributes_ (the descriptor knows attributes vs
 relations) while **preserving edge-local `$pivot`/`$edge`**.
 
 This is Strategy 2 (write-through patching). The alternative, Strategy 1 (a normalized

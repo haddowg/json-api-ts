@@ -5,17 +5,21 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "json-api-codegen": "./dist/cli.js",
-    "japi": "./dist/cli.js"
+    "json-api-codegen": "./dist/cli.mjs",
+    "japi": "./dist/cli.mjs"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
     }
   },
-  "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true

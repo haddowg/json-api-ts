@@ -11,7 +11,7 @@ spec hands us a bounded, pre-expanded enum of allowed include paths per endpoint
 type machinery is a union over a finite set, not open recursion).
 
 Each resource object **flattens its data** (`type`, `id`, attributes, and
-hydrated/identifier relations) as own *enumerable* properties — so `{...res}` and
+hydrated/identifier relations) as own _enumerable_ properties — so `{...res}` and
 `JSON.stringify(res)` are clean — and exposes its envelope through non-enumerable,
 **`$`-prefixed accessors** (`$meta`, `$links`, `$self`, `$document`, `$edge`, `$pivot`,
 `$rel`, `$raw`). `$` is collision-proof because JSON:API forbids it in member names;
