@@ -1,0 +1,25 @@
+# Local hooks run via the project's own toolchain (pnpm). Install once with
+# `pre-commit install`. Prettier and oxlint operate on the staged files; the
+# typecheck runs project-wide (tsc needs the whole program), only when a TS file
+# changed.
+repos:
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (write)
+        entry: pnpm exec prettier --write --ignore-unknown
+        language: system
+        types_or: [ts, tsx, javascript, jsx, json, yaml, markdown, css, html]
+
+      - id: oxlint
+        name: oxlint
+        entry: pnpm exec oxlint
+        language: system
+        types_or: [ts, tsx, javascript, jsx]
+
+      - id: typecheck
+        name: tsc typecheck
+        entry: pnpm typecheck
+        language: system
+        files: \.(m|c)?tsx?$
+        pass_filenames: false
