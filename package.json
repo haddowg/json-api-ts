@@ -1,0 +1,30 @@
+{
+  "name": "json-api-ts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A typesafe, JSON:API-flavored TypeScript client generated from the haddowg/json-api-symfony OpenAPI spec.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.4.0",
+    "tsdown": "^0.13.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@haddowg/json-api-query",
+  "version": "0.0.0",
+  "description": "TanStack Query bindings for the JSON:API client: option/key factories + type:id cache normalization.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@haddowg/json-api-client": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/query-core": "^5.0.0"
+  }
+}
