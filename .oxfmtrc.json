@@ -1,0 +1,16 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 100,
+  "trailingComma": "all",
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "dist",
+    "node_modules",
+    "coverage",
+    ".turbo",
+    "pnpm-lock.yaml",
+    "**/*.gen.ts",
+    "packages/codegen/test/fixtures"
+  ]
+}

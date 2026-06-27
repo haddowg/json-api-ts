@@ -241,8 +241,8 @@ migrate to `vp` once it's ≥1.0 (trivial — same tools).
 - **Turborepo** (cached task runner — `vp run`'s mature stand-in)
 - **tsdown** (rolldown-based bundler: dual ESM/CJS + `.d.ts`)
 - **Vitest** (test)
-- **oxlint** + **oxfmt** (lint/format) — oxfmt is the least-mature piece; **Biome** is
-  the fallback if it bites
+- **oxlint** + **oxfmt** (lint/format; both oxc) — `oxfmt` is `0.x` but actively
+  maintained by the oxc team; **Biome** is the fallback if it ever bites
 - **tsc** (typecheck)
 - **release-please** (manifest mode + `node-workspace` plugin), matching
   `json-api`/`json-api-symfony` — one release model across the lineage

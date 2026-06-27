@@ -1,7 +1,0 @@
-dist
-node_modules
-coverage
-.turbo
-pnpm-lock.yaml
-**/*.gen.ts
-packages/codegen/test/fixtures

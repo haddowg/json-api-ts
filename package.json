@@ -14,14 +14,14 @@
     "test": "vitest run",
     "typecheck": "turbo run typecheck",
     "lint": "oxlint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "oxfmt": "^0.56.0",
     "oxlint": "^1.0.0",
-    "prettier": "^3.4.0",
     "tsdown": "^0.22.0",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0",

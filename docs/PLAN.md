@@ -46,8 +46,8 @@ published package. One typed client per server.
 
 Vite+'s underlying tools wired **directly** (not the alpha `vp` wrapper — migrate to it
 once it's ≥1.0): **pnpm** workspaces · **Turborepo** · **tsdown** (rolldown; dual
-ESM/CJS + `.d.ts`) · **Vitest** · **oxlint** + a formatter (Prettier as the stable
-stand-in for the intended oxfmt; Biome is the alternative) · **tsc**. Versioning via
+ESM/CJS + `.d.ts`) · **Vitest** · **oxlint** + **oxfmt** (both oxc; `oxfmt` is `0.x`
+but actively maintained by the oxc team) · **tsc**. Versioning via
 **release-please** (manifest + `node-workspace`), matching the PHP repos. CI = PR check
 (install → lint/format/typecheck → test → build) + release (`npm publish --provenance`).
 

@@ -32,11 +32,11 @@ pnpm build            # turbo: build every package (tsdown → dual ESM/CJS + .d
 pnpm typecheck        # turbo: tsc --noEmit per package
 pnpm test             # vitest, whole workspace
 pnpm lint             # oxlint
-pnpm format           # prettier --write
+pnpm format           # oxfmt --write
 pnpm check            # lint + format:check + typecheck
 ```
 
-> The pinned tool versions in `package.json` are **starting points** — run `pnpm install` to resolve and commit the lockfile. `tsdown` (and, if adopted, `oxfmt`) are `0.x`; pin them exactly once resolved.
+> The pinned tool versions in `package.json` are **starting points** — run `pnpm install` to resolve and commit the lockfile. `tsdown` and `oxfmt` are `0.x`; pin them exactly once resolved.
 
 ## License
 
