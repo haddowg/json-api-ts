@@ -102,3 +102,18 @@ for codegen to start.
 - Atomic error-pointer remapping carries an op-index prefix — confirm the
   `(opIndex, path)` shape when Phase 3 lands.
 - Whether `json-api-angular` is wanted at all, or TanStack's Angular adapter suffices.
+
+## Tracked follow-ups
+
+- **Per-relation mutation-verb gating (deferred from Phase 3a).** The relationship
+  accessor exposes `add`/`remove`/`replace` on every to-many relation, gated only by
+  cardinality. But the bundle advertises mutation verbs _per relation_ and they are not
+  uniform — e.g. `/tracks/{id}/relationships/playlists` permits only `post`/`delete` (no
+  `patch`/`replace`), modelling the bundle's `cannotReplace`/per-relation endpoint
+  exposure. The `RelationDescriptor` carries no per-method capability, so an unsupported
+  verb (today only `tracks.playlists.replace`) type-checks and surfaces as a server error
+  rather than a compile/runtime error. Phase 3a scopes "core writes" without per-relation
+  mutability gating, so this is a deliberate scope cut. To close it: add a
+  `methods?: readonly string[]` (or `cannotReplace`/`cannotAdd`/`cannotRemove` flags) to
+  `RelationDescriptor`, populate it in the emitter from each relationship endpoint's
+  advertised verbs, and gate the `add`/`remove`/`replace` types + runtime on it.

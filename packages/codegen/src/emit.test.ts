@@ -72,10 +72,50 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('tracks: TracksAttributes')
   })
 
-  it('emits the descriptor-bound createClient factory passing Attributes explicitly', () => {
+  it('emits a create attribute interface excluding readOnly fields, required from the schema', () => {
+    expect(source).toContain('export interface AlbumsCreateAttributes {')
+    // readOnly fields (present in the read attributes) are excluded from create.
+    expect(source).not.toMatch(/export interface AlbumsCreateAttributes \{[^}]*artwork/)
+    expect(source).not.toMatch(/export interface AlbumsCreateAttributes \{[^}]*averageRating/)
+    // `title` is required (in the component's `required`); the rest are optional.
+    expect(source).toContain('  title: string')
+    expect(source).toContain('  explicit?: boolean')
+    expect(source).toContain('  status?: AlbumStatus')
+  })
+
+  it('emits an update attribute interface with every field optional', () => {
+    expect(source).toContain('export interface AlbumsUpdateAttributes {')
+    expect(source).toMatch(/export interface AlbumsUpdateAttributes \{[\s\S]*?title\?: string/)
+    expect(source).toMatch(/export interface AlbumsUpdateAttributes \{[\s\S]*?explicit\?: boolean/)
+    // readOnly fields stay excluded from update too.
+    expect(source).not.toMatch(/export interface AlbumsUpdateAttributes \{[^}]*artwork/)
+  })
+
+  it('omits write interfaces for a read-only type (no create/update component)', () => {
+    expect(source).not.toContain('ChartsCreateAttributes')
+    expect(source).not.toContain('ChartsUpdateAttributes')
+    expect(source).not.toContain('CountriesCreateAttributes')
+    expect(source).not.toContain('UsersCreateAttributes')
+  })
+
+  it('emits a WriteAttributes map of per-type create/update pairs, read-only types omitted', () => {
+    expect(source).toContain('export interface WriteAttributes {')
+    expect(source).toContain(
+      'albums: { create: AlbumsCreateAttributes; update: AlbumsUpdateAttributes }',
+    )
+    expect(source).toContain(
+      '"public-profiles": { create: PublicProfilesCreateAttributes; update: PublicProfilesUpdateAttributes }',
+    )
+    // A read-only type contributes no entry to the map (no `<type>: { create:` line).
+    expect(source).not.toMatch(/\n {2}charts: \{ create:/)
+    expect(source).not.toMatch(/\n {2}countries: \{ create:/)
+    expect(source).not.toMatch(/\n {2}users: \{ create:/)
+  })
+
+  it('emits the descriptor-bound createClient factory passing Attributes + WriteAttributes', () => {
     expect(source).toContain('export const createClient = (options: ClientOptions) =>')
     expect(source).toContain(
-      'createClientRuntime<typeof resourceMap, Attributes>(resourceMap, options)',
+      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes>(resourceMap, options)',
     )
   })
 

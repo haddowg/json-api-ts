@@ -85,6 +85,119 @@ export interface TracksAttributes {
 
 export interface UsersAttributes {}
 
+export interface AlbumsCreateAttributes {
+  availableFrom?: string | null
+  /** Value is compared against the `availableFrom` field (>). */
+  availableUntil?: string | null
+  explicit?: boolean
+  releaseInfo?: { label?: string; catalogueNumber?: string } | null
+  /** Value must be before a dynamically-resolved date/time bound. */
+  releasedAt?: string
+  /** Where the album sits in its release lifecycle. */
+  status?: AlbumStatus
+  title: string
+}
+
+export interface AlbumsUpdateAttributes {
+  availableFrom?: string | null
+  /** Value is compared against the `availableFrom` field (>). */
+  availableUntil?: string | null
+  explicit?: boolean
+  releaseInfo?: { label?: string; catalogueNumber?: string } | null
+  /** Value must be before a dynamically-resolved date/time bound. */
+  releasedAt?: string
+  /** Where the album sits in its release lifecycle. */
+  status?: AlbumStatus
+  title?: string
+}
+
+export interface ArtistsCreateAttributes {
+  bio?: string | null
+  createdAt?: string
+  name: string
+  slug?: string
+  website?: string | null
+}
+
+export interface ArtistsUpdateAttributes {
+  bio?: string | null
+  name?: string
+  slug?: string
+  website?: string | null
+}
+
+export interface DevicesCreateAttributes {
+  label: string
+}
+
+export interface DevicesUpdateAttributes {
+  label?: string
+}
+
+export interface FavoritesCreateAttributes {
+  favoritedAt?: string
+}
+
+export interface FavoritesUpdateAttributes {}
+
+export interface GenresCreateAttributes {
+  name: string
+}
+
+export interface GenresUpdateAttributes {
+  name?: string
+}
+
+export interface LibrariesCreateAttributes {}
+
+export interface LibrariesUpdateAttributes {}
+
+export interface PlaylistsCreateAttributes {
+  externalId?: string | null
+  public?: boolean
+  title: string
+}
+
+export interface PlaylistsUpdateAttributes {
+  externalId?: string | null
+  public?: boolean
+  title?: string
+}
+
+export interface ProductsCreateAttributes {
+  name: string
+}
+
+export interface ProductsUpdateAttributes {
+  name?: string
+}
+
+export interface PublicProfilesCreateAttributes {
+  displayName?: string
+}
+
+export interface PublicProfilesUpdateAttributes {
+  displayName?: string
+}
+
+export interface TracksCreateAttributes {
+  durationSeconds?: number
+  explicit?: boolean
+  genres?: unknown[]
+  previewOffset?: string | null
+  title: string
+  trackNumber?: number
+}
+
+export interface TracksUpdateAttributes {
+  durationSeconds?: number
+  explicit?: boolean
+  genres?: unknown[]
+  previewOffset?: string | null
+  title?: string
+  trackNumber?: number
+}
+
 export interface Attributes {
   albums: AlbumsAttributes
   artists: ArtistsAttributes
@@ -99,6 +212,19 @@ export interface Attributes {
   "public-profiles": PublicProfilesAttributes
   tracks: TracksAttributes
   users: UsersAttributes
+}
+
+export interface WriteAttributes {
+  albums: { create: AlbumsCreateAttributes; update: AlbumsUpdateAttributes }
+  artists: { create: ArtistsCreateAttributes; update: ArtistsUpdateAttributes }
+  devices: { create: DevicesCreateAttributes; update: DevicesUpdateAttributes }
+  favorites: { create: FavoritesCreateAttributes; update: FavoritesUpdateAttributes }
+  genres: { create: GenresCreateAttributes; update: GenresUpdateAttributes }
+  libraries: { create: LibrariesCreateAttributes; update: LibrariesUpdateAttributes }
+  playlists: { create: PlaylistsCreateAttributes; update: PlaylistsUpdateAttributes }
+  products: { create: ProductsCreateAttributes; update: ProductsUpdateAttributes }
+  "public-profiles": { create: PublicProfilesCreateAttributes; update: PublicProfilesUpdateAttributes }
+  tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
 export const resourceMap = {
@@ -425,4 +551,4 @@ export type ResourceMap = typeof resourceMap
 
 /** Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`. */
 export const createClient = (options: ClientOptions) =>
-  createClientRuntime<typeof resourceMap, Attributes>(resourceMap, options)
+  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes>(resourceMap, options)

@@ -129,6 +129,9 @@ export class Emitter {
   emit(): string {
     // Resolve enums first so the alias block (which depends on `usedEnums`) is populated.
     const interfaces = Object.keys(this.descriptor).map((type) => this.attributeInterface(type))
+    const writeInterfaces = Object.keys(this.descriptor).flatMap((type) =>
+      this.writeAttributeInterfaces(type),
+    )
     const enums = this.enumAliases()
 
     const parts = [
@@ -136,7 +139,9 @@ export class Emitter {
       this.imports(),
       ...(enums ? [enums] : []),
       ...interfaces,
+      ...writeInterfaces,
       this.attributesMap(),
+      this.writeAttributesMap(),
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
       this.boundFactory(),
@@ -165,21 +170,75 @@ export class Emitter {
 
   /** Per-type attribute interface, e.g. `export interface AlbumsAttributes { ... }`. */
   private attributeInterface(type: string): string {
-    const name = `${pascalCase(type)}Attributes`
     const base = this.baseByType.get(type)
     const props = base ? this.schemas[`${base}Attributes`]?.properties : undefined
-    const descriptorAttrs = this.descriptor[type]!.attributes
+    // Drive field order off the (sorted) descriptor so output stays deterministic; read
+    // attributes are always present (every member required, no optional marker).
+    const fields = Object.keys(this.descriptor[type]!.attributes)
+    return this.renderInterface(`${pascalCase(type)}Attributes`, props, fields, () => true)
+  }
 
+  /**
+   * The per-type WRITE attribute interfaces — `<Pascal>CreateAttributes` and
+   * `<Pascal>UpdateAttributes` — from the `<Base>CreateAttributes`/`<Base>UpdateAttributes`
+   * components (readOnly fields are already excluded vs the read attributes by the bundle).
+   * Create marks a field required iff it sits in the component's `required`; Update makes
+   * every field optional. A read-only type (no create/update component) contributes nothing.
+   */
+  private writeAttributeInterfaces(type: string): string[] {
+    const base = this.baseByType.get(type)
+    if (base === undefined) {
+      return []
+    }
+    const pascal = pascalCase(type)
+    const out: string[] = []
+
+    const create = this.schemas[`${base}CreateAttributes`]
+    if (create !== undefined) {
+      const required = new Set(create.required ?? [])
+      // Sort the schema's own property keys (no descriptor to order write fields).
+      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
+      const fields = Object.keys(create.properties ?? {}).sort()
+      out.push(
+        this.renderInterface(`${pascal}CreateAttributes`, create.properties, fields, (field) =>
+          required.has(field),
+        ),
+      )
+    }
+
+    const update = this.schemas[`${base}UpdateAttributes`]
+    if (update !== undefined) {
+      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
+      const fields = Object.keys(update.properties ?? {}).sort()
+      out.push(
+        this.renderInterface(`${pascal}UpdateAttributes`, update.properties, fields, () => false),
+      )
+    }
+
+    return out
+  }
+
+  /**
+   * Render an attribute interface from a property map, a field order, and a `required`
+   * predicate (true => no `?`). Shared by the read and write attribute interfaces so the
+   * tsType/JSDoc logic stays in one place.
+   */
+  private renderInterface(
+    name: string,
+    props: Record<string, SchemaOrBool> | undefined,
+    fields: readonly string[],
+    required: (field: string) => boolean,
+  ): string {
     const lines: string[] = []
-    // Drive field order off the (sorted) descriptor so output stays deterministic.
-    for (const field of Object.keys(descriptorAttrs)) {
+    for (const field of fields) {
       const schema = props?.[field]
       const tsType = isSchema(schema) ? this.tsType(schema) : 'unknown'
       const doc = isSchema(schema) ? jsDoc(schema.description, '  ') : undefined
       if (doc) {
         lines.push(doc)
       }
-      lines.push(`  ${objectKey(field)}: ${tsType}`)
+      const optional = required(field) ? '' : '?'
+      lines.push(`  ${objectKey(field)}${optional}: ${tsType}`)
     }
 
     if (lines.length === 0) {
@@ -324,6 +383,37 @@ export class Emitter {
     return `export interface Attributes {\n${lines.join('\n')}\n}`
   }
 
+  /**
+   * Emit the `WriteAttributes` interface mapping each writable wire type to its
+   * `{ create; update }` attribute pair. A read-only type (no create/update component)
+   * contributes no entry, so the bound client only exposes writes where the API allows
+   * them. Passed as the third type argument to the runtime factory.
+   */
+  private writeAttributesMap(): string {
+    const lines: string[] = []
+    for (const type of Object.keys(this.descriptor)) {
+      const base = this.baseByType.get(type)
+      const hasCreate = base !== undefined && this.schemas[`${base}CreateAttributes`] !== undefined
+      const hasUpdate = base !== undefined && this.schemas[`${base}UpdateAttributes`] !== undefined
+      if (!hasCreate && !hasUpdate) {
+        continue
+      }
+      const pascal = pascalCase(type)
+      const members: string[] = []
+      if (hasCreate) {
+        members.push(`create: ${pascal}CreateAttributes`)
+      }
+      if (hasUpdate) {
+        members.push(`update: ${pascal}UpdateAttributes`)
+      }
+      lines.push(`  ${objectKey(type)}: { ${members.join('; ')} }`)
+    }
+    if (lines.length === 0) {
+      return 'export interface WriteAttributes {}'
+    }
+    return `export interface WriteAttributes {\n${lines.join('\n')}\n}`
+  }
+
   /** Emit the descriptor as a literal `as const satisfies ApiDescriptor`. */
   private resourceMap(): string {
     const body = this.literal(this.descriptor as Record<string, unknown>, 0)
@@ -361,7 +451,7 @@ export class Emitter {
     return [
       '/** Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`. */',
       'export const createClient = (options: ClientOptions) =>',
-      '  createClientRuntime<typeof resourceMap, Attributes>(resourceMap, options)',
+      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes>(resourceMap, options)',
     ].join('\n')
   }
 }

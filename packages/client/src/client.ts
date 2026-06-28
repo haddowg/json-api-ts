@@ -1,14 +1,22 @@
 import type { ApiDescriptor } from './descriptor'
+import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
 import { execute, type JsonApiContext, type JsonApiRequest, type ReadQuery } from './request'
 import type {
   Client,
   DefaultAttributes,
+  DefaultWriteAttributes,
   RelationReadQuery,
   RelationshipAccessor,
   ResourceHandle,
   TypeAccessor,
 } from './result-types'
+import {
+  toDocument,
+  toRelationshipDocument,
+  withRemappedPaths,
+  withRemappedRelationshipPaths,
+} from './serialize-write'
 import { fetchTransport, type JsonApiTransport } from './transport'
 
 /**
@@ -66,7 +74,85 @@ async function run(
   return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage)
 }
 
-/** Build the relationship accessor for `client.<type>.id(id).<rel>` (`.get()` / `.related()`). */
+/** A write opts object: an optional `include`/`fields` narrowing the materialised response. */
+interface WriteOpts {
+  include?: readonly string[]
+  fields?: Record<string, readonly string[]>
+}
+
+/** Project a write's opts to the read-query families the response honours (`include`/`fields`). */
+function writeQuery(opts: WriteOpts | undefined): ReadQuery | undefined {
+  if (opts === undefined) {
+    return undefined
+  }
+  const query: ReadQuery = {}
+  if (opts.include !== undefined) {
+    query.include = [...opts.include]
+  }
+  if (opts.fields !== undefined) {
+    const fields: Record<string, string[]> = {}
+    for (const [k, v] of Object.entries(opts.fields)) {
+      fields[k] = [...v]
+    }
+    query.fields = fields
+  }
+  return Object.keys(query).length > 0 ? query : undefined
+}
+
+/** A write's spec: how to address it, what to send, and how to shape the result + errors. */
+interface WriteSpec {
+  type: string
+  operation: string
+  vars: Record<string, string>
+  method: string
+  body: unknown
+  query?: ReadQuery | undefined
+  /** Materialise the primary `data` as identifier linkage (relationship endpoints) vs resources. */
+  linkage?: boolean
+  /** Remap a thrown error's pointers to flat input paths (resource-write vs relationship-write). */
+  remap: (error: JsonApiError) => JsonApiError
+}
+
+/**
+ * Drive a write: fill the path template, attach the body (and any `include`/`fields` query),
+ * execute, and materialise the response (`undefined` for a `204`/no body — so create/update
+ * return the resource and delete/`204` relationship mutations resolve `undefined`/`void`).
+ * On a thrown {@link JsonApiError}, each error's flat `path` is populated (via `spec.remap`)
+ * before it propagates, so a caller's `byPath()` keys are the flat input shape.
+ */
+async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
+  const template = ctx.descriptor[spec.type]?.paths[spec.operation]
+  if (template === undefined) {
+    throw new Error(`No "${spec.operation}" path declared for type "${spec.type}"`)
+  }
+  const req: JsonApiRequest = {
+    method: spec.method,
+    path: fill(template, spec.vars),
+    body: spec.body,
+  }
+  if (spec.query !== undefined) {
+    req.query = spec.query
+  }
+  let doc
+  try {
+    doc = await execute(ctx.request, req)
+  } catch (error) {
+    if (error instanceof JsonApiError) {
+      throw spec.remap(error)
+    }
+    throw error
+  }
+  return doc === undefined ? undefined : materialise(doc, ctx.materialise, spec.linkage ?? false)
+}
+
+/**
+ * Build the relationship accessor for `client.<type>.id(id).<rel>`: reads
+ * (`.get()` linkage / `.related()` collection) plus mutations — to-many `.add` (POST) /
+ * `.remove` (DELETE) / `.replace` (PATCH) and to-one `.set` (PATCH). Every mutation posts
+ * a `{ data: <linkage> }` body to `fetchRelationship` and materialises the response as
+ * linkage (or `undefined`/`void` for a `204`). The cardinality is read off the descriptor
+ * so the linkage is coerced correctly; the static types gate which verb is callable.
+ */
 function relationshipAccessor(
   ctx: ClientContext,
   type: string,
@@ -74,6 +160,20 @@ function relationshipAccessor(
   rel: string,
 ): RelationshipAccessor<ApiDescriptor, unknown, string, never> {
   const vars = { id, rel }
+  const relation = ctx.descriptor[type]?.relations[rel]
+  const cardinality = relation?.cardinality ?? 'many'
+  const hasPivot = relation?.pivot === true
+  const mutate = (method: string, refs: unknown): Promise<unknown> =>
+    runWrite(ctx, {
+      type,
+      operation: 'fetchRelationship',
+      vars,
+      method,
+      body: toRelationshipDocument(refs, cardinality),
+      linkage: true,
+      remap: (error) => withRemappedRelationshipPaths(error, rel, hasPivot),
+    })
+
   return {
     get: (query?: RelationReadQuery) =>
       run(
@@ -86,6 +186,10 @@ function relationshipAccessor(
       ) as Promise<never>,
     related: (query?: RelationReadQuery) =>
       run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined) as Promise<never>,
+    add: ((refs: unknown) => mutate('POST', refs)) as never,
+    remove: ((refs: unknown) => mutate('DELETE', refs)) as never,
+    replace: ((refs: unknown) => mutate('PATCH', refs)) as never,
+    set: ((ref: unknown) => mutate('PATCH', ref)) as never,
   }
 }
 
@@ -95,19 +199,46 @@ function relationshipAccessor(
  * imports this to warn at build time (keeping the runtime + the collision detector in sync).
  * `then` is reserved so a handle is never mistaken for a thenable.
  */
-export const HANDLE_RESERVED: ReadonlySet<string> = new Set(['type', 'id', 'get', 'rel', 'then'])
+export const HANDLE_RESERVED: ReadonlySet<string> = new Set([
+  'type',
+  'id',
+  'get',
+  'update',
+  'delete',
+  'rel',
+  'then',
+])
 
 /** Build the id-scoped resource handle (a Proxy resolving relation accessors by name). */
 function resourceHandle(
   ctx: ClientContext,
   type: string,
   id: string,
-): ResourceHandle<ApiDescriptor, unknown, string> {
+): ResourceHandle<ApiDescriptor, unknown, unknown, string> {
   const relations = ctx.descriptor[type]?.relations ?? {}
   const base = {
     type,
     id,
     get: (query?: ReadQuery) => run(ctx, type, 'fetchOne', { id }, query),
+    update: (patch: Record<string, unknown>, opts?: WriteOpts) =>
+      runWrite(ctx, {
+        type,
+        operation: 'update',
+        vars: { id },
+        method: 'PATCH',
+        body: toDocument(ctx.descriptor, type, patch, { id }),
+        query: writeQuery(opts),
+        remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+      }),
+    delete: () =>
+      runWrite(ctx, {
+        type,
+        operation: 'delete',
+        vars: { id },
+        method: 'DELETE',
+        body: undefined,
+        remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+      }) as never,
     rel: (name: string) => relationshipAccessor(ctx, type, id, name),
   }
 
@@ -118,20 +249,30 @@ function resourceHandle(
       }
       return Reflect.get(target, prop, receiver)
     },
-  }) as unknown as ResourceHandle<ApiDescriptor, unknown, string>
+  }) as unknown as ResourceHandle<ApiDescriptor, unknown, unknown, string>
 }
 
 /** Build the collection-scoped accessor for one wire type (`client.albums`). */
 function typeAccessor(
   ctx: ClientContext,
   type: string,
-): TypeAccessor<ApiDescriptor, unknown, string> {
+): TypeAccessor<ApiDescriptor, unknown, unknown, string> {
   return {
     list: (query?: ReadQuery) => run(ctx, type, 'fetchMany', {}, query) as Promise<never>,
     get: (id: string, query?: ReadQuery) =>
       run(ctx, type, 'fetchOne', { id }, query) as Promise<never>,
+    create: (input: Record<string, unknown>, opts?: WriteOpts) =>
+      runWrite(ctx, {
+        type,
+        operation: 'create',
+        vars: {},
+        method: 'POST',
+        body: toDocument(ctx.descriptor, type, input),
+        query: writeQuery(opts),
+        remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+      }) as Promise<never>,
     id: (id: string) => resourceHandle(ctx, type, id),
-  } as unknown as TypeAccessor<ApiDescriptor, unknown, string>
+  } as unknown as TypeAccessor<ApiDescriptor, unknown, unknown, string>
 }
 
 /**
@@ -141,10 +282,11 @@ function typeAccessor(
  * (`$next()`/`$prev()`, related links) is wired through `materialise`'s `navigate` seam,
  * which executes the (absolute) link and re-materialises.
  */
-export function createClient<D extends ApiDescriptor, A = DefaultAttributes<D>>(
-  descriptor: D,
-  options: ClientOptions,
-): Client<D, A> {
+export function createClient<
+  D extends ApiDescriptor,
+  A = DefaultAttributes<D>,
+  W = DefaultWriteAttributes<D>,
+>(descriptor: D, options: ClientOptions): Client<D, A, W> {
   const request: JsonApiContext = {
     baseUrl: options.baseUrl,
     transport: options.transport ?? fetchTransport,
@@ -163,7 +305,7 @@ export function createClient<D extends ApiDescriptor, A = DefaultAttributes<D>>(
     },
   }
 
-  const accessors = new Map<string, TypeAccessor<ApiDescriptor, unknown, string>>()
+  const accessors = new Map<string, TypeAccessor<ApiDescriptor, unknown, unknown, string>>()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
       if (typeof prop !== 'string' || !(prop in descriptor)) {
@@ -179,5 +321,5 @@ export function createClient<D extends ApiDescriptor, A = DefaultAttributes<D>>(
     has(_target, prop) {
       return typeof prop === 'string' && prop in descriptor
     },
-  }) as Client<D, A>
+  }) as Client<D, A, W>
 }
