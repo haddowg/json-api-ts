@@ -3,9 +3,12 @@ import type { ApiDescriptor } from './descriptor'
 import type {
   Client,
   Collection,
+  CreateInput,
   IdentifierMember,
+  LinkageRef,
   ReadResult,
   ResourceObjectView,
+  UpdateInput,
 } from './result-types'
 
 // A representative descriptor mirroring the generated music-catalog `resourceMap` shape
@@ -228,12 +231,27 @@ describe('ResourceHandle relationship accessors', () => {
     type _ = Linkage[number]['title']
   })
 
-  it('.rel(name) yields the same accessor as the named property', () => {
+  it('.rel(name) yields a relationship accessor exposing the read + write surface', () => {
     type Handle = ReturnType<Client<Map, Attributes>['albums']['id']>
     type ViaRel = ReturnType<Handle['rel']>
-    // The universal fallback returns the union of the type's relationship accessors,
-    // which includes the named accessor's shape.
-    expectTypeOf<Handle['tracks']>().toMatchTypeOf<ViaRel>()
+    expectTypeOf<ViaRel>().toHaveProperty('get')
+    expectTypeOf<ViaRel>().toHaveProperty('related')
+    expectTypeOf<ViaRel>().toHaveProperty('add')
+    expectTypeOf<ViaRel>().toHaveProperty('set')
+  })
+
+  it('exposes cardinality-gated mutation methods on a relationship accessor', () => {
+    type Handle = ReturnType<Client<Map, Attributes, never>['albums']['id']>
+    // to-many `tracks`: add/remove/replace are callable, set is never.
+    expectTypeOf<Handle['tracks']['add']>().toBeFunction()
+    expectTypeOf<Handle['tracks']['remove']>().toBeFunction()
+    expectTypeOf<Handle['tracks']['replace']>().toBeFunction()
+    expectTypeOf<Handle['tracks']['set']>().toBeNever()
+    // to-one `artist`: set is callable, add/remove/replace are never.
+    expectTypeOf<Handle['artist']['set']>().toBeFunction()
+    expectTypeOf<Handle['artist']['add']>().toBeNever()
+    expectTypeOf<Handle['artist']['remove']>().toBeNever()
+    expectTypeOf<Handle['artist']['replace']>().toBeNever()
   })
 })
 
@@ -260,3 +278,179 @@ async function narrowsHandleGetInclude() {
   expectTypeOf(album.tracks).toHaveProperty('$page')
   return album
 }
+
+// ── Write surface typing (Build 3) ───────────────────────────────────────────────────
+
+// A descriptor with varied client-id policies so the create-`id` gating is exercised.
+const writeMap = {
+  albums: {
+    attributes: { title: 'string' },
+    relations: {
+      artist: { cardinality: 'one', types: ['artists'], pivot: false },
+      tracks: { cardinality: 'many', types: ['tracks'], pivot: false },
+    },
+    paths: {},
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+  artists: {
+    attributes: { name: 'string' },
+    relations: {},
+    paths: {},
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+  tracks: {
+    attributes: { title: 'string' },
+    relations: {},
+    paths: {},
+    paginator: 'page',
+    clientId: 'optional',
+  },
+  devices: {
+    attributes: { label: 'string' },
+    relations: {},
+    paths: {},
+    paginator: 'none',
+    clientId: 'required',
+  },
+} as const satisfies ApiDescriptor
+
+type WriteMap = typeof writeMap
+
+// The generated `WriteAttributes` shape: per-type `{ create; update }` pairs (create marks
+// required fields, update makes all optional). `devices` is omitted to model a type the
+// API doesn't allow writing — the open fallback applies.
+interface AlbumsCreateAttributes {
+  title: string
+}
+interface AlbumsUpdateAttributes {
+  title?: string
+}
+interface TracksCreateAttributes {
+  title: string
+}
+interface TracksUpdateAttributes {
+  title?: string
+}
+interface WriteAttributes {
+  albums: { create: AlbumsCreateAttributes; update: AlbumsUpdateAttributes }
+  tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
+}
+
+describe('write input typing', () => {
+  it('CreateInput carries the create attributes + relation slots', () => {
+    type Input = CreateInput<WriteMap, WriteAttributes, 'albums'>
+    expectTypeOf<Input['title']>().toEqualTypeOf<string>()
+    // to-one relation slot accepts a ref or null; to-many accepts an array of refs.
+    expectTypeOf<Input['artist']>().toEqualTypeOf<LinkageRef<'artists'> | null | undefined>()
+    expectTypeOf<Input['tracks']>().toEqualTypeOf<readonly LinkageRef<'tracks'>[] | undefined>()
+  })
+
+  it('UpdateInput makes attributes optional and keeps relation slots', () => {
+    type Input = UpdateInput<WriteMap, WriteAttributes, 'albums'>
+    expectTypeOf<Input['title']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<Input['artist']>().toEqualTypeOf<LinkageRef<'artists'> | null | undefined>()
+  })
+
+  it('gates the create `id` field by the client-id policy', () => {
+    // forbidden -> no usable `id` (typed `never?`).
+    expectTypeOf<
+      CreateInput<WriteMap, WriteAttributes, 'albums'>['id']
+    >().toEqualTypeOf<undefined>()
+    // optional -> `id?: string`.
+    expectTypeOf<CreateInput<WriteMap, WriteAttributes, 'tracks'>['id']>().toEqualTypeOf<
+      string | undefined
+    >()
+    // required -> `id: string` (a missing key is a type error at the call site).
+    type DeviceInput = CreateInput<WriteMap, WriteAttributes, 'devices'>
+    expectTypeOf<DeviceInput['id']>().toEqualTypeOf<string>()
+  })
+
+  it('falls back to an open create/update pair for a type absent from the write map', () => {
+    // `devices` has no WriteAttributes entry -> open attributes, but the descriptor still
+    // gates the id (required here).
+    type Input = CreateInput<WriteMap, WriteAttributes, 'devices'>
+    expectTypeOf<Input['id']>().toEqualTypeOf<string>()
+    expectTypeOf<Input['label']>().toEqualTypeOf<unknown>()
+  })
+})
+
+// Call-site write probes (declared, never run): the inferred types are the assertions.
+declare const wclient: Client<WriteMap, Attributes, WriteAttributes>
+
+async function createReturnsResource() {
+  const album = await wclient.albums.create({
+    title: 'Kid A',
+    artist: { type: 'artists', id: '1' },
+  })
+  expectTypeOf(album.type).toEqualTypeOf<'albums'>()
+  return album
+}
+
+async function createNarrowsOnInclude() {
+  const album = await wclient.albums.create({ title: 'Kid A' }, { include: ['tracks'] })
+  // The included to-many is a Collection of hydrated tracks.
+  expectTypeOf(album.tracks).toHaveProperty('$page')
+  return album
+}
+
+async function createForbidsClientIdWhenPolicyForbids() {
+  // @ts-expect-error — albums.clientId is 'forbidden', so `id` is not an accepted key.
+  await wclient.albums.create({ title: 'Kid A', id: 'nope' })
+}
+
+async function createRequiresClientIdWhenPolicyRequires() {
+  // @ts-expect-error — devices.clientId is 'required', so `id` is mandatory.
+  await wclient.devices.create({ label: 'phone' })
+  await wclient.devices.create({ label: 'phone', id: 'd1' })
+}
+
+async function updateAcceptsPartialPatch() {
+  const album = await wclient.albums.id('1').update({ title: 'Amnesiac' })
+  expectTypeOf(album.type).toEqualTypeOf<'albums'>()
+  return album
+}
+
+async function deleteReturnsVoid() {
+  const out = await wclient.albums.id('1').delete()
+  expectTypeOf(out).toEqualTypeOf<void>()
+}
+
+async function relationshipMutationsAreCardinalityGated() {
+  const handle = wclient.albums.id('1')
+  // to-many: add/remove/replace accept arrays of refs (members may carry $pivot).
+  await handle.tracks.add([{ type: 'tracks', id: '2' }])
+  await handle.tracks.remove([{ type: 'tracks', id: '2' }])
+  await handle.tracks.replace([{ type: 'tracks', id: '2', $pivot: { position: 1 } }])
+  // to-one: set accepts a ref or null.
+  await handle.artist.set({ type: 'artists', id: '9' })
+  await handle.artist.set(null)
+  // @ts-expect-error — `set` is not available on a to-many relation.
+  handle.tracks.set({ type: 'tracks', id: '2' })
+  // @ts-expect-error — `add` is not available on a to-one relation.
+  handle.artist.add([{ type: 'artists', id: '9' }])
+}
+
+describe('write call-site narrowing', () => {
+  // Reference the probe functions so tsc type-checks their bodies (the `@ts-expect-error`
+  // directives are the assertions); the runtime expectations confirm the inferred returns.
+  it('create returns the materialised resource (narrowed on include)', () => {
+    expectTypeOf(createReturnsResource).returns.resolves.toHaveProperty('$self')
+    expectTypeOf(createNarrowsOnInclude).returns.resolves.toHaveProperty('tracks')
+  })
+
+  it('the client-id policy gates the create `id` at the call site', () => {
+    expectTypeOf(createForbidsClientIdWhenPolicyForbids).returns.resolves.toBeVoid()
+    expectTypeOf(createRequiresClientIdWhenPolicyRequires).returns.resolves.toBeVoid()
+  })
+
+  it('update returns the resource and delete returns void', () => {
+    expectTypeOf(updateAcceptsPartialPatch).returns.resolves.toHaveProperty('$self')
+    expectTypeOf(deleteReturnsVoid).returns.resolves.toBeVoid()
+  })
+
+  it('relationship mutations are cardinality-gated', () => {
+    expectTypeOf(relationshipMutationsAreCardinalityGated).returns.resolves.toBeVoid()
+  })
+})

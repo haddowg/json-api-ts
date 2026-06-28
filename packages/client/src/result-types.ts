@@ -9,7 +9,7 @@
  * flattened as own enumerable props (`type`, `id`, attributes, relations) and the
  * envelope rides non-enumerable `$`-accessors.
  */
-import type { ApiDescriptor } from './descriptor'
+import type { ApiDescriptor, Cardinality } from './descriptor'
 import type {
   ArrayEnvelope,
   DocumentEnvelope,
@@ -224,8 +224,11 @@ type LinkageValue<D extends ApiDescriptor, T extends TypeName<D>, R extends Rela
 
 /**
  * A relationship accessor off a {@link ResourceHandle} (`client.albums.id('1').tracks`):
- * `.get()` reads the relationship endpoint (linkage); `.related()` reads the related
- * collection (hydrated). Both accept the loose JSON:API query families.
+ * reads — `.get()` (linkage) / `.related()` (related collection); writes — to-many
+ * `.add`/`.remove`/`.replace([refs])` (POST/DELETE/PATCH) and to-one `.set(ref|null)`
+ * (PATCH). Write methods exist on every relation at the type level but the runtime routes
+ * by cardinality (a `.set` on a to-many / `.add` on a to-one is a type error caught here).
+ * A write returns the materialised linkage, or `void` when the server replies `204`.
  */
 export interface RelationshipAccessor<
   D extends ApiDescriptor,
@@ -235,29 +238,147 @@ export interface RelationshipAccessor<
 > {
   get(query?: RelationReadQuery): Promise<LinkageValue<D, T, R>>
   related(query?: RelationReadQuery): Promise<RelatedValue<D, A, T, R>>
+  add: RelationMutation<D, T, R, 'many', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  remove: RelationMutation<D, T, R, 'many', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  replace: RelationMutation<D, T, R, 'many', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  set: RelationMutation<D, T, R, 'one', LinkageRefOf<RelatedType<D, T, R>> | null>
 }
+
+/**
+ * A relationship-mutation method, gated by cardinality: present (typed `(refs) => Promise<…>`)
+ * only when the relation's cardinality matches `Kind` (`add`/`remove`/`replace` -> to-many,
+ * `set` -> to-one); otherwise `never`, so calling the wrong verb for the cardinality is a
+ * compile error. The result is the materialised linkage value or `void` (a `204` response).
+ *
+ * NOTE: gating is by cardinality only — a relation that forbids a specific verb (the bundle's
+ * `cannotReplace` / per-relation endpoint exposure) is NOT yet caught here; an unsupported
+ * verb surfaces as a server error. See docs/PLAN.md "Tracked follow-ups" (deferred from 3a).
+ */
+type RelationMutation<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Kind extends Cardinality,
+  Refs,
+> = D[T]['relations'][R]['cardinality'] extends Kind
+  ? (refs: Refs) => Promise<LinkageValue<D, T, R> | void>
+  : never
 
 /** The relationship accessors of type `T`, keyed by relation name. */
 type RelationshipAccessors<D extends ApiDescriptor, A, T extends TypeName<D>> = {
   [R in RelationName<D, T>]: RelationshipAccessor<D, A, T, R>
 }
 
+// ── Write input types (CONTEXT.md "Write surface — flat input + fluent builder") ──────
+
 /**
- * A resource handle (no fetch) for a known id. Carries the read surface (`get`), a
- * relationship accessor per declared relation (by name), and a universal `.rel(name)`
- * fallback (for relations whose name collides with a reserved member like `get`/`rel`).
+ * Writable pivot data carried on a to-many member as `$pivot` (a belongsToMany relation
+ * with `pivot: true`). Loose by design — the OpenAPI write attributes don't model per-edge
+ * pivot fields, so the runtime passes the object through as `meta.pivot`.
  */
-export type ResourceHandle<D extends ApiDescriptor, A, T extends TypeName<D>> = {
+export type PivotInput = Record<string, unknown>
+
+/**
+ * A single linkage reference accepted by a relationship-write input: a bare resource
+ * identifier `{ type, id }`, OR a materialised resource object (its `type`/`id` are
+ * extracted by the runtime). A to-many member may additionally carry `$pivot`.
+ */
+export type LinkageRef<TType extends string> =
+  | (ResourceIdentifier<TType> & { $pivot?: PivotInput })
+  | (ResourceObjectView<ApiDescriptor, unknown, TType> & { $pivot?: PivotInput })
+
+/** A linkage ref distributed over a (possibly polymorphic) union of related types. */
+type LinkageRefOf<TType extends string> = TType extends string ? LinkageRef<TType> : never
+
+/**
+ * The relationship VALUE accepted in a create/update input slot, by cardinality:
+ * to-one accepts a single ref or `null` (clear); to-many accepts an array of refs.
+ */
+type RelationInput<D extends ApiDescriptor, T extends TypeName<D>, R extends RelationName<D, T>> =
+  IsMany<D, T, R> extends true
+    ? readonly LinkageRefOf<RelatedType<D, T, R>>[]
+    : LinkageRefOf<RelatedType<D, T, R>> | null
+
+/** The relationship slots of type `T` as optional write input keys (one per declared relation). */
+type RelationInputs<D extends ApiDescriptor, T extends TypeName<D>> = {
+  [R in RelationName<D, T>]?: RelationInput<D, T, R>
+}
+
+/** The `{ create; update }` write-attribute pair for type `T` (or an open pair when `T` is absent from `W`). */
+type WritePair<W, T> = T extends keyof W
+  ? W[T]
+  : { create: Record<string, unknown>; update: Record<string, unknown> }
+
+/** The create attribute object for type `T` from the write map `W`. */
+type CreateAttributesOf<W, T> = WritePair<W, T> extends { create: infer C } ? C : object
+
+/** The update attribute object for type `T` from the write map `W`. */
+type UpdateAttributesOf<W, T> = WritePair<W, T> extends { update: infer U } ? U : object
+
+/**
+ * The `id` field of a create input, typed by the type's `clientId` policy:
+ * `forbidden` -> no `id` key; `optional` -> `id?: string`; `required` -> `id: string`.
+ */
+type CreateId<D extends ApiDescriptor, T extends TypeName<D>> = D[T]['clientId'] extends 'required'
+  ? { id: string }
+  : D[T]['clientId'] extends 'optional'
+    ? { id?: string }
+    : { id?: never }
+
+/**
+ * The flat input to `client.<type>.create(input)`: the type's create attributes + relation
+ * slots, plus an `id` keyed by the client-id policy. The runtime builds the JSON:API
+ * envelope (routing keys to attributes/relationships via the descriptor).
+ */
+export type CreateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = CreateAttributesOf<
+  W,
+  T
+> &
+  RelationInputs<D, T> &
+  CreateId<D, T>
+
+/**
+ * The flat input to `client.<type>.id(id).update(patch)`: the type's update attributes (all
+ * optional) + relation slots. The id rides the handle, never the input.
+ */
+export type UpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = UpdateAttributesOf<
+  W,
+  T
+> &
+  RelationInputs<D, T>
+
+/** Options for a create/update write — an optional `include`/`fields` narrowing the materialised response. */
+export interface WriteOptions<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Inc extends readonly IncludePath<D, T>[] = [],
+> {
+  include?: Inc
+  fields?: Record<string, readonly string[]>
+}
+
+/**
+ * A resource handle (no fetch) for a known id. Carries the read surface (`get`), the writes
+ * scoped to a known id (`update`/`delete`), a relationship accessor per declared relation (by
+ * name), and a universal `.rel(name)` fallback (for relations whose name collides with a
+ * reserved member like `get`/`update`/`rel`). `W` is the generated write-attribute map.
+ */
+export type ResourceHandle<D extends ApiDescriptor, A, W, T extends TypeName<D>> = {
   readonly type: T
   readonly id: string
   get<const Inc extends readonly IncludePath<D, T>[] = []>(
     query?: TypedReadQuery<D, T, Inc>,
   ): Promise<ReadResult<D, A, T, Inc>>
+  update<const Inc extends readonly IncludePath<D, T>[] = []>(
+    patch: UpdateInput<D, W, T>,
+    opts?: WriteOptions<D, T, Inc>,
+  ): Promise<ReadResult<D, A, T, Inc>>
+  delete(): Promise<void>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
 } & RelationshipAccessors<D, A, T>
 
 /** The collection-scoped accessor for one wire type (`client.albums`). */
-export interface TypeAccessor<D extends ApiDescriptor, A, T extends TypeName<D>> {
+export interface TypeAccessor<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
   list<const Inc extends readonly IncludePath<D, T>[] = []>(
     query?: TypedReadQuery<D, T, Inc>,
   ): Promise<Collection<ReadResult<D, A, T, Inc>>>
@@ -265,12 +386,24 @@ export interface TypeAccessor<D extends ApiDescriptor, A, T extends TypeName<D>>
     id: string,
     query?: TypedReadQuery<D, T, Inc>,
   ): Promise<ReadResult<D, A, T, Inc>>
-  id(id: string): ResourceHandle<D, A, T>
+  create<const Inc extends readonly IncludePath<D, T>[] = []>(
+    input: CreateInput<D, W, T>,
+    opts?: WriteOptions<D, T, Inc>,
+  ): Promise<ReadResult<D, A, T, Inc>>
+  id(id: string): ResourceHandle<D, A, W, T>
 }
 
-/** The descriptor-driven client surface: one {@link TypeAccessor} per wire type. */
-export type Client<D extends ApiDescriptor, A = DefaultAttributes<D>> = {
-  [T in TypeName<D>]: TypeAccessor<D, A, T>
+/**
+ * The descriptor-driven client surface: one {@link TypeAccessor} per wire type. `W` is the
+ * generated `WriteAttributes` map (per-type `{ create; update }` attribute pairs); it threads
+ * through to the write surface and defaults so read-only callers compile.
+ */
+export type Client<
+  D extends ApiDescriptor,
+  A = DefaultAttributes<D>,
+  W = DefaultWriteAttributes<D>,
+> = {
+  [T in TypeName<D>]: TypeAccessor<D, A, W, T>
 }
 
 /**
@@ -280,4 +413,13 @@ export type Client<D extends ApiDescriptor, A = DefaultAttributes<D>> = {
  */
 export type DefaultAttributes<D extends ApiDescriptor> = {
   [T in TypeName<D>]: Record<string, unknown>
+}
+
+/**
+ * The fallback write-attribute map when a caller doesn't supply the generated
+ * `WriteAttributes`: every type accepts an open `{ create; update }` pair so writes still
+ * type-check without precise per-type field constraints.
+ */
+export type DefaultWriteAttributes<D extends ApiDescriptor> = {
+  [T in TypeName<D>]: { create: Record<string, unknown>; update: Record<string, unknown> }
 }
