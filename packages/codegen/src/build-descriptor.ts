@@ -3,6 +3,7 @@ import type {
   ApiDescriptor,
   AtomicDescriptor,
   ClientIdPolicy,
+  CountableDescriptor,
   PaginatorKind,
   RelationDescriptor,
   RelationMutations,
@@ -73,6 +74,10 @@ export class DescriptorBuilder {
         paths: this.operationPaths(base),
         paginator: this.paginator(base),
         clientId: this.clientId(base),
+      }
+      const countable = this.countable(collection)
+      if (countable !== undefined) {
+        descriptor.countable = countable
       }
       if (Object.keys(actions).length > 0) {
         descriptor.actions = actions
@@ -439,6 +444,26 @@ export class DescriptorBuilder {
     return 'none'
   }
 
+  /**
+   * The `withCount` capability (Countable profile) for a type's COLLECTION read (`list`): the
+   * count tokens (`schema.items.enum`) + the negotiation profile (`x-profile`) carried by the
+   * collection GET's `withCount` query parameter. Returns `undefined` when the collection
+   * doesn't exist or advertises no `withCount`. The profile URI is never hardcoded — it is read
+   * from the parameter's `x-profile`.
+   *
+   * Deliberately scoped to the collection GET only. The per-endpoint token sets differ
+   * (a collection counts e.g. `tracks`; a related/relationship endpoint counts `_self_` and its
+   * own relations), so a single per-type `countable` can only honestly describe one endpoint.
+   * The fluent surface exposes `withCount` on `list` (the collection), so `countable` mirrors
+   * that endpoint — a related-GET fallback would advertise tokens `list` cannot legally send.
+   */
+  private countable(collection: string | undefined): CountableDescriptor | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    return withCountParam(this.operation(collection, 'get'))
+  }
+
   private queryParamNames(op: OperationObject | undefined): Set<string> {
     const names = new Set<string>()
     for (const param of op?.parameters ?? []) {
@@ -480,6 +505,31 @@ function formatHint(schema: SchemaObject): string {
 
 function refEndsWith(ref: string | undefined, suffix: string): boolean {
   return ref !== undefined && refName(ref) === suffix
+}
+
+/**
+ * Read the {@link CountableDescriptor} off an operation's `withCount` query parameter: the
+ * count tokens from its `schema.items.enum` and the negotiation profile from `x-profile`.
+ * Returns `undefined` when the operation has no `withCount` parameter, or when one is present
+ * but carries no `x-profile` (a `withCount` we can't tell a client how to negotiate). An empty
+ * or absent token enum yields `[]` tokens (the profile alone is still actionable).
+ */
+function withCountParam(op: OperationObject | undefined): CountableDescriptor | undefined {
+  for (const param of op?.parameters ?? []) {
+    if (param.name !== 'withCount') {
+      continue
+    }
+    const profile = param['x-profile']
+    if (typeof profile !== 'string') {
+      return undefined
+    }
+    const enumValues = param.schema?.items?.enum
+    const tokens = Array.isArray(enumValues)
+      ? enumValues.filter((v): v is string => typeof v === 'string')
+      : []
+    return { tokens, profile }
+  }
+  return undefined
 }
 
 /**

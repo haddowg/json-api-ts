@@ -160,6 +160,112 @@ describe('buildDescriptor — custom actions', () => {
   })
 })
 
+describe('buildDescriptor — withCount (Countable) capability', () => {
+  const COUNTABLE_PROFILE = 'https://haddowg.github.io/json-api/profiles/countable/'
+
+  it('captures the count tokens and profile from a collection withCount param (albums)', () => {
+    expect(descriptor['albums']!.countable).toEqual({
+      tokens: ['tracks'],
+      profile: COUNTABLE_PROFILE,
+    })
+    expect(descriptor['albums']!.countable!.tokens).toContain('tracks')
+    expect(descriptor['albums']!.countable!.profile).toBe(COUNTABLE_PROFILE)
+  })
+
+  it('omits `countable` when the collection GET lacks withCount, even if a related GET has one (artists)', () => {
+    // `/artists` (the collection) has no withCount; `/artists/{id}/albums` (a related GET) does,
+    // but its tokens count the related collection, NOT the `artists` collection — so `list` could
+    // not legally send them. `countable` mirrors the collection GET only, so it is omitted here.
+    expect(descriptor['artists']!.countable).toBeUndefined()
+  })
+
+  it('omits `countable` for a type whose read endpoints advertise no withCount (genres)', () => {
+    expect(descriptor['genres']!.countable).toBeUndefined()
+  })
+
+  it('omits `countable` for a read-only type with no withCount (charts)', () => {
+    expect(descriptor['charts']!.countable).toBeUndefined()
+  })
+
+  it('reads the profile from x-profile rather than hardcoding the URI', () => {
+    const synthetic: OpenApiDocument = {
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'widgets' }, id: { type: 'string' } },
+          },
+          WidgetsCollection: { type: 'object' },
+        },
+      },
+      paths: {
+        '/widgets': {
+          get: {
+            parameters: [
+              {
+                name: 'withCount',
+                in: 'query',
+                schema: { type: 'array', items: { type: 'string', enum: ['gadgets'] } },
+                'x-profile': 'https://example.test/profiles/custom-count/',
+              },
+            ],
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    expect(buildDescriptor(synthetic)['widgets']!.countable).toEqual({
+      tokens: ['gadgets'],
+      profile: 'https://example.test/profiles/custom-count/',
+    })
+  })
+
+  it('omits `countable` when a withCount param carries no x-profile (un-negotiable)', () => {
+    const synthetic: OpenApiDocument = {
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'widgets' }, id: { type: 'string' } },
+          },
+          WidgetsCollection: { type: 'object' },
+        },
+      },
+      paths: {
+        '/widgets': {
+          get: {
+            parameters: [
+              {
+                name: 'withCount',
+                in: 'query',
+                schema: { type: 'array', items: { type: 'string', enum: ['gadgets'] } },
+              },
+            ],
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    expect(buildDescriptor(synthetic)['widgets']!.countable).toBeUndefined()
+  })
+})
+
 describe('buildAtomic — server-level atomic capability', () => {
   it('detects the /operations endpoint by its atomic ext media type', () => {
     expect(buildAtomic(loadFixture('music-catalog.openapi.json'))).toEqual({ path: '/operations' })

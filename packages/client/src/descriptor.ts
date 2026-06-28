@@ -71,6 +71,19 @@ export interface ActionDescriptor {
   contentType?: string
 }
 
+/**
+ * The `withCount` capability of a type's read endpoints (the Countable profile, core ADR
+ * 0101). `tokens` are the count tokens a `withCount` query may carry (`_self_` counts the
+ * collection itself; a relation name counts that relation per item); `profile` is the URI a
+ * client must negotiate (in `Accept`) before the server honours `withCount` — else it is
+ * rejected (400) under strict query-param validation. Absent when no read endpoint of the
+ * type advertises `withCount`.
+ */
+export interface CountableDescriptor {
+  tokens: readonly string[]
+  profile: string
+}
+
 export interface ResourceDescriptor {
   /** Attribute name -> wire format hint (drives optional value coercion). */
   attributes: Readonly<Record<string, string>>
@@ -79,6 +92,11 @@ export interface ResourceDescriptor {
   paths: Readonly<Record<string, string>>
   paginator: PaginatorKind
   clientId: ClientIdPolicy
+  /**
+   * The `withCount` count tokens + negotiation profile for this type's read endpoints.
+   * Absent when no read endpoint advertises `withCount`.
+   */
+  countable?: CountableDescriptor
   /** Custom actions declared on this type, keyed by action name. Absent/empty when none. */
   actions?: Readonly<Record<string, ActionDescriptor>>
 }

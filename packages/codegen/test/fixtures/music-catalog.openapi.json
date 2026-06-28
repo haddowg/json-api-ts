@@ -187,7 +187,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -1229,7 +1230,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -1407,7 +1409,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -2897,7 +2900,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -7402,7 +7406,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -8754,7 +8759,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -8923,7 +8929,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -9548,7 +9555,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -11426,7 +11434,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -12554,7 +12563,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {
@@ -12683,7 +12693,8 @@
                             }
                         },
                         "style": "form",
-                        "explode": false
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
                     }
                 ],
                 "responses": {

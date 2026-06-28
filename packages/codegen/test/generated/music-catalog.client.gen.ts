@@ -291,6 +291,12 @@ export const resourceMap = {
     },
     paginator: "page",
     clientId: "forbidden",
+    countable: {
+      tokens: [
+        "tracks"
+      ],
+      profile: "https://haddowg.github.io/json-api/profiles/countable/"
+    },
     actions: {
       artwork: {
         scope: "resource",
@@ -541,7 +547,13 @@ export const resourceMap = {
       update: "/playlists/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    countable: {
+      tokens: [
+        "tracks"
+      ],
+      profile: "https://haddowg.github.io/json-api/profiles/countable/"
+    }
   },
   products: {
     attributes: {
@@ -626,7 +638,13 @@ export const resourceMap = {
       update: "/tracks/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    countable: {
+      tokens: [
+        "playlists"
+      ],
+      profile: "https://haddowg.github.io/json-api/profiles/countable/"
+    }
   },
   users: {
     attributes: {},

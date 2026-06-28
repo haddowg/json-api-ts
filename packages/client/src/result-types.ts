@@ -75,6 +75,37 @@ export type RelationName<D extends ApiDescriptor, T extends TypeName<D>> = Extra
 type AttributesOf<A, T> = T extends keyof A ? A[T] : Record<string, never>
 
 /**
+ * A sparse-fieldset selection map: wire type -> the member names (`fields[type]`) a read
+ * requested for that type. Threaded through {@link ResourceObjectView} so an unrequested
+ * attribute/relation is statically ABSENT, matching the runtime (the server only emits the
+ * requested members). The default `unknown` means "no fieldset narrowing" — every member is
+ * present, as it was before.
+ */
+export type FieldSelectionMap = Readonly<Record<string, readonly string[]>>
+
+/**
+ * The selected member names for type `T` from a fieldset map `F`, or the {@link AllFields}
+ * sentinel when `F` declares no entry for `T` (so that type's members are all present). The
+ * `unknown` map (no `fields` query at all) also resolves to {@link AllFields}. A member of `F`
+ * keyed `T` whose value is `readonly string[]` selects exactly those names.
+ */
+type AllFields = { readonly __allFields: unique symbol }
+
+/** Resolve the selected member-name union for type `T` from fieldset map `F` (or {@link AllFields}). */
+type SelectedFields<F, T extends string> = F extends FieldSelectionMap
+  ? T extends keyof F
+    ? F[T][number]
+    : AllFields
+  : AllFields
+
+/**
+ * Pick only the members of `Obj` selected by `Sel` (a member-name union, or {@link AllFields}
+ * to keep them all). When narrowing, a key absent from `Sel` is dropped, so the resulting
+ * object's keys are exactly the requested members — the static mirror of a sparse fieldset.
+ */
+type PickSelected<Obj, Sel> = [Sel] extends [AllFields] ? Obj : Pick<Obj, Extract<keyof Obj, Sel>>
+
+/**
  * The related wire type(s) of relation `R` on type `T`. A union when polymorphic; the
  * member is narrowed to types that actually exist in the descriptor so the hydrated
  * shape composes.
@@ -102,17 +133,19 @@ export type IdentifierMember<TType extends string> = ResourceIdentifier<TType> &
 /**
  * A hydrated related resource: a per-edge VIEW — the full `ResourceObjectView` of the
  * related node plus this membership's `$edge`/`$pivot`. Relations one hop deep stay as
- * identifiers (no nested-include narrowing in the read API today).
+ * identifiers (no nested-include narrowing in the read API today). The fieldset map `F`
+ * threads through so a sparse fieldset on the included type narrows its attributes/relations.
  */
 export type HydratedMember<
   D extends ApiDescriptor,
   A,
   TType extends TypeName<D>,
-> = ResourceObjectView<D, A, TType, never> & EdgeMembers
+  F = unknown,
+> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers
 
 /** A hydrated related value distributes over a polymorphic union of related types. */
-type Hydrated<D extends ApiDescriptor, A, TType extends TypeName<D>> =
-  TType extends TypeName<D> ? HydratedMember<D, A, TType> : never
+type Hydrated<D extends ApiDescriptor, A, TType extends TypeName<D>, F = unknown> =
+  TType extends TypeName<D> ? HydratedMember<D, A, TType, F> : never
 
 /** An identifier related value distributes over a polymorphic union of related types. */
 type Identifier<TType extends string> = TType extends string ? IdentifierMember<TType> : never
@@ -136,29 +169,46 @@ type RelationValue<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   Inc,
+  F = unknown,
 > = R extends Inc
   ? IsMany<D, T, R> extends true
-    ? Collection<Hydrated<D, A, RelatedType<D, T, R>>>
-    : Hydrated<D, A, RelatedType<D, T, R>> | null
+    ? Collection<Hydrated<D, A, RelatedType<D, T, R>, F>>
+    : Hydrated<D, A, RelatedType<D, T, R>, F> | null
   : IsMany<D, T, R> extends true
     ? Collection<Identifier<RelatedType<D, T, R>>>
     : Identifier<RelatedType<D, T, R>> | null | undefined
 
-/** The relation slots of type `T`, each typed by cardinality and include-presence. */
-type Relations<D extends ApiDescriptor, A, T extends TypeName<D>, Inc> = {
-  [R in RelationName<D, T>]: RelationValue<D, A, T, R, Inc>
-}
+/**
+ * The relation slots of type `T`, each typed by cardinality and include-presence, then
+ * narrowed to the fieldset selection for `T` (relations are sparse-fieldset members too — an
+ * unrequested relation is statically absent).
+ */
+type Relations<D extends ApiDescriptor, A, T extends TypeName<D>, Inc, F = unknown> = PickSelected<
+  {
+    [R in RelationName<D, T>]: RelationValue<D, A, T, R, Inc, F>
+  },
+  SelectedFields<F, T>
+>
 
 /**
  * A materialised resource object: flattened `type` + `id` + attributes + relation slots
  * as own enumerable props, intersected with the resource-level `$`-accessors. `Inc` is
- * the union of relation names included by the read (narrows relations to hydrated).
+ * the union of relation names included by the read (narrows relations to hydrated); `F` is
+ * the sparse-fieldset selection map (narrows attributes/relations to the requested members —
+ * `type`/`id`/the `$`-accessors are always present). The default `F = unknown` keeps every
+ * member (no fieldset narrowing).
  */
-export type ResourceObjectView<D extends ApiDescriptor, A, T extends TypeName<D>, Inc = never> = {
+export type ResourceObjectView<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  Inc = never,
+  F = unknown,
+> = {
   type: T
   id: string
-} & AttributesOf<A, T> &
-  Relations<D, A, T, Inc> &
+} & PickSelected<AttributesOf<A, T>, SelectedFields<F, T>> &
+  Relations<D, A, T, Inc, F> &
   ResourceAccessors
 
 /**
@@ -178,30 +228,86 @@ export type IncludedRelations<
   Inc extends readonly IncludePath<D, T>[],
 > = Extract<Inc[number] extends `${infer Head}.${string}` ? Head : Inc[number], RelationName<D, T>>
 
-/** A read query carrying a typed, narrowing `include` plus the loose JSON:API query families. */
+/**
+ * The `withCount` count tokens type `T` accepts (its `countable.tokens` literal union), or
+ * `never` when the type advertises no Countable profile (`withCount` is then unusable). `_self_`
+ * counts the collection; a relation name counts that relation per item.
+ */
+export type CountToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  countable: { tokens: infer Tokens }
+}
+  ? Tokens extends readonly (infer Token)[]
+    ? Token & string
+    : never
+  : never
+
+/**
+ * The element type of the `fields` map for a typed read: a member-name array per wire type,
+ * each name constrained to that type's declared attributes/relations. Capturing the literal
+ * names (a `const` tuple) drives the sparse-fieldset return-type narrowing.
+ */
+export type FieldsMap<D extends ApiDescriptor> = {
+  [T in TypeName<D>]?: readonly MemberName<D, T>[]
+}
+
+/**
+ * A selectable sparse-fieldset member of type `T`: an attribute name (the descriptor's
+ * `attributes` keys) or a relation name. The descriptor carries the literal member names, so
+ * `fields` entries are constrained to real members.
+ */
+export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
+  | Extract<keyof D[T]['attributes'], string>
+  | RelationName<D, T>
+
+/**
+ * A read query carrying a typed, narrowing `include`, a typed `fields` (drives sparse-fieldset
+ * return narrowing), a `withCount` constrained to the type's count tokens, plus the loose
+ * JSON:API query families. `Inc`/`F` are inferred (as `const`) at the call site. Used for the
+ * COLLECTION read (`list`); the single-resource read (`get`) uses {@link SingleReadQuery}, which
+ * drops `withCount` (no `GET /{type}/{id}` endpoint advertises it).
+ */
 export interface TypedReadQuery<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[],
+  F extends FieldsMap<D> = FieldsMap<D>,
 > {
   /** The relations to include — drives static narrowing; constrained to declared paths. */
   include?: Inc
   filter?: Record<string, unknown>
   sort?: string | readonly string[]
-  fields?: Record<string, readonly string[]>
+  /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
+  fields?: F
+  /** Relationship-count tokens (the Countable profile) — comma-joined onto `withCount`. */
+  withCount?: readonly CountToken<D, T>[]
   page?: Record<string, unknown>
 }
 
 /**
- * The static return type of a read on type `T` given its `include` tuple — the resource
- * object with the named relations narrowed to hydrated.
+ * A single-resource read query (`GET /{type}/{id}`): the same families as {@link TypedReadQuery}
+ * but WITHOUT `withCount`. `withCount` is a collection/related-endpoint capability — no
+ * single-resource endpoint advertises it — so accepting it on `get` would be a lying type
+ * (the server rejects an unrecognised parameter with `400` under strict query-param validation).
+ */
+export type SingleReadQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Inc extends readonly IncludePath<D, T>[],
+  F extends FieldsMap<D> = FieldsMap<D>,
+> = Omit<TypedReadQuery<D, T, Inc, F>, 'withCount'>
+
+/**
+ * The static return type of a read on type `T` given its `include` tuple and `fields` selection
+ * `F` — the resource object with the named relations narrowed to hydrated and its members
+ * narrowed to the requested sparse fieldset.
  */
 export type ReadResult<
   D extends ApiDescriptor,
   A,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[] = [],
-> = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>>
+  F = unknown,
+> = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F>
 
 /** A loose read query (filter/sort/include/fields/page) for the relationship/related endpoints. */
 export interface RelationReadQuery {
@@ -394,9 +500,11 @@ export interface WriteOptions<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[] = [],
+  F extends FieldsMap<D> = FieldsMap<D>,
 > {
   include?: Inc
-  fields?: Record<string, readonly string[]>
+  /** Sparse fieldsets per type — narrows the materialised write response. */
+  fields?: F
 }
 
 // ── Atomic results (CONTEXT.md "Atomic — typed transaction builder") ──────────────────
@@ -535,13 +643,13 @@ export type ResourceHandle<
 > = {
   readonly type: T
   readonly id: string
-  get<const Inc extends readonly IncludePath<D, T>[] = []>(
-    query?: TypedReadQuery<D, T, Inc>,
-  ): Promise<ReadResult<D, A, T, Inc>>
-  update<const Inc extends readonly IncludePath<D, T>[] = []>(
+  get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+    query?: SingleReadQuery<D, T, Inc, F>,
+  ): Promise<ReadResult<D, A, T, Inc, F>>
+  update<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     patch: UpdateInput<D, W, T>,
-    opts?: WriteOptions<D, T, Inc>,
-  ): Promise<ReadResult<D, A, T, Inc>>
+    opts?: WriteOptions<D, T, Inc, F>,
+  ): Promise<ReadResult<D, A, T, Inc, F>>
   delete(): Promise<void>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
   /** The type's resource-scoped custom actions, keyed by name (sub `{id}` from this handle). */
@@ -556,17 +664,17 @@ export interface TypeAccessor<
   T extends TypeName<D>,
   Act = DefaultActionTypes,
 > {
-  list<const Inc extends readonly IncludePath<D, T>[] = []>(
-    query?: TypedReadQuery<D, T, Inc>,
-  ): Promise<Collection<ReadResult<D, A, T, Inc>>>
-  get<const Inc extends readonly IncludePath<D, T>[] = []>(
+  list<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+    query?: TypedReadQuery<D, T, Inc, F>,
+  ): Promise<Collection<ReadResult<D, A, T, Inc, F>>>
+  get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     id: string,
-    query?: TypedReadQuery<D, T, Inc>,
-  ): Promise<ReadResult<D, A, T, Inc>>
-  create<const Inc extends readonly IncludePath<D, T>[] = []>(
+    query?: SingleReadQuery<D, T, Inc, F>,
+  ): Promise<ReadResult<D, A, T, Inc, F>>
+  create<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     input: CreateInput<D, W, T>,
-    opts?: WriteOptions<D, T, Inc>,
-  ): Promise<ReadResult<D, A, T, Inc>>
+    opts?: WriteOptions<D, T, Inc, F>,
+  ): Promise<ReadResult<D, A, T, Inc, F>>
   id(id: string): ResourceHandle<D, A, W, T, Act>
   /** The type's collection-scoped custom actions, keyed by name. */
   readonly actions: ActionsAccessor<D, T, 'collection', Act>
