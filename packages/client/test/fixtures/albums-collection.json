@@ -1,0 +1,116 @@
+{
+  "data": [
+    {
+      "type": "albums",
+      "id": "1",
+      "links": { "self": "https:\/\/music.example\/albums\/1" },
+      "attributes": {
+        "title": "OK Computer",
+        "averageRating": 9.8,
+        "artwork": null,
+        "releasedAt": "1997-05-21T00:00:00+00:00",
+        "explicit": false,
+        "status": "released",
+        "availableFrom": "1997-05-21",
+        "availableUntil": "2030-12-31",
+        "releaseInfo": { "label": "Parlophone", "catalogueNumber": "NODATA 01" }
+      },
+      "relationships": {
+        "artist": {
+          "links": {
+            "self": "https:\/\/music.example\/albums\/1\/relationships\/artist",
+            "related": "https:\/\/music.example\/albums\/1\/artist"
+          },
+          "data": { "type": "artists", "id": "1" }
+        },
+        "tracks": {
+          "links": {
+            "self": "https:\/\/music.example\/albums\/1\/relationships\/tracks",
+            "related": "https:\/\/music.example\/albums\/1\/tracks"
+          }
+        }
+      }
+    },
+    {
+      "type": "albums",
+      "id": "2",
+      "links": { "self": "https:\/\/music.example\/albums\/2" },
+      "attributes": {
+        "title": "Dummy",
+        "averageRating": 9.1,
+        "artwork": null,
+        "releasedAt": "1994-08-22T00:00:00+00:00",
+        "explicit": false,
+        "status": "released",
+        "availableFrom": "1994-08-22",
+        "availableUntil": "2031-01-01",
+        "releaseInfo": { "label": "Go! Beat", "catalogueNumber": "NODATA 02" }
+      },
+      "relationships": {
+        "artist": {
+          "links": {
+            "self": "https:\/\/music.example\/albums\/2\/relationships\/artist",
+            "related": "https:\/\/music.example\/albums\/2\/artist"
+          },
+          "data": { "type": "artists", "id": "2" }
+        },
+        "tracks": {
+          "links": {
+            "self": "https:\/\/music.example\/albums\/2\/relationships\/tracks",
+            "related": "https:\/\/music.example\/albums\/2\/tracks"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "type": "artists",
+      "id": "1",
+      "links": { "self": "https:\/\/music.example\/artists\/1" },
+      "attributes": {
+        "name": "Radiohead",
+        "slug": "radiohead",
+        "website": "https:\/\/radiohead.com",
+        "bio": "An English rock band formed in Abingdon.",
+        "trackCount": 3,
+        "createdAt": "2001-05-01T09:00:00+00:00"
+      },
+      "relationships": {
+        "albums": {
+          "links": {
+            "self": "https:\/\/music.example\/artists\/1\/relationships\/albums",
+            "related": "https:\/\/music.example\/artists\/1\/albums"
+          }
+        }
+      }
+    },
+    {
+      "type": "artists",
+      "id": "2",
+      "links": { "self": "https:\/\/music.example\/artists\/2" },
+      "attributes": {
+        "name": "Portishead",
+        "slug": "portishead",
+        "website": null,
+        "bio": null,
+        "trackCount": 1,
+        "createdAt": "2002-08-15T12:30:00+00:00"
+      },
+      "relationships": {
+        "albums": {
+          "links": {
+            "self": "https:\/\/music.example\/artists\/2\/relationships\/albums",
+            "related": "https:\/\/music.example\/artists\/2\/albums"
+          }
+        }
+      }
+    }
+  ],
+  "links": {
+    "self": "https:\/\/music.example\/albums?page%5Bnumber%5D=1&page%5Bsize%5D=3",
+    "first": "https:\/\/music.example\/albums?page%5Bnumber%5D=1&page%5Bsize%5D=3"
+  },
+  "meta": { "page": { "currentPage": 1, "perPage": 3, "from": 1, "to": 2 } },
+  "jsonapi": { "version": "1.1" }
+}

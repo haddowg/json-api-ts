@@ -1,0 +1,26 @@
+{
+  "data": [
+    {
+      "type": "tracks",
+      "id": "1",
+      "meta": {
+        "served_by": "music-catalog",
+        "pivot": { "position": 2, "weight": 100, "addedAt": "2024-04-02T09:00:00+00:00" }
+      }
+    },
+    {
+      "type": "tracks",
+      "id": "3",
+      "meta": {
+        "served_by": "music-catalog",
+        "pivot": { "position": 1, "weight": 100, "addedAt": "2024-04-01T09:00:00+00:00" }
+      }
+    }
+  ],
+  "links": {
+    "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/relationships\/orderedTracks",
+    "related": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/orderedTracks",
+    "first": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/relationships\/orderedTracks?page%5Bnumber%5D=1&page%5Bsize%5D=2"
+  },
+  "jsonapi": { "version": "1.1" }
+}

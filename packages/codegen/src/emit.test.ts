@@ -65,9 +65,18 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('"public-profiles": {')
   })
 
-  it('emits the descriptor-bound createClient factory', () => {
+  it('emits an Attributes map from wire type to attribute interface', () => {
+    expect(source).toContain('export interface Attributes {')
+    expect(source).toContain('albums: AlbumsAttributes')
+    expect(source).toContain('"public-profiles": PublicProfilesAttributes')
+    expect(source).toContain('tracks: TracksAttributes')
+  })
+
+  it('emits the descriptor-bound createClient factory passing Attributes explicitly', () => {
     expect(source).toContain('export const createClient = (options: ClientOptions) =>')
-    expect(source).toContain('createClientRuntime(resourceMap, options)')
+    expect(source).toContain(
+      'createClientRuntime<typeof resourceMap, Attributes>(resourceMap, options)',
+    )
   })
 
   it('matches the committed, type-checked snapshot', async () => {
@@ -132,5 +141,26 @@ describe('detectVerbCollisions', () => {
       },
     }
     expect(detectVerbCollisions(synthetic)).toEqual([{ type: 'widgets', relation: 'update' }])
+  })
+
+  it('reports a relation that shadows a runtime handle member (rel/then)', () => {
+    const synthetic: ApiDescriptor = {
+      widgets: {
+        attributes: {},
+        relations: {
+          rel: { cardinality: 'one', types: ['gadgets'], pivot: false },
+          // oxlint-disable-next-line no-thenable -- intentionally probing a `then` relation collision
+          then: { cardinality: 'many', types: ['gadgets'], pivot: false },
+          owner: { cardinality: 'one', types: ['users'], pivot: false },
+        },
+        paths: {},
+        paginator: 'none',
+        clientId: 'forbidden',
+      },
+    }
+    expect(detectVerbCollisions(synthetic)).toEqual([
+      { type: 'widgets', relation: 'rel' },
+      { type: 'widgets', relation: 'then' },
+    ])
   })
 })
