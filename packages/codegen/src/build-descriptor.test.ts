@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { buildDescriptor } from './build-descriptor'
+import { buildAtomic, buildDescriptor } from './build-descriptor'
 import type { OpenApiDocument } from './openapi'
 
 function loadFixture(name: string): OpenApiDocument {
@@ -31,11 +31,15 @@ describe('buildDescriptor (music-catalog default server)', () => {
       cardinality: 'one',
       types: ['artists'],
       pivot: false,
+      // to-one: PATCH advertised -> `set`.
+      mutations: { set: true },
     })
     expect(albums.relations['tracks']).toEqual({
       cardinality: 'many',
       types: ['tracks'],
       pivot: false,
+      // to-many: POST/DELETE/PATCH advertised -> add/remove/replace.
+      mutations: { add: true, remove: true, replace: true },
     })
 
     expect(albums.clientId).toBe('forbidden')
@@ -57,6 +61,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       cardinality: 'many',
       types: ['tracks'],
       pivot: true,
+      mutations: { add: true, remove: true, replace: true },
     })
   })
 
@@ -72,6 +77,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       cardinality: 'one',
       types: ['tracks', 'albums', 'artists'],
       pivot: false,
+      mutations: { set: true },
     })
   })
 
@@ -95,6 +101,90 @@ describe('buildDescriptor (music-catalog default server)', () => {
   })
 })
 
+describe('buildDescriptor — per-relation mutation verbs', () => {
+  it('advertises all three verbs on a fully-mutable to-many (albums.tracks)', () => {
+    expect(descriptor['albums']!.relations['tracks']!.mutations).toEqual({
+      add: true,
+      remove: true,
+      replace: true,
+    })
+  })
+
+  it('gates `replace` off a to-many whose endpoint lacks PATCH (tracks.playlists)', () => {
+    // `/tracks/{id}/relationships/playlists` advertises POST + DELETE but NOT PATCH —
+    // modelling the bundle's `cannotReplace`. So `add`/`remove` are present, `replace` is not.
+    const playlists = descriptor['tracks']!.relations['playlists']!
+    expect(playlists.cardinality).toBe('many')
+    expect(playlists.mutations).toEqual({ add: true, remove: true })
+    expect(playlists.mutations).not.toHaveProperty('replace')
+  })
+
+  it('advertises only `set` on a to-one relation (albums.artist)', () => {
+    expect(descriptor['albums']!.relations['artist']!.mutations).toEqual({ set: true })
+  })
+})
+
+describe('buildDescriptor — custom actions', () => {
+  it('collects a resource-scoped, document-in/document-out action (albums.reissue)', () => {
+    expect(descriptor['albums']!.actions?.['reissue']).toEqual({
+      scope: 'resource',
+      path: '/albums/{id}/-actions/reissue',
+      input: 'document',
+      output: 'document',
+    })
+  })
+
+  it('collects a collection-scoped, body-less action (albums.summary)', () => {
+    expect(descriptor['albums']!.actions?.['summary']).toEqual({
+      scope: 'collection',
+      path: '/albums/-actions/summary',
+      input: 'none',
+      output: 'document',
+    })
+  })
+
+  it('classifies a non-JSON:API body as a raw input, carrying its declared media type (albums.artwork)', () => {
+    expect(descriptor['albums']!.actions?.['artwork']).toEqual({
+      scope: 'resource',
+      path: '/albums/{id}/-actions/artwork',
+      input: 'raw',
+      output: 'document',
+      // The declared media type (application/octet-stream) rides the descriptor so the client
+      // sends the right Content-Type rather than a wildcard.
+      contentType: 'application/octet-stream',
+    })
+  })
+
+  it('omits the `actions` key entirely for a type with no custom actions', () => {
+    expect(descriptor['tracks']!.actions).toBeUndefined()
+  })
+})
+
+describe('buildAtomic — server-level atomic capability', () => {
+  it('detects the /operations endpoint by its atomic ext media type', () => {
+    expect(buildAtomic(loadFixture('music-catalog.openapi.json'))).toEqual({ path: '/operations' })
+  })
+
+  it('detects the atomic endpoint on the admin server too', () => {
+    expect(buildAtomic(loadFixture('music-catalog-admin.openapi.json'))).toEqual({
+      path: '/operations',
+    })
+  })
+
+  it('returns null when no endpoint declares the atomic ext media type', () => {
+    const noAtomic: OpenApiDocument = {
+      paths: {
+        '/widgets': {
+          post: {
+            requestBody: { content: { 'application/vnd.api+json': { schema: {} } } },
+          },
+        },
+      },
+    }
+    expect(buildAtomic(noAtomic)).toBeNull()
+  })
+})
+
 describe('buildDescriptor (music-catalog admin server)', () => {
   it('builds without throwing and yields the admin type-set', () => {
     const admin = buildDescriptor(loadFixture('music-catalog-admin.openapi.json'))
@@ -106,6 +196,7 @@ describe('buildDescriptor (music-catalog admin server)', () => {
       cardinality: 'many',
       types: ['playlists'],
       pivot: false,
+      mutations: { add: true, remove: true, replace: true },
     })
   })
 

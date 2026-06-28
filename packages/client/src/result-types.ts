@@ -9,7 +9,8 @@
  * flattened as own enumerable props (`type`, `id`, attributes, relations) and the
  * envelope rides non-enumerable `$`-accessors.
  */
-import type { ApiDescriptor, Cardinality } from './descriptor'
+import type { AtomicRecorder, AtomicResult } from './atomic'
+import type { ActionDescriptor, ActionOutput, ApiDescriptor } from './descriptor'
 import type {
   ArrayEnvelope,
   DocumentEnvelope,
@@ -226,9 +227,12 @@ type LinkageValue<D extends ApiDescriptor, T extends TypeName<D>, R extends Rela
  * A relationship accessor off a {@link ResourceHandle} (`client.albums.id('1').tracks`):
  * reads — `.get()` (linkage) / `.related()` (related collection); writes — to-many
  * `.add`/`.remove`/`.replace([refs])` (POST/DELETE/PATCH) and to-one `.set(ref|null)`
- * (PATCH). Write methods exist on every relation at the type level but the runtime routes
- * by cardinality (a `.set` on a to-many / `.add` on a to-one is a type error caught here).
- * A write returns the materialised linkage, or `void` when the server replies `204`.
+ * (PATCH). A write method is present only when the relation's endpoint advertises that
+ * verb (the descriptor's per-relation `mutations` flags, derived from the bundle's
+ * `cannotAdd`/`cannotRemove`/`cannotReplace` + per-relation endpoint exposure); a verb the
+ * relation forbids is typed `never`, so calling it is a compile error rather than a server
+ * round-trip. A write returns the materialised linkage, or `void` when the server replies
+ * `204`.
  */
 export interface RelationshipAccessor<
   D extends ApiDescriptor,
@@ -238,31 +242,58 @@ export interface RelationshipAccessor<
 > {
   get(query?: RelationReadQuery): Promise<LinkageValue<D, T, R>>
   related(query?: RelationReadQuery): Promise<RelatedValue<D, A, T, R>>
-  add: RelationMutation<D, T, R, 'many', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
-  remove: RelationMutation<D, T, R, 'many', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
-  replace: RelationMutation<D, T, R, 'many', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
-  set: RelationMutation<D, T, R, 'one', LinkageRefOf<RelatedType<D, T, R>> | null>
+  add: RelationMutation<D, T, R, 'add', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  remove: RelationMutation<D, T, R, 'remove', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  replace: RelationMutation<D, T, R, 'replace', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  set: RelationMutation<D, T, R, 'set', LinkageRefOf<RelatedType<D, T, R>> | null>
 }
 
+/** The mutation verb a relationship accessor method maps to (`add`/`remove`/`replace` to-many, `set` to-one). */
+type MutationVerb = 'add' | 'remove' | 'replace' | 'set'
+
+/** The cardinality a mutation verb belongs to (`set` is to-one; the rest are to-many). */
+type VerbCardinality<V extends MutationVerb> = V extends 'set' ? 'one' : 'many'
+
 /**
- * A relationship-mutation method, gated by cardinality: present (typed `(refs) => Promise<…>`)
- * only when the relation's cardinality matches `Kind` (`add`/`remove`/`replace` -> to-many,
- * `set` -> to-one); otherwise `never`, so calling the wrong verb for the cardinality is a
- * compile error. The result is the materialised linkage value or `void` (a `204` response).
- *
- * NOTE: gating is by cardinality only — a relation that forbids a specific verb (the bundle's
- * `cannotReplace` / per-relation endpoint exposure) is NOT yet caught here; an unsupported
- * verb surfaces as a server error. See docs/PLAN.md "Tracked follow-ups" (deferred from 3a).
+ * True when relation `R` of type `T` advertises mutation verb `V`. The descriptor's
+ * `mutations` flags are authoritative when present; when the relation carries no
+ * `mutations` block at all (an older/looser descriptor), gating falls back to cardinality
+ * alone so the verb stays callable. Crucially, an explicit `mutations: {}` (or one missing
+ * the verb's flag) gates the verb OFF.
+ */
+type AdvertisesVerb<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends MutationVerb,
+> = D[T]['relations'][R] extends { mutations: infer M }
+  ? M extends Partial<Record<V, boolean>>
+    ? M[V] extends true
+      ? true
+      : false
+    : false
+  : true
+
+/**
+ * A relationship-mutation method, gated by both cardinality and the per-relation verb
+ * capability: present (typed `(refs) => Promise<…>`) only when the relation's cardinality
+ * matches the verb's cardinality AND the relation advertises the verb (see
+ * {@link AdvertisesVerb}); otherwise `never`, so calling the wrong verb for the cardinality
+ * — or a verb the relation forbids (e.g. a to-many lacking `replace`) — is a compile error.
+ * The result is the materialised linkage value or `void` (a `204` response).
  */
 type RelationMutation<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-  Kind extends Cardinality,
+  V extends MutationVerb,
   Refs,
-> = D[T]['relations'][R]['cardinality'] extends Kind
-  ? (refs: Refs) => Promise<LinkageValue<D, T, R> | void>
-  : never
+> =
+  D[T]['relations'][R]['cardinality'] extends VerbCardinality<V>
+    ? AdvertisesVerb<D, T, R, V> extends true
+      ? (refs: Refs) => Promise<LinkageValue<D, T, R> | void>
+      : never
+    : never
 
 /** The relationship accessors of type `T`, keyed by relation name. */
 type RelationshipAccessors<D extends ApiDescriptor, A, T extends TypeName<D>> = {
@@ -357,13 +388,114 @@ export interface WriteOptions<
   fields?: Record<string, readonly string[]>
 }
 
+// ── Custom actions (CONTEXT.md "Write surface" — `.actions.<name>`) ────────────────────
+
+/** The custom actions declared on type `T` (the descriptor's `actions` block, or `{}`). */
+type ActionsOf<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  actions: infer Acts
+}
+  ? Acts
+  : Record<string, never>
+
+/** The action names of type `T` declared at scope `Scope` (collection vs resource). */
+type ActionNameAtScope<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Scope extends string,
+> = Extract<
+  {
+    [N in Extract<keyof ActionsOf<D, T>, string>]: ActionsOf<D, T>[N] extends { scope: Scope }
+      ? N
+      : never
+  }[Extract<keyof ActionsOf<D, T>, string>],
+  string
+>
+
+/**
+ * The generated per-action body/result types (CONTEXT.md "Write surface" — a typed action
+ * surface). The codegen emits precise `<Type><Action>Input`/`Output` aliases (expanding the
+ * referenced JSON:API component) and threads them in keyed `type -> actionName -> { input?;
+ * output? }` as the client's fourth type argument. Default `{}` (no codegen, or `createClient`
+ * called directly): actions fall back to the loose `Record<string,unknown>` in / `unknown` out.
+ * Deliberately an EMPTY object (no index signature) — an index-signatured map would resolve
+ * every action's body type to `never`.
+ */
+export type DefaultActionTypes = Record<never, never>
+
+/** The `{ input?; output? }` body-type entry for action `N` of type `T` from the action map `Act` (empty `{}` when absent). */
+type ActionTypesFor<Act, T extends string, N extends string> = T extends keyof Act
+  ? N extends keyof Act[T]
+    ? Act[T][N]
+    : Record<never, never>
+  : Record<never, never>
+
+/**
+ * The typed body of a `document` action — the generated input type when the map carries one,
+ * else a loose JSON:API document. Gated on the literal `'input'` key being present (not
+ * structural `infer`) so a missing entry falls back rather than collapsing to `never`.
+ */
+type ActionInputBody<E> = 'input' extends keyof E ? E['input'] : Record<string, unknown>
+
+/** The materialised result of a `document` action — the generated output type when present, else `unknown`. */
+type ActionOutputBody<E> = 'output' extends keyof E ? E['output'] : unknown
+
+/**
+ * The static value an action returns, by its declared `output`: a `document` output
+ * materialises into the generated output type (or `unknown` when the codegen supplied none),
+ * and a `none` output is `void`.
+ */
+type ActionResult<Act extends { output: ActionOutput }, E> = Act extends { output: 'document' }
+  ? Promise<ActionOutputBody<E>>
+  : Promise<void>
+
+/**
+ * A single custom-action method, typed by its declared `input` mode and the generated
+ * per-action body types `E` (`{ input?; output? }`):
+ *
+ * - `none`  — no argument;
+ * - `document` — a JSON:API document body (the generated input type, else a loose envelope);
+ * - `raw`   — an arbitrary body (sent with a relaxed content type).
+ *
+ * The result is shaped by the action's `output` (see {@link ActionResult}).
+ */
+type ActionMethod<Act extends ActionDescriptor, E> = Act extends { input: 'none' }
+  ? () => ActionResult<Act, E>
+  : Act extends { input: 'document' }
+    ? (input: ActionInputBody<E>) => ActionResult<Act, E>
+    : (input: unknown) => ActionResult<Act, E>
+
+/**
+ * The typed map of a type's custom actions at one scope (`collection` on the
+ * {@link TypeAccessor}, `resource` on the {@link ResourceHandle}). Each entry is an
+ * {@link ActionMethod} keyed by the action name, typed by both the descriptor's `input`/
+ * `output` modes and the generated per-action body types in `Act`; only actions declared at
+ * `Scope` are present. Empty (`{}`) when the type declares no actions at that scope.
+ */
+export type ActionsAccessor<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Scope extends string,
+  Act = DefaultActionTypes,
+> = {
+  [N in ActionNameAtScope<D, T, Scope>]: ActionsOf<D, T>[N] extends ActionDescriptor
+    ? ActionMethod<ActionsOf<D, T>[N], ActionTypesFor<Act, T, N>>
+    : never
+}
+
 /**
  * A resource handle (no fetch) for a known id. Carries the read surface (`get`), the writes
  * scoped to a known id (`update`/`delete`), a relationship accessor per declared relation (by
- * name), and a universal `.rel(name)` fallback (for relations whose name collides with a
- * reserved member like `get`/`update`/`rel`). `W` is the generated write-attribute map.
+ * name), a universal `.rel(name)` fallback (for relations whose name collides with a reserved
+ * member like `get`/`update`/`rel`), and `.actions` (the type's resource-scoped custom
+ * actions). `W` is the generated write-attribute map.
  */
-export type ResourceHandle<D extends ApiDescriptor, A, W, T extends TypeName<D>> = {
+export type ResourceHandle<
+  D extends ApiDescriptor,
+  A,
+  W,
+  T extends TypeName<D>,
+  Act = DefaultActionTypes,
+> = {
   readonly type: T
   readonly id: string
   get<const Inc extends readonly IncludePath<D, T>[] = []>(
@@ -375,10 +507,18 @@ export type ResourceHandle<D extends ApiDescriptor, A, W, T extends TypeName<D>>
   ): Promise<ReadResult<D, A, T, Inc>>
   delete(): Promise<void>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
+  /** The type's resource-scoped custom actions, keyed by name (sub `{id}` from this handle). */
+  readonly actions: ActionsAccessor<D, T, 'resource', Act>
 } & RelationshipAccessors<D, A, T>
 
 /** The collection-scoped accessor for one wire type (`client.albums`). */
-export interface TypeAccessor<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
+export interface TypeAccessor<
+  D extends ApiDescriptor,
+  A,
+  W,
+  T extends TypeName<D>,
+  Act = DefaultActionTypes,
+> {
   list<const Inc extends readonly IncludePath<D, T>[] = []>(
     query?: TypedReadQuery<D, T, Inc>,
   ): Promise<Collection<ReadResult<D, A, T, Inc>>>
@@ -390,20 +530,33 @@ export interface TypeAccessor<D extends ApiDescriptor, A, W, T extends TypeName<
     input: CreateInput<D, W, T>,
     opts?: WriteOptions<D, T, Inc>,
   ): Promise<ReadResult<D, A, T, Inc>>
-  id(id: string): ResourceHandle<D, A, W, T>
+  id(id: string): ResourceHandle<D, A, W, T, Act>
+  /** The type's collection-scoped custom actions, keyed by name. */
+  readonly actions: ActionsAccessor<D, T, 'collection', Act>
 }
 
 /**
  * The descriptor-driven client surface: one {@link TypeAccessor} per wire type. `W` is the
- * generated `WriteAttributes` map (per-type `{ create; update }` attribute pairs); it threads
- * through to the write surface and defaults so read-only callers compile.
+ * generated `WriteAttributes` map (per-type `{ create; update }` attribute pairs) and `Act`
+ * the generated per-action body-type map; both thread through to the write/action surfaces and
+ * default so read-only / codegen-less callers compile.
  */
 export type Client<
   D extends ApiDescriptor,
   A = DefaultAttributes<D>,
   W = DefaultWriteAttributes<D>,
+  Act = DefaultActionTypes,
 > = {
-  [T in TypeName<D>]: TypeAccessor<D, A, W, T>
+  [T in TypeName<D>]: TypeAccessor<D, A, W, T, Act>
+} & {
+  /**
+   * Run an Atomic Operations batch (CONTEXT.md "Atomic"): the callback records `create`/
+   * `update`/`delete` ops on a non-type-scoped recorder (each carries its `type`), posted
+   * all-or-nothing to the server's atomic endpoint; resolves the positional, materialised
+   * results. Present only when the client was built with the server's `atomic` capability;
+   * calling it on an API without one throws.
+   */
+  atomic(build: (tx: AtomicRecorder) => void): Promise<AtomicResult[]>
 }
 
 /**

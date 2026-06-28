@@ -242,7 +242,8 @@ describe('ResourceHandle relationship accessors', () => {
 
   it('exposes cardinality-gated mutation methods on a relationship accessor', () => {
     type Handle = ReturnType<Client<Map, Attributes, never>['albums']['id']>
-    // to-many `tracks`: add/remove/replace are callable, set is never.
+    // to-many `tracks` (no `mutations` block -> cardinality fallback): add/remove/replace
+    // callable, set never.
     expectTypeOf<Handle['tracks']['add']>().toBeFunction()
     expectTypeOf<Handle['tracks']['remove']>().toBeFunction()
     expectTypeOf<Handle['tracks']['replace']>().toBeFunction()
@@ -252,6 +253,119 @@ describe('ResourceHandle relationship accessors', () => {
     expectTypeOf<Handle['artist']['add']>().toBeNever()
     expectTypeOf<Handle['artist']['remove']>().toBeNever()
     expectTypeOf<Handle['artist']['replace']>().toBeNever()
+  })
+})
+
+// A descriptor whose relations carry explicit per-relation `mutations` flags — mirroring
+// the generated `resourceMap` (where `tracks.playlists` advertises POST/DELETE but no PATCH).
+const verbMap = {
+  tracks: {
+    attributes: { title: 'string' },
+    relations: {
+      // to-many with all three verbs.
+      album: { cardinality: 'one', types: ['albums'], pivot: false, mutations: { set: true } },
+      // to-many lacking `replace` (no PATCH on the relationship endpoint -> cannotReplace).
+      playlists: {
+        cardinality: 'many',
+        types: ['playlists'],
+        pivot: false,
+        mutations: { add: true, remove: true },
+      },
+      // to-many that forbids EVERY verb (explicit empty mutations block).
+      frozen: { cardinality: 'many', types: ['albums'], pivot: false, mutations: {} },
+      // read-only to-one: the relationship endpoint advertises no PATCH (empty mutations) ->
+      // `.set` must be gated off.
+      readonlyOwner: {
+        cardinality: 'one',
+        types: ['albums'],
+        pivot: false,
+        mutations: {},
+      },
+    },
+    paths: {},
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+  albums: {
+    attributes: { title: 'string' },
+    relations: {
+      // to-many with the full verb set.
+      tracks: {
+        cardinality: 'many',
+        types: ['tracks'],
+        pivot: false,
+        mutations: { add: true, remove: true, replace: true },
+      },
+    },
+    paths: {},
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+  playlists: {
+    attributes: {},
+    relations: {},
+    paths: {},
+    paginator: 'none',
+    clientId: 'forbidden',
+  },
+} as const satisfies ApiDescriptor
+
+type VerbMap = typeof verbMap
+
+describe('per-relation mutation-verb gating', () => {
+  it('keeps all three verbs on a fully-mutable to-many', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['albums']['id']>
+    expectTypeOf<Handle['tracks']['add']>().toBeFunction()
+    expectTypeOf<Handle['tracks']['remove']>().toBeFunction()
+    expectTypeOf<Handle['tracks']['replace']>().toBeFunction()
+    expectTypeOf<Handle['tracks']['set']>().toBeNever()
+  })
+
+  it('gates `replace` to never on a to-many whose endpoint lacks PATCH', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
+    expectTypeOf<Handle['playlists']['add']>().toBeFunction()
+    expectTypeOf<Handle['playlists']['remove']>().toBeFunction()
+    // The headline assertion: a forbidden verb is `never`, so calling it is a compile error.
+    expectTypeOf<Handle['playlists']['replace']>().toBeNever()
+    expectTypeOf<Handle['playlists']['set']>().toBeNever()
+  })
+
+  it('gates every verb to never when the relation forbids all of them', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
+    expectTypeOf<Handle['frozen']['add']>().toBeNever()
+    expectTypeOf<Handle['frozen']['remove']>().toBeNever()
+    expectTypeOf<Handle['frozen']['replace']>().toBeNever()
+  })
+
+  it('keeps `set` on a to-one with the set flag', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
+    expectTypeOf<Handle['album']['set']>().toBeFunction()
+    expectTypeOf<Handle['album']['add']>().toBeNever()
+  })
+
+  it('gates `set` to never on a read-only to-one (empty mutations block, no PATCH)', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
+    // A read-only to-one forbids every mutation verb — `.set` is `never`.
+    expectTypeOf<Handle['readonlyOwner']['set']>().toBeNever()
+    expectTypeOf<Handle['readonlyOwner']['add']>().toBeNever()
+    expectTypeOf<Handle['readonlyOwner']['remove']>().toBeNever()
+    expectTypeOf<Handle['readonlyOwner']['replace']>().toBeNever()
+  })
+})
+
+// A call-site probe: a `replace` on a verb-gated to-many is a compile error.
+declare const vclient: Client<VerbMap, Attributes, never>
+async function gatedVerbIsACompileError() {
+  const handle = vclient.tracks.id('1')
+  await handle.playlists.add([{ type: 'playlists', id: '2' }])
+  await handle.playlists.remove([{ type: 'playlists', id: '2' }])
+  // @ts-expect-error — `playlists` forbids `replace` (no PATCH on its relationship endpoint).
+  await handle.playlists.replace([{ type: 'playlists', id: '2' }])
+}
+
+describe('per-relation verb gating call-site', () => {
+  it('a forbidden verb is rejected at the call site', () => {
+    expectTypeOf(gatedVerbIsACompileError).returns.resolves.toBeVoid()
   })
 })
 
@@ -452,5 +566,199 @@ describe('write call-site narrowing', () => {
 
   it('relationship mutations are cardinality-gated', () => {
     expectTypeOf(relationshipMutationsAreCardinalityGated).returns.resolves.toBeVoid()
+  })
+})
+
+// ── Custom actions ─────────────────────────────────────────────────────────────────────
+
+// A descriptor carrying a mix of action scopes and input/output modes (mirroring the
+// generated `actions` block for the music-catalog albums type).
+const actionMap = {
+  albums: {
+    attributes: { title: 'string' },
+    relations: {},
+    paths: {},
+    paginator: 'page',
+    clientId: 'forbidden',
+    actions: {
+      reissue: {
+        scope: 'resource',
+        path: '/albums/{id}/-actions/reissue',
+        input: 'document',
+        output: 'document',
+      },
+      artwork: {
+        scope: 'resource',
+        path: '/albums/{id}/-actions/artwork',
+        input: 'raw',
+        output: 'document',
+      },
+      summary: {
+        scope: 'collection',
+        path: '/albums/-actions/summary',
+        input: 'none',
+        output: 'document',
+      },
+      reindex: {
+        scope: 'collection',
+        path: '/albums/-actions/reindex',
+        input: 'none',
+        output: 'none',
+      },
+    },
+  },
+} as const satisfies ApiDescriptor
+
+type ActionMap = typeof actionMap
+
+// The generated per-action body-type map (the codegen's `ActionTypes`, threaded as the
+// client's fourth type argument). `reissue` carries a precise create-envelope input and a
+// materialised-album output; `summary`/`artwork` carry only their output. A type/action
+// absent from this map falls back to the loose `Record<string,unknown>` in / `unknown` out.
+interface ReissueInput {
+  data: { type: 'albums'; attributes?: AlbumsAttributes }
+}
+interface AlbumOutput {
+  data: { type: 'albums'; id: string; attributes?: AlbumsAttributes }
+}
+interface ActionTypes {
+  albums: {
+    reissue: { input: ReissueInput; output: AlbumOutput }
+    summary: { output: AlbumOutput }
+    artwork: { output: AlbumOutput }
+  }
+}
+
+describe('custom action typing', () => {
+  it('exposes collection-scoped actions on the type accessor, not resource-scoped ones', () => {
+    type Accessor = Client<ActionMap, Attributes>['albums']
+    expectTypeOf<Accessor['actions']['summary']>().toBeFunction()
+    expectTypeOf<Accessor['actions']['reindex']>().toBeFunction()
+    // A resource-scoped action is absent from the collection accessor.
+    // @ts-expect-error — `reissue` is resource-scoped (reach it via `.id(id).actions`).
+    type _r = Accessor['actions']['reissue']
+  })
+
+  it('exposes resource-scoped actions on the handle, not collection-scoped ones', () => {
+    type Handle = ReturnType<Client<ActionMap, Attributes>['albums']['id']>
+    expectTypeOf<Handle['actions']['reissue']>().toBeFunction()
+    expectTypeOf<Handle['actions']['artwork']>().toBeFunction()
+    // A collection-scoped action is absent from the handle.
+    // @ts-expect-error — `summary` is collection-scoped (reach it via `client.albums.actions`).
+    type _s = Handle['actions']['summary']
+  })
+
+  it('types each action by its input mode (loose fallback without the action-types map)', () => {
+    type Handle = ReturnType<Client<ActionMap, Attributes>['albums']['id']>
+    type Accessor = Client<ActionMap, Attributes>['albums']
+    // `document` input falls back to a loose JSON:API document body (no action-types map).
+    expectTypeOf<Parameters<Handle['actions']['reissue']>>().toEqualTypeOf<
+      [Record<string, unknown>]
+    >()
+    // `raw` input takes an arbitrary body.
+    expectTypeOf<Parameters<Handle['actions']['artwork']>>().toEqualTypeOf<[unknown]>()
+    // `none` input takes no argument.
+    expectTypeOf<Parameters<Accessor['actions']['summary']>>().toEqualTypeOf<[]>()
+  })
+
+  it('types each action by its output mode (loose fallback without the action-types map)', () => {
+    type Accessor = Client<ActionMap, Attributes>['albums']
+    // `document` output falls back to a materialised value typed `unknown` (no map).
+    expectTypeOf<ReturnType<Accessor['actions']['summary']>>().resolves.toBeUnknown()
+    // `none` output resolves void.
+    expectTypeOf<ReturnType<Accessor['actions']['reindex']>>().resolves.toBeVoid()
+  })
+
+  it('wires the generated action-types map onto the input/output of a document action', () => {
+    type Handle = ReturnType<Client<ActionMap, Attributes, never, ActionTypes>['albums']['id']>
+    type Accessor = Client<ActionMap, Attributes, never, ActionTypes>['albums']
+    // `reissue` now takes the precise generated input envelope, not a loose record.
+    expectTypeOf<Parameters<Handle['actions']['reissue']>>().toEqualTypeOf<[ReissueInput]>()
+    // ...and resolves the generated output type (the materialised album document).
+    expectTypeOf<ReturnType<Handle['actions']['reissue']>>().resolves.toEqualTypeOf<AlbumOutput>()
+    // `summary` (none-input) keeps no argument but resolves the generated output.
+    expectTypeOf<Parameters<Accessor['actions']['summary']>>().toEqualTypeOf<[]>()
+    expectTypeOf<ReturnType<Accessor['actions']['summary']>>().resolves.toEqualTypeOf<AlbumOutput>()
+    // `artwork` (raw-input) stays loose on input but resolves the generated output.
+    expectTypeOf<Parameters<Handle['actions']['artwork']>>().toEqualTypeOf<[unknown]>()
+    expectTypeOf<ReturnType<Handle['actions']['artwork']>>().resolves.toEqualTypeOf<AlbumOutput>()
+  })
+
+  it('a none-output action resolves void even with the action-types map present', () => {
+    type Accessor = Client<ActionMap, Attributes, never, ActionTypes>['albums']
+    // `reindex` is none-output and absent from the map; it stays void regardless.
+    expectTypeOf<ReturnType<Accessor['actions']['reindex']>>().resolves.toBeVoid()
+  })
+})
+
+// Call-site probes: real action invocations whose argument/return shapes tsc checks.
+declare const aclient: Client<ActionMap, Attributes>
+async function actionsCallSite() {
+  await aclient.albums.id('1').actions.reissue({ data: { type: 'albums' } })
+  await aclient.albums.id('1').actions.artwork('raw-payload')
+  await aclient.albums.actions.summary()
+  await aclient.albums.actions.reindex()
+  // @ts-expect-error — `none` input takes no argument.
+  await aclient.albums.actions.summary({ nope: true })
+  // @ts-expect-error — a resource-scoped action is not on the collection accessor.
+  await aclient.albums.actions.reissue({ data: {} })
+}
+
+// Call-site probe with the generated action-types map: the precise input is enforced and the
+// output is the materialised type.
+declare const taclient: Client<ActionMap, Attributes, never, ActionTypes>
+async function typedActionsCallSite() {
+  const album = await taclient.albums.id('1').actions.reissue({ data: { type: 'albums' } })
+  // The output is the generated album document (not `unknown`).
+  expectTypeOf(album.data.type).toEqualTypeOf<'albums'>()
+  // @ts-expect-error — the input must be the generated envelope, not an arbitrary record.
+  await taclient.albums.id('1').actions.reissue({ totally: 'wrong', not: 'an envelope' })
+}
+
+describe('custom action call-site', () => {
+  it('accepts well-typed action calls and rejects ill-typed ones', () => {
+    expectTypeOf(actionsCallSite).returns.resolves.toBeVoid()
+    expectTypeOf(typedActionsCallSite).returns.resolves.toBeVoid()
+  })
+})
+
+// ── Atomic transaction surface ──────────────────────────────────────────────────────────
+
+describe('atomic surface typing', () => {
+  it('exposes `atomic` on the client, taking a recorder callback and resolving positional results', () => {
+    expectTypeOf<Client<Map, Attributes>>().toHaveProperty('atomic')
+    expectTypeOf<Client<Map, Attributes>['atomic']>().toBeFunction()
+    expectTypeOf<Client<Map, Attributes>['atomic']>().returns.resolves.toBeArray()
+  })
+})
+
+// Call-site probe: the recorder records typed ops; a create handle doubles as a `{type,lid}`
+// ref usable in a later op. Declared, never run — the type assertions are the test.
+declare const atclient: Client<Map, Attributes>
+async function atomicCallSite() {
+  const results = await atclient.atomic((tx) => {
+    const album = tx.create({ type: 'albums', title: 'Kid A' })
+    // The create handle is a lid-bearing ref (type + lid + opIndex).
+    expectTypeOf(album.type).toEqualTypeOf<string>()
+    expectTypeOf(album.lid).toEqualTypeOf<string>()
+    expectTypeOf(album.opIndex).toEqualTypeOf<number>()
+    // It wires into a later op without a server id.
+    tx.create({ type: 'tracks', title: 'Idioteque', album })
+    tx.update({ type: 'albums', id: '1', title: 'Amnesiac' })
+    tx.delete({ type: 'tracks', id: '9' })
+    // An update/delete can target a same-batch resource by `lid` (e.g. the create handle).
+    tx.update({ type: 'albums', lid: album.lid, title: 'Sequel' })
+    tx.delete({ type: 'albums', lid: album.lid })
+    // @ts-expect-error — an update must carry an `id` OR a `lid`, never both.
+    tx.update({ type: 'albums', id: '1', lid: album.lid })
+  })
+  // Results are positional; each carries the materialised data + optional meta.
+  expectTypeOf(results[0]!.data).toBeUnknown()
+  return results
+}
+
+describe('atomic call-site', () => {
+  it('records typed ops and resolves positional results', () => {
+    expectTypeOf(atomicCallSite).returns.resolves.toBeArray()
   })
 })

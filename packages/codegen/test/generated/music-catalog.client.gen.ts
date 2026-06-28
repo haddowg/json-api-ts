@@ -198,6 +198,14 @@ export interface TracksUpdateAttributes {
   trackNumber?: number
 }
 
+export type AlbumsArtworkOutput = { data: { type: string; id: string; attributes?: AlbumsAttributes; relationships?: { artist?: { links?: Record<string, unknown>; data?: unknown; meta?: Record<string, unknown> }; tracks?: { links?: Record<string, unknown>; data?: { type: string; id: string; meta?: Record<string, unknown> }[]; meta?: Record<string, unknown> } }; links?: Record<string, unknown>; meta?: Record<string, unknown> }; included?: { type: string; id: string }[]; links?: { self?: unknown; related?: unknown }; meta?: Record<string, unknown>; jsonapi?: { version?: string; ext?: string[]; profile?: string[]; meta?: Record<string, unknown> } }
+
+export type AlbumsReissueInput = { data: { type: string; attributes?: AlbumsCreateAttributes; relationships?: Record<string, unknown> } }
+
+export type AlbumsReissueOutput = { data: { type: string; id: string; attributes?: AlbumsAttributes; relationships?: { artist?: { links?: Record<string, unknown>; data?: unknown; meta?: Record<string, unknown> }; tracks?: { links?: Record<string, unknown>; data?: { type: string; id: string; meta?: Record<string, unknown> }[]; meta?: Record<string, unknown> } }; links?: Record<string, unknown>; meta?: Record<string, unknown> }; included?: { type: string; id: string }[]; links?: { self?: unknown; related?: unknown }; meta?: Record<string, unknown>; jsonapi?: { version?: string; ext?: string[]; profile?: string[]; meta?: Record<string, unknown> } }
+
+export type AlbumsSummaryOutput = { data: { type: string; id: string; attributes?: AlbumsAttributes; relationships?: { artist?: { links?: Record<string, unknown>; data?: unknown; meta?: Record<string, unknown> }; tracks?: { links?: Record<string, unknown>; data?: { type: string; id: string; meta?: Record<string, unknown> }[]; meta?: Record<string, unknown> } }; links?: Record<string, unknown>; meta?: Record<string, unknown> }; included?: { type: string; id: string }[]; links?: { self?: unknown; related?: unknown }; meta?: Record<string, unknown>; jsonapi?: { version?: string; ext?: string[]; profile?: string[]; meta?: Record<string, unknown> } }
+
 export interface Attributes {
   albums: AlbumsAttributes
   artists: ArtistsAttributes
@@ -227,6 +235,14 @@ export interface WriteAttributes {
   tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
+export interface ActionTypes {
+  albums: {
+    artwork: { output: AlbumsArtworkOutput }
+    reissue: { input: AlbumsReissueInput; output: AlbumsReissueOutput }
+    summary: { output: AlbumsSummaryOutput }
+  }
+}
+
 export const resourceMap = {
   albums: {
     attributes: {
@@ -246,14 +262,22 @@ export const resourceMap = {
         types: [
           "artists"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       },
       tracks: {
         cardinality: "many",
         types: [
           "tracks"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        }
       }
     },
     paths: {
@@ -266,7 +290,28 @@ export const resourceMap = {
       update: "/albums/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    actions: {
+      artwork: {
+        scope: "resource",
+        path: "/albums/{id}/-actions/artwork",
+        input: "raw",
+        output: "document",
+        contentType: "application/octet-stream"
+      },
+      reissue: {
+        scope: "resource",
+        path: "/albums/{id}/-actions/reissue",
+        input: "document",
+        output: "document"
+      },
+      summary: {
+        scope: "collection",
+        path: "/albums/-actions/summary",
+        input: "none",
+        output: "document"
+      }
+    }
   },
   artists: {
     attributes: {
@@ -283,7 +328,12 @@ export const resourceMap = {
         types: [
           "albums"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        }
       }
     },
     paths: {
@@ -345,14 +395,20 @@ export const resourceMap = {
           "albums",
           "artists"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       },
       user: {
         cardinality: "one",
         types: [
           "users"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       }
     },
     paths: {
@@ -392,14 +448,22 @@ export const resourceMap = {
           "albums",
           "artists"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        }
       },
       owner: {
         cardinality: "one",
         types: [
           "users"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       }
     },
     paths: {
@@ -427,28 +491,44 @@ export const resourceMap = {
         types: [
           "tracks"
         ],
-        pivot: true
+        pivot: true,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        }
       },
       owner: {
         cardinality: "one",
         types: [
           "users"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       },
       publicOwner: {
         cardinality: "one",
         types: [
           "public-profiles"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       },
       tracks: {
         cardinality: "many",
         types: [
           "tracks"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        }
       }
     },
     paths: {
@@ -473,7 +553,10 @@ export const resourceMap = {
         types: [
           "products"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       }
     },
     paths: {
@@ -516,14 +599,21 @@ export const resourceMap = {
         types: [
           "albums"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          set: true
+        }
       },
       playlists: {
         cardinality: "many",
         types: [
           "playlists"
         ],
-        pivot: false
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true
+        }
       }
     },
     paths: {
@@ -549,6 +639,24 @@ export const resourceMap = {
 
 export type ResourceMap = typeof resourceMap
 
-/** Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`. */
+/**
+ * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`
+ * when this server exposes none. The runtime `client.atomic` builder posts the batch here.
+ */
+export const atomic = {
+  path: "/operations"
+} as const
+
+/**
+ * Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`.
+ * The server-level `atomic` capability is threaded in by default so `client.atomic` is wired
+ * (a caller may still override it via `options.atomic`).
+ */
 export const createClient = (options: ClientOptions) =>
-  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes>(resourceMap, options)
+  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(
+    resourceMap,
+    {
+      atomic,
+      ...options,
+    },
+  )

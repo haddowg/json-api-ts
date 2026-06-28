@@ -112,15 +112,89 @@ describe('emit (music-catalog default server)', () => {
     expect(source).not.toMatch(/\n {2}users: \{ create:/)
   })
 
-  it('emits the descriptor-bound createClient factory passing Attributes + WriteAttributes', () => {
+  it('emits the descriptor-bound createClient factory passing Attributes + WriteAttributes + ActionTypes', () => {
     expect(source).toContain('export const createClient = (options: ClientOptions) =>')
     expect(source).toContain(
-      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes>(resourceMap, options)',
+      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(',
     )
+    // The server-level atomic capability is threaded into the bound client by default.
+    expect(source).toMatch(/createClientRuntime<[^>]*>\([\s\S]*?atomic,\s*\.\.\.options,/)
   })
 
   it('matches the committed, type-checked snapshot', async () => {
     await expect(source).toMatchFileSnapshot('../test/generated/music-catalog.client.gen.ts')
+  })
+})
+
+describe('emit (custom actions)', () => {
+  it('encodes the actions map in the resourceMap (scope/path/input/output)', () => {
+    expect(source).toMatch(/actions: \{[\s\S]*?reissue: \{[\s\S]*?scope: "resource"/)
+    expect(source).toMatch(/reissue: \{[\s\S]*?input: "document"[\s\S]*?output: "document"/)
+    expect(source).toMatch(/summary: \{[\s\S]*?scope: "collection"[\s\S]*?input: "none"/)
+    expect(source).toMatch(/artwork: \{[\s\S]*?input: "raw"/)
+  })
+
+  it('emits an Input alias for a document action, nesting the named attribute interface', () => {
+    // reissue's input refs AlbumsCreateRequest -> wraps AlbumsCreateAttributes (named, not re-expanded).
+    expect(source).toContain('export type AlbumsReissueInput =')
+    expect(source).toMatch(/export type AlbumsReissueInput =[\s\S]*?AlbumsCreateAttributes/)
+  })
+
+  it('emits an Output alias for a document action, nesting the read attribute interface', () => {
+    expect(source).toContain('export type AlbumsReissueOutput =')
+    expect(source).toMatch(/export type AlbumsReissueOutput =[\s\S]*?AlbumsAttributes/)
+    // summary (no input) gets an Output but no Input alias.
+    expect(source).toContain('export type AlbumsSummaryOutput =')
+    expect(source).not.toContain('export type AlbumsSummaryInput')
+  })
+
+  it('emits no Input alias for a raw-bodied action (artwork)', () => {
+    // artwork's body is application/octet-stream — not modelled, so no Input type.
+    expect(source).not.toContain('export type AlbumsArtworkInput')
+    expect(source).toContain('export type AlbumsArtworkOutput =')
+  })
+
+  it('wires the emitted aliases into an ActionTypes map (the client fourth type arg)', () => {
+    expect(source).toContain('export interface ActionTypes {')
+    // reissue (document in + out) carries both sides; summary (none in) only output.
+    expect(source).toMatch(/reissue: \{ input: AlbumsReissueInput; output: AlbumsReissueOutput \}/)
+    expect(source).toMatch(/summary: \{ output: AlbumsSummaryOutput \}/)
+    // artwork (raw in, document out) carries only its output alias.
+    expect(source).toMatch(/artwork: \{ output: AlbumsArtworkOutput \}/)
+  })
+})
+
+describe('emit (per-relation mutation verbs)', () => {
+  it('encodes the verb flags on a to-many relation in the resourceMap', () => {
+    expect(source).toMatch(
+      /tracks: \{[\s\S]*?mutations: \{[\s\S]*?add: true,[\s\S]*?remove: true,[\s\S]*?replace: true/,
+    )
+  })
+
+  it('encodes set-only on a to-one relation', () => {
+    expect(source).toMatch(/artist: \{[\s\S]*?mutations: \{\s*set: true\s*\}/)
+  })
+})
+
+describe('emit (atomic capability)', () => {
+  it('emits the server-level atomic const for a server with /operations', () => {
+    expect(source).toMatch(/export const atomic = \{\s*path: "\/operations"\s*\} as const/)
+  })
+
+  it('emits `atomic = null` when the server has no atomic endpoint', () => {
+    const noAtomicDoc: OpenApiDocument = {
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'widgets' }, id: { type: 'string' } },
+          },
+        },
+      },
+      paths: { '/widgets': { get: {} } },
+    }
+    const noAtomicSource = emit(noAtomicDoc, buildDescriptor(noAtomicDoc))
+    expect(noAtomicSource).toContain('export const atomic = null')
   })
 })
 

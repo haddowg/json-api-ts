@@ -1,10 +1,14 @@
 import type {
+  ActionDescriptor,
   ApiDescriptor,
+  AtomicDescriptor,
   ClientIdPolicy,
   PaginatorKind,
   RelationDescriptor,
+  RelationMutations,
   ResourceDescriptor,
 } from '@haddowg/json-api-client'
+import { ATOMIC_EXT } from '@haddowg/json-api-client'
 import type {
   HttpMethod,
   OpenApiDocument,
@@ -15,6 +19,7 @@ import type {
 } from './openapi'
 
 const REF_PREFIX = '#/components/schemas/'
+const JSON_API_MEDIA_TYPE = 'application/vnd.api+json'
 
 /** Sort a record's keys for deterministic, snapshot-stable output. */
 function sortRecord<V>(record: Record<string, V>): Record<string, V> {
@@ -60,15 +65,36 @@ export class DescriptorBuilder {
         continue
       }
       const base = name.slice(0, -'Resource'.length)
-      out[wireType] = {
+      const collection = this.collectionPath(base)
+      const actions = collection ? this.actions(collection) : {}
+      const descriptor: ResourceDescriptor = {
         attributes: this.attributes(base),
-        relations: this.relations(schema),
+        relations: this.relations(schema, collection),
         paths: this.operationPaths(base),
         paginator: this.paginator(base),
         clientId: this.clientId(base),
       }
+      if (Object.keys(actions).length > 0) {
+        descriptor.actions = actions
+      }
+      out[wireType] = descriptor
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The server-level Atomic Operations capability: the path whose `POST` requestBody
+   * declares the atomic ext media type ({@link ATOMIC_EXT}). `null` when no such endpoint
+   * exists. Server-level, so it rides {@link buildAtomic}, not the per-type descriptor.
+   */
+  buildAtomic(): AtomicDescriptor | null {
+    for (const [path, item] of Object.entries(this.paths)) {
+      const content = item.post?.requestBody?.content ?? {}
+      if (Object.keys(content).some(isAtomicMediaType)) {
+        return { path }
+      }
+    }
+    return null
   }
 
   /**
@@ -112,7 +138,10 @@ export class DescriptorBuilder {
     return sortRecord(out)
   }
 
-  private relations(resource: SchemaObject): Record<string, RelationDescriptor> {
+  private relations(
+    resource: SchemaObject,
+    collection: string | undefined,
+  ): Record<string, RelationDescriptor> {
     const relProps = isSchema(resource.properties?.['relationships'])
       ? resource.properties['relationships'].properties
       : undefined
@@ -127,8 +156,90 @@ export class DescriptorBuilder {
       const component = this.schemas[refName(prop.$ref) ?? '']
       const descriptor = component ? this.relationFromComponent(component) : undefined
       if (descriptor !== undefined) {
-        out[name] = descriptor
+        const mutations = collection
+          ? this.relationMutations(collection, name, descriptor.cardinality)
+          : undefined
+        out[name] = mutations === undefined ? descriptor : { ...descriptor, mutations }
       }
+    }
+    return sortRecord(out)
+  }
+
+  /**
+   * The per-relation mutation capability, derived from the HTTP methods the relationship
+   * endpoint (`{collection}/{id}/relationships/{rel}`) advertises. For a to-many:
+   * `add` <- POST, `remove` <- DELETE, `replace` <- PATCH. For a to-one: `set` <- PATCH.
+   * Only `true` verbs are emitted (a missing verb is simply absent). Returns `undefined`
+   * when the relation exposes no relationship endpoint at all.
+   */
+  private relationMutations(
+    collection: string,
+    rel: string,
+    cardinality: RelationDescriptor['cardinality'],
+  ): RelationMutations | undefined {
+    const item = this.paths[`${collection}/{id}/relationships/${rel}`]
+    if (item === undefined) {
+      return undefined
+    }
+    const mutations: RelationMutations = {}
+    if (cardinality === 'many') {
+      if (item.post) {
+        mutations.add = true
+      }
+      if (item.delete) {
+        mutations.remove = true
+      }
+      if (item.patch) {
+        mutations.replace = true
+      }
+    } else if (item.patch) {
+      mutations.set = true
+    }
+    return mutations
+  }
+
+  /**
+   * Collect the custom actions for a type from its `{collection}/-actions/{name}` and
+   * `{collection}/{id}/-actions/{name}` paths. The action name is the last segment; scope
+   * is `resource` when the path carries `/{id}/`, else `collection`. `input` is `document`
+   * (a JSON:API requestBody), `none` (no requestBody) or `raw` (a non-JSON:API body);
+   * `output` is `document` (a 2xx returns a JSON:API document) or `none` (only `204`).
+   */
+  private actions(collection: string): Record<string, ActionDescriptor> {
+    const out: Record<string, ActionDescriptor> = {}
+    const collectionPrefix = `${collection}/-actions/`
+    const resourcePrefix = `${collection}/{id}/-actions/`
+    for (const [path, item] of Object.entries(this.paths)) {
+      let scope: ActionDescriptor['scope']
+      let name: string
+      if (path.startsWith(resourcePrefix)) {
+        scope = 'resource'
+        name = path.slice(resourcePrefix.length)
+      } else if (path.startsWith(collectionPrefix)) {
+        scope = 'collection'
+        name = path.slice(collectionPrefix.length)
+      } else {
+        continue
+      }
+      // The action name is a single trailing segment.
+      if (name.length === 0 || name.includes('/')) {
+        continue
+      }
+      const post = item.post
+      if (post === undefined) {
+        continue
+      }
+      const input = actionInput(post)
+      const action: ActionDescriptor = { scope, path, input, output: actionOutput(post) }
+      // A raw-input action carries its declared (non-JSON:API) media type so the client sends
+      // the right `Content-Type` rather than a wildcard the server may reject.
+      if (input === 'raw') {
+        const contentType = rawContentType(post)
+        if (contentType !== undefined) {
+          action.contentType = contentType
+        }
+      }
+      out[name] = action
     }
     return sortRecord(out)
   }
@@ -371,7 +482,53 @@ function refEndsWith(ref: string | undefined, suffix: string): boolean {
   return ref !== undefined && refName(ref) === suffix
 }
 
+/**
+ * True for the Atomic Operations ext media type — `application/vnd.api+json` carrying the
+ * atomic `ext` parameter ({@link ATOMIC_EXT}). Tolerant of quoting/whitespace so any of
+ * `ext="…"` / `ext=…` matches.
+ */
+function isAtomicMediaType(mediaType: string): boolean {
+  return mediaType.startsWith(JSON_API_MEDIA_TYPE) && mediaType.includes(ATOMIC_EXT)
+}
+
+/** The body shape a custom action's `POST` accepts: a JSON:API document, none, or a raw payload. */
+function actionInput(op: OperationObject): ActionDescriptor['input'] {
+  const content = op.requestBody?.content
+  if (content === undefined || Object.keys(content).length === 0) {
+    return 'none'
+  }
+  return JSON_API_MEDIA_TYPE in content ? 'document' : 'raw'
+}
+
+/** The declared media type of a `raw`-input action — the first non-JSON:API content type. */
+function rawContentType(op: OperationObject): string | undefined {
+  const content = op.requestBody?.content
+  if (content === undefined) {
+    return undefined
+  }
+  return Object.keys(content).find((mediaType) => mediaType !== JSON_API_MEDIA_TYPE)
+}
+
+/** What a custom action returns: a JSON:API `document` (a 2xx carries one) or `none` (only `204`). */
+function actionOutput(op: OperationObject): ActionDescriptor['output'] {
+  for (const [code, response] of Object.entries(op.responses ?? {})) {
+    if (!code.startsWith('2')) {
+      continue
+    }
+    const schema = response.content?.[JSON_API_MEDIA_TYPE]?.schema
+    if (schema !== undefined) {
+      return 'document'
+    }
+  }
+  return 'none'
+}
+
 /** Build the {@link ApiDescriptor} from a parsed OpenAPI document. */
 export function buildDescriptor(doc: OpenApiDocument): ApiDescriptor {
   return new DescriptorBuilder(doc).build()
+}
+
+/** Detect the server-level Atomic Operations capability (`null` when none). */
+export function buildAtomic(doc: OpenApiDocument): AtomicDescriptor | null {
+  return new DescriptorBuilder(doc).buildAtomic()
 }

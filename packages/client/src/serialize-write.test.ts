@@ -117,6 +117,17 @@ describe('toDocument — envelope building', () => {
   it('throws on a linkage value missing type/id', () => {
     expect(() => toDocument(descriptor, 'albums', { artist: { id: '7' } })).toThrow()
     expect(() => toDocument(descriptor, 'albums', { artist: 7 })).toThrow()
+    // A `type` with neither an `id` nor a `lid` is not a usable reference.
+    expect(() => toDocument(descriptor, 'albums', { artist: { type: 'artists' } })).toThrow()
+  })
+
+  it('serialises a local-id (lid) linkage (an atomic cross-op reference)', () => {
+    // The handle a `tx.create` returns is a `{ type, lid }` ref; it serialises as linkage
+    // with `lid` rather than `id` (extra props like `opIndex` are dropped).
+    const doc = toDocument(descriptor, 'albums', {
+      artist: { type: 'artists', lid: 'atomic-0', opIndex: 0 },
+    })
+    expect(doc.data.relationships?.['artist']?.data).toEqual({ type: 'artists', lid: 'atomic-0' })
   })
 })
 
