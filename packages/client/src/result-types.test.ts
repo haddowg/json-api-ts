@@ -5,6 +5,7 @@ import type {
   AtomicResultOf,
   Client,
   Collection,
+  CountToken,
   CreateInput,
   IdentifierMember,
   LinkageRef,
@@ -25,6 +26,12 @@ const resourceMap = {
     paths: {},
     paginator: 'page',
     clientId: 'forbidden',
+    // The COLLECTION count tokens, mirroring the wire (`GET /albums` advertises only `tracks`;
+    // `_self_` is a related/relationship-endpoint token, not a collection one).
+    countable: {
+      tokens: ['tracks'],
+      profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+    },
   },
   artists: {
     attributes: { name: 'string' },
@@ -165,6 +172,60 @@ describe('Collection augmented-array typing', () => {
     expectTypeOf<Tracks>().toHaveProperty('$page')
     expectTypeOf<Tracks>().toHaveProperty('$next')
     expectTypeOf<Tracks['$next']>().returns.resolves.toEqualTypeOf<Tracks | undefined>()
+  })
+})
+
+describe('sparse-fieldset return-type narrowing', () => {
+  it('keeps every attribute when no fieldset is supplied', () => {
+    type Album = ReadResult<Map, Attributes, 'albums'>
+    expectTypeOf<Album['title']>().toEqualTypeOf<string>()
+    expectTypeOf<Album['status']>().toEqualTypeOf<AlbumStatus>()
+  })
+
+  it('narrows attributes to the requested fieldset (unrequested ones are ABSENT)', () => {
+    // `fields: { albums: ['title'] }` -> only `title` (plus type/id/$accessors); `status` is gone.
+    type Album = ReadResult<Map, Attributes, 'albums', [], { albums: ['title'] }>
+    expectTypeOf<Album['title']>().toEqualTypeOf<string>()
+    expectTypeOf<Album['type']>().toEqualTypeOf<'albums'>()
+    expectTypeOf<Album['id']>().toEqualTypeOf<string>()
+    // The unrequested attribute is statically absent — reading it is a compile error.
+    // @ts-expect-error — `status` was not in the fieldset.
+    type _ = Album['status']
+    // The resource-level accessors are always present (never narrowed away).
+    expectTypeOf<Album>().toHaveProperty('$self')
+  })
+
+  it('narrows relations too (a relation absent from the fieldset is dropped)', () => {
+    // Selecting only `title` drops the relation slots `artist`/`tracks`.
+    type Album = ReadResult<Map, Attributes, 'albums', [], { albums: ['title'] }>
+    // @ts-expect-error — `tracks` (a relation) is not in the fieldset.
+    type _t = Album['tracks']
+    // @ts-expect-error — `artist` (a relation) is not in the fieldset.
+    type _a = Album['artist']
+
+    // Selecting only the relation keeps the relation but drops the attributes.
+    type RelOnly = ReadResult<Map, Attributes, 'albums', ['artist'], { albums: ['artist'] }>
+    expectTypeOf<NonNullable<RelOnly['artist']>['type']>().toEqualTypeOf<'artists'>()
+    // @ts-expect-error — `title` is not in the fieldset.
+    type _x = RelOnly['title']
+  })
+
+  it('narrows the included member by its own type fieldset', () => {
+    // include the to-one artist but request only `name` on artists.
+    type Album = ReadResult<Map, Attributes, 'albums', ['artist'], { artists: ['name'] }>
+    expectTypeOf<NonNullable<Album['artist']>['name']>().toEqualTypeOf<string>()
+    // The album's own attributes are untouched (no `albums` entry in the fieldset).
+    expectTypeOf<Album['title']>().toEqualTypeOf<string>()
+  })
+})
+
+describe('withCount token typing', () => {
+  it('resolves the count-token union from the countable descriptor', () => {
+    expectTypeOf<CountToken<Map, 'albums'>>().toEqualTypeOf<'tracks'>()
+  })
+
+  it('is never for a type with no countable block', () => {
+    expectTypeOf<CountToken<Map, 'tracks'>>().toBeNever()
   })
 })
 
@@ -394,6 +455,37 @@ async function narrowsHandleGetInclude() {
   expectTypeOf(album.tracks).toHaveProperty('$page')
   return album
 }
+
+// Call-site sparse-fieldset narrowing: a `fields` selection narrows the inferred element type
+// (an unrequested attribute is statically absent). Declared, never run — the assertions are tsc.
+async function narrowsListFields() {
+  const albums = await client.albums.list({ fields: { albums: ['title'] } })
+  expectTypeOf(albums[0]!.title).toEqualTypeOf<string>()
+  // @ts-expect-error — `status` was not in the requested fieldset (statically absent).
+  type _ = (typeof albums)[number]['status']
+  return albums
+}
+
+// Call-site withCount: the token is constrained to the type's COLLECTION count tokens; a bogus
+// token errs, and `withCount` is rejected on a single-resource `get` (collection-only).
+async function withCountIsTokenConstrained() {
+  await client.albums.list({ withCount: ['tracks'] })
+  // @ts-expect-error — `_self_` is not a collection count token for albums (only `tracks`).
+  await client.albums.list({ withCount: ['_self_'] })
+  // @ts-expect-error — `artist` is not a declared count token for albums.
+  await client.albums.list({ withCount: ['artist'] })
+  // @ts-expect-error — `withCount` is not accepted on a single-resource get (collection-only).
+  await client.albums.get('1', { withCount: ['tracks'] })
+}
+
+describe('read call-site fieldset + withCount narrowing', () => {
+  it('narrows the element type to the requested fieldset', () => {
+    expectTypeOf(narrowsListFields).returns.resolves.toMatchTypeOf<ReadonlyArray<unknown>>()
+  })
+  it('constrains withCount to the type count tokens', () => {
+    expectTypeOf(withCountIsTokenConstrained).returns.resolves.toBeVoid()
+  })
+})
 
 // ── Write surface typing (Build 3) ───────────────────────────────────────────────────
 

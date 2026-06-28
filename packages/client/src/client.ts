@@ -78,9 +78,31 @@ async function run(
   const req: JsonApiRequest = { method: 'GET', path: fill(template, vars) }
   if (query !== undefined) {
     req.query = query
+    negotiateProfiles(ctx, type, query, req)
   }
   const doc = await execute(ctx.request, req)
   return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage)
+}
+
+/**
+ * Add any profiles a query's parameters require to the request's negotiated `profiles`. A
+ * `withCount` read needs the type's Countable profile in `Accept` — else the server rejects it
+ * (400) under strict query-param validation. The profile URI is read from the descriptor's
+ * `countable` block (never hardcoded); absent when the type advertises no Countable profile.
+ */
+function negotiateProfiles(
+  ctx: ClientContext,
+  type: string,
+  query: ReadQuery,
+  req: JsonApiRequest,
+): void {
+  if (query.withCount === undefined || query.withCount.length === 0) {
+    return
+  }
+  const profile = ctx.descriptor[type]?.countable?.profile
+  if (profile !== undefined) {
+    req.profiles = [...(req.profiles ?? []), profile]
+  }
 }
 
 /** A write opts object: an optional `include`/`fields` narrowing the materialised response. */

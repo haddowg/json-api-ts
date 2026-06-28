@@ -61,6 +61,21 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toMatch(/items: \{[\s\S]*?types: \[\s*"tracks",\s*"albums",\s*"artists"\s*\]/)
   })
 
+  it('encodes the withCount (Countable) capability in the resourceMap', () => {
+    // albums advertises withCount with the `tracks` token + the Countable profile.
+    expect(source).toMatch(
+      /albums: \{[\s\S]*?countable: \{[\s\S]*?tokens: \[\s*"tracks"\s*\][\s\S]*?profile: "https:\/\/haddowg\.github\.io\/json-api\/profiles\/countable\/"/,
+    )
+  })
+
+  it('omits `countable` for a type with no withCount endpoint (genres)', () => {
+    // Isolate the genres resourceMap entry (lazy up to its closing 2-space-indented brace)
+    // so the assertion can't bleed into a later type that does carry `countable`.
+    const block = source.match(/\n {2}genres: \{[\s\S]*?\n {2}\}/)?.[0]
+    expect(block).toBeDefined()
+    expect(block).not.toContain('countable:')
+  })
+
   it('quotes a hyphenated wire-type key', () => {
     expect(source).toContain('"public-profiles": {')
   })

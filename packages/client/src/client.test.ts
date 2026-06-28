@@ -26,7 +26,7 @@ function fixtureBody(name: string): string {
 // defined, returns narrowed) — same shape the codegen's `resourceMap` emits.
 const descriptor = {
   albums: {
-    attributes: {},
+    attributes: { title: 'string', status: 'string' },
     relations: {
       artist: { cardinality: 'one', types: ['artists'], pivot: false },
       tracks: { cardinality: 'many', types: ['tracks'], pivot: false },
@@ -42,6 +42,10 @@ const descriptor = {
     },
     paginator: 'page',
     clientId: 'forbidden',
+    countable: {
+      tokens: ['_self_', 'tracks'],
+      profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+    },
     actions: {
       // resource-scoped, JSON:API document in -> materialised resource out
       reissue: {
@@ -118,6 +122,15 @@ const descriptor = {
     paginator: 'page',
     clientId: 'required',
   },
+  // A cursor-paginated read surface (the fixture carries only `page`-kind paginators, so the
+  // cursor path is exercised here with a synthetic descriptor + document).
+  feed: {
+    attributes: { headline: 'string' },
+    relations: {},
+    paths: { fetchMany: '/feed', fetchOne: '/feed/{id}' },
+    paginator: 'cursor',
+    clientId: 'forbidden',
+  },
 } as const satisfies ApiDescriptor
 
 /**
@@ -178,6 +191,142 @@ describe('createClient — collection reads', () => {
     expect(requests[0]!.url).toBe(
       `${BASE}/albums?filter[status]=released&sort=-releasedAt&include=artist&fields[albums]=title&page[number]=2`,
     )
+  })
+})
+
+describe('createClient — withCount', () => {
+  const COUNTABLE_PROFILE = 'https://haddowg.github.io/json-api/profiles/countable/'
+
+  it('list serialises withCount AND negotiates the Countable profile in Accept', async () => {
+    const { transport, requests } = mockTransport({
+      [`${BASE}/albums?withCount=_self_%2Ctracks`]: fixtureBody('albums-collection.json'),
+    })
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.albums.list({ withCount: ['_self_', 'tracks'] })
+
+    const req = requests[0]!
+    expect(req.url).toBe(`${BASE}/albums?withCount=_self_%2Ctracks`)
+    // The Countable profile (read from the descriptor) rides Accept so the server honours it.
+    expect(req.headers['Accept']).toBe(`application/vnd.api+json; profile="${COUNTABLE_PROFILE}"`)
+  })
+
+  it('a single-resource get is a plain read (withCount is collection-only — see result-types.test)', async () => {
+    // No `GET /{type}/{id}` endpoint advertises `withCount`, so the typed `get` drops it (a
+    // single-resource withCount would be rejected 400 under strict validation). The type-level
+    // rejection is asserted in result-types.test.ts; here we confirm a plain `get` negotiates no
+    // profile.
+    const { transport, requests } = mockTransport({
+      [`${BASE}/albums/1`]: fixtureBody('album-compound.json'),
+    })
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.albums.get('1')
+
+    const req = requests[0]!
+    expect(req.url).toBe(`${BASE}/albums/1`)
+    expect(req.headers['Accept']).toBe('application/vnd.api+json')
+  })
+
+  it('does not negotiate the profile (or emit withCount) for a plain read', async () => {
+    const { transport, requests } = mockTransport({
+      [`${BASE}/albums`]: fixtureBody('albums-collection.json'),
+    })
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.albums.list()
+
+    const req = requests[0]!
+    expect(req.url).toBe(`${BASE}/albums`)
+    // No withCount -> the bare JSON:API media type, no profile parameter.
+    expect(req.headers['Accept']).toBe('application/vnd.api+json')
+  })
+
+  it('exposes the relationship count via meta.total on the materialised relationship', async () => {
+    // A withCount read renders the relationship counts under each relationship's `meta.total`,
+    // reachable via $rel(name).meta — confirm the runtime preserves them (does not drop them). It
+    // is exercised on the COLLECTION read, where withCount is supported (a single-resource get
+    // does not advertise it).
+    const { transport } = mockTransport({
+      [`${BASE}/albums?withCount=tracks`]: JSON.stringify({
+        data: [
+          {
+            type: 'albums',
+            id: '1',
+            attributes: { title: 'OK Computer' },
+            relationships: {
+              tracks: {
+                links: { related: `${BASE}/albums/1/tracks` },
+                meta: { total: 12 },
+              },
+            },
+          },
+        ],
+        jsonapi: { version: '1.1' },
+      }),
+    })
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const albums = asArray(await client.albums.list({ withCount: ['tracks'] }))
+    const album = asRecord(albums[0])
+    const tracksRel = (album['$rel'] as (name: string) => Record<string, unknown> | undefined)(
+      'tracks',
+    )
+    expect(tracksRel?.['meta']).toEqual({ total: 12 })
+  })
+})
+
+describe('createClient — cursor pagination', () => {
+  it('materialises $page.kind === "cursor" and $next follows the cursor link', async () => {
+    const page1: TransportResponse = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        data: [{ type: 'feed', id: '1', attributes: { headline: 'First' } }],
+        links: { self: `${BASE}/feed`, next: `${BASE}/feed?page[cursor]=c2` },
+        meta: { page: { hasMore: true } },
+        jsonapi: { version: '1.1' },
+      }),
+    }
+    const page2: TransportResponse = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        data: [{ type: 'feed', id: '2', attributes: { headline: 'Second' } }],
+        links: { self: `${BASE}/feed?page[cursor]=c2` },
+        meta: { page: { hasMore: false } },
+        jsonapi: { version: '1.1' },
+      }),
+    }
+    const transport = vi.fn(async (req: TransportRequest) =>
+      req.url.includes('page[cursor]=c2') ? page2 : page1,
+    )
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const first = asArray(await client.feed.list())
+    // The discriminant is the descriptor's paginator kind.
+    expect(first.$page.kind).toBe('cursor')
+    expect(first[0]!['headline']).toBe('First')
+
+    // $next follows the (absolute) cursor link and re-materialises, still cursor-kinded.
+    const next = asArray(await first.$next())
+    expect(next).toBeDefined()
+    expect(next[0]!['headline']).toBe('Second')
+    expect(next.$page.kind).toBe('cursor')
+    expect(transport.mock.calls[1]![0].url).toBe(`${BASE}/feed?page[cursor]=c2`)
+  })
+
+  it('serialises cursor page params on a list request', async () => {
+    const { transport, requests } = mockTransport({
+      [`${BASE}/feed?page[cursor]=c2&page[size]=20`]: JSON.stringify({
+        data: [],
+        links: { self: `${BASE}/feed?page[cursor]=c2&page[size]=20` },
+      }),
+    })
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.feed.list({ page: { cursor: 'c2', size: 20 } })
+    expect(requests[0]!.url).toBe(`${BASE}/feed?page[cursor]=c2&page[size]=20`)
   })
 })
 

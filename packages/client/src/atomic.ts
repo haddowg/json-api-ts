@@ -17,6 +17,11 @@
  * reference is stable and human-readable. The flat->envelope serialisation reuses the same
  * {@link toDocument} the standalone writes use, so an atomic create body is identical to a
  * `POST /{type}` body (minus the swap of a server `id` for the generated `lid`).
+ *
+ * Content negotiation: the batch opts into the atomic extension via the request's `ext`
+ * parameter ({@link ATOMIC_EXT}), so {@link execute} composes the atomic-ext media type
+ * (`application/vnd.api+json; ext="…"`) for both `Content-Type` and `Accept` — the generalised
+ * media-type path the rest of the runtime shares.
  */
 import type { ApiDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
@@ -25,7 +30,7 @@ import { execute, type JsonApiContext, type JsonApiRequest } from './request'
 import type { AtomicResultOf, CreateInput, TypeName, UpdateInput } from './result-types'
 import { toDocument, withRemappedAtomicPaths } from './serialize-write'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
-import { ATOMIC_MEDIA_TYPE } from './types'
+import { ATOMIC_EXT } from './types'
 
 /**
  * A reference to a resource for an `update`/`remove` op: a bare identifier (or a materialised
@@ -225,8 +230,9 @@ export async function runAtomic(
     method: 'POST',
     path,
     body: { 'atomic:operations': operations },
-    contentType: ATOMIC_MEDIA_TYPE,
-    accept: ATOMIC_MEDIA_TYPE,
+    // Opt into the atomic extension; `execute` composes the ext media type for both
+    // `Content-Type` and `Accept` (the shared media-type-negotiation path).
+    ext: [ATOMIC_EXT],
   }
 
   let doc

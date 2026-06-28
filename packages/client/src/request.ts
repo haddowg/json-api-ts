@@ -1,7 +1,7 @@
 import type { HeadersInit } from './client'
 import { JsonApiError, type JsonApiErrorObject } from './errors'
 import type { JsonApiTransport, TransportRequest } from './transport'
-import { JSON_API_MEDIA_TYPE } from './types'
+import { mediaType } from './types'
 
 /**
  * A read query, in the flat shape the fluent surface accepts. Serialised to the
@@ -12,6 +12,8 @@ export interface ReadQuery {
   sort?: string | string[]
   include?: string[]
   fields?: Record<string, string[]>
+  /** Relationship-count tokens (the Countable profile) — serialised comma-joined onto `withCount`. */
+  withCount?: readonly string[]
   page?: Record<string, unknown>
 }
 
@@ -39,17 +41,29 @@ export interface JsonApiRequest {
   query?: ReadQuery
   body?: unknown
   /**
-   * Override the request `Content-Type` (defaults to the JSON:API media type when a body is
-   * present). Set for a custom action's `raw` input, where the payload is not a JSON:API
-   * document, or for an atomic batch (the ext media type). When unset, `Accept` is unaffected.
+   * Override the request `Content-Type` (defaults to the negotiated JSON:API media type when a
+   * body is present). Set for a custom action's `raw` input, where the payload is not a JSON:API
+   * document. When set it wins over {@link ext}/{@link profiles} for `Content-Type`.
    */
   contentType?: string
   /**
-   * Override the request `Accept` header (defaults to the JSON:API media type). Set for an
-   * atomic batch, where the response is the atomic-ext document; a `raw`-input action leaves
-   * it at the JSON:API default (a document response is still expected).
+   * Override the request `Accept` header (defaults to the negotiated JSON:API media type). Set
+   * for a `raw`-input action that still expects a document response; when set it wins over
+   * {@link ext}/{@link profiles} for `Accept`.
    */
   accept?: string
+  /**
+   * Extension URIs to negotiate (the media-type `ext` parameter), e.g. the atomic ext. Composed
+   * into both `Accept` and (when a body is present) `Content-Type` via the JSON:API media type,
+   * unless {@link accept}/{@link contentType} override the respective header.
+   */
+  ext?: readonly string[]
+  /**
+   * Profile URIs to negotiate (the media-type `profile` parameter), e.g. the Countable profile a
+   * `withCount` read requires. Composed into both `Accept` and (when a body is present)
+   * `Content-Type`, unless {@link accept}/{@link contentType} override the respective header.
+   */
+  profiles?: readonly string[]
   /**
    * Send the body verbatim (a `string`) instead of JSON-stringifying it. Used for a `raw`
    * action body that's already serialised; a non-string body still falls back to
@@ -92,8 +106,16 @@ export function serializeQuery(query: ReadQuery): string {
 
   if (query.fields) {
     for (const [type, names] of Object.entries(query.fields)) {
-      append(parts, `fields[${type}]`, names.join(','))
+      // An explicitly-empty fieldset (`fields[type]=`) is meaningful in JSON:API — it selects NO
+      // members of that type (id-only), which is exactly what the return type narrows to. Emit the
+      // empty param verbatim (the generic empty-skip would drop it, leaving the type over-narrowed
+      // vs. the full resource the server would otherwise return).
+      parts.push(`fields[${type}]=${encodeURIComponent(names.join(','))}`)
     }
+  }
+
+  if (query.withCount && query.withCount.length > 0) {
+    append(parts, 'withCount', query.withCount.join(','))
   }
 
   if (query.page) {
@@ -124,11 +146,15 @@ export async function execute(
     }
   }
 
-  const headers: Record<string, string> = { Accept: req.accept ?? JSON_API_MEDIA_TYPE }
+  // Compose the negotiated media type (`application/vnd.api+json` + any opted-in ext/profile
+  // parameters) once; a bare request yields the plain JSON:API media type. An explicit
+  // `accept`/`contentType` override wins over the negotiated value for its header.
+  const negotiated = mediaType({ ext: req.ext, profiles: req.profiles })
+  const headers: Record<string, string> = { Accept: req.accept ?? negotiated }
 
   const transportReq: TransportRequest = { method: req.method, url, headers }
   if (req.body !== undefined) {
-    headers['Content-Type'] = req.contentType ?? JSON_API_MEDIA_TYPE
+    headers['Content-Type'] = req.contentType ?? negotiated
     transportReq.body =
       req.raw && typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
   }
