@@ -22,6 +22,20 @@ export interface JsonApiErrorObject {
 }
 
 /**
+ * Thrown by the always-on light structural guards (ADR 0004) when a parsed response is not a
+ * JSON:API document, or a `data`/`included` member is not a resource object carrying `type`+`id`.
+ * Distinct from {@link JsonApiError} (a non-2xx server response): this signals the wire shape the
+ * runtime relies on was violated, not an application error the server reported. The opt-in
+ * per-field validator throws its engine's own error type, never this one.
+ */
+export class StructuralGuardError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StructuralGuardError'
+  }
+}
+
+/**
  * Thrown for any non-2xx JSON:API response. Carries the parsed error document plus
  * expressive status matchers and pointer-grouping helpers.
  */

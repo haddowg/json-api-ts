@@ -55,9 +55,8 @@ describe('run', () => {
     expect(await readFile(output, 'utf8')).toContain('export const resourceMap = {')
   })
 
-  it('warns that --schemas is a no-op but still generates', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const output = join(dir, 'schemas.gen.ts')
+  it('emits a schema artifact beside the client when --schemas is supplied', async () => {
+    const output = join(dir, 'with-schemas.gen.ts')
     const code = await run([
       '--input',
       fixturePath('music-catalog.openapi.json'),
@@ -67,6 +66,8 @@ describe('run', () => {
       fixturePath('music-catalog.schemas.json'),
     ])
     expect(code).toBe(0)
-    expect(warn.mock.calls.some((call) => String(call[0]).includes('--schemas'))).toBe(true)
+    const schemas = await readFile(join(dir, 'with-schemas.schemas.gen.ts'), 'utf8')
+    expect(schemas).toContain('export const schemas = {')
+    expect(schemas).toContain('"const": "albums"')
   })
 })

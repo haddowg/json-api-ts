@@ -15,13 +15,16 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { buildDescriptor } from './build-descriptor'
 import { detectVerbCollisions, emit } from './emit'
-import { readDocument } from './reader'
+import { emitSchemas } from './emit-schemas'
+import { readDocument, readSchemas } from './reader'
 
 export { buildAtomic, buildDescriptor, DescriptorBuilder } from './build-descriptor'
 export { detectVerbCollisions, emit, Emitter } from './emit'
 export type { VerbCollision } from './emit'
+export { emitSchemas } from './emit-schemas'
 export type * from './openapi'
-export { readDocument } from './reader'
+export { readDocument, readSchemas } from './reader'
+export type { SchemaBundle } from './reader'
 
 export interface CodegenConfig {
   /** OpenAPI document source: an http(s) URL or a local file path. */
@@ -35,8 +38,26 @@ export interface CodegenConfig {
 }
 
 /**
+ * The schema-artifact path beside a client output path: `client.gen.ts` -> `client.schemas.gen.ts`
+ * (any `.gen.ts`/`.ts` suffix is preserved; a suffix-less path just gains `.schemas`).
+ */
+export function schemasOutputPath(output: string): string {
+  if (output.endsWith('.gen.ts')) {
+    return `${output.slice(0, -'.gen.ts'.length)}.schemas.gen.ts`
+  }
+  if (output.endsWith('.ts')) {
+    return `${output.slice(0, -'.ts'.length)}.schemas.ts`
+  }
+  return `${output}.schemas`
+}
+
+/**
  * Read the OpenAPI document, build the runtime descriptor, emit the generated client
  * module and write it to `config.output` (creating parent directories as needed).
+ *
+ * When `config.schemas` is set, also read the bundle's JSON Schema bundle and write a
+ * separate per-type schema artifact (`<output>.schemas.gen.ts`) beside the client, wiring
+ * the opt-in validation seam (ADR 0004). The main client output is unchanged either way.
  *
  * `config.server` is metadata-only for now: the served document is already per-server,
  * so the caller selects the server by pointing `input` at the right document.
@@ -56,5 +77,11 @@ export async function generate(config: CodegenConfig): Promise<string> {
   const source = emit(doc, descriptor)
   await mkdir(dirname(config.output), { recursive: true })
   await writeFile(config.output, source, 'utf8')
+
+  if (config.schemas !== undefined) {
+    const bundle = await readSchemas(config.schemas)
+    await writeFile(schemasOutputPath(config.output), emitSchemas(bundle), 'utf8')
+  }
+
   return source
 }

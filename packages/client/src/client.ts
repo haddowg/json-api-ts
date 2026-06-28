@@ -21,6 +21,7 @@ import {
   withRemappedRelationshipPaths,
 } from './serialize-write'
 import { fetchTransport, type JsonApiTransport } from './transport'
+import { resolveValidator, type ValidationOption } from './validate'
 
 /**
  * The `fetch` headers init type. `@types/node` declares the global `RequestInit` (used
@@ -43,6 +44,16 @@ export interface ClientOptions {
    * exposes `client.atomic(tx => …)`; otherwise calling it throws.
    */
   atomic?: AtomicDescriptor | null
+  /**
+   * The opt-in per-field validation seam (ADR 0004). Off by default — the client always runs
+   * light structural guards (is this a JSON:API document? does each `data`/`included` member
+   * carry `type`+`id`?) but otherwise trusts the wire. Supply either the schema-driven config
+   * `{ schemas, validator }` — the codegen-emitted per-type `schemas` map plus a validation
+   * engine adapter (each wire resource is validated against `schemas[type]`; a type with no
+   * schema is skipped) — or a bare validator function that owns schema lookup itself. The
+   * validation engine (e.g. ajv) is brought by the caller; the client never depends on one.
+   */
+  validate?: ValidationOption
 }
 
 /** The ambient runtime context every read shares: transport seam + descriptor + materialise glue. */
@@ -397,6 +408,7 @@ export function createClient<
     ...(options.headers !== undefined ? { headers: options.headers } : {}),
   }
 
+  const validator = resolveValidator(options.validate)
   const ctx: ClientContext = {
     request,
     descriptor,
@@ -406,6 +418,7 @@ export function createClient<
         const doc = await execute(request, { method: 'GET', path: url })
         return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage)
       },
+      ...(validator !== undefined ? { validate: validator } : {}),
     },
   }
 
