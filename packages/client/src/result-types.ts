@@ -9,7 +9,15 @@
  * flattened as own enumerable props (`type`, `id`, attributes, relations) and the
  * envelope rides non-enumerable `$`-accessors.
  */
-import type { AtomicRecorder, AtomicResult } from './atomic'
+import type {
+  AtomicCreateHandle,
+  AtomicDeleteHandle,
+  AtomicHandle,
+  AtomicRecorder,
+  AtomicResult,
+  AtomicResults,
+  AtomicUpdateHandle,
+} from './atomic'
 import type { ActionDescriptor, ActionOutput, ApiDescriptor } from './descriptor'
 import type {
   ArrayEnvelope,
@@ -18,7 +26,7 @@ import type {
   RelationView,
   ResourceLinks,
 } from './materialise'
-import type { ResourceIdentifier } from './types'
+import type { LocalIdentifier, ResourceIdentifier } from './types'
 
 /**
  * An augmented array (CONTEXT.md "To-many relationship values are augmented arrays"):
@@ -311,11 +319,14 @@ export type PivotInput = Record<string, unknown>
 
 /**
  * A single linkage reference accepted by a relationship-write input: a bare resource
- * identifier `{ type, id }`, OR a materialised resource object (its `type`/`id` are
- * extracted by the runtime). A to-many member may additionally carry `$pivot`.
+ * identifier `{ type, id }`, a materialised resource object (its `type`/`id` are extracted by
+ * the runtime), OR a local identifier `{ type, lid }` — an atomic-transaction `tx.create` handle
+ * referencing a resource created earlier in the same batch (the runtime serialises the `lid`).
+ * A to-many member may additionally carry `$pivot`.
  */
 export type LinkageRef<TType extends string> =
   | (ResourceIdentifier<TType> & { $pivot?: PivotInput })
+  | (LocalIdentifier<TType> & { $pivot?: PivotInput })
   | (ResourceObjectView<ApiDescriptor, unknown, TType> & { $pivot?: PivotInput })
 
 /** A linkage ref distributed over a (possibly polymorphic) union of related types. */
@@ -387,6 +398,32 @@ export interface WriteOptions<
   include?: Inc
   fields?: Record<string, readonly string[]>
 }
+
+// ── Atomic results (CONTEXT.md "Atomic — typed transaction builder") ──────────────────
+
+/**
+ * The materialised positional result of a single atomic op handle:
+ *
+ * - an {@link AtomicCreateHandle}/{@link AtomicUpdateHandle} for type `T` -> the `AtomicResult`
+ *   wrapping the materialised resource view of `T` (the same {@link ResourceObjectView} a
+ *   standalone create/update read returns — `data` is typed, not `unknown`, plus the optional op
+ *   `meta`);
+ * - an {@link AtomicDeleteHandle} -> `undefined` (a remove carries no data).
+ *
+ * Drives the per-op positional typing of {@link AtomicResults} (the callback's returned tuple of
+ * handles maps to a tuple of these).
+ */
+export type AtomicResultOf<D extends ApiDescriptor, A, Handle> = Handle extends AtomicDeleteHandle
+  ? undefined
+  : Handle extends AtomicCreateHandle<infer T>
+    ? T extends TypeName<D>
+      ? AtomicResult<ResourceObjectView<D, A, T>>
+      : never
+    : Handle extends AtomicUpdateHandle<infer T>
+      ? T extends TypeName<D>
+        ? AtomicResult<ResourceObjectView<D, A, T>>
+        : never
+      : never
 
 // ── Custom actions (CONTEXT.md "Write surface" — `.actions.<name>`) ────────────────────
 
@@ -550,13 +587,24 @@ export type Client<
   [T in TypeName<D>]: TypeAccessor<D, A, W, T, Act>
 } & {
   /**
-   * Run an Atomic Operations batch (CONTEXT.md "Atomic"): the callback records `create`/
-   * `update`/`delete` ops on a non-type-scoped recorder (each carries its `type`), posted
-   * all-or-nothing to the server's atomic endpoint; resolves the positional, materialised
-   * results. Present only when the client was built with the server's `atomic` capability;
-   * calling it on an API without one throws.
+   * Run an Atomic Operations batch (CONTEXT.md "Atomic — typed transaction builder"): the
+   * callback records `create`/`update`/`delete` ops on a non-type-scoped recorder (each carries
+   * its `type`), posted all-or-nothing to the server's atomic endpoint. Present only when the
+   * client was built with the server's `atomic` capability; calling it on an API without one
+   * throws.
+   *
+   * The return shape is driven by what the callback returns (a single signature, branched in the
+   * return type — NOT an overload set, which would defeat the per-op `const` tuple inference):
+   *
+   * - return a tuple of handles -> a PER-OP POSITIONALLY-TYPED tuple of results: a create/update
+   *   handle resolves to the `AtomicResult` of that type (data typed as the materialised
+   *   resource), a delete handle to `undefined`. The mapping is by `opIndex`, so it stays sound
+   *   regardless of the order/subset of handles returned;
+   * - return void/nothing -> the loose, ordered `AtomicResult[]` (backward-compatible).
    */
-  atomic(build: (tx: AtomicRecorder) => void): Promise<AtomicResult[]>
+  atomic<const Ops>(
+    build: (tx: AtomicRecorder<D, W>) => Ops,
+  ): Promise<Ops extends readonly AtomicHandle[] ? AtomicResults<D, A, Ops> : AtomicResult[]>
 }
 
 /**

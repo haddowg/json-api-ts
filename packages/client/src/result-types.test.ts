@@ -1,6 +1,8 @@
 import { describe, expectTypeOf, it } from 'vitest'
+import type { AtomicCreateHandle, AtomicDeleteHandle, AtomicUpdateHandle } from './atomic'
 import type { ApiDescriptor } from './descriptor'
 import type {
+  AtomicResultOf,
   Client,
   Collection,
   CreateInput,
@@ -728,19 +730,24 @@ describe('atomic surface typing', () => {
   it('exposes `atomic` on the client, taking a recorder callback and resolving positional results', () => {
     expectTypeOf<Client<Map, Attributes>>().toHaveProperty('atomic')
     expectTypeOf<Client<Map, Attributes>['atomic']>().toBeFunction()
-    expectTypeOf<Client<Map, Attributes>['atomic']>().returns.resolves.toBeArray()
+  })
+
+  it('resolves the loose AtomicResult[] when the callback returns void', () => {
+    // The void-return overload preserves the original (untyped-data) result array.
+    expectTypeOf<ReturnType<Client<Map, Attributes>['atomic']>>().resolves.toBeArray()
   })
 })
 
-// Call-site probe: the recorder records typed ops; a create handle doubles as a `{type,lid}`
-// ref usable in a later op. Declared, never run — the type assertions are the test.
+// Call-site probe (void return -> loose results): the recorder records typed ops; a create
+// handle doubles as a `{type,lid}` ref usable in a later op. Declared, never run.
 declare const atclient: Client<Map, Attributes>
 async function atomicCallSite() {
   const results = await atclient.atomic((tx) => {
     const album = tx.create({ type: 'albums', title: 'Kid A' })
-    // The create handle is a lid-bearing ref (type + lid + opIndex).
-    expectTypeOf(album.type).toEqualTypeOf<string>()
+    // The create handle carries its narrowed type + lid + kind + opIndex.
+    expectTypeOf(album.type).toEqualTypeOf<'albums'>()
     expectTypeOf(album.lid).toEqualTypeOf<string>()
+    expectTypeOf(album.kind).toEqualTypeOf<'create'>()
     expectTypeOf(album.opIndex).toEqualTypeOf<number>()
     // It wires into a later op without a server id.
     tx.create({ type: 'tracks', title: 'Idioteque', album })
@@ -751,14 +758,98 @@ async function atomicCallSite() {
     tx.delete({ type: 'albums', lid: album.lid })
     // @ts-expect-error — an update must carry an `id` OR a `lid`, never both.
     tx.update({ type: 'albums', id: '1', lid: album.lid })
+    // No return -> the loose `AtomicResult[]` overload.
   })
-  // Results are positional; each carries the materialised data + optional meta.
+  // Loose results are positional; each carries the materialised data (unknown) + optional meta.
   expectTypeOf(results[0]!.data).toBeUnknown()
   return results
 }
 
-describe('atomic call-site', () => {
+describe('atomic call-site (loose, void return)', () => {
   it('records typed ops and resolves positional results', () => {
     expectTypeOf(atomicCallSite).returns.resolves.toBeArray()
+  })
+})
+
+// ── Atomic per-op POSITIONAL typing (the headline) ───────────────────────────────────────
+
+// Call-site probe (tuple return -> per-op typed results). Declared, never run — the inferred
+// result-tuple types ARE the assertions.
+async function atomicPositionalCallSite() {
+  const [album, track, gone] = await atclient.atomic((tx) => [
+    tx.create({ type: 'albums', title: 'Kid A' }),
+    tx.update({ type: 'tracks', id: '1', title: 'Idioteque' }),
+    tx.delete({ type: 'artists', id: '9' }),
+  ])
+
+  // (1) the create result is typed as that type's resource (has `title`/attributes/$accessors).
+  expectTypeOf(album.data.type).toEqualTypeOf<'albums'>()
+  expectTypeOf(album.data.title).toEqualTypeOf<string>()
+  expectTypeOf(album.data.status).toEqualTypeOf<AlbumStatus>()
+  expectTypeOf(album.data).toHaveProperty('$self')
+  expectTypeOf(album.meta).toEqualTypeOf<Record<string, unknown> | undefined>()
+
+  // (2) the update result is likewise the materialised resource of its type.
+  expectTypeOf(track.data.type).toEqualTypeOf<'tracks'>()
+  expectTypeOf(track.data.title).toEqualTypeOf<string>()
+
+  // (3) the delete result is `undefined` (no data).
+  expectTypeOf(gone).toEqualTypeOf<undefined>()
+
+  return [album, track, gone] as const
+}
+
+// (4) the tuple is positional: mixed types keep their positions even when REORDERED at return.
+async function atomicPositionalKeepsOrder() {
+  const [aTrack, anAlbum] = await atclient.atomic((tx) => {
+    const album = tx.create({ type: 'albums', title: 'Kid A' })
+    const track = tx.update({ type: 'tracks', id: '1', title: 'Idioteque' })
+    // Returned in the OPPOSITE order to the ops recorded — the result tuple follows the
+    // RETURN order (resolved by each handle's opIndex at runtime), not the op order.
+    return [track, album] as const
+  })
+  expectTypeOf(aTrack.data.type).toEqualTypeOf<'tracks'>()
+  expectTypeOf(anAlbum.data.type).toEqualTypeOf<'albums'>()
+}
+
+// (5) a same-batch lid handle still wires into a later op under the typed-tuple form.
+async function atomicLidWiringUnderTuple() {
+  const [album, track] = await atclient.atomic((tx) => {
+    const created = tx.create({ type: 'albums', title: 'Kid A' })
+    // The create handle wires (by `{type,lid}`) into a later op's to-one slot.
+    return [created, tx.create({ type: 'tracks', title: 'Idioteque', album: created })] as const
+  })
+  expectTypeOf(album.data.type).toEqualTypeOf<'albums'>()
+  expectTypeOf(track.data.type).toEqualTypeOf<'tracks'>()
+}
+
+// AtomicResultOf unit assertions (the per-handle mapping, independent of call-site inference).
+describe('AtomicResultOf mapping', () => {
+  it('maps a create handle to the materialised resource result of its type', () => {
+    type R = AtomicResultOf<Map, Attributes, AtomicCreateHandle<'albums'>>
+    expectTypeOf<R['data']['type']>().toEqualTypeOf<'albums'>()
+    expectTypeOf<R['data']['title']>().toEqualTypeOf<string>()
+  })
+
+  it('maps an update handle to the materialised resource result of its type', () => {
+    type R = AtomicResultOf<Map, Attributes, AtomicUpdateHandle<'tracks'>>
+    expectTypeOf<R['data']['type']>().toEqualTypeOf<'tracks'>()
+    expectTypeOf<R['data']['title']>().toEqualTypeOf<string>()
+  })
+
+  it('maps a delete handle to undefined', () => {
+    expectTypeOf<AtomicResultOf<Map, Attributes, AtomicDeleteHandle>>().toEqualTypeOf<undefined>()
+  })
+})
+
+describe('atomic per-op positional call-site', () => {
+  it('types each returned handle as its positional result', () => {
+    expectTypeOf(atomicPositionalCallSite).returns.resolves.toMatchTypeOf<readonly unknown[]>()
+  })
+  it('keeps positions when the returned tuple reorders the ops', () => {
+    expectTypeOf(atomicPositionalKeepsOrder).returns.resolves.toBeVoid()
+  })
+  it('wires a same-batch lid handle into a later op under the tuple form', () => {
+    expectTypeOf(atomicLidWiringUnderTuple).returns.resolves.toBeVoid()
   })
 })
