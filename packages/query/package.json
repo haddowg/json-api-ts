@@ -36,5 +36,8 @@
   },
   "peerDependencies": {
     "@tanstack/query-core": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/query-core": "^5.0.0"
   }
 }

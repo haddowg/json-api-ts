@@ -46,6 +46,7 @@ importers:
       '@haddowg/json-api-client':
         specifier: workspace:^
         version: link:../client
+    devDependencies:
       '@tanstack/query-core':
         specifier: ^5.0.0
         version: 5.101.2

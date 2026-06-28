@@ -6,22 +6,34 @@
  * query-key factory and the bespoke `type:id` normalization glue (Strategy 2,
  * write-through patching — ADR 0003).
  *
- * TODO (build order):
- *  - queryOptions / mutationOptions factories over the client's fluent surface
- *  - normalize(response): index resources by type:id and patch overlapping queries
- *    in place, preserving edge-local $pivot/$edge
- *  - patch-vs-invalidate split: updates patch; create/delete invalidate list queries
- *  - optimistic updates routed through the normalized patch
+ * Shipped (Build 1): the deterministic key factory (`keyFor` + hierarchical prefixes) and
+ * the read option factories (collection list, single get, relationship-linkage + related
+ * collection) — standalone (`listQueryOptions(client, type, query)`) or bound
+ * (`createQueryApi(client).<type>.list(query)`), each yielding `{ queryKey, queryFn }`.
+ *
+ * Shipped (Build 2): the bespoke `type:id` write-through normalization (ADR 0003) —
+ * `normalize(queryClient, result, descriptor)` indexes every resource in a result and patches
+ * every overlapping cached query IN PLACE (preserving edge-local $pivot/$edge), writing back ONLY
+ * the queries that actually changed (so untouched queries keep their `isInvalidated` flags), plus
+ * `installNormalization(queryClient, descriptor)` to auto-run it on every query/mutation success.
+ * A QueryClient holds ONE descriptor (enforced by `installNormalization`): the patch matches by
+ * `type:id` alone, so two descriptors sharing a QueryClient would cross-contaminate attributes —
+ * give each typed client/server its own QueryClient.
+ *
+ * Shipped (Build 3): the mutation OPTION factories over the client write surface — create /
+ * update / delete, the relationship mutations (add/remove/replace/set), each standalone
+ * (`updateMutationOptions(queryClient, client, descriptor, type, id)`) or bound
+ * (`createMutationApi(queryClient, client, descriptor).<type>.id(id).update()`). They wire the
+ * PATCH-vs-INVALIDATE split (ADR 0003): an update / relationship set/replace patches via
+ * `normalize` on success (no refetch); a create / delete invalidates the type's collection lists
+ * (+ the deleted resource's reads); a relationship add/remove/set/replace invalidates only the
+ * PARENT's relation reads for that `(id, rel)` — never the type's collection lists. Optimistic
+ * updates (`{ optimistic: true }` on `update`) pre-apply the patch's attributes through the
+ * normalized patch and roll back on error (compare-and-swap, so a concurrent optimistic patch on
+ * the same resource is not stomped by an earlier one's rollback).
  */
-
-/** A single segment of a query key. */
-export type QueryKeyPart = string | number | boolean | null | Record<string, unknown>
-
-/**
- * Deterministic query-key factory seed. The real factory will derive parts from
- * `(type, operation, id?, rel?, normalized-params)`; this establishes the shape and
- * gives the normalization layer a stable key contract to build on.
- */
-export function queryKey(...parts: QueryKeyPart[]): readonly QueryKeyPart[] {
-  return parts
-}
+export * from './install'
+export * from './keys'
+export * from './mutate'
+export * from './normalize'
+export * from './read'
