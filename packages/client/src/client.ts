@@ -1,4 +1,4 @@
-import { type AtomicRecorder, type AtomicResult, runAtomic } from './atomic'
+import { type AtomicRecorder, runAtomic } from './atomic'
 import type { ActionDescriptor, ActionScope, ApiDescriptor, AtomicDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
@@ -390,11 +390,19 @@ export function createClient<
   const atomicDescriptor = options.atomic ?? null
   // `client.atomic(tx => …)`: post the recorded batch to the atomic endpoint. Built once and
   // reused; throws when the server declares no atomic capability (`atomic` was null/omitted).
-  const atomic = (build: (tx: AtomicRecorder) => void): Promise<AtomicResult[]> => {
+  // Typed via the single conditional-return `Client['atomic']` signature (tuple-of-handles ->
+  // positional results; void -> loose results); the runtime forwards the callback to `runAtomic`.
+  const atomic = (build: (tx: AtomicRecorder<D, W>) => unknown): Promise<unknown> => {
     if (atomicDescriptor === null) {
       throw new Error('This API does not expose an Atomic Operations endpoint')
     }
-    return runAtomic(request, ctx.materialise, descriptor, atomicDescriptor.path, build)
+    return runAtomic(
+      request,
+      ctx.materialise,
+      descriptor,
+      atomicDescriptor.path,
+      build as (tx: AtomicRecorder<D, W>) => void,
+    )
   }
 
   const accessors = new Map<string, TypeAccessor<ApiDescriptor, unknown, unknown, string>>()

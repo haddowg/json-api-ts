@@ -14,6 +14,8 @@ const descriptor = {
     relations: {
       artist: { cardinality: 'one', types: ['artists'], pivot: false },
       tracks: { cardinality: 'many', types: ['tracks'], pivot: false },
+      // A to-many self-relation: lets a test wire an `albums` create handle into a to-many slot.
+      related: { cardinality: 'many', types: ['albums'], pivot: false },
     },
     paths: { create: '/albums', update: '/albums/{id}', delete: '/albums/{id}' },
     paginator: 'page',
@@ -159,15 +161,16 @@ describe('client.atomic — request shape', () => {
     })
 
     await client.atomic((tx) => {
-      const artistRef = { type: 'artists', id: '1' }
+      const artistRef: { type: 'artists'; id: string } = { type: 'artists', id: '1' }
       const album = tx.create({ type: 'albums', title: 'Amnesiac', artist: artistRef })
       expect(album).toMatchObject({ type: 'albums', lid: 'atomic-0', opIndex: 0 })
-      tx.update({ type: 'albums', id: '3', title: 'Sequel', tracks: [album] })
+      // The handle spreads into a to-many slot (the `related` self-relation) by its `{type,lid}`.
+      tx.update({ type: 'albums', id: '3', title: 'Sequel', related: [album] })
     })
 
     const ops = bodyOf(requests[0]!)['atomic:operations'] as Record<string, unknown>[]
     const updateRels = (ops[1]!['data'] as Record<string, unknown>)['relationships']
-    expect(updateRels).toEqual({ tracks: { data: [{ type: 'albums', lid: 'atomic-0' }] } })
+    expect(updateRels).toEqual({ related: { data: [{ type: 'albums', lid: 'atomic-0' }] } })
   })
 })
 
@@ -241,6 +244,135 @@ describe('client.atomic — results', () => {
       tx.delete({ type: 'tracks', id: '9' })
     })
     expect(results).toEqual([])
+  })
+})
+
+describe('client.atomic — typed-tuple results (returned handles)', () => {
+  // The server replies with three positional results (the op order); the callback returns a
+  // tuple of handles selecting them. Each returned handle resolves to its result by `opIndex`.
+  const threeResults = () =>
+    atomicTransport(() => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        'atomic:results': [
+          { data: { type: 'albums', id: '10', attributes: { title: 'Kid A' } } },
+          { data: { type: 'tracks', id: '5', attributes: { title: 'Idioteque' } } },
+          {}, // the remove op carries no data
+        ],
+      }),
+    }))
+
+  it('returns a result per returned handle, resolved by opIndex (delete -> undefined)', async () => {
+    const { transport } = threeResults()
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+
+    const [album, track, gone] = await client.atomic((tx) => [
+      tx.create({ type: 'albums', title: 'Kid A' }),
+      tx.update({ type: 'tracks', id: '5', title: 'Idioteque' }),
+      tx.delete({ type: 'tracks', id: '9' }),
+    ])
+
+    expect(album.data.type).toBe('albums')
+    expect(album.data.id).toBe('10')
+    expect(album.data.title).toBe('Kid A')
+    expect(track.data.type).toBe('tracks')
+    expect(track.data.id).toBe('5')
+    // The delete handle resolves to `undefined` (no data), not the empty result entry.
+    expect(gone).toBeUndefined()
+  })
+
+  it('is sound when the returned tuple REORDERS the recorded ops (by-opIndex, not by return order)', async () => {
+    const { transport } = threeResults()
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+
+    // Record album (op 0), track (op 1), delete (op 2) — but RETURN them in a different order.
+    const [returnedTrack, returnedAlbum] = await client.atomic((tx) => {
+      const album = tx.create({ type: 'albums', title: 'Kid A' })
+      const track = tx.update({ type: 'tracks', id: '5', title: 'Idioteque' })
+      tx.delete({ type: 'tracks', id: '9' })
+      return [track, album] as const
+    })
+
+    // Each handle pulled its OWN positional result regardless of return order.
+    expect(returnedTrack.data.type).toBe('tracks')
+    expect(returnedTrack.data.id).toBe('5')
+    expect(returnedAlbum.data.type).toBe('albums')
+    expect(returnedAlbum.data.id).toBe('10')
+  })
+
+  it('returns a subset of results when the callback returns only some handles', async () => {
+    const { transport } = threeResults()
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+
+    // Record all three ops (so the wire batch is unchanged) but return only the track handle.
+    const [onlyTrack] = await client.atomic((tx) => {
+      tx.create({ type: 'albums', title: 'Kid A' })
+      const track = tx.update({ type: 'tracks', id: '5', title: 'Idioteque' })
+      tx.delete({ type: 'tracks', id: '9' })
+      return [track] as const
+    })
+    expect(onlyTrack.data.type).toBe('tracks')
+    expect(onlyTrack.data.id).toBe('5')
+  })
+
+  it('carries result-level meta onto a returned handle', async () => {
+    const { transport } = atomicTransport(() => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        'atomic:results': [
+          { data: { type: 'albums', id: '10', attributes: {} }, meta: { lid: 'atomic-0' } },
+        ],
+      }),
+    }))
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+
+    const [album] = await client.atomic((tx) => [tx.create({ type: 'albums', title: 'Kid A' })])
+    expect(album.meta).toEqual({ lid: 'atomic-0' })
+  })
+
+  it('still posts the same wire batch under the typed-tuple form', async () => {
+    const { transport, requests } = threeResults()
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+
+    await client.atomic((tx) => [
+      tx.create({ type: 'albums', title: 'Kid A' }),
+      tx.update({ type: 'tracks', id: '5', title: 'Idioteque' }),
+      tx.delete({ type: 'tracks', id: '9' }),
+    ])
+
+    expect(bodyOf(requests[0]!)).toEqual({
+      'atomic:operations': [
+        { op: 'add', data: { type: 'albums', lid: 'atomic-0', attributes: { title: 'Kid A' } } },
+        {
+          op: 'update',
+          ref: { type: 'tracks', id: '5' },
+          data: { type: 'tracks', id: '5', attributes: { title: 'Idioteque' } },
+        },
+        { op: 'remove', ref: { type: 'tracks', id: '9' } },
+      ],
+    })
   })
 })
 

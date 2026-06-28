@@ -22,6 +22,7 @@ import type { ApiDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
 import { execute, type JsonApiContext, type JsonApiRequest } from './request'
+import type { AtomicResultOf, CreateInput, TypeName, UpdateInput } from './result-types'
 import { toDocument, withRemappedAtomicPaths } from './serialize-write'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 import { ATOMIC_MEDIA_TYPE } from './types'
@@ -39,30 +40,72 @@ export type AtomicRef =
   | LocalIdentifier
   | { type: string; lid: string }
 
-/** Flat create input: a `type` discriminant plus the resource's flat attributes/relations (relation slots may reference a prior `tx.create` handle). */
-export interface AtomicCreateInput {
-  type: string
-  id?: string
-  [field: string]: unknown
-}
+/**
+ * Flat create input for type `T`: the `type` discriminant plus the type's flat create
+ * attributes/relation slots (reusing {@link CreateInput}; relation slots may reference a prior
+ * `tx.create` handle). `D`/`W` thread the descriptor + write-attribute map for precise fields;
+ * the loose defaults keep a codegen-less caller compiling.
+ */
+export type AtomicCreateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = {
+  type: T
+} & CreateInput<D, W, T>
 
 /**
- * Flat update input: a `type` discriminant + the target's identity (`id`, OR a `lid` for a
- * resource created earlier in the same batch) plus the flat attributes/relations to patch.
+ * Flat update input for type `T`: the `type` discriminant + the target's identity (`id`, OR a
+ * `lid` for a resource created earlier in the same batch) plus the type's flat update
+ * attributes/relation slots (reusing {@link UpdateInput}).
  */
-export type AtomicUpdateInput =
-  | ({ type: string; id: string; lid?: never } & Record<string, unknown>)
-  | ({ type: string; lid: string; id?: never } & Record<string, unknown>)
+export type AtomicUpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> =
+  | ({ type: T; id: string; lid?: never } & UpdateInput<D, W, T>)
+  | ({ type: T; lid: string; id?: never } & UpdateInput<D, W, T>)
 
 /**
  * The handle a {@link AtomicRecorder.create} returns. It is a `lid`-bearing relationship ref
  * (`{ type, lid }`) — pass it (or spread it) into a later op's relation slot to wire the
- * just-created resource without a server id. `opIndex` is its position in the batch (the
- * created resource's positional result).
+ * just-created resource without a server id. It also carries its op `kind` (`'create'`) and its
+ * `opIndex` (its position in the batch, the created resource's positional result) so the typed
+ * result tuple can map it back to the right positional result.
  */
-export interface AtomicCreateHandle extends LocalIdentifier {
+export interface AtomicCreateHandle<T extends string = string> extends LocalIdentifier {
+  readonly type: T
+  readonly kind: 'create'
   readonly opIndex: number
 }
+
+/**
+ * The handle a {@link AtomicRecorder.update} returns: its type discriminant `T`, its op `kind`
+ * (`'update'`) and its `opIndex`. Returned (alongside the create handle) from the callback so its
+ * positional result is typed as the materialised resource of `T`.
+ */
+export interface AtomicUpdateHandle<T extends string = string> {
+  readonly type: T
+  readonly kind: 'update'
+  readonly opIndex: number
+}
+
+/**
+ * The handle a {@link AtomicRecorder.delete} returns: its op `kind` (`'delete'`) and its
+ * `opIndex`. A delete carries no data, so its positional result is `undefined`.
+ */
+export interface AtomicDeleteHandle {
+  readonly kind: 'delete'
+  readonly opIndex: number
+}
+
+/**
+ * Any handle a recorder method returns — the element type of the callback's result tuple, used
+ * as the inference constraint for the typed-tuple `atomic` form. The discriminant is left open
+ * (`string`, NOT `TypeName<D>`) DELIBERATELY, so the type is descriptor-agnostic: a tighter
+ * `TypeName<D>` constraint would flow the full type union into each element's contextual type
+ * during array-literal inference, widening a `tx.create({ type: 'albums' })` handle's `T` back to
+ * the whole union — losing the per-op narrowing. The recorder methods already guarantee each `T`
+ * is a real `TypeName<D>`, so the open constraint is sound; `AtomicResultOf` re-infers the precise
+ * `T` per element (guarded by `TypeName<D>` there).
+ */
+export type AtomicHandle =
+  | AtomicCreateHandle<string>
+  | AtomicUpdateHandle<string>
+  | AtomicDeleteHandle
 
 /** A single recorded atomic operation, in wire shape (`op` + `ref`/`data`). */
 interface AtomicOperation {
@@ -74,16 +117,23 @@ interface AtomicOperation {
 /** The identity of an op's target resource: a server `id` or a same-batch `lid`. */
 type AtomicIdentity = { id: string } | { lid: string }
 
-/** The recorder handed to the `client.atomic` callback; each method appends an op and returns its handle/void. */
-export interface AtomicRecorder {
-  create(input: AtomicCreateInput): AtomicCreateHandle
-  update(input: AtomicUpdateInput): void
-  delete(ref: AtomicRef): void
+/**
+ * The recorder handed to the `client.atomic` callback. Each method appends an op (preserving
+ * order) and returns a handle carrying the op's discriminant `T`, `kind`, and `opIndex`. The
+ * methods are generic over `T` (inferred from the input's `type`), so a create/update is typed
+ * by the type's write-input ({@link CreateInput}/{@link UpdateInput}) and its handle resolves to
+ * the materialised resource of `T`. `create` still returns a usable `{ type, lid }` ref so a
+ * just-created resource wires into a later op without a server id.
+ */
+export interface AtomicRecorder<D extends ApiDescriptor, W> {
+  create<T extends TypeName<D>>(input: AtomicCreateInput<D, W, T>): AtomicCreateHandle<T>
+  update<T extends TypeName<D>>(input: AtomicUpdateInput<D, W, T>): AtomicUpdateHandle<T>
+  delete(ref: AtomicRef): AtomicDeleteHandle
 }
 
 /** One positional result of an atomic batch: the materialised `data` (a resource/`null`) plus any op `meta`. */
-export interface AtomicResult {
-  data: unknown
+export interface AtomicResult<Data = unknown> {
+  data: Data
   meta?: Record<string, unknown>
 }
 
@@ -94,48 +144,82 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 const lidFor = (opIndex: number): string => `atomic-${opIndex}`
 
 /**
- * Run an atomic transaction. Invokes `build` with a recorder, collecting the operations, then
- * posts `{ "atomic:operations": [...] }` to the atomic endpoint with the ext media type as both
- * `Content-Type` and `Accept`. The server's `{ "atomic:results": [...] }` is parsed positionally
- * — each result's `data` materialised the same as a read — and returned in op order. A thrown
- * {@link JsonApiError} has each error's pointer remapped to `(opIndex, flatPath)` (the failing
- * op's type drives the flat-path inversion) before it propagates.
+ * The typed result tuple for a callback that returns a tuple of handles `Ops`: each returned
+ * handle maps (by {@link AtomicResultOf}) to its materialised positional result — a create/update
+ * handle to the `AtomicResult` of its type, a delete handle to `undefined`. The mapping is
+ * positional in the RETURNED order (sound regardless of subset/reorder, since the runtime resolves
+ * each handle by its `opIndex`).
  */
+export type AtomicResults<D extends ApiDescriptor, A, Ops extends readonly AtomicHandle[]> = {
+  -readonly [K in keyof Ops]: AtomicResultOf<D, A, Ops[K]>
+}
+
+/**
+ * Run an atomic transaction. Invokes `build` with a recorder, collecting the operations (always
+ * via the recorder's side effect, preserving op order), then posts `{ "atomic:operations": [...] }`
+ * to the atomic endpoint with the ext media type as both `Content-Type` and `Accept`. The server's
+ * `{ "atomic:results": [...] }` is parsed positionally — each result's `data` materialised the same
+ * as a read.
+ *
+ * The return shape depends on what `build` returns:
+ *
+ * - returns a tuple of handles -> a per-op POSITIONALLY-TYPED tuple: each returned handle is
+ *   resolved to its result BY ITS `opIndex` (`results[handle.opIndex]`), so the tuple is sound
+ *   regardless of the order/subset the callback returns the handles in (a delete handle resolves
+ *   to `undefined`);
+ * - returns void/nothing -> the loose, ordered `AtomicResult[]` (backward-compatible).
+ *
+ * A thrown {@link JsonApiError} has each error's pointer remapped to `(opIndex, flatPath)` (the
+ * failing op's type drives the flat-path inversion) before it propagates.
+ */
+export function runAtomic<D extends ApiDescriptor, A, W, const Ops>(
+  request: JsonApiContext,
+  materialiseCtx: MaterialiseContext,
+  descriptor: D,
+  path: string,
+  build: (tx: AtomicRecorder<D, W>) => Ops,
+): Promise<Ops extends readonly AtomicHandle[] ? AtomicResults<D, A, Ops> : AtomicResult[]>
 export async function runAtomic(
   request: JsonApiContext,
   materialiseCtx: MaterialiseContext,
   descriptor: ApiDescriptor,
   path: string,
-  build: (tx: AtomicRecorder) => void,
-): Promise<AtomicResult[]> {
+  build: (tx: AtomicRecorder<ApiDescriptor, unknown>) => readonly AtomicHandle[] | void,
+): Promise<AtomicResult[] | readonly (AtomicResult | undefined)[]> {
   const operations: AtomicOperation[] = []
   /** The wire type of each op, by index — drives the error-pointer remap. */
   const typeByOp: string[] = []
 
-  const recorder: AtomicRecorder = {
+  const recorder: AtomicRecorder<ApiDescriptor, unknown> = {
     create(input) {
       const opIndex = operations.length
       const lid = lidFor(opIndex)
       const data = atomicResourceData(descriptor, input, { lid })
       operations.push({ op: 'add', data })
       typeByOp.push(input.type)
-      return { type: input.type, lid, opIndex }
+      return { type: input.type, lid, kind: 'create', opIndex }
     },
     update(input) {
+      const opIndex = operations.length
       const identity: AtomicIdentity =
         input.id !== undefined ? { id: input.id } : { lid: input.lid }
       const data = atomicResourceData(descriptor, input, identity)
       operations.push({ op: 'update', ref: { type: input.type, ...identity }, data })
       typeByOp.push(input.type)
+      return { type: input.type, kind: 'update', opIndex }
     },
     delete(ref) {
+      const opIndex = operations.length
       const { type, identity } = toRef(ref)
       operations.push({ op: 'remove', ref: { type, ...identity } })
       typeByOp.push(type)
+      return { kind: 'delete', opIndex }
     },
   }
 
-  build(recorder)
+  // The callback always drives the recorder side effect (collecting ops in order); its RETURN
+  // VALUE — when it's a tuple of handles — selects the typed positional result per handle.
+  const returned = build(recorder)
 
   const req: JsonApiRequest = {
     method: 'POST',
@@ -155,7 +239,23 @@ export async function runAtomic(
     throw error
   }
 
-  return parseResults(doc as { ['atomic:results']?: unknown } | undefined, materialiseCtx)
+  const results = parseResults(doc as { ['atomic:results']?: unknown } | undefined, materialiseCtx)
+
+  // Loose form: the callback returned nothing, or not an all-handles array -> the ordered results
+  // array (backward-compatible). The all-handles guard keeps the runtime in step with the type
+  // predicate (`Ops extends readonly AtomicHandle[]`): a stray non-handle element resolves to the
+  // loose AtomicResult[] the type promises rather than a row of undefined.
+  const isHandleTuple =
+    Array.isArray(returned) &&
+    returned.every((h) => h !== null && typeof h === 'object' && 'opIndex' in h)
+  if (!isHandleTuple) {
+    return results
+  }
+  // Typed-tuple form: resolve each RETURNED handle by its `opIndex` (a delete -> undefined), so
+  // the tuple is sound regardless of the order/subset of handles returned. (A server returning no
+  // `atomic:results` for an op yields undefined; the reference bundle always returns the created/
+  // updated resource, so create/update results are typed present.)
+  return returned.map((handle) => (handle.kind === 'delete' ? undefined : results[handle.opIndex]))
 }
 
 /**
@@ -167,7 +267,7 @@ export async function runAtomic(
  */
 function atomicResourceData(
   descriptor: ApiDescriptor,
-  input: AtomicCreateInput | AtomicUpdateInput,
+  input: { type: string; [field: string]: unknown },
   identity: AtomicIdentity,
 ): Record<string, unknown> {
   // Strip the identity keys before routing — `lid` is not an attribute, and `id` (when present
