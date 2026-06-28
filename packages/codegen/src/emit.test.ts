@@ -88,6 +88,31 @@ describe('emit (music-catalog admin server)', () => {
   })
 })
 
+describe('emit (descriptions -> JSDoc)', () => {
+  it('documents an attribute from its own description', () => {
+    expect(source).toContain(
+      '  /** Value must be before a dynamically-resolved date/time bound. */\n  releasedAt: string',
+    )
+  })
+
+  it('documents an attribute whose description rides the $ref wrapper (status)', () => {
+    expect(source).toContain(
+      '  /** Where the album sits in its release lifecycle. */\n  status: AlbumStatus',
+    )
+  })
+
+  it('leaves an attribute with no description undocumented', () => {
+    // `title` carries no description, so no comment precedes it.
+    expect(source).not.toMatch(/\/\*\*[^\n]*\*\/\n  title: string/)
+  })
+
+  it('documents enum values as a per-value list above the union alias', () => {
+    expect(source).toContain('- `upcoming` — Announced but not yet on sale.')
+    expect(source).toContain('- `released` — Released and available to stream or buy.')
+    expect(source).toMatch(/\/\*\*\n \* - `upcoming` —[\s\S]*?\*\/\nexport type AlbumStatus =/)
+  })
+})
+
 describe('detectVerbCollisions', () => {
   it('finds no collisions in the real fixture', () => {
     expect(detectVerbCollisions(descriptor)).toEqual([])

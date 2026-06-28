@@ -9,16 +9,24 @@ import {
   createClient as createClientRuntime,
 } from '@haddowg/json-api-client'
 
+/**
+ * - `upcoming` — Announced but not yet on sale.
+ * - `released` — Released and available to stream or buy.
+ * - `withdrawn` — Withdrawn from the catalogue (back-catalogue or rights lapsed).
+ */
 export type AlbumStatus = "upcoming" | "released" | "withdrawn"
 
 export interface AlbumsAttributes {
   artwork: string | null
   availableFrom: string | null
+  /** Value is compared against the `availableFrom` field (>). */
   availableUntil: string | null
   averageRating: number | null
   explicit: boolean
   releaseInfo: { label?: string; catalogueNumber?: string } | null
+  /** Value must be before a dynamically-resolved date/time bound. */
   releasedAt: string
+  /** Where the album sits in its release lifecycle. */
   status: AlbumStatus
   title: string
 }

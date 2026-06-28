@@ -11,6 +11,7 @@ export interface SchemaObject {
   type?: string | readonly string[]
   const?: unknown
   format?: string
+  description?: string
   enum?: readonly unknown[]
   properties?: Record<string, SchemaOrBool>
   items?: SchemaObject
