@@ -180,14 +180,32 @@ describe('materialise — pivot members', () => {
     })
   })
 
-  it('is gracefully undefined on a primary-resource compound include (no meta.pivot)', () => {
+  it('carries $pivot on a primary-resource compound include', () => {
+    // The bundle now renders meta.pivot on a primary-document linkage, not only on the
+    // relationship/related endpoints (json-api-symfony #79) — so a compound include
+    // hydrates pivot the same way.
     const playlist = asResource(materialise(loadFixture('playlist-pivot.json'), context()))
     const ordered = asArray<Related>(playlist['orderedTracks'])
     expect(ordered).toHaveLength(3)
     expect(ordered[0]!['title']).toBe('Airbag')
-    expect(ordered[0]!.$pivot).toBeUndefined()
-    // served_by is still carried on $edge.meta even without pivot.
-    expect(ordered[0]!.$edge?.meta).toEqual({ served_by: 'music-catalog' })
+    expect(ordered[0]!.$pivot).toEqual({
+      position: 2,
+      weight: 100,
+      addedAt: '2024-04-02T09:00:00+00:00',
+    })
+    // pivot rides $edge.meta alongside served_by.
+    expect(ordered[0]!.$edge?.meta).toEqual({
+      served_by: 'music-catalog',
+      pivot: { position: 2, weight: 100, addedAt: '2024-04-02T09:00:00+00:00' },
+    })
+  })
+
+  it('leaves $pivot undefined on a non-pivot relation member', () => {
+    // A plain (non-belongsToMany) to-many carries no meta.pivot; $pivot stays undefined.
+    const album = asResource(materialise(loadFixture('album-compound.json'), context()))
+    const tracks = asArray<Related>(album['tracks'])
+    expect(tracks[0]!.$pivot).toBeUndefined()
+    expect(tracks[0]!.$edge?.meta).toEqual({ served_by: 'music-catalog' })
   })
 
   it('reports the same $page.kind on a compound include as on the dedicated endpoint', () => {
