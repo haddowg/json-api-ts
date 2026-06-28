@@ -1,0 +1,560 @@
+{
+    "albums": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:albums",
+        "type": "object",
+        "description": "An `albums` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "albums"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    "averageRating": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "artwork": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "releasedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Value must be before a dynamically-resolved date/time bound."
+                    },
+                    "explicit": {
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Where the album sits in its release lifecycle.\n\n| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
+                        "enum": [
+                            "upcoming",
+                            "released",
+                            "withdrawn"
+                        ],
+                        "x-enum-varnames": [
+                            "Upcoming",
+                            "Released",
+                            "Withdrawn"
+                        ],
+                        "x-enum-descriptions": [
+                            "Announced but not yet on sale.",
+                            "Released and available to stream or buy.",
+                            "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
+                        ]
+                    },
+                    "availableFrom": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date"
+                    },
+                    "availableUntil": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date",
+                        "description": "Value is compared against the `availableFrom` field (>)."
+                    },
+                    "releaseInfo": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "catalogueNumber": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "artists": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:artists",
+        "type": "object",
+        "description": "An `artists` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "artists"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "website": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "uri"
+                    },
+                    "bio": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 1000
+                    },
+                    "trackCount": {
+                        "type": "integer"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "devices": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:devices",
+        "type": "object",
+        "description": "An `devices` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "devices"
+            },
+            "id": {
+                "type": "string",
+                "pattern": "[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "favorites": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:favorites",
+        "type": "object",
+        "description": "An `favorites` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "favorites"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "favoritedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "genres": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:genres",
+        "type": "object",
+        "description": "An `genres` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "genres"
+            },
+            "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "libraries": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:libraries",
+        "type": "object",
+        "description": "An `libraries` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "libraries"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object"
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "playlists": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:playlists",
+        "type": "object",
+        "description": "An `playlists` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "playlists"
+            },
+            "id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                        "example": "example-slug"
+                    },
+                    "public": {
+                        "type": "boolean"
+                    },
+                    "externalId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "uuid"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "products": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:products",
+        "type": "object",
+        "description": "An `products` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "products"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "public-profiles": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:public-profiles",
+        "type": "object",
+        "description": "An `public-profiles` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "public-profiles"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "displayName": {
+                        "type": "string"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "tracks": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:tracks",
+        "type": "object",
+        "description": "An `tracks` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "tracks"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "trackNumber": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "durationSeconds": {
+                        "type": "integer"
+                    },
+                    "explicit": {
+                        "type": "boolean"
+                    },
+                    "genres": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                            "minLength": 1
+                        }
+                    },
+                    "previewOffset": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "time"
+                    },
+                    "displayTitle": {
+                        "type": "string"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "charts": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:charts",
+        "type": "object",
+        "description": "An `charts` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "charts"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object"
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "countries": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:countries",
+        "type": "object",
+        "description": "An `countries` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "countries"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object"
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    }
+}

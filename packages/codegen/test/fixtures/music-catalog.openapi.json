@@ -8043,7 +8043,12 @@
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ]
             }
         },
         "/playlists/{id}/relationships/owner": {
@@ -8137,7 +8142,12 @@
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -16815,7 +16825,38 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/TracksResourceIdentifier"
+                            "allOf": [
+                                {
+                                    "$ref": "#/components/schemas/TracksResourceIdentifier"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "pivot": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "position": {
+                                                            "type": "integer",
+                                                            "minimum": 1
+                                                        },
+                                                        "weight": {
+                                                            "type": "integer",
+                                                            "description": "Value is compared against the `position` field (>=)."
+                                                        },
+                                                        "addedAt": {
+                                                            "type": "string",
+                                                            "format": "date-time"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "meta": {
@@ -16829,7 +16870,38 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/TracksResourceIdentifier"
+                            "allOf": [
+                                {
+                                    "$ref": "#/components/schemas/TracksResourceIdentifier"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "pivot": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "position": {
+                                                            "type": "integer",
+                                                            "minimum": 1
+                                                        },
+                                                        "weight": {
+                                                            "type": "integer",
+                                                            "description": "Value is compared against the `position` field (>=)."
+                                                        },
+                                                        "addedAt": {
+                                                            "type": "string",
+                                                            "format": "date-time"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "links": {

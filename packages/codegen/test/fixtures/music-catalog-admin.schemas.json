@@ -1,0 +1,167 @@
+{
+    "albums": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:albums",
+        "type": "object",
+        "description": "An `albums` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "albums"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    "averageRating": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "artwork": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "releasedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Value must be before a dynamically-resolved date/time bound."
+                    },
+                    "explicit": {
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Where the album sits in its release lifecycle.\n\n| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
+                        "enum": [
+                            "upcoming",
+                            "released",
+                            "withdrawn"
+                        ],
+                        "x-enum-varnames": [
+                            "Upcoming",
+                            "Released",
+                            "Withdrawn"
+                        ],
+                        "x-enum-descriptions": [
+                            "Announced but not yet on sale.",
+                            "Released and available to stream or buy.",
+                            "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
+                        ]
+                    },
+                    "availableFrom": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date"
+                    },
+                    "availableUntil": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date",
+                        "description": "Value is compared against the `availableFrom` field (>)."
+                    },
+                    "releaseInfo": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "label": {
+                                "type": "string"
+                            },
+                            "catalogueNumber": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "users": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:users",
+        "type": "object",
+        "description": "An `users` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "users"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "birthDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date"
+                    },
+                    "preferences": {
+                        "type": "object",
+                        "minProperties": 0,
+                        "maxProperties": 20,
+                        "additionalProperties": {}
+                    },
+                    "lastSeenIp": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "ipv4"
+                    }
+                }
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    }
+}
