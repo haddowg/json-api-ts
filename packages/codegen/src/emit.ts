@@ -59,6 +59,27 @@ function objectKey(value: string): string {
   return isIdentifier(value) ? value : quote(value)
 }
 
+/**
+ * Render a description as a JSDoc comment at the given indent — single-line when it fits,
+ * a block otherwise. Returns `undefined` for empty text. Neutralises any `*\/` so a
+ * description can never terminate the comment early.
+ */
+function jsDoc(text: string | undefined, indent: string): string | undefined {
+  const trimmed = text?.trim()
+  if (!trimmed) {
+    return undefined
+  }
+  const lines = trimmed.replace(/\*\//g, '* /').split('\n')
+  if (lines.length === 1) {
+    return `${indent}/** ${lines[0]} */`
+  }
+  return [
+    `${indent}/**`,
+    ...lines.map((line) => `${indent} * ${line}`.trimEnd()),
+    `${indent} */`,
+  ].join('\n')
+}
+
 export class Emitter {
   private readonly schemas: Record<string, SchemaObject>
   /** Wire type -> the schema `Base` (the `<Base>Resource` name minus `Resource`). */
@@ -137,6 +158,10 @@ export class Emitter {
     for (const field of Object.keys(descriptorAttrs)) {
       const schema = props?.[field]
       const tsType = isSchema(schema) ? this.tsType(schema) : 'unknown'
+      const doc = isSchema(schema) ? jsDoc(schema.description, '  ') : undefined
+      if (doc) {
+        lines.push(doc)
+      }
       lines.push(`  ${objectKey(field)}: ${tsType}`)
     }
 
@@ -243,11 +268,30 @@ export class Emitter {
     const names = [...this.usedEnums.keys()].sort()
     return names
       .map((name) => {
-        const values = this.usedEnums.get(name)!.enum ?? []
+        const schema = this.usedEnums.get(name)!
+        const values = schema.enum ?? []
         const union = values.map((value) => quote(String(value))).join(' | ')
-        return `export type ${name} = ${union}`
+        const alias = `export type ${name} = ${union}`
+        const doc = jsDoc(this.enumDoc(schema), '')
+        return doc ? `${doc}\n${alias}` : alias
       })
       .join('\n\n')
+  }
+
+  /**
+   * Documentation for an enum alias: a per-value list built from `x-enum-descriptions`
+   * (the richest hover DX, since a union alias can't carry per-member JSDoc), falling
+   * back to the component's own `description`.
+   */
+  private enumDoc(schema: SchemaObject): string | undefined {
+    const values = schema.enum ?? []
+    const descriptions = schema['x-enum-descriptions']
+    if (Array.isArray(descriptions) && descriptions.length === values.length && values.length > 0) {
+      return values
+        .map((value, i) => `- \`${String(value)}\` — ${String(descriptions[i])}`)
+        .join('\n')
+    }
+    return schema.description
   }
 
   /** Emit the descriptor as a literal `as const satisfies ApiDescriptor`. */
