@@ -35,9 +35,30 @@
           "related": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/orderedTracks"
         },
         "data": [
-          { "type": "tracks", "id": "1", "meta": { "served_by": "music-catalog" } },
-          { "type": "tracks", "id": "3", "meta": { "served_by": "music-catalog" } },
-          { "type": "tracks", "id": "2", "meta": { "served_by": "music-catalog" } }
+          {
+            "type": "tracks",
+            "id": "1",
+            "meta": {
+              "served_by": "music-catalog",
+              "pivot": { "position": 2, "weight": 100, "addedAt": "2024-04-02T09:00:00+00:00" }
+            }
+          },
+          {
+            "type": "tracks",
+            "id": "3",
+            "meta": {
+              "served_by": "music-catalog",
+              "pivot": { "position": 1, "weight": 100, "addedAt": "2024-04-01T09:00:00+00:00" }
+            }
+          },
+          {
+            "type": "tracks",
+            "id": "2",
+            "meta": {
+              "served_by": "music-catalog",
+              "pivot": { "position": 3, "weight": 100, "addedAt": "2024-04-03T09:00:00+00:00" }
+            }
+          }
         ]
       }
     }
@@ -46,7 +67,10 @@
     {
       "type": "tracks",
       "id": "1",
-      "meta": { "served_by": "music-catalog" },
+      "meta": {
+        "served_by": "music-catalog",
+        "pivot": { "position": 2, "weight": 100, "addedAt": "2024-04-02T09:00:00+00:00" }
+      },
       "links": { "self": "https:\/\/music.example\/tracks\/1" },
       "attributes": {
         "title": "Airbag",
@@ -77,7 +101,10 @@
     {
       "type": "tracks",
       "id": "3",
-      "meta": { "served_by": "music-catalog" },
+      "meta": {
+        "served_by": "music-catalog",
+        "pivot": { "position": 1, "weight": 100, "addedAt": "2024-04-01T09:00:00+00:00" }
+      },
       "links": { "self": "https:\/\/music.example\/tracks\/3" },
       "attributes": {
         "title": "Exit Music (For a Film)",
@@ -108,7 +135,10 @@
     {
       "type": "tracks",
       "id": "2",
-      "meta": { "served_by": "music-catalog" },
+      "meta": {
+        "served_by": "music-catalog",
+        "pivot": { "position": 3, "weight": 100, "addedAt": "2024-04-03T09:00:00+00:00" }
+      },
       "links": { "self": "https:\/\/music.example\/tracks\/2" },
       "attributes": {
         "title": "Paranoid Android",
