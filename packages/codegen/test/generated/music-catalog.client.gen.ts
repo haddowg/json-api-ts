@@ -85,6 +85,22 @@ export interface TracksAttributes {
 
 export interface UsersAttributes {}
 
+export interface Attributes {
+  albums: AlbumsAttributes
+  artists: ArtistsAttributes
+  charts: ChartsAttributes
+  countries: CountriesAttributes
+  devices: DevicesAttributes
+  favorites: FavoritesAttributes
+  genres: GenresAttributes
+  libraries: LibrariesAttributes
+  playlists: PlaylistsAttributes
+  products: ProductsAttributes
+  "public-profiles": PublicProfilesAttributes
+  tracks: TracksAttributes
+  users: UsersAttributes
+}
+
 export const resourceMap = {
   albums: {
     attributes: {
@@ -409,4 +425,4 @@ export type ResourceMap = typeof resourceMap
 
 /** Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`. */
 export const createClient = (options: ClientOptions) =>
-  createClientRuntime(resourceMap, options)
+  createClientRuntime<typeof resourceMap, Attributes>(resourceMap, options)

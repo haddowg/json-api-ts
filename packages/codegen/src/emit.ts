@@ -1,4 +1,8 @@
-import type { ApiDescriptor, ResourceDescriptor } from '@haddowg/json-api-client'
+import {
+  type ApiDescriptor,
+  HANDLE_RESERVED,
+  type ResourceDescriptor,
+} from '@haddowg/json-api-client'
 import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
 
 const REF_PREFIX = '#/components/schemas/'
@@ -9,12 +13,24 @@ export interface VerbCollision {
   relation: string
 }
 
-/** The reserved verb names the Phase-2 resource handle will expose. */
-const RESERVED_VERBS = new Set(['get', 'update', 'delete', 'create', 'list', 'actions'])
+/**
+ * The reserved relation names: the members the read handle actually shadows (kept in sync
+ * via the runtime's {@link HANDLE_RESERVED}) plus the future Phase-3 write verbs. A relation
+ * named like any of these must route through `.rel(name)`, so the codegen warns at build time.
+ * (`type`/`id` from {@link HANDLE_RESERVED} can never be JSON:API relation names.)
+ */
+const RESERVED_VERBS = new Set<string>([
+  ...HANDLE_RESERVED,
+  'update',
+  'delete',
+  'create',
+  'list',
+  'actions',
+])
 
 /**
- * Find relations whose name shadows a reserved fluent-surface verb. Such relations will
- * be routed via `.rel(name)` in Phase 2; the codegen warns about them at build time.
+ * Find relations whose name shadows a reserved fluent-surface member (a handle accessor or a
+ * future write verb). Such relations are routed via `.rel(name)`; the codegen warns at build time.
  */
 export function detectVerbCollisions(descriptor: ApiDescriptor): VerbCollision[] {
   const collisions: VerbCollision[] = []
@@ -120,6 +136,7 @@ export class Emitter {
       this.imports(),
       ...(enums ? [enums] : []),
       ...interfaces,
+      this.attributesMap(),
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
       this.boundFactory(),
@@ -294,6 +311,19 @@ export class Emitter {
     return schema.description
   }
 
+  /**
+   * Emit the `Attributes` interface mapping each wire type to its per-type attribute
+   * interface. The runtime descriptor only carries coarse format hints; this is how the
+   * precise per-type attribute types reach the bound client (passed as the second type
+   * argument to the runtime factory).
+   */
+  private attributesMap(): string {
+    const lines = Object.keys(this.descriptor).map(
+      (type) => `  ${objectKey(type)}: ${pascalCase(type)}Attributes`,
+    )
+    return `export interface Attributes {\n${lines.join('\n')}\n}`
+  }
+
   /** Emit the descriptor as a literal `as const satisfies ApiDescriptor`. */
   private resourceMap(): string {
     const body = this.literal(this.descriptor as Record<string, unknown>, 0)
@@ -331,7 +361,7 @@ export class Emitter {
     return [
       '/** Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`. */',
       'export const createClient = (options: ClientOptions) =>',
-      '  createClientRuntime(resourceMap, options)',
+      '  createClientRuntime<typeof resourceMap, Attributes>(resourceMap, options)',
     ].join('\n')
   }
 }

@@ -1,0 +1,113 @@
+{
+  "data": {
+    "type": "libraries",
+    "id": "1",
+    "links": { "self": "https:\/\/music.example\/libraries\/1" },
+    "relationships": {
+      "owner": {
+        "links": {
+          "self": "https:\/\/music.example\/libraries\/1\/relationships\/owner",
+          "related": "https:\/\/music.example\/libraries\/1\/owner"
+        }
+      },
+      "items": {
+        "links": {
+          "self": "https:\/\/music.example\/libraries\/1\/relationships\/items",
+          "related": "https:\/\/music.example\/libraries\/1\/items"
+        },
+        "data": [
+          { "type": "tracks", "id": "1", "meta": { "served_by": "music-catalog" } },
+          { "type": "albums", "id": "2" },
+          { "type": "artists", "id": "1" }
+        ]
+      }
+    }
+  },
+  "included": [
+    {
+      "type": "tracks",
+      "id": "1",
+      "meta": { "served_by": "music-catalog" },
+      "links": { "self": "https:\/\/music.example\/tracks\/1" },
+      "attributes": {
+        "title": "Airbag",
+        "trackNumber": 1,
+        "durationSeconds": 284,
+        "explicit": false,
+        "genres": ["rock", "alternative"],
+        "previewOffset": "00:00:30",
+        "displayTitle": "1. Airbag"
+      },
+      "relationships": {
+        "album": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/1\/relationships\/album",
+            "related": "https:\/\/music.example\/tracks\/1\/album"
+          },
+          "data": { "type": "albums", "id": "1" }
+        },
+        "playlists": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/1\/relationships\/playlists",
+            "related": "https:\/\/music.example\/tracks\/1\/playlists"
+          },
+          "data": [{ "type": "playlists", "id": "00000000-0000-4000-8000-000000000001" }]
+        }
+      }
+    },
+    {
+      "type": "albums",
+      "id": "2",
+      "links": { "self": "https:\/\/music.example\/albums\/2" },
+      "attributes": {
+        "title": "Dummy",
+        "averageRating": 9.1,
+        "artwork": null,
+        "releasedAt": "1994-08-22T00:00:00+00:00",
+        "explicit": false,
+        "status": "released",
+        "availableFrom": "1994-08-22",
+        "availableUntil": "2031-01-01",
+        "releaseInfo": { "label": "Go! Beat", "catalogueNumber": "NODATA 02" }
+      },
+      "relationships": {
+        "artist": {
+          "links": {
+            "self": "https:\/\/music.example\/albums\/2\/relationships\/artist",
+            "related": "https:\/\/music.example\/albums\/2\/artist"
+          },
+          "data": { "type": "artists", "id": "2" }
+        },
+        "tracks": {
+          "links": {
+            "self": "https:\/\/music.example\/albums\/2\/relationships\/tracks",
+            "related": "https:\/\/music.example\/albums\/2\/tracks"
+          }
+        }
+      }
+    },
+    {
+      "type": "artists",
+      "id": "1",
+      "links": { "self": "https:\/\/music.example\/artists\/1" },
+      "attributes": {
+        "name": "Radiohead",
+        "slug": "radiohead",
+        "website": "https:\/\/radiohead.com",
+        "bio": "An English rock band formed in Abingdon.",
+        "trackCount": 3,
+        "createdAt": "2001-05-01T09:00:00+00:00"
+      },
+      "relationships": {
+        "albums": {
+          "links": {
+            "self": "https:\/\/music.example\/artists\/1\/relationships\/albums",
+            "related": "https:\/\/music.example\/artists\/1\/albums"
+          }
+        }
+      }
+    }
+  ],
+  "links": { "self": "https:\/\/music.example\/libraries\/1?include=items" },
+  "jsonapi": { "version": "1.1" }
+}

@@ -1,0 +1,144 @@
+{
+  "data": {
+    "type": "playlists",
+    "id": "00000000-0000-4000-8000-000000000001",
+    "links": { "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001" },
+    "attributes": {
+      "title": "Morning Mix",
+      "slug": "morning-mix",
+      "public": true,
+      "externalId": "11111111-1111-4111-8111-111111111111"
+    },
+    "relationships": {
+      "owner": {
+        "links": {
+          "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/relationships\/owner",
+          "related": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/owner"
+        }
+      },
+      "publicOwner": {
+        "links": {
+          "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/relationships\/publicOwner",
+          "related": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/publicOwner"
+        },
+        "data": { "type": "public-profiles", "id": "1" }
+      },
+      "tracks": {
+        "links": {
+          "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/relationships\/tracks",
+          "related": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/tracks"
+        }
+      },
+      "orderedTracks": {
+        "links": {
+          "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/relationships\/orderedTracks",
+          "related": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001\/orderedTracks"
+        },
+        "data": [
+          { "type": "tracks", "id": "1", "meta": { "served_by": "music-catalog" } },
+          { "type": "tracks", "id": "3", "meta": { "served_by": "music-catalog" } },
+          { "type": "tracks", "id": "2", "meta": { "served_by": "music-catalog" } }
+        ]
+      }
+    }
+  },
+  "included": [
+    {
+      "type": "tracks",
+      "id": "1",
+      "meta": { "served_by": "music-catalog" },
+      "links": { "self": "https:\/\/music.example\/tracks\/1" },
+      "attributes": {
+        "title": "Airbag",
+        "trackNumber": 1,
+        "durationSeconds": 284,
+        "explicit": false,
+        "genres": ["rock", "alternative"],
+        "previewOffset": "00:00:30",
+        "displayTitle": "1. Airbag"
+      },
+      "relationships": {
+        "album": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/1\/relationships\/album",
+            "related": "https:\/\/music.example\/tracks\/1\/album"
+          },
+          "data": { "type": "albums", "id": "1" }
+        },
+        "playlists": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/1\/relationships\/playlists",
+            "related": "https:\/\/music.example\/tracks\/1\/playlists"
+          },
+          "data": [{ "type": "playlists", "id": "00000000-0000-4000-8000-000000000001" }]
+        }
+      }
+    },
+    {
+      "type": "tracks",
+      "id": "3",
+      "meta": { "served_by": "music-catalog" },
+      "links": { "self": "https:\/\/music.example\/tracks\/3" },
+      "attributes": {
+        "title": "Exit Music (For a Film)",
+        "trackNumber": 3,
+        "durationSeconds": 264,
+        "explicit": false,
+        "genres": ["rock"],
+        "previewOffset": null,
+        "displayTitle": "3. Exit Music (For a Film)"
+      },
+      "relationships": {
+        "album": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/3\/relationships\/album",
+            "related": "https:\/\/music.example\/tracks\/3\/album"
+          },
+          "data": { "type": "albums", "id": "1" }
+        },
+        "playlists": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/3\/relationships\/playlists",
+            "related": "https:\/\/music.example\/tracks\/3\/playlists"
+          },
+          "data": []
+        }
+      }
+    },
+    {
+      "type": "tracks",
+      "id": "2",
+      "meta": { "served_by": "music-catalog" },
+      "links": { "self": "https:\/\/music.example\/tracks\/2" },
+      "attributes": {
+        "title": "Paranoid Android",
+        "trackNumber": 2,
+        "durationSeconds": 383,
+        "explicit": true,
+        "genres": ["rock", "progressive"],
+        "previewOffset": "00:01:00",
+        "displayTitle": "2. Paranoid Android"
+      },
+      "relationships": {
+        "album": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/2\/relationships\/album",
+            "related": "https:\/\/music.example\/tracks\/2\/album"
+          },
+          "data": { "type": "albums", "id": "1" }
+        },
+        "playlists": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/2\/relationships\/playlists",
+            "related": "https:\/\/music.example\/tracks\/2\/playlists"
+          },
+          "data": [{ "type": "playlists", "id": "00000000-0000-4000-8000-000000000001" }]
+        }
+      }
+    }
+  ],
+  "links": {
+    "self": "https:\/\/music.example\/playlists\/00000000-0000-4000-8000-000000000001?include=orderedTracks"
+  },
+  "jsonapi": { "version": "1.1" }
+}
