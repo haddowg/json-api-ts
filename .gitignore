@@ -7,3 +7,5 @@ coverage/
 *.log
 .idea/
 .vscode/
+.codegen-tmp/
+.workflows/
