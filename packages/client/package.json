@@ -15,6 +15,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./ajv": {
+      "import": {
+        "types": "./dist/ajv.d.mts",
+        "default": "./dist/ajv.mjs"
+      },
+      "require": {
+        "types": "./dist/ajv.d.cts",
+        "default": "./dist/ajv.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -30,5 +40,16 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "ajv": "^8.17.1"
+  },
+  "peerDependenciesMeta": {
+    "ajv": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
   }
 }

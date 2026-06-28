@@ -40,12 +40,6 @@ export async function run(argv: string[]): Promise<number> {
     console.error(USAGE)
     return 1
   }
-  // The validation seam is Phase 2; flag the no-op rather than silently ignore it.
-  if (config.schemas !== undefined) {
-    console.warn(
-      '[json-api-codegen] --schemas is reserved for the validation seam and has no effect yet; ignoring.',
-    )
-  }
   await generate(config as CodegenConfig)
   return 0
 }

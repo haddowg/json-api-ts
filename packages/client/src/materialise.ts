@@ -1,5 +1,6 @@
 import type { ApiDescriptor, PaginatorKind, RelationDescriptor } from './descriptor'
 import type { Document } from './request'
+import { assertJsonApiDocument, type ResolvedValidator, validateDocument } from './validate'
 
 /** A trimmed, by-reference top-level envelope shared by every resource from one response. */
 export interface DocumentEnvelope {
@@ -70,6 +71,12 @@ export interface MaterialiseContext {
    * array re-materialises as identifiers (not resources) on `$next()`/`$prev()`.
    */
   navigate: (url: string, linkage?: boolean) => Promise<unknown>
+  /**
+   * The opt-in per-resource validator (ADR 0004), resolved from `ClientOptions.validate`. When
+   * present, every wire resource in `data`/`included` is validated against its per-type schema
+   * before the document is materialised. Absent => no per-field validation (the default).
+   */
+  validate?: ResolvedValidator | undefined
 }
 
 /** A raw JSON:API resource object (or bare identifier) off the wire. */
@@ -119,6 +126,14 @@ const defineGetter = (target: object, key: string, get: () => unknown): void => 
  * relation-less resource, so the caller passes the surface it issued.
  */
 export function materialise(doc: Document, ctx: MaterialiseContext, linkage = false): unknown {
+  // Always-on light structural guards: prove the envelope invariant the runtime relies on (a
+  // JSON:API document; each data/included member carries type+id). Then, only when configured,
+  // run the opt-in per-field validation over each wire resource by its type (ADR 0004).
+  assertJsonApiDocument(doc)
+  if (ctx.validate !== undefined) {
+    validateDocument(doc, ctx.validate)
+  }
+
   const env: DocumentEnvelope = {}
   if (doc.jsonapi !== undefined) env.jsonapi = doc.jsonapi
   if (doc.meta !== undefined) env.meta = doc.meta
