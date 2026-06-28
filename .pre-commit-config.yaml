@@ -10,6 +10,16 @@ repos:
         entry: pnpm exec oxfmt --write
         language: system
         types_or: [ts, tsx, javascript, jsx, json, yaml, markdown]
+        # Mirror the committable entries of .oxfmtrc.json `ignorePatterns`: oxfmt
+        # exits non-zero ("Expected at least one target file") if every path it is
+        # handed is ignored, which would fail any commit touching only generated
+        # output, the lockfile, or the raw codegen fixtures. Keep the two in sync.
+        exclude: |
+          (?x)^(
+            packages/codegen/test/fixtures/|
+            pnpm-lock\.yaml$|
+            .*\.gen\.ts$
+          )
 
       - id: oxlint
         name: oxlint
