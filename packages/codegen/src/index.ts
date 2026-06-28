@@ -11,6 +11,18 @@
  * schema (`id: false` / required / optional).
  */
 
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { buildDescriptor } from './build-descriptor'
+import { detectVerbCollisions, emit } from './emit'
+import { readDocument } from './reader'
+
+export { buildDescriptor, DescriptorBuilder } from './build-descriptor'
+export { detectVerbCollisions, emit, Emitter } from './emit'
+export type { VerbCollision } from './emit'
+export type * from './openapi'
+export { readDocument } from './reader'
+
 export interface CodegenConfig {
   /** OpenAPI document source: an http(s) URL or a local file path. */
   input: string
@@ -23,13 +35,26 @@ export interface CodegenConfig {
 }
 
 /**
- * TODO: parse the OpenAPI document into an internal model, then emit the descriptor.
- *  - readDocument(input): fetch URL or read file; parse JSON/YAML
- *  - buildDescriptor(doc): walk components/paths -> ApiDescriptor + type interfaces
- *  - emit(descriptor): write `<output>` (descriptor `as const` + ApiFor types + createClient)
- *  - detect verb/relationship collisions and route those types through `.rel(name)`
+ * Read the OpenAPI document, build the runtime descriptor, emit the generated client
+ * module and write it to `config.output` (creating parent directories as needed).
+ *
+ * `config.server` is metadata-only for now: the served document is already per-server,
+ * so the caller selects the server by pointing `input` at the right document.
  */
-export async function generate(config: CodegenConfig): Promise<void> {
-  void config
-  throw new Error('not implemented yet — see the build order in this file')
+export async function generate(config: CodegenConfig): Promise<string> {
+  const doc = await readDocument(config.input)
+  const descriptor = buildDescriptor(doc)
+
+  for (const { type, relation } of detectVerbCollisions(descriptor)) {
+    console.warn(
+      `[json-api-codegen] "${type}" has a relation named "${relation}" which collides with a ` +
+        'reserved verb on the resource handle; it will be reachable via .rel("' +
+        `${relation}") in the fluent client.`,
+    )
+  }
+
+  const source = emit(doc, descriptor)
+  await mkdir(dirname(config.output), { recursive: true })
+  await writeFile(config.output, source, 'utf8')
+  return source
 }

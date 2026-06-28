@@ -26,6 +26,10 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@haddowg/json-api-client": "workspace:^",
+    "yaml": "^2.7.0"
   }
 }

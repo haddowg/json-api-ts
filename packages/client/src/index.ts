@@ -11,6 +11,7 @@
  *    views + augmented arrays)
  *  - normalized index (optional): type:id merge across responses
  */
+export * from './client'
 export * from './descriptor'
 export * from './errors'
 export * from './transport'
