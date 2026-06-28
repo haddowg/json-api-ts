@@ -17,7 +17,7 @@ import { buildDescriptor } from './build-descriptor'
 import { detectVerbCollisions, emit } from './emit'
 import { readDocument } from './reader'
 
-export { buildDescriptor, DescriptorBuilder } from './build-descriptor'
+export { buildAtomic, buildDescriptor, DescriptorBuilder } from './build-descriptor'
 export { detectVerbCollisions, emit, Emitter } from './emit'
 export type { VerbCollision } from './emit'
 export type * from './openapi'

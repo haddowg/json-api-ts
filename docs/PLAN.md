@@ -67,9 +67,16 @@ but actively maintained by the oxc team) · **tsc**. Versioning via
   hydration + augmented arrays + `$edge`/`$pivot`); include-driven conditional return
   types; pagination (`$page` + `$next/$prev`); the fluent read surface
   (`list`/`get`/`.id().get`/`.rel.get`/`.rel.related`).
-- **Phase 3 — Client writes.** Flat input → envelope; the fluent id-scoped builder
-  (`create`/`update`/`delete`, relationship `add/remove/replace`/`set`); custom actions;
-  the atomic transaction builder (type-in-object, `lid` refs).
+- **Phase 3 — Client writes.** ✅ Flat input → envelope; the fluent id-scoped builder
+  (`create`/`update`/`delete`, relationship `add/remove/replace`/`set`); custom actions
+  (a **typed** surface — the codegen's per-action `Input`/`Output` aliases are wired in via the
+  client's fourth `ActionTypes` type argument, so a `document` action takes its precise input
+  envelope and resolves its materialised output; `raw` actions send the spec's declared media
+  type); the atomic transaction builder (type-in-object, `lid` refs — `client.atomic(tx => …)`
+  posting `atomic:operations` with the ext media type, positional materialised results, and
+  op-index error remapping; `update`/`delete` may target a same-batch resource by `lid`).
+  Per-relation mutation-verb gating closed (type-level **and** runtime — see the tracked
+  follow-up).
 - **Phase 4 — Normalization + TanStack (`json-api-query`).** Deterministic key factory;
   query/mutation option factories; Strategy 2 write-through patching; patch-vs-invalidate
   split; optimistic updates through the patch.
@@ -99,21 +106,22 @@ for codegen to start.
 
 - Exact tool versions need a first `pnpm install` to lock (tsdown/oxfmt are 0.x — expect
   to pin precisely once resolved).
-- Atomic error-pointer remapping carries an op-index prefix — confirm the
-  `(opIndex, path)` shape when Phase 3 lands.
+- ~~Atomic error-pointer remapping carries an op-index prefix — confirm the
+  `(opIndex, path)` shape when Phase 3 lands.~~ ✅ Resolved in Phase 3b: each error gains a
+  numeric `opIndex` (parsed from the `/atomic:operations/{n}` prefix) and a `path` (the
+  remaining `/data/…` tail inverted to the flat input path using that op's wire type), reusing
+  the standalone-write `remapPointer`.
 - Whether `json-api-angular` is wanted at all, or TanStack's Angular adapter suffices.
 
 ## Tracked follow-ups
 
-- **Per-relation mutation-verb gating (deferred from Phase 3a).** The relationship
-  accessor exposes `add`/`remove`/`replace` on every to-many relation, gated only by
-  cardinality. But the bundle advertises mutation verbs _per relation_ and they are not
-  uniform — e.g. `/tracks/{id}/relationships/playlists` permits only `post`/`delete` (no
-  `patch`/`replace`), modelling the bundle's `cannotReplace`/per-relation endpoint
-  exposure. The `RelationDescriptor` carries no per-method capability, so an unsupported
-  verb (today only `tracks.playlists.replace`) type-checks and surfaces as a server error
-  rather than a compile/runtime error. Phase 3a scopes "core writes" without per-relation
-  mutability gating, so this is a deliberate scope cut. To close it: add a
-  `methods?: readonly string[]` (or `cannotReplace`/`cannotAdd`/`cannotRemove` flags) to
-  `RelationDescriptor`, populate it in the emitter from each relationship endpoint's
-  advertised verbs, and gate the `add`/`remove`/`replace` types + runtime on it.
+- **Per-relation mutation-verb gating (deferred from Phase 3a).** ✅ Closed in Phase 3b.
+  `RelationDescriptor` now carries `mutations?: { add?; remove?; replace?; set? }`, populated
+  in `build-descriptor.ts` from each relationship endpoint's advertised HTTP methods
+  (POST→add, DELETE→remove, PATCH→replace for a to-many; PATCH→set for a to-one). The
+  fluent surface's `RelationMutation` type gates each verb on the flag (an unadvertised verb
+  is typed `never` — e.g. `tracks.playlists.replace`, whose endpoint exposes only
+  POST/DELETE, modelling the bundle's `cannotReplace`) **and** the runtime
+  `relationshipAccessor` omits the method entirely (so a forbidden verb is absent, not just
+  untyped). A relation with no `mutations` block at all falls back to cardinality-only gating
+  on both surfaces.

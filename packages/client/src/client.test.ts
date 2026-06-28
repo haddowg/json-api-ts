@@ -42,6 +42,37 @@ const descriptor = {
     },
     paginator: 'page',
     clientId: 'forbidden',
+    actions: {
+      // resource-scoped, JSON:API document in -> materialised resource out
+      reissue: {
+        scope: 'resource',
+        path: '/albums/{id}/-actions/reissue',
+        input: 'document',
+        output: 'document',
+      },
+      // resource-scoped, raw (octet-stream) body in -> materialised resource out
+      artwork: {
+        scope: 'resource',
+        path: '/albums/{id}/-actions/artwork',
+        input: 'raw',
+        output: 'document',
+        contentType: 'application/octet-stream',
+      },
+      // collection-scoped, no input -> document out
+      summary: {
+        scope: 'collection',
+        path: '/albums/-actions/summary',
+        input: 'none',
+        output: 'document',
+      },
+      // collection-scoped, no input, no output (a 204)
+      reindex: {
+        scope: 'collection',
+        path: '/albums/-actions/reindex',
+        input: 'none',
+        output: 'none',
+      },
+    },
   },
   tracks: {
     attributes: {},
@@ -596,6 +627,228 @@ describe('createClient — relationship mutation', () => {
     const linkage = asRecord(await client.albums.id('1').artist.set({ type: 'artists', id: '9' }))
     expect(linkage['type']).toBe('artists')
     expect(linkage['id']).toBe('9')
+  })
+})
+
+describe('createClient — custom actions', () => {
+  it('resource action (reissue): POSTs a JSON:API document and materialises the resource', async () => {
+    const { transport, requests } = writeTransport(() => resourceResponse('albums', '1'))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const reissued = asRecord(
+      await client.albums.id('1').actions.reissue({
+        data: { type: 'albums', attributes: { title: 'OK Computer (Reissue)' } },
+      }),
+    )
+
+    const req = requests[0]!
+    expect(req.method).toBe('POST')
+    expect(req.url).toBe(`${BASE}/albums/1/-actions/reissue`)
+    expect(req.headers['Content-Type']).toBe('application/vnd.api+json')
+    expect(bodyOf(req)).toEqual({
+      data: { type: 'albums', attributes: { title: 'OK Computer (Reissue)' } },
+    })
+    // The 2xx document is materialised the same as a read.
+    expect(reissued['type']).toBe('albums')
+    expect(reissued['id']).toBe('1')
+  })
+
+  it('resource action (artwork): sends a raw body with the declared media type', async () => {
+    const { transport, requests } = writeTransport(() => resourceResponse('albums', '1'))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.albums.id('1').actions.artwork('iVBORw0KGgo=')
+
+    const req = requests[0]!
+    expect(req.method).toBe('POST')
+    expect(req.url).toBe(`${BASE}/albums/1/-actions/artwork`)
+    // Raw input: the body is sent verbatim and NOT claimed as a JSON:API document.
+    expect(req.body).toBe('iVBORw0KGgo=')
+    // The action's declared content type is sent (not a wildcard, not JSON:API).
+    expect(req.headers['Content-Type']).toBe('application/octet-stream')
+    // Accept stays JSON:API — a document response is still expected.
+    expect(req.headers['Accept']).toBe('application/vnd.api+json')
+  })
+
+  it('resource action (raw): falls back to a wildcard content type when none is declared', async () => {
+    // A raw action whose spec declared no media type uses `*/*` so the server still accepts it.
+    const noTypeDescriptor = {
+      albums: {
+        attributes: {},
+        relations: {},
+        paths: {},
+        paginator: 'page',
+        clientId: 'forbidden',
+        actions: {
+          artwork: {
+            scope: 'resource',
+            path: '/albums/{id}/-actions/artwork',
+            input: 'raw',
+            output: 'document',
+          },
+        },
+      },
+    } as const satisfies ApiDescriptor
+    const { transport, requests } = writeTransport(() => resourceResponse('albums', '1'))
+    const client = createClient(noTypeDescriptor, { baseUrl: BASE, transport })
+
+    await client.albums.id('1').actions.artwork('iVBORw0KGgo=')
+
+    expect(requests[0]!.headers['Content-Type']).toBe('*/*')
+  })
+
+  it('collection action (summary): no input, materialises the document result', async () => {
+    const { transport, requests } = writeTransport(() => resourceResponse('albums', '1'))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const result = asRecord(await client.albums.actions.summary())
+
+    const req = requests[0]!
+    expect(req.method).toBe('POST')
+    expect(req.url).toBe(`${BASE}/albums/-actions/summary`)
+    // A `none` input sends no body at all.
+    expect(req.body).toBeUndefined()
+    expect(req.headers['Content-Type']).toBeUndefined()
+    expect(result['type']).toBe('albums')
+  })
+
+  it('collection action (reindex): no input, no output -> void on 204', async () => {
+    const { transport, requests } = writeTransport(() => ({ status: 204, headers: {}, body: '' }))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const out = await client.albums.actions.reindex()
+
+    expect(requests[0]!.url).toBe(`${BASE}/albums/-actions/reindex`)
+    expect(out).toBeUndefined()
+  })
+
+  it('exposes each action only on its declared scope', () => {
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+
+    const collectionActions = asRecord(asRecord(client.albums)['actions'])
+    expect(typeof collectionActions['summary']).toBe('function')
+    // A resource-scoped action is absent from the collection accessor.
+    expect(collectionActions['reissue']).toBeUndefined()
+
+    const resourceActions = asRecord(asRecord(client.albums.id('1'))['actions'])
+    expect(typeof resourceActions['reissue']).toBe('function')
+    expect(typeof resourceActions['artwork']).toBe('function')
+    // A collection-scoped action is absent from the resource handle.
+    expect(resourceActions['summary']).toBeUndefined()
+  })
+
+  it('a relation named like a reserved member is shadowed by .actions and reachable via .rel', async () => {
+    // `actions` is a reserved handle member; if a type ever had a relation named `actions`
+    // the handle resolves the accessor, never the relation. Prove `.actions` is the accessor.
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+    const handle = asRecord(client.albums.id('1'))
+    expect(typeof handle['actions']).toBe('object')
+  })
+})
+
+// A descriptor whose relations carry explicit per-relation `mutations` flags (mirroring the
+// generated `resourceMap`: `tracks.playlists` advertises POST/DELETE but no PATCH).
+const verbDescriptor = {
+  tracks: {
+    attributes: {},
+    relations: {
+      // to-one with set.
+      album: { cardinality: 'one', types: ['albums'], pivot: false, mutations: { set: true } },
+      // to-many lacking `replace` (no PATCH -> cannotReplace).
+      playlists: {
+        cardinality: 'many',
+        types: ['playlists'],
+        pivot: false,
+        mutations: { add: true, remove: true },
+      },
+      // to-many forbidding every verb (explicit empty block).
+      frozen: { cardinality: 'many', types: ['albums'], pivot: false, mutations: {} },
+      // read-only to-one: the relationship endpoint advertises no PATCH (empty block) -> no `.set`.
+      readonlyOwner: { cardinality: 'one', types: ['albums'], pivot: false, mutations: {} },
+    },
+    paths: { fetchRelationship: '/tracks/{id}/relationships/{rel}' },
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+  albums: { attributes: {}, relations: {}, paths: {}, paginator: 'none', clientId: 'forbidden' },
+  playlists: {
+    attributes: {},
+    relations: {},
+    paths: {},
+    paginator: 'none',
+    clientId: 'forbidden',
+  },
+} as const satisfies ApiDescriptor
+
+describe('createClient — per-relation verb gating (runtime)', () => {
+  it('omits a forbidden mutation verb from the relationship accessor', () => {
+    const client = createClient(verbDescriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+
+    const playlists = asRecord(asRecord(client.tracks.id('1'))['playlists'])
+    // Advertised verbs are present...
+    expect(typeof playlists['add']).toBe('function')
+    expect(typeof playlists['remove']).toBe('function')
+    // ...the unadvertised `replace` (no PATCH on the endpoint) is absent at runtime.
+    expect(playlists['replace']).toBeUndefined()
+    // `set` is a to-one verb, never present on a to-many.
+    expect(playlists['set']).toBeUndefined()
+    // Reads are always present.
+    expect(typeof playlists['get']).toBe('function')
+    expect(typeof playlists['related']).toBe('function')
+  })
+
+  it('omits every verb when the relation forbids all of them', () => {
+    const client = createClient(verbDescriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+    const frozen = asRecord(asRecord(client.tracks.id('1'))['frozen'])
+    expect(frozen['add']).toBeUndefined()
+    expect(frozen['remove']).toBeUndefined()
+    expect(frozen['replace']).toBeUndefined()
+  })
+
+  it('keeps only `set` on a to-one with the set flag', () => {
+    const client = createClient(verbDescriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+    const album = asRecord(asRecord(client.tracks.id('1'))['album'])
+    expect(typeof album['set']).toBe('function')
+    expect(album['add']).toBeUndefined()
+    expect(album['remove']).toBeUndefined()
+    expect(album['replace']).toBeUndefined()
+  })
+
+  it('omits `set` on a read-only to-one (empty mutations block, no PATCH)', () => {
+    const client = createClient(verbDescriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+    const owner = asRecord(asRecord(client.tracks.id('1'))['readonlyOwner'])
+    // A read-only to-one exposes the reads but no `.set` mutation.
+    expect(typeof owner['get']).toBe('function')
+    expect(typeof owner['related']).toBe('function')
+    expect(owner['set']).toBeUndefined()
+    expect(owner['add']).toBeUndefined()
+  })
+
+  it('actually invokes an advertised verb (add POSTs the linkage)', async () => {
+    const { transport, requests } = writeTransport(() => ({ status: 204, headers: {}, body: '' }))
+    const client = createClient(verbDescriptor, { baseUrl: BASE, transport })
+
+    await client.tracks.id('1').playlists.add([{ type: 'playlists', id: '2' }])
+    expect(requests[0]!.method).toBe('POST')
+    expect(requests[0]!.url).toBe(`${BASE}/tracks/1/relationships/playlists`)
   })
 })
 

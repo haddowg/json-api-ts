@@ -13,6 +13,12 @@ export interface JsonApiErrorObject {
    * built the envelope and therefore knows the inverse mapping. See CONTEXT.md.
    */
   path?: string
+  /**
+   * The zero-based index of the failing operation within an atomic batch, parsed from a
+   * `source.pointer` carrying an `/atomic:operations/{n}` prefix. Populated only for atomic
+   * errors; `path` then holds the flat path within that operation's input.
+   */
+  opIndex?: number
 }
 
 /**

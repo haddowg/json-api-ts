@@ -11,7 +11,6 @@
  */
 import type { ApiDescriptor } from './descriptor'
 import { JsonApiError, type JsonApiErrorObject } from './errors'
-import type { ResourceIdentifier } from './types'
 
 /** Per-edge writable pivot data, supplied on a to-many member as the `$pivot` key. */
 const PIVOT_KEY = '$pivot'
@@ -22,8 +21,15 @@ const RESERVED_INPUT: ReadonlySet<string> = new Set(['type', 'id'])
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
-/** A JSON:API resource identifier, optionally carrying writable pivot meta. */
-interface WriteIdentifier extends ResourceIdentifier {
+/**
+ * A JSON:API resource identifier in a write document: `{ type, id }` or — inside an atomic
+ * batch — `{ type, lid }` (a reference to a resource created earlier in the same transaction).
+ * May carry writable pivot meta on a to-many member.
+ */
+interface WriteIdentifier {
+  type: string
+  id?: string
+  lid?: string
   meta?: { pivot: Record<string, unknown> } & Record<string, unknown>
 }
 
@@ -158,9 +164,11 @@ function coerceLinkage(
 }
 
 /**
- * Extract a resource identifier from a linkage input value: an identifier `{type,id}` or a
- * materialised resource object (the same `{type,id}` enumerable props). A `$pivot` key is
- * lifted onto `meta.pivot` (writable pivot fields). Throws on a value that carries no `type`/`id`.
+ * Extract a resource identifier from a linkage input value: an identifier `{type,id}`, a
+ * materialised resource object (the same `{type,id}` enumerable props), or — inside an atomic
+ * batch — a local identifier `{type,lid}` referencing a just-created resource (the handle a
+ * `tx.create` returns). A `$pivot` key is lifted onto `meta.pivot` (writable pivot fields).
+ * Throws on a value carrying no `type`, or neither an `id` nor a `lid`.
  */
 function toIdentifier(value: unknown): WriteIdentifier {
   if (!isObject(value)) {
@@ -168,12 +176,21 @@ function toIdentifier(value: unknown): WriteIdentifier {
       `Relationship linkage must be an identifier or resource object; received ${describe(value)}`,
     )
   }
-  const { type, id } = value
-  if (typeof type !== 'string' || typeof id !== 'string') {
-    throw new TypeError('Relationship linkage requires both a `type` and `id`')
+  const { type, id, lid } = value
+  if (typeof type !== 'string') {
+    throw new TypeError('Relationship linkage requires a `type`')
   }
+  // An `id` identifies an existing resource; a `lid` references one created earlier in the
+  // same atomic transaction. Exactly one is needed.
+  const identifier: WriteIdentifier =
+    typeof id === 'string'
+      ? { type, id }
+      : typeof lid === 'string'
+        ? { type, lid }
+        : (() => {
+            throw new TypeError('Relationship linkage requires an `id` or a `lid`')
+          })()
 
-  const identifier: WriteIdentifier = { type, id }
   const pivot = value[PIVOT_KEY]
   if (isObject(pivot)) {
     identifier.meta = { pivot }
@@ -305,7 +322,7 @@ export function withRemappedPaths(
   descriptor: ApiDescriptor,
   type: string,
 ): JsonApiError {
-  return mapErrors(error, (pointer) => remapPointer(descriptor, type, pointer))
+  return mapErrors(error, (pointer) => ({ path: remapPointer(descriptor, type, pointer) }))
 }
 
 /**
@@ -320,17 +337,54 @@ export function withRemappedRelationshipPaths(
   rel: string,
   hasPivot: boolean,
 ): JsonApiError {
-  return mapErrors(error, (pointer) => remapRelationshipPointer(rel, hasPivot, pointer))
+  return mapErrors(error, (pointer) => ({ path: remapRelationshipPointer(rel, hasPivot, pointer) }))
 }
 
-/** Shared error-mapper: clone each error with `path` from its `source.pointer`, else pass through. */
-function mapErrors(error: JsonApiError, remap: (pointer: string) => string): JsonApiError {
+/**
+ * Invert an atomic-batch error's `source.pointer` to `(opIndex, flatPath)`: an atomic 422
+ * points at `/atomic:operations/{n}/data/...`, so strip the `atomic:operations/{n}` prefix to
+ * the op index, resolve that op's wire type (`typeForOp`), and delegate the remaining `/data`
+ * tail to the same {@link remapPointer} a standalone write uses (so the flat path is identical
+ * — `title`, `releaseInfo.label`, `artist`, …). A pointer without the atomic prefix is remapped
+ * verbatim under the (whole-batch) document at op index `undefined`. The original error is not
+ * mutated.
+ */
+export function withRemappedAtomicPaths(
+  error: JsonApiError,
+  descriptor: ApiDescriptor,
+  typeForOp: (opIndex: number) => string | undefined,
+): JsonApiError {
+  return mapErrors(error, (pointer) => {
+    const segments = pointer.split('/').filter((s) => s !== '')
+    if (segments[0] !== 'atomic:operations' || segments[1] === undefined) {
+      return { path: pointer }
+    }
+    const opIndex = Number(segments[1])
+    if (!Number.isInteger(opIndex)) {
+      return { path: pointer }
+    }
+    const type = typeForOp(opIndex)
+    const tail = `/${segments.slice(2).join('/')}`
+    const path = type === undefined ? tail : remapPointer(descriptor, type, tail)
+    return { opIndex, path }
+  })
+}
+
+/** What a per-error remap resolves to: the flat `path` and, for an atomic batch, the `opIndex`. */
+interface RemapResult {
+  path: string
+  opIndex?: number
+}
+
+/** Shared error-mapper: clone each error with `path`/`opIndex` from its `source.pointer`, else pass through. */
+function mapErrors(error: JsonApiError, remap: (pointer: string) => RemapResult): JsonApiError {
   const remapped: JsonApiErrorObject[] = error.errors.map((e) => {
     const pointer = e.source?.pointer
     if (pointer === undefined) {
       return e
     }
-    return { ...e, path: remap(pointer) }
+    const { path, opIndex } = remap(pointer)
+    return opIndex === undefined ? { ...e, path } : { ...e, path, opIndex }
   })
   return new JsonApiError(error.status, remapped, error.message)
 }

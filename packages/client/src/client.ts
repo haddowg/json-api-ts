@@ -1,9 +1,12 @@
-import type { ApiDescriptor } from './descriptor'
+import { type AtomicRecorder, type AtomicResult, runAtomic } from './atomic'
+import type { ActionDescriptor, ActionScope, ApiDescriptor, AtomicDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
 import { execute, type JsonApiContext, type JsonApiRequest, type ReadQuery } from './request'
 import type {
+  ActionsAccessor,
   Client,
+  DefaultActionTypes,
   DefaultAttributes,
   DefaultWriteAttributes,
   RelationReadQuery,
@@ -34,6 +37,12 @@ export interface ClientOptions {
   transport?: JsonApiTransport
   /** Per-request header provider (e.g. bearer auth); may be async. */
   headers?: () => HeadersInit | Promise<HeadersInit>
+  /**
+   * The server-level Atomic Operations capability (the codegen's `atomic` constant): `{ path }`
+   * when the server exposes the atomic endpoint, else `null`/omitted. When present, the client
+   * exposes `client.atomic(tx => …)`; otherwise calling it throws.
+   */
+  atomic?: AtomicDescriptor | null
 }
 
 /** The ambient runtime context every read shares: transport seam + descriptor + materialise glue. */
@@ -146,6 +155,62 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
 }
 
 /**
+ * Invoke a custom action: `POST` its (filled) path with a body shaped by the action's
+ * `input` mode — `none` (no body), `document` (the caller's JSON:API document, sent with the
+ * JSON:API content type) or `raw` (the caller's payload, sent with the action's declared media
+ * type — e.g. `application/octet-stream` — falling back to a wildcard when the spec declared
+ * none, so the server doesn't reject it as a JSON:API document). The response is shaped by the
+ * action's `output`: `document` materialises into a resource/collection, `none` resolves
+ * `undefined` (a `204`/no body). A thrown {@link JsonApiError} propagates unchanged (an
+ * action's body shape is action-defined, so there's no flat-input pointer remapping).
+ */
+async function runAction(
+  ctx: ClientContext,
+  action: ActionDescriptor,
+  vars: Record<string, string>,
+  input: unknown,
+): Promise<unknown> {
+  const req: JsonApiRequest = { method: 'POST', path: fill(action.path, vars) }
+  if (action.input === 'document') {
+    req.body = input
+  } else if (action.input === 'raw') {
+    req.body = input
+    // Send the action's declared media type (e.g. application/octet-stream); fall back to a
+    // wildcard only when the spec declared none.
+    req.contentType = action.contentType ?? '*/*'
+    req.raw = true
+  }
+  const doc = await execute(ctx.request, req)
+  if (action.output === 'none' || doc === undefined) {
+    return undefined
+  }
+  return materialise(doc, ctx.materialise)
+}
+
+/**
+ * Build the typed `.actions` accessor at one scope: a plain object exposing exactly the
+ * type's actions declared at `scope` (collection on the type accessor, resource on a handle),
+ * each a function dispatching to {@link runAction} with the action descriptor + the scope's
+ * path vars (resource scope supplies `{id}`). Names not declared at this scope are absent —
+ * `client.albums.actions.reissue` (resource-scoped) is undefined; reach it via `.id(id)`.
+ */
+function actionsAccessor(
+  ctx: ClientContext,
+  type: string,
+  scope: ActionScope,
+  vars: Record<string, string>,
+): ActionsAccessor<ApiDescriptor, string, ActionScope> {
+  const actions = ctx.descriptor[type]?.actions ?? {}
+  const out: Record<string, (input?: unknown) => Promise<unknown>> = {}
+  for (const [name, action] of Object.entries(actions)) {
+    if (action.scope === scope) {
+      out[name] = (input?: unknown) => runAction(ctx, action, vars, input)
+    }
+  }
+  return out as ActionsAccessor<ApiDescriptor, string, ActionScope>
+}
+
+/**
  * Build the relationship accessor for `client.<type>.id(id).<rel>`: reads
  * (`.get()` linkage / `.related()` collection) plus mutations — to-many `.add` (POST) /
  * `.remove` (DELETE) / `.replace` (PATCH) and to-one `.set` (PATCH). Every mutation posts
@@ -174,23 +239,36 @@ function relationshipAccessor(
       remap: (error) => withRemappedRelationshipPaths(error, rel, hasPivot),
     })
 
-  return {
-    get: (query?: RelationReadQuery) =>
-      run(
-        ctx,
-        type,
-        'fetchRelationship',
-        vars,
-        query as ReadQuery | undefined,
-        true,
-      ) as Promise<never>,
-    related: (query?: RelationReadQuery) =>
-      run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined) as Promise<never>,
-    add: ((refs: unknown) => mutate('POST', refs)) as never,
-    remove: ((refs: unknown) => mutate('DELETE', refs)) as never,
-    replace: ((refs: unknown) => mutate('PATCH', refs)) as never,
-    set: ((ref: unknown) => mutate('PATCH', ref)) as never,
+  // Whether the relation advertises a mutation verb: the descriptor's `mutations` flags are
+  // authoritative when present (mirrors the type-level `AdvertisesVerb`), so a verb the
+  // bundle forbids (`cannotReplace` -> no PATCH) is absent at runtime, not just untyped. A
+  // relation with no `mutations` block falls back to cardinality alone.
+  const advertises = (verb: 'add' | 'remove' | 'replace' | 'set'): boolean => {
+    const mutations = relation?.mutations
+    return mutations === undefined ? true : mutations[verb] === true
   }
+
+  const accessor: Record<string, unknown> = {
+    get: (query?: RelationReadQuery) =>
+      run(ctx, type, 'fetchRelationship', vars, query as ReadQuery | undefined, true),
+    related: (query?: RelationReadQuery) =>
+      run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined),
+  }
+  if (cardinality === 'many') {
+    if (advertises('add')) {
+      accessor['add'] = (refs: unknown) => mutate('POST', refs)
+    }
+    if (advertises('remove')) {
+      accessor['remove'] = (refs: unknown) => mutate('DELETE', refs)
+    }
+    if (advertises('replace')) {
+      accessor['replace'] = (refs: unknown) => mutate('PATCH', refs)
+    }
+  } else if (advertises('set')) {
+    accessor['set'] = (ref: unknown) => mutate('PATCH', ref)
+  }
+
+  return accessor as unknown as RelationshipAccessor<ApiDescriptor, unknown, string, never>
 }
 
 /**
@@ -206,6 +284,7 @@ export const HANDLE_RESERVED: ReadonlySet<string> = new Set([
   'update',
   'delete',
   'rel',
+  'actions',
   'then',
 ])
 
@@ -240,6 +319,7 @@ function resourceHandle(
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
       }) as never,
     rel: (name: string) => relationshipAccessor(ctx, type, id, name),
+    actions: actionsAccessor(ctx, type, 'resource', { id }),
   }
 
   return new Proxy(base, {
@@ -272,6 +352,7 @@ function typeAccessor(
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
       }) as Promise<never>,
     id: (id: string) => resourceHandle(ctx, type, id),
+    actions: actionsAccessor(ctx, type, 'collection', {}),
   } as unknown as TypeAccessor<ApiDescriptor, unknown, unknown, string>
 }
 
@@ -286,7 +367,8 @@ export function createClient<
   D extends ApiDescriptor,
   A = DefaultAttributes<D>,
   W = DefaultWriteAttributes<D>,
->(descriptor: D, options: ClientOptions): Client<D, A, W> {
+  Act = DefaultActionTypes,
+>(descriptor: D, options: ClientOptions): Client<D, A, W, Act> {
   const request: JsonApiContext = {
     baseUrl: options.baseUrl,
     transport: options.transport ?? fetchTransport,
@@ -305,9 +387,22 @@ export function createClient<
     },
   }
 
+  const atomicDescriptor = options.atomic ?? null
+  // `client.atomic(tx => …)`: post the recorded batch to the atomic endpoint. Built once and
+  // reused; throws when the server declares no atomic capability (`atomic` was null/omitted).
+  const atomic = (build: (tx: AtomicRecorder) => void): Promise<AtomicResult[]> => {
+    if (atomicDescriptor === null) {
+      throw new Error('This API does not expose an Atomic Operations endpoint')
+    }
+    return runAtomic(request, ctx.materialise, descriptor, atomicDescriptor.path, build)
+  }
+
   const accessors = new Map<string, TypeAccessor<ApiDescriptor, unknown, unknown, string>>()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
+      if (prop === 'atomic') {
+        return atomic
+      }
       if (typeof prop !== 'string' || !(prop in descriptor)) {
         return undefined
       }
@@ -319,7 +414,7 @@ export function createClient<
       return accessor
     },
     has(_target, prop) {
-      return typeof prop === 'string' && prop in descriptor
+      return prop === 'atomic' || (typeof prop === 'string' && prop in descriptor)
     },
-  }) as Client<D, A, W>
+  }) as Client<D, A, W, Act>
 }

@@ -1,11 +1,18 @@
 import {
+  type ActionDescriptor,
   type ApiDescriptor,
+  type AtomicDescriptor,
   HANDLE_RESERVED,
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
-import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
+import { buildAtomic } from './build-descriptor'
+import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
 
 const REF_PREFIX = '#/components/schemas/'
+const JSON_API_MEDIA_TYPE = 'application/vnd.api+json'
+
+/** A loose JSON:API document shape — the fallback an action body/result types as when its component can't be resolved. */
+const LOOSE_DOCUMENT = 'Record<string, unknown>'
 
 /** A relation name that will later collide with a fluent-surface verb. */
 export interface VerbCollision {
@@ -102,10 +109,29 @@ export class Emitter {
   private readonly baseByType: Map<string, string>
   /** Enum component names referenced by an attribute, in first-seen order. */
   private readonly usedEnums = new Map<string, SchemaObject>()
+  /**
+   * Component-schema names whose dedicated interface is emitted (e.g. `AlbumsAttributes`,
+   * `AlbumsCreateAttributes`). A `$ref` to one of these resolves to the interface name
+   * rather than being re-expanded structurally — so an action envelope nests the precise,
+   * already-named attribute type. Populated as interfaces are emitted.
+   */
+  private readonly emittedInterfaces = new Set<string>()
+  /** Component names mid-expansion in {@link tsType} — a cycle guard for self/mutually-referential `$ref`s. */
+  private readonly expanding = new Set<string>()
+  /**
+   * The per-action alias names actually emitted, keyed `type -> actionName -> { input?; output? }`.
+   * Populated by {@link actionTypeAliases}; consumed by {@link actionTypesMap} so the action
+   * type-map only references aliases that exist (a `none` input/output contributes neither).
+   */
+  private readonly actionAliasNames = new Map<
+    string,
+    Map<string, { input?: string; output?: string }>
+  >()
 
   constructor(
     private readonly doc: OpenApiDocument,
     private readonly descriptor: ApiDescriptor,
+    private readonly atomic: AtomicDescriptor | null,
   ) {
     this.schemas = doc.components?.schemas ?? {}
     this.baseByType = this.indexBases()
@@ -132,6 +158,9 @@ export class Emitter {
     const writeInterfaces = Object.keys(this.descriptor).flatMap((type) =>
       this.writeAttributeInterfaces(type),
     )
+    // Action input/output aliases reference component schemas; resolve them (this also
+    // records any enums they reach) before the enum block is emitted.
+    const actionAliases = this.actionTypeAliases()
     const enums = this.enumAliases()
 
     const parts = [
@@ -140,10 +169,13 @@ export class Emitter {
       ...(enums ? [enums] : []),
       ...interfaces,
       ...writeInterfaces,
+      ...actionAliases,
       this.attributesMap(),
       this.writeAttributesMap(),
+      this.actionTypesMap(),
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
+      this.atomicConst(),
       this.boundFactory(),
     ]
     return `${parts.join('\n\n')}\n`
@@ -219,6 +251,136 @@ export class Emitter {
   }
 
   /**
+   * Per-action input/output type aliases for every type that declares custom actions. An
+   * action whose `input`/`output` resolves to a component schema gets a named alias
+   * (`<Pascal><Action>Input` / `<Pascal><Action>Output`) expanding that component via the
+   * shared {@link tsType} machinery — a `none` input/output (no body / a `204`) contributes
+   * no alias. Deterministic order: types, then action names (the descriptor is sorted).
+   */
+  private actionTypeAliases(): string[] {
+    const out: string[] = []
+    for (const type of Object.keys(this.descriptor)) {
+      const actions = this.descriptor[type]?.actions
+      if (actions === undefined) {
+        continue
+      }
+      const pascal = pascalCase(type)
+      for (const [actionName, action] of Object.entries(actions)) {
+        const member = `${pascal}${pascalCase(actionName)}`
+        const names: { input?: string; output?: string } = {}
+        const inputType = this.actionBodyType(action, 'input')
+        if (inputType !== undefined) {
+          out.push(`export type ${member}Input = ${inputType}`)
+          names.input = `${member}Input`
+        }
+        const outputType = this.actionBodyType(action, 'output')
+        if (outputType !== undefined) {
+          out.push(`export type ${member}Output = ${outputType}`)
+          names.output = `${member}Output`
+        }
+        if (names.input !== undefined || names.output !== undefined) {
+          let byAction = this.actionAliasNames.get(type)
+          if (byAction === undefined) {
+            byAction = new Map()
+            this.actionAliasNames.set(type, byAction)
+          }
+          byAction.set(actionName, names)
+        }
+      }
+    }
+    return out
+  }
+
+  /**
+   * Emit the `ActionTypes` interface wiring the emitted per-action aliases onto the typed
+   * action surface — `type -> actionName -> { input?; output? }`, the client's fourth type
+   * argument. So `client.albums.id(id).actions.reissue(body)` takes `AlbumsReissueInput` and
+   * resolves `AlbumsReissueOutput` rather than a loose `Record<string,unknown>` / `unknown`.
+   * Only actions whose alias was emitted appear (a `none`-input/output action contributes the
+   * absent side, which the runtime types fall back to loosely). Emits `{}` when none exist.
+   */
+  private actionTypesMap(): string {
+    const typeLines: string[] = []
+    for (const type of Object.keys(this.descriptor)) {
+      const byAction = this.actionAliasNames.get(type)
+      if (byAction === undefined || byAction.size === 0) {
+        continue
+      }
+      const actionLines: string[] = []
+      for (const [actionName, names] of byAction) {
+        const members: string[] = []
+        if (names.input !== undefined) {
+          members.push(`input: ${names.input}`)
+        }
+        if (names.output !== undefined) {
+          members.push(`output: ${names.output}`)
+        }
+        actionLines.push(`    ${objectKey(actionName)}: { ${members.join('; ')} }`)
+      }
+      typeLines.push(`  ${objectKey(type)}: {\n${actionLines.join('\n')}\n  }`)
+    }
+    if (typeLines.length === 0) {
+      return 'export interface ActionTypes {}'
+    }
+    return `export interface ActionTypes {\n${typeLines.join('\n')}\n}`
+  }
+
+  /**
+   * The TS type for an action's request body (`input`) or response (`output`), resolved
+   * from the JSON:API component the operation references. Returns `undefined` when there is
+   * nothing to type: a `none` input/output, or a `raw` (non-JSON:API) input the codegen
+   * doesn't model. A referenced component expands via {@link tsType} (an emitted attribute
+   * interface stays named); a content-less or unreferenced body falls back to a loose
+   * JSON:API document shape.
+   */
+  private actionBodyType(action: ActionDescriptor, side: 'input' | 'output'): string | undefined {
+    if (side === 'input') {
+      if (action.input !== 'document') {
+        return undefined
+      }
+    } else if (action.output !== 'document') {
+      return undefined
+    }
+    const op = this.doc.paths?.[action.path]?.post
+    const ref =
+      side === 'input'
+        ? op?.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+        : this.okJsonApiResponseRef(op)
+    if (typeof ref !== 'string') {
+      return LOOSE_DOCUMENT
+    }
+    const target = refName(ref)
+    const resolved = target ? this.schemas[target] : undefined
+    return resolved ? this.tsType(resolved) : LOOSE_DOCUMENT
+  }
+
+  /** The `$ref` of the first 2xx JSON:API response on an operation (the action's output document). */
+  private okJsonApiResponseRef(op: OperationObject | undefined): string | undefined {
+    for (const [code, response] of Object.entries(op?.responses ?? {})) {
+      if (!code.startsWith('2')) {
+        continue
+      }
+      const ref = response.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+      if (typeof ref === 'string') {
+        return ref
+      }
+    }
+    return undefined
+  }
+
+  /** Emit the server-level atomic capability constant (`{ path }` or `null`). */
+  private atomicConst(): string {
+    const doc = [
+      '/**',
+      ' * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`',
+      ' * when this server exposes none. The runtime `client.atomic` builder posts the batch here.',
+      ' */',
+    ].join('\n')
+    const value = this.atomic === null ? 'null' : `${this.literal(this.atomic, 0)} as const`
+    return `${doc}\nexport const atomic = ${value}`
+  }
+
+  /**
    * Render an attribute interface from a property map, a field order, and a `required`
    * predicate (true => no `?`). Shared by the read and write attribute interfaces so the
    * tsType/JSDoc logic stays in one place.
@@ -241,6 +403,7 @@ export class Emitter {
       lines.push(`  ${objectKey(field)}${optional}: ${tsType}`)
     }
 
+    this.emittedInterfaces.add(name)
     if (lines.length === 0) {
       return `export interface ${name} {}`
     }
@@ -249,7 +412,10 @@ export class Emitter {
 
   /** Map a JSON Schema attribute node to a precise TypeScript type. */
   private tsType(schema: SchemaObject): string {
-    // An enum reference -> the emitted union alias.
+    // A reference: an enum -> its emitted union alias; an emitted attribute interface ->
+    // its interface name (so an action envelope nests precise attribute types); else
+    // structural expansion of the referenced component, falling back to unknown. A
+    // `expanding` guard breaks any cyclic/self-referential component chain.
     if (typeof schema.$ref === 'string') {
       const target = refName(schema.$ref)
       const resolved = target ? this.schemas[target] : undefined
@@ -257,7 +423,16 @@ export class Emitter {
         this.usedEnums.set(target, resolved)
         return target
       }
-      return 'unknown'
+      if (target && this.emittedInterfaces.has(target)) {
+        return target
+      }
+      if (resolved === undefined || target === undefined || this.expanding.has(target)) {
+        return 'unknown'
+      }
+      this.expanding.add(target)
+      const expanded = this.tsType(resolved)
+      this.expanding.delete(target)
+      return expanded
     }
 
     const types = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : []
@@ -449,16 +624,33 @@ export class Emitter {
 
   private boundFactory(): string {
     return [
-      '/** Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`. */',
+      '/**',
+      ' * Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`.',
+      ' * The server-level `atomic` capability is threaded in by default so `client.atomic` is wired',
+      ' * (a caller may still override it via `options.atomic`).',
+      ' */',
       'export const createClient = (options: ClientOptions) =>',
-      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes>(resourceMap, options)',
+      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(',
+      '    resourceMap,',
+      '    {',
+      '      atomic,',
+      '      ...options,',
+      '    },',
+      '  )',
     ].join('\n')
   }
 }
 
-/** Generate the full source of the client module for a document + its built descriptor. */
-export function emit(doc: OpenApiDocument, descriptor: ApiDescriptor): string {
-  return new Emitter(doc, descriptor).emit()
+/**
+ * Generate the full source of the client module for a document + its built descriptor.
+ * The server-level atomic capability is derived from the document (override via `atomic`).
+ */
+export function emit(
+  doc: OpenApiDocument,
+  descriptor: ApiDescriptor,
+  atomic: AtomicDescriptor | null = buildAtomic(doc),
+): string {
+  return new Emitter(doc, descriptor, atomic).emit()
 }
 
 /** Re-export so callers can reference the resource descriptor shape if needed. */

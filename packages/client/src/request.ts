@@ -38,6 +38,24 @@ export interface JsonApiRequest {
   path: string
   query?: ReadQuery
   body?: unknown
+  /**
+   * Override the request `Content-Type` (defaults to the JSON:API media type when a body is
+   * present). Set for a custom action's `raw` input, where the payload is not a JSON:API
+   * document, or for an atomic batch (the ext media type). When unset, `Accept` is unaffected.
+   */
+  contentType?: string
+  /**
+   * Override the request `Accept` header (defaults to the JSON:API media type). Set for an
+   * atomic batch, where the response is the atomic-ext document; a `raw`-input action leaves
+   * it at the JSON:API default (a document response is still expected).
+   */
+  accept?: string
+  /**
+   * Send the body verbatim (a `string`) instead of JSON-stringifying it. Used for a `raw`
+   * action body that's already serialised; a non-string body still falls back to
+   * `JSON.stringify`.
+   */
+  raw?: boolean
 }
 
 const isAbsolute = (path: string): boolean => /^https?:\/\//i.test(path)
@@ -106,12 +124,13 @@ export async function execute(
     }
   }
 
-  const headers: Record<string, string> = { Accept: JSON_API_MEDIA_TYPE }
+  const headers: Record<string, string> = { Accept: req.accept ?? JSON_API_MEDIA_TYPE }
 
   const transportReq: TransportRequest = { method: req.method, url, headers }
   if (req.body !== undefined) {
-    headers['Content-Type'] = JSON_API_MEDIA_TYPE
-    transportReq.body = JSON.stringify(req.body)
+    headers['Content-Type'] = req.contentType ?? JSON_API_MEDIA_TYPE
+    transportReq.body =
+      req.raw && typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
   }
 
   if (ctx.headers) {
