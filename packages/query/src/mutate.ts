@@ -28,7 +28,6 @@ import type {
   AtomicRecorder,
   AtomicResult,
   AtomicResults,
-  Client,
   CreateInput,
   FieldsMap,
   IncludePath,
@@ -169,12 +168,12 @@ export function createMutationOptions<
   const F extends FieldsMap<D> = {},
 >(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
   opts?: WriteOptions<D, T, Inc, F>,
 ): MutationOptions<ReadResult<D, A, T, Inc, F>, CreateInput<D, W, T>> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   return {
     mutationFn: (input) => accessor.create<Inc, F>(input, opts),
     onSuccess: (data) => {
@@ -203,13 +202,13 @@ export function updateMutationOptions<
   const F extends FieldsMap<D> = {},
 >(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
   id: string,
   opts?: WriteOptions<D, T, Inc, F> & { optimistic?: boolean },
 ): MutationOptions<ReadResult<D, A, T, Inc, F>, UpdateInput<D, W, T>, MutationContext> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   const optimistic = opts?.optimistic === true
   const base: MutationOptions<
     ReadResult<D, A, T, Inc, F>,
@@ -248,11 +247,11 @@ export function updateMutationOptions<
  */
 export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   type: T,
   id: string,
 ): MutationOptions<void, void> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   return {
     mutationFn: () => accessor.id(id).delete(),
     onSettled: async () => {
@@ -278,13 +277,13 @@ export function setRelationshipMutationOptions<
   T extends TypeName<D>,
 >(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
   id: string,
   rel: RelationName<D, T>,
 ): MutationOptions<unknown, LinkageRef<string> | null> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   return {
     mutationFn: (ref) => accessor.id(id).rel(rel).set(ref),
     onSuccess: (data) => {
@@ -307,13 +306,13 @@ export function replaceRelationshipMutationOptions<
   T extends TypeName<D>,
 >(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
   id: string,
   rel: RelationName<D, T>,
 ): MutationOptions<unknown, readonly LinkageRef<string>[]> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   return {
     mutationFn: (refs) => accessor.id(id).rel(rel).replace(refs),
     onSuccess: (data) => {
@@ -335,12 +334,12 @@ export function addRelationshipMutationOptions<
   T extends TypeName<D>,
 >(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   type: T,
   id: string,
   rel: RelationName<D, T>,
 ): MutationOptions<unknown, readonly LinkageRef<string>[]> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   return {
     mutationFn: (refs) => accessor.id(id).rel(rel).add(refs),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
@@ -359,12 +358,12 @@ export function removeRelationshipMutationOptions<
   T extends TypeName<D>,
 >(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   type: T,
   id: string,
   rel: RelationName<D, T>,
 ): MutationOptions<unknown, readonly LinkageRef<string>[]> {
-  const accessor = (client as unknown as WriteClient<D, A, W>)[type]
+  const accessor = client[type]
   return {
     mutationFn: (refs) => accessor.id(id).rel(rel).remove(refs),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
@@ -388,7 +387,7 @@ export function removeRelationshipMutationOptions<
  */
 export function atomicMutationOptions<D extends ApiDescriptor, A, W>(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
 ): MutationOptions<
   AtomicResult[],
@@ -483,7 +482,7 @@ export type MutationApi<D extends ApiDescriptor, A, W> = {
  */
 export function createMutationApi<D extends ApiDescriptor, A, W>(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
 ): MutationApi<D, A, W> {
   const cache = new Map<string, TypeMutationApi<D, A, W, TypeName<D>>>()
@@ -505,7 +504,7 @@ export function createMutationApi<D extends ApiDescriptor, A, W>(
 /** Build one type's bound mutation option factories (delegates to the standalone factories). */
 function typeMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
   queryClient: QueryClient,
-  client: Client<D, A, W>,
+  client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
 ): TypeMutationApi<D, A, W, T> {
