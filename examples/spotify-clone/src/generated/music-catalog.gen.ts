@@ -299,6 +299,7 @@ export const resourceMap = {
     },
     includable: [
       "artist",
+      "artist.albums",
       "tracks",
       "tracks.album",
       "tracks.playlists"
@@ -313,6 +314,7 @@ export const resourceMap = {
     ],
     filterable: [
       "artist.name",
+      "q",
       "rating",
       "releasedAt",
       "title",
@@ -374,6 +376,11 @@ export const resourceMap = {
     },
     paginator: "page",
     clientId: "forbidden",
+    includable: [
+      "albums",
+      "albums.artist",
+      "albums.tracks"
+    ],
     sortable: [
       "name",
       "-name",
@@ -383,6 +390,7 @@ export const resourceMap = {
       "-createdAt"
     ],
     filterable: [
+      "q",
       "slug"
     ]
   },
@@ -461,8 +469,7 @@ export const resourceMap = {
     paginator: "page",
     clientId: "forbidden",
     includable: [
-      "user",
-      "favoritable"
+      "user"
     ]
   },
   genres: {
@@ -721,6 +728,7 @@ export const resourceMap = {
     filterable: [
       "explicit",
       "genres",
+      "q",
       "title"
     ]
   },
