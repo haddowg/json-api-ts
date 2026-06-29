@@ -19,9 +19,23 @@ const alias = {
   ),
 }
 
+// Live mode (`VITE_API_URL=/api`): proxy `/api/*` to the running bundle server so the browser
+// stays same-origin — no CORS needed, and the stripped path hits the bundle's real routes. The
+// target defaults to the local FrankenPHP example; override with VITE_API_PROXY_TARGET.
+const proxyTarget = process.env['VITE_API_PROXY_TARGET'] ?? 'http://localhost:8080'
+
 export default defineConfig({
   plugins: [react()],
   resolve: { alias },
+  server: {
+    proxy: {
+      '/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
   test: {
     name: 'spotify-clone',
     environment: 'jsdom',
