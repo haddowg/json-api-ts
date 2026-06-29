@@ -11,6 +11,10 @@ import { createClient, resourceMap } from '../generated/music-catalog.gen'
 import { createMockTransport, type MockTransport } from '../mock/transport'
 
 const apiUrl = import.meta.env.VITE_API_URL
+// Live mode only: the example secures playlist writes behind a Bearer firewall where the token IS
+// the user identifier — `ada@example.com` owns the seeded "Morning Mix" playlist, so she can edit
+// it. Reads are public; without a token, live reads still work but playlist writes return 401.
+const apiToken = import.meta.env.VITE_API_TOKEN
 
 /** When `VITE_API_URL` is set we hit a real server; otherwise the seeded in-memory mock. */
 function resolveTransport(): {
@@ -33,6 +37,8 @@ export const mockStore = resolved.mock?.store
 export const client = createClient({
   baseUrl: resolved.baseUrl,
   transport: resolved.transport,
+  // Send the Bearer token in live mode (mock mode ignores it).
+  ...(apiUrl && apiToken ? { headers: () => ({ Authorization: `Bearer ${apiToken}` }) } : {}),
 })
 
 export const queryClient = new QueryClient({

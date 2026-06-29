@@ -15,10 +15,16 @@ pnpm install            # from the repo root
 pnpm --filter @haddowg/json-api-spotify-clone dev
 ```
 
-Open the printed URL. To run against a live JSON:API server (e.g. the FrankenPHP bundle example):
+Open the printed URL. To run against the **live** bundle server (e.g. the FrankenPHP example on
+`:8080`), set `VITE_API_URL=/api` — the app then talks to the server through Vite's dev-proxy, so
+the browser stays same-origin and no CORS is needed (the proxy forwards `/api/*` to
+`VITE_API_PROXY_TARGET`, default `http://localhost:8080`). The example secures playlist writes
+behind a Bearer firewall where the token _is_ the user id, so set `VITE_API_TOKEN=ada@example.com`
+(the seeded "Morning Mix" owner) to edit live; reads work without it:
 
 ```bash
-VITE_API_URL=http://localhost:8080 pnpm --filter @haddowg/json-api-spotify-clone dev
+# backend first: docker run --rm -p 8080:80 json-api-symfony-example   (from the bundle repo)
+VITE_API_URL=/api VITE_API_TOKEN=ada@example.com pnpm --filter @haddowg/json-api-spotify-clone dev
 ```
 
 ## What it demonstrates
