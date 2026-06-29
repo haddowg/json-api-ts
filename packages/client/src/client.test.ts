@@ -46,6 +46,9 @@ const descriptor = {
       tokens: ['_self_', 'tracks'],
       profile: 'https://haddowg.github.io/json-api/profiles/countable/',
     },
+    includable: ['artist', 'tracks'],
+    sortable: ['title', '-title', 'releasedAt', '-releasedAt'],
+    filterable: ['status', 'title'],
     actions: {
       // resource-scoped, JSON:API document in -> materialised resource out
       reissue: {

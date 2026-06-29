@@ -57,6 +57,9 @@ const descriptor = {
     },
     paginator: 'page',
     clientId: 'forbidden',
+    includable: ['artist', 'tracks'],
+    sortable: ['title', '-title'],
+    filterable: ['q'],
   },
   artists: {
     attributes: { name: 'string' },

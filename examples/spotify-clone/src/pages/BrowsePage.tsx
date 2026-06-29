@@ -19,7 +19,8 @@ export function BrowsePage() {
     }),
   )
   const artistsQuery = useQuery(reads.artists.list({ sort: 'name' }))
-  const playlistsQuery = useQuery(reads.playlists.list({ sort: 'title' }))
+  // `playlists` advertises no server-side sort, so list as-is.
+  const playlistsQuery = useQuery(reads.playlists.list())
 
   return (
     <div>

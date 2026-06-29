@@ -97,6 +97,26 @@ export interface ResourceDescriptor {
    * Absent when no read endpoint advertises `withCount`.
    */
   countable?: CountableDescriptor
+  /**
+   * The relation paths the read endpoints accept in `include` — the exact enum the OpenAPI
+   * document advertises, including nested dotted paths (`tracks.album`). Drives `include`
+   * narrowing. Absent when the type advertises no includable relations (so `include` is then
+   * a compile error, matching the server's `400 INCLUSION_NOT_ALLOWED`).
+   */
+  includable?: readonly string[]
+  /**
+   * The sort tokens the COLLECTION read accepts in `sort` — signed field names (`title`,
+   * `-title`). Drives `sort` narrowing. Absent when the collection advertises no sorting (so
+   * `sort` is then a compile error, matching the server's `400 SORTING_UNSUPPORTED`).
+   */
+  sortable?: readonly string[]
+  /**
+   * The filter keys the COLLECTION read accepts in `filter[...]`. Drives `filter` key narrowing
+   * (values stay `unknown` — value shapes/operators vary per filter, out of scope for v0.1).
+   * Absent when the collection advertises no filters (so any `filter` is then a compile error,
+   * matching the server's `400 FILTERING_UNRECOGNIZED`).
+   */
+  filterable?: readonly string[]
   /** Custom actions declared on this type, keyed by action name. Absent/empty when none. */
   actions?: Readonly<Record<string, ActionDescriptor>>
 }

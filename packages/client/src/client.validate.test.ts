@@ -27,6 +27,7 @@ const descriptor = {
     paths: { fetchMany: '/albums', fetchOne: '/albums/{id}' },
     paginator: 'page',
     clientId: 'optional',
+    includable: ['artist', 'tracks'],
   },
   artists: {
     attributes: {},

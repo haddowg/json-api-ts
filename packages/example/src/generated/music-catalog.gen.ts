@@ -297,6 +297,27 @@ export const resourceMap = {
       ],
       profile: "https://haddowg.github.io/json-api/profiles/countable/"
     },
+    includable: [
+      "artist",
+      "tracks",
+      "tracks.album",
+      "tracks.playlists"
+    ],
+    sortable: [
+      "title",
+      "-title",
+      "releasedAt",
+      "-releasedAt",
+      "status",
+      "-status"
+    ],
+    filterable: [
+      "artist.name",
+      "rating",
+      "releasedAt",
+      "title",
+      "tracks"
+    ],
     actions: {
       artwork: {
         scope: "resource",
@@ -352,7 +373,18 @@ export const resourceMap = {
       update: "/artists/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    sortable: [
+      "name",
+      "-name",
+      "slug",
+      "-slug",
+      "createdAt",
+      "-createdAt"
+    ],
+    filterable: [
+      "slug"
+    ]
   },
   charts: {
     attributes: {},
@@ -427,7 +459,11 @@ export const resourceMap = {
       update: "/favorites/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    includable: [
+      "user",
+      "favoritable"
+    ]
   },
   genres: {
     attributes: {
@@ -482,7 +518,11 @@ export const resourceMap = {
       update: "/libraries/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    includable: [
+      "owner",
+      "items"
+    ]
   },
   playlists: {
     attributes: {
@@ -553,7 +593,17 @@ export const resourceMap = {
         "tracks"
       ],
       profile: "https://haddowg.github.io/json-api/profiles/countable/"
-    }
+    },
+    includable: [
+      "owner",
+      "publicOwner",
+      "tracks",
+      "tracks.album",
+      "tracks.playlists",
+      "orderedTracks",
+      "orderedTracks.album",
+      "orderedTracks.playlists"
+    ]
   },
   products: {
     attributes: {
@@ -581,7 +631,10 @@ export const resourceMap = {
       update: "/products/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    includable: [
+      "parent"
+    ]
   },
   "public-profiles": {
     attributes: {
@@ -593,7 +646,11 @@ export const resourceMap = {
       fetchOne: "/public-profiles/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    sortable: [
+      "displayName",
+      "-displayName"
+    ]
   },
   tracks: {
     attributes: {
@@ -644,7 +701,28 @@ export const resourceMap = {
         "playlists"
       ],
       profile: "https://haddowg.github.io/json-api/profiles/countable/"
-    }
+    },
+    includable: [
+      "album",
+      "album.artist",
+      "album.tracks",
+      "playlists",
+      "playlists.owner",
+      "playlists.publicOwner",
+      "playlists.tracks",
+      "playlists.orderedTracks"
+    ],
+    sortable: [
+      "title",
+      "-title",
+      "trackNumber",
+      "-trackNumber"
+    ],
+    filterable: [
+      "explicit",
+      "genres",
+      "title"
+    ]
   },
   users: {
     attributes: {},
