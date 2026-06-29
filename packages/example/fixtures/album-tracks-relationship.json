@@ -1,0 +1,12 @@
+{
+  "data": [
+    { "type": "tracks", "id": "1", "meta": { "served_by": "music-catalog" } },
+    { "type": "tracks", "id": "3", "meta": { "served_by": "music-catalog" } }
+  ],
+  "links": {
+    "self": "https:\/\/music.example\/albums\/1\/relationships\/tracks",
+    "related": "https:\/\/music.example\/albums\/1\/tracks",
+    "first": "https:\/\/music.example\/albums\/1\/relationships\/tracks?page%5Bnumber%5D=1&page%5Bsize%5D=2"
+  },
+  "jsonapi": { "version": "1.1" }
+}

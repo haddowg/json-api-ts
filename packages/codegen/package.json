@@ -20,13 +20,17 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "lint:publish": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@haddowg/json-api-client": "workspace:^",

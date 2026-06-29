@@ -1,0 +1,72 @@
+{
+  "data": [
+    {
+      "type": "tracks",
+      "id": "1",
+      "meta": { "served_by": "music-catalog" },
+      "links": { "self": "https:\/\/music.example\/tracks\/1" },
+      "attributes": {
+        "title": "Airbag",
+        "trackNumber": 1,
+        "durationSeconds": 284,
+        "explicit": false,
+        "genres": ["rock", "alternative"],
+        "previewOffset": "00:00:30",
+        "displayTitle": "1. Airbag"
+      },
+      "relationships": {
+        "album": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/1\/relationships\/album",
+            "related": "https:\/\/music.example\/tracks\/1\/album"
+          },
+          "data": { "type": "albums", "id": "1" }
+        },
+        "playlists": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/1\/relationships\/playlists",
+            "related": "https:\/\/music.example\/tracks\/1\/playlists"
+          },
+          "data": [{ "type": "playlists", "id": "00000000-0000-4000-8000-000000000001" }]
+        }
+      }
+    },
+    {
+      "type": "tracks",
+      "id": "3",
+      "meta": { "served_by": "music-catalog" },
+      "links": { "self": "https:\/\/music.example\/tracks\/3" },
+      "attributes": {
+        "title": "Exit Music (For a Film)",
+        "trackNumber": 3,
+        "durationSeconds": 264,
+        "explicit": false,
+        "genres": ["rock"],
+        "previewOffset": null,
+        "displayTitle": "3. Exit Music (For a Film)"
+      },
+      "relationships": {
+        "album": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/3\/relationships\/album",
+            "related": "https:\/\/music.example\/tracks\/3\/album"
+          },
+          "data": { "type": "albums", "id": "1" }
+        },
+        "playlists": {
+          "links": {
+            "self": "https:\/\/music.example\/tracks\/3\/relationships\/playlists",
+            "related": "https:\/\/music.example\/tracks\/3\/playlists"
+          },
+          "data": []
+        }
+      }
+    }
+  ],
+  "links": {
+    "self": "https:\/\/music.example\/albums\/1\/tracks?page%5Bnumber%5D=1&page%5Bsize%5D=2",
+    "first": "https:\/\/music.example\/albums\/1\/tracks?page%5Bnumber%5D=1&page%5Bsize%5D=2"
+  },
+  "meta": { "page": { "currentPage": 1, "perPage": 2, "from": 1, "to": 2 } },
+  "jsonapi": { "version": "1.1" }
+}

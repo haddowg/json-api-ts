@@ -34,3 +34,14 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Packaging correctness for the publishable packages: publint validates each
+      # package.json (exports/types/files/bin), attw validates types resolution under
+      # both module systems. Needs the built dist (above).
+      - name: Publish check
+        run: pnpm lint:publish
+
+      # Runtime proof the built dist resolves both ways (ESM import + CJS require),
+      # including the @haddowg/json-api-client/ajv sub-path export.
+      - name: Dual ESM/CJS smoke
+        run: pnpm smoke

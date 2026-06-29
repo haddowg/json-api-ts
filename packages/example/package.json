@@ -1,0 +1,20 @@
+{
+  "name": "@haddowg/json-api-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Worked, tested example of the JSON:API client against the music-catalog fixture. Doubles as a compile-and-run smoke for the canonical usage reference.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@haddowg/json-api-client": "workspace:^",
+    "@haddowg/json-api-query": "workspace:^"
+  },
+  "devDependencies": {
+    "@haddowg/json-api-codegen": "workspace:^",
+    "@tanstack/query-core": "^5.0.0",
+    "ajv": "^8.17.1"
+  }
+}
