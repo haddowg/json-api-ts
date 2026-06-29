@@ -20,12 +20,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import type {
-  Client,
-  JsonApiError,
-  TransportRequest,
-  TransportResponse,
-} from '@haddowg/json-api-client'
+import type { JsonApiError, TransportRequest, TransportResponse } from '@haddowg/json-api-client'
 import { createAjvValidator } from '@haddowg/json-api-client/ajv'
 import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
 import { QueryClient } from '@tanstack/query-core'
@@ -35,26 +30,14 @@ import { describe, expect, it } from 'vitest'
 // writes. `createClient` is the descriptor-bound factory; `resourceMap` is the runtime
 // descriptor TanStack normalization needs; `schemas` is the per-type JSON Schema map for ajv;
 // `Attributes`/`WriteAttributes`/`ResourceMap` are the generated type maps.
-import {
-  type Attributes,
-  createClient,
-  resourceMap,
-  type ResourceMap,
-  type WriteAttributes,
-} from './generated/music-catalog.gen'
+import { createClient, resourceMap } from './generated/music-catalog.gen'
 import { schemas } from './generated/music-catalog.schemas.gen'
 
 /**
- * The TanStack-Query bindings are action-agnostic — custom actions are not cacheable resources,
- * so the read factories accept `Client<D, A>` and the write factories `Client<D, A, W>`, neither
- * carrying the client's custom-action types. The generated `createClient` returns a client that
- * ALSO carries the per-action body types, so we view it through the action-agnostic `Client` types
- * at the query boundary — one cast per surface, at the seam between the two packages, after which
- * the factories infer `D`/`A`/`W` from it.
+ * The TanStack-Query bindings are action-agnostic — they accept the generated client directly
+ * (the factories take the minimal read/write accessor shape, so a client that also carries the
+ * custom-action and atomic surfaces binds with no cast).
  */
-type ReadBindableClient = Client<ResourceMap, Attributes>
-type WriteBindableClient = Client<ResourceMap, Attributes, WriteAttributes>
-
 const BASE = 'https://music.example'
 const PLAYLIST = '00000000-0000-4000-8000-000000000001'
 
@@ -412,14 +395,14 @@ describe('TanStack Query bindings', () => {
 
     // The bound read API: `api.<type>.list(query)` returns `{ queryKey, queryFn }` for `useQuery`
     // (or, here, `fetchQuery`). The factories preserve the client's full static narrowing.
-    const reads = createQueryApi(client as unknown as ReadBindableClient)
+    const reads = createQueryApi(client)
     const listOpts = reads.albums.list()
     const getOpts = reads.albums.get('1')
     await qc.fetchQuery(listOpts)
     await qc.fetchQuery(getOpts)
 
     // The bound mutation API. An update PATCHES the cache via normalize on success (no refetch).
-    const writes = createMutationApi(qc, client as unknown as WriteBindableClient, resourceMap)
+    const writes = createMutationApi(qc, client, resourceMap)
     const updateOpts = writes.albums.id('1').update()
     await qc
       .getMutationCache()

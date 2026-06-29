@@ -15,7 +15,6 @@
  */
 import type {
   ApiDescriptor,
-  Client,
   Collection,
   FieldsMap,
   IncludePath,
@@ -70,11 +69,11 @@ export function listQueryOptions<
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
 >(
-  client: Client<D, A>,
+  client: TypedClient<D, A>,
   type: T,
   query?: TypedReadQuery<D, T, Inc, F>,
 ): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>>> {
-  const accessor = (client as unknown as TypedClient<D, A>)[type]
+  const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
     queryFn: () => accessor.list<Inc, F>(query),
@@ -94,12 +93,12 @@ export function getQueryOptions<
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
 >(
-  client: Client<D, A>,
+  client: TypedClient<D, A>,
   type: T,
   id: string,
   query?: SingleReadQuery<D, T, Inc, F>,
 ): QueryOptions<ReadResult<D, A, T, Inc, F>> {
-  const accessor = (client as unknown as TypedClient<D, A>)[type]
+  const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchOne', id }, query),
     queryFn: () => accessor.get<Inc, F>(id, query),
@@ -114,13 +113,13 @@ export function getQueryOptions<
  * the option resolves `unknown` unless the caller annotates it (parity with the client's runtime).
  */
 export function relationshipQueryOptions<D extends ApiDescriptor, A, T extends TypeName<D>>(
-  client: Client<D, A>,
+  client: TypedClient<D, A>,
   type: T,
   id: string,
   rel: RelationName<D, T>,
   query?: RelationReadQuery,
 ): QueryOptions<unknown> {
-  const accessor = (client as unknown as TypedClient<D, A>)[type]
+  const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchRelationship', id, rel }, query),
     queryFn: () => accessor.id(id).rel(rel).get(query),
@@ -134,13 +133,13 @@ export function relationshipQueryOptions<D extends ApiDescriptor, A, T extends T
  * `.rel(name)` boundary, so this resolves `unknown` (parity with the client runtime).
  */
 export function relatedQueryOptions<D extends ApiDescriptor, A, T extends TypeName<D>>(
-  client: Client<D, A>,
+  client: TypedClient<D, A>,
   type: T,
   id: string,
   rel: RelationName<D, T>,
   query?: RelationReadQuery,
 ): QueryOptions<unknown> {
-  const accessor = (client as unknown as TypedClient<D, A>)[type]
+  const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchRelated', id, rel }, query),
     queryFn: () => accessor.id(id).rel(rel).related(query),
@@ -177,7 +176,9 @@ export type QueryApi<D extends ApiDescriptor, A> = {
  * `client`/`type` pre-applied. A Proxy (descriptor-free — type validity is enforced by the static
  * `QueryApi` shape) so no per-type allocation until first access.
  */
-export function createQueryApi<D extends ApiDescriptor, A>(client: Client<D, A>): QueryApi<D, A> {
+export function createQueryApi<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+): QueryApi<D, A> {
   const cache = new Map<string, TypeQueryApi<D, A, TypeName<D>>>()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
@@ -196,7 +197,7 @@ export function createQueryApi<D extends ApiDescriptor, A>(client: Client<D, A>)
 
 /** Build one type's bound read-option factories (delegates to the standalone factories). */
 function typeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
-  client: Client<D, A>,
+  client: TypedClient<D, A>,
   type: T,
 ): TypeQueryApi<D, A, T> {
   return {
