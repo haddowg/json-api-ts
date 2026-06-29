@@ -84,7 +84,7 @@ describe('reads', () => {
     const { transport, requests } = mockTransport({
       // The client serialises the flat query into JSON:API bracketed params, deterministically
       // (multi-value families like `fields` join with a `,`, percent-encoded as `%2C`).
-      [`${BASE}/albums?filter[status]=released&sort=-releasedAt&include=artist&fields[albums]=title%2Cstatus%2Cartist&page[number]=1`]:
+      [`${BASE}/albums?filter[title]=OK&sort=-releasedAt&include=artist&fields[albums]=title%2Cstatus%2Cartist&page[number]=1`]:
         fixture('albums-collection.json'),
     })
     const client = createClient({ baseUrl: BASE, transport })
@@ -93,7 +93,7 @@ describe('reads', () => {
     // exactly `title`/`status`/`artist` (any other attribute is statically ABSENT from the type).
     // A relation kept in `include` must also be kept in the fieldset to stay on the type.
     const albums = await client.albums.list({
-      filter: { status: 'released' },
+      filter: { title: 'OK' },
       sort: '-releasedAt',
       include: ['artist'],
       fields: { albums: ['title', 'status', 'artist'] },

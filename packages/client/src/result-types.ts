@@ -212,21 +212,35 @@ export type ResourceObjectView<
   ResourceAccessors
 
 /**
- * The element type of the `include` array for type `T`: a relation name, optionally a
- * dotted child path (`relation.child`). Children are accepted (the wire supports them)
- * but only the top-level relation drives narrowing today — see the TODO on the read
- * methods.
+ * The element type of the `include` array for type `T`: a path from the descriptor's
+ * `includable` enum — the exact set the server advertises, including nested dotted paths
+ * (`tracks.album`). `never` when the type advertises nothing includable (so `include` is a
+ * compile error, matching the server's `400 INCLUSION_NOT_ALLOWED`). Only the top-level
+ * relation of each path drives return-type narrowing (see {@link IncludedRelations}).
  */
-export type IncludePath<D extends ApiDescriptor, T extends TypeName<D>> =
-  | RelationName<D, T>
-  | `${RelationName<D, T>}.${string}`
+export type IncludePath<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  includable: infer I
+}
+  ? I extends readonly (infer P)[]
+    ? P & string
+    : never
+  : never
 
-/** The union of top-level relation names present in an `include` tuple (drops dotted children). */
+/**
+ * The union of top-level relation names present in an `include` tuple (drops dotted children).
+ * Mapped element-wise over the tuple (`{ [K in keyof Inc]: ... }[number]`) rather than
+ * distributed over `Inc[number]` — a distributive template-literal `infer` collapses the union to
+ * a single head when the tuple mixes dotted and plain paths (e.g. `['artist', 'tracks.album']`
+ * would drop `tracks`), silently leaving an included relation un-hydrated.
+ */
 export type IncludedRelations<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[],
-> = Extract<Inc[number] extends `${infer Head}.${string}` ? Head : Inc[number], RelationName<D, T>>
+> = Extract<
+  { [K in keyof Inc]: Inc[K] extends `${infer Head}.${string}` ? Head : Inc[K] }[number],
+  RelationName<D, T>
+>
 
 /**
  * The `withCount` count tokens type `T` accepts (its `countable.tokens` literal union), or
@@ -240,6 +254,52 @@ export type CountToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] ex
     ? Token & string
     : never
   : never
+
+/**
+ * A sort token type `T`'s COLLECTION read accepts (its `sortable` literal union — signed
+ * field names like `title`/`-title`), or `never` when the collection advertises no sorting.
+ */
+export type SortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  sortable: infer S
+}
+  ? S extends readonly (infer Token)[]
+    ? Token & string
+    : never
+  : never
+
+/**
+ * A filter key type `T`'s COLLECTION read accepts (its `filterable` literal union), or `never`
+ * when the collection advertises no filters.
+ */
+export type FilterKey<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  filterable: infer Fl
+}
+  ? Fl extends readonly (infer Key)[]
+    ? Key & string
+    : never
+  : never
+
+/**
+ * The `sort` value for type `T`: one of the advertised tokens or a tuple of them. `never`
+ * (so `sort` cannot be supplied at all) when the collection advertises no sorting — a
+ * compile-time mirror of the server's `400 SORTING_UNSUPPORTED`.
+ */
+export type SortQuery<D extends ApiDescriptor, T extends TypeName<D>> = [SortToken<D, T>] extends [
+  never,
+]
+  ? never
+  : SortToken<D, T> | readonly SortToken<D, T>[]
+
+/**
+ * The `filter` object for type `T`: keys constrained to the advertised filter params (values
+ * stay `unknown` — value shapes/operators vary). `never` (so `filter` cannot be supplied) when
+ * the collection advertises no filters — a compile-time mirror of `400 FILTERING_UNRECOGNIZED`.
+ */
+export type FilterQuery<D extends ApiDescriptor, T extends TypeName<D>> = [
+  FilterKey<D, T>,
+] extends [never]
+  ? never
+  : Partial<Record<FilterKey<D, T>, unknown>>
 
 /**
  * The element type of the `fields` map for a typed read: a member-name array per wire type,
@@ -272,10 +332,12 @@ export interface TypedReadQuery<
   Inc extends readonly IncludePath<D, T>[],
   F extends FieldsMap<D> = FieldsMap<D>,
 > {
-  /** The relations to include — drives static narrowing; constrained to declared paths. */
+  /** The relations to include — drives static narrowing; constrained to the advertised paths. */
   include?: Inc
-  filter?: Record<string, unknown>
-  sort?: string | readonly string[]
+  /** Filter the collection — keys constrained to the type's advertised `filter[...]` params. */
+  filter?: FilterQuery<D, T>
+  /** Sort the collection — constrained to the type's advertised (signed) sort tokens. */
+  sort?: SortQuery<D, T>
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F
   /** Relationship-count tokens (the Countable profile) — comma-joined onto `withCount`. */
@@ -284,17 +346,22 @@ export interface TypedReadQuery<
 }
 
 /**
- * A single-resource read query (`GET /{type}/{id}`): the same families as {@link TypedReadQuery}
- * but WITHOUT `withCount`. `withCount` is a collection/related-endpoint capability — no
- * single-resource endpoint advertises it — so accepting it on `get` would be a lying type
- * (the server rejects an unrecognised parameter with `400` under strict query-param validation).
+ * A single-resource read query (`GET /{type}/{id}`): only `include` and sparse `fields`. A
+ * single-resource endpoint advertises neither `sort`/`filter`/`page` (no collection to order,
+ * filter or page) nor `withCount` — accepting any of them would be a lying type (the server
+ * rejects an unrecognised parameter with `400` under strict query-param validation).
  */
-export type SingleReadQuery<
+export interface SingleReadQuery<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[],
   F extends FieldsMap<D> = FieldsMap<D>,
-> = Omit<TypedReadQuery<D, T, Inc, F>, 'withCount'>
+> {
+  /** The relations to include — drives static narrowing; constrained to the advertised paths. */
+  include?: Inc
+  /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
+  fields?: F
+}
 
 /**
  * The static return type of a read on type `T` given its `include` tuple and `fields` selection

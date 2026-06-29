@@ -32,6 +32,10 @@ const resourceMap = {
       tokens: ['tracks'],
       profile: 'https://haddowg.github.io/json-api/profiles/countable/',
     },
+    // The advertised query capabilities (the include/sort/filter enums the wire exposes).
+    includable: ['artist', 'tracks', 'artist.albums', 'tracks.album'],
+    sortable: ['title', '-title', 'status', '-status'],
+    filterable: ['status', 'title'],
   },
   artists: {
     attributes: { name: 'string' },
@@ -39,6 +43,9 @@ const resourceMap = {
     paths: {},
     paginator: 'page',
     clientId: 'forbidden',
+    includable: ['albums'],
+    sortable: ['name', '-name'],
+    filterable: ['name'],
   },
   tracks: {
     attributes: { title: 'string' },
@@ -46,7 +53,12 @@ const resourceMap = {
     paths: {},
     paginator: 'page',
     clientId: 'forbidden',
+    includable: ['album', 'album.artist'],
+    sortable: ['title', '-title'],
+    filterable: ['title'],
   },
+  // `favorites` advertises an includable polymorphic relation but NO sort and NO filter — it
+  // exercises the "sorting/filtering unsupported" branch (`sort`/`filter` are then `never`).
   favorites: {
     attributes: {},
     relations: {
@@ -56,6 +68,7 @@ const resourceMap = {
     paths: {},
     paginator: 'none',
     clientId: 'forbidden',
+    includable: ['favoritable'],
   },
 } as const satisfies ApiDescriptor
 
@@ -143,6 +156,15 @@ describe('include-driven narrowing', () => {
   it('narrows on the head of a dotted include path', () => {
     type WithArtist = ReadResult<Map, Attributes, 'albums', ['artist.albums']>
     expectTypeOf<NonNullable<WithArtist['artist']>['name']>().toEqualTypeOf<string>()
+  })
+
+  it('hydrates EVERY head when a tuple mixes a plain relation and a dotted path', () => {
+    // Regression: a distributive template-literal `infer` collapses the union to a single head
+    // when the tuple mixes dotted + plain members, dropping a relation from the narrowed set.
+    // `['artist', 'tracks.album']` must hydrate BOTH `artist` (to-one) and `tracks` (to-many).
+    type Both = ReadResult<Map, Attributes, 'albums', ['artist', 'tracks.album']>
+    expectTypeOf<NonNullable<Both['artist']>['name']>().toEqualTypeOf<string>()
+    expectTypeOf<Both['tracks'][number]['title']>().toEqualTypeOf<string>()
   })
 
   it('distributes a polymorphic to-one over its related types when included', () => {
@@ -478,12 +500,50 @@ async function withCountIsTokenConstrained() {
   await client.albums.get('1', { withCount: ['tracks'] })
 }
 
+// Call-site include/sort/filter narrowing: each family is constrained to exactly what the
+// descriptor advertises — an unadvertised include path, sort token or filter key is a compile
+// error (the static mirror of the server's 400s) — and `sort`/`filter` are rejected outright on a
+// type that advertises none. Declared, never run — the assertions are tsc.
+async function queryParamsAreNarrowed() {
+  // include — advertised paths compile (incl. dotted); an undeclared path errs.
+  await client.albums.list({ include: ['artist', 'tracks.album'] })
+  // @ts-expect-error — `label` is not an advertised include path for albums.
+  await client.albums.list({ include: ['label'] })
+
+  // sort — advertised (signed) tokens compile, as a scalar or a tuple; an undeclared token errs.
+  await client.albums.list({ sort: 'title' })
+  await client.albums.list({ sort: ['-title', 'status'] })
+  // @ts-expect-error — `rating` is not an advertised sort token for albums.
+  await client.albums.list({ sort: 'rating' })
+
+  // filter — advertised keys compile; an undeclared key errs.
+  await client.albums.list({ filter: { title: 'OK', status: 'released' } })
+  // @ts-expect-error — `rating` is not an advertised filter key for albums.
+  await client.albums.list({ filter: { rating: 1 } })
+
+  // `favorites` advertises neither sort nor filter, so supplying either is a compile error.
+  // @ts-expect-error — favorites advertises no sortable fields.
+  await client.favorites.list({ sort: 'whatever' })
+  // @ts-expect-error — favorites advertises no filters.
+  await client.favorites.list({ filter: { whatever: 1 } })
+
+  // A single-resource get accepts `include` + `fields` only — not sort/filter/page.
+  await client.albums.get('1', { include: ['artist'] })
+  // @ts-expect-error — a single-resource get does not accept `sort`.
+  await client.albums.get('1', { sort: 'title' })
+  // @ts-expect-error — a single-resource get does not accept `filter`.
+  await client.albums.get('1', { filter: { title: 'OK' } })
+}
+
 describe('read call-site fieldset + withCount narrowing', () => {
   it('narrows the element type to the requested fieldset', () => {
     expectTypeOf(narrowsListFields).returns.resolves.toMatchTypeOf<ReadonlyArray<unknown>>()
   })
   it('constrains withCount to the type count tokens', () => {
     expectTypeOf(withCountIsTokenConstrained).returns.resolves.toBeVoid()
+  })
+  it('constrains include/sort/filter to the advertised capabilities', () => {
+    expectTypeOf(queryParamsAreNarrowed).returns.resolves.toBeVoid()
   })
 })
 
@@ -500,6 +560,7 @@ const writeMap = {
     paths: {},
     paginator: 'page',
     clientId: 'forbidden',
+    includable: ['artist', 'tracks'],
   },
   artists: {
     attributes: { name: 'string' },

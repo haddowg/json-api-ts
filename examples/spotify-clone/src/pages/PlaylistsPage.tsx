@@ -13,7 +13,9 @@ import { QueryState } from '../components/QueryState'
  * (and the fresh resource is normalized into the cache for any view already holding it).
  */
 export function PlaylistsPage() {
-  const playlistsQuery = useQuery(reads.playlists.list({ sort: 'title' }))
+  // `playlists` advertises no server-side sort, so list unsorted and order by title client-side.
+  const playlistsQuery = useQuery(reads.playlists.list())
+  const playlists = playlistsQuery.data?.toSorted((a, b) => a.title.localeCompare(b.title))
 
   const [title, setTitle] = useState('')
   const [isPublic, setIsPublic] = useState(true)
@@ -67,11 +69,11 @@ export function PlaylistsPage() {
       <QueryState
         isPending={playlistsQuery.isPending}
         error={playlistsQuery.error}
-        isEmpty={playlistsQuery.data?.length === 0}
+        isEmpty={playlists?.length === 0}
         emptyLabel="No playlists yet — create one above."
       >
         <div className="grid">
-          {playlistsQuery.data?.map((playlist) => (
+          {playlists?.map((playlist) => (
             <Link key={playlist.id} to={`/playlists/${playlist.id}`} className="card">
               <div className="card__art">
                 <GradientArt seed={`playlist-${playlist.id}`} label={playlist.title} size={148} />

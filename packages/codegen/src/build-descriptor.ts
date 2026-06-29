@@ -79,6 +79,18 @@ export class DescriptorBuilder {
       if (countable !== undefined) {
         descriptor.countable = countable
       }
+      const includable = this.includable(collection)
+      if (includable !== undefined) {
+        descriptor.includable = includable
+      }
+      const sortable = this.sortable(collection)
+      if (sortable !== undefined) {
+        descriptor.sortable = sortable
+      }
+      const filterable = this.filterable(collection)
+      if (filterable !== undefined) {
+        descriptor.filterable = filterable
+      }
       if (Object.keys(actions).length > 0) {
         descriptor.actions = actions
       }
@@ -464,6 +476,57 @@ export class DescriptorBuilder {
     return withCountParam(this.operation(collection, 'get'))
   }
 
+  /**
+   * The relation paths the read endpoints accept in `include` — the `include` query
+   * parameter's `schema.items.enum` (already including nested dotted paths) on the collection
+   * GET. Returns `undefined` when the collection advertises no `include` (nothing includable).
+   *
+   * Read from the collection GET to mirror {@see sortable}/{@see filterable}: the whole builder
+   * is collection-centric (a type with no collection path gets no `paths` at all), and the bundle
+   * advertises the same `include` enum on the collection and single-resource GETs.
+   */
+  private includable(collection: string | undefined): readonly string[] | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const tokens = paramItemsEnum(this.operation(collection, 'get'), 'include')
+    return tokens !== undefined && tokens.length > 0 ? tokens : undefined
+  }
+
+  /**
+   * The sort tokens the COLLECTION read accepts — the `sort` query parameter's
+   * `schema.items.enum` (signed field names) on the collection GET. Returns `undefined` when
+   * the collection advertises no `sort` parameter (sorting unsupported).
+   */
+  private sortable(collection: string | undefined): readonly string[] | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const tokens = paramItemsEnum(this.operation(collection, 'get'), 'sort')
+    return tokens !== undefined && tokens.length > 0 ? tokens : undefined
+  }
+
+  /**
+   * The filter keys the COLLECTION read accepts in `filter[...]` (the `filter[<key>]` parameter
+   * names, `<key>` extracted), sorted for deterministic output. Returns `undefined` when the
+   * collection advertises no `filter[...]` parameters (filtering unsupported). Value shapes are
+   * deliberately not captured — `filter` values stay `unknown` (out of scope for v0.1).
+   */
+  private filterable(collection: string | undefined): readonly string[] | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const keys: string[] = []
+    for (const param of this.operation(collection, 'get')?.parameters ?? []) {
+      const name = param.name
+      if (typeof name === 'string' && name.startsWith('filter[') && name.endsWith(']')) {
+        keys.push(name.slice('filter['.length, -1))
+      }
+    }
+    // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
+    return keys.length > 0 ? keys.sort() : undefined
+  }
+
   private queryParamNames(op: OperationObject | undefined): Set<string> {
     const names = new Set<string>()
     for (const param of op?.parameters ?? []) {
@@ -528,6 +591,27 @@ function withCountParam(op: OperationObject | undefined): CountableDescriptor | 
       ? enumValues.filter((v): v is string => typeof v === 'string')
       : []
     return { tokens, profile }
+  }
+  return undefined
+}
+
+/**
+ * The string members of an array-valued query parameter's `schema.items.enum` (the shape the
+ * `include` and `sort` parameters use). Returns `undefined` when the operation carries no
+ * parameter of that name, or one whose schema declares no enum.
+ */
+function paramItemsEnum(
+  op: OperationObject | undefined,
+  paramName: string,
+): readonly string[] | undefined {
+  for (const param of op?.parameters ?? []) {
+    if (param.name !== paramName) {
+      continue
+    }
+    const enumValues = param.schema?.items?.enum
+    return Array.isArray(enumValues)
+      ? enumValues.filter((v): v is string => typeof v === 'string')
+      : undefined
   }
   return undefined
 }

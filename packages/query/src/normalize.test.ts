@@ -33,6 +33,7 @@ const descriptor = {
     },
     paginator: 'page',
     clientId: 'forbidden',
+    includable: ['artist', 'tracks'],
   },
   artists: {
     attributes: { name: 'string' },
@@ -60,6 +61,7 @@ const descriptor = {
     },
     paginator: 'page',
     clientId: 'forbidden',
+    includable: ['orderedTracks'],
   },
 } as const satisfies ApiDescriptor
 

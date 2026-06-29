@@ -76,6 +76,26 @@ describe('emit (music-catalog default server)', () => {
     expect(block).not.toContain('countable:')
   })
 
+  it('encodes the include/sort/filter capabilities in the resourceMap (albums)', () => {
+    // Scope to the `resourceMap` section so the `albums:` match can't bind the (earlier,
+    // single-line) `albums:` entry of the WriteAttributes map.
+    const map = source.slice(source.indexOf('export const resourceMap'))
+    const block = map.match(/\n {2}albums: \{[\s\S]*?\n {2}\}/)?.[0]
+    expect(block).toBeDefined()
+    expect(block).toMatch(/includable: \[[\s\S]*?"artist",[\s\S]*?"tracks.album"/)
+    expect(block).toMatch(/sortable: \[[\s\S]*?"title",[\s\S]*?"-releasedAt"/)
+    expect(block).toMatch(/filterable: \[[\s\S]*?"artist.name",[\s\S]*?"rating"/)
+  })
+
+  it('omits include/sort/filter capabilities a type does not advertise (genres)', () => {
+    const map = source.slice(source.indexOf('export const resourceMap'))
+    const block = map.match(/\n {2}genres: \{[\s\S]*?\n {2}\}/)?.[0]
+    expect(block).toBeDefined()
+    expect(block).not.toContain('includable:')
+    expect(block).not.toContain('sortable:')
+    expect(block).not.toContain('filterable:')
+  })
+
   it('quotes a hyphenated wire-type key', () => {
     expect(source).toContain('"public-profiles": {')
   })

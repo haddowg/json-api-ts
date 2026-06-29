@@ -266,6 +266,58 @@ describe('buildDescriptor — withCount (Countable) capability', () => {
   })
 })
 
+describe('buildDescriptor — include/sort/filter capabilities', () => {
+  it('captures the includable enum (incl. nested dotted paths) from the read params (albums)', () => {
+    expect(descriptor['albums']!.includable).toEqual([
+      'artist',
+      'tracks',
+      'tracks.album',
+      'tracks.playlists',
+    ])
+  })
+
+  it('captures the sortable (signed) tokens from the collection GET (albums)', () => {
+    expect(descriptor['albums']!.sortable).toEqual([
+      'title',
+      '-title',
+      'releasedAt',
+      '-releasedAt',
+      'status',
+      '-status',
+    ])
+  })
+
+  it('captures the filterable keys (sorted) from the collection GET (albums)', () => {
+    expect(descriptor['albums']!.filterable).toEqual([
+      'artist.name',
+      'rating',
+      'releasedAt',
+      'title',
+      'tracks',
+    ])
+  })
+
+  it('omits `includable` for a type whose relations are all non-includable (artists)', () => {
+    expect(descriptor['artists']!.includable).toBeUndefined()
+    // ...while its sort/filter capabilities are still captured.
+    expect(descriptor['artists']!.sortable).toContain('name')
+    expect(descriptor['artists']!.filterable).toEqual(['slug'])
+  })
+
+  it('omits `sortable` and `filterable` when the collection advertises neither (playlists)', () => {
+    expect(descriptor['playlists']!.sortable).toBeUndefined()
+    expect(descriptor['playlists']!.filterable).toBeUndefined()
+    // ...but `includable` is still present (playlists' relations are includable).
+    expect(descriptor['playlists']!.includable).toContain('orderedTracks')
+  })
+
+  it('omits all three for a type whose reads advertise no include/sort/filter (genres)', () => {
+    expect(descriptor['genres']!.includable).toBeUndefined()
+    expect(descriptor['genres']!.sortable).toBeUndefined()
+    expect(descriptor['genres']!.filterable).toBeUndefined()
+  })
+})
+
 describe('buildAtomic — server-level atomic capability', () => {
   it('detects the /operations endpoint by its atomic ext media type', () => {
     expect(buildAtomic(loadFixture('music-catalog.openapi.json'))).toEqual({ path: '/operations' })
