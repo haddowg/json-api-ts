@@ -60,6 +60,30 @@ describe('app smoke', () => {
     expect(await screen.findByRole('link', { name: 'Radiohead' })).toBeInTheDocument()
   })
 
+  it('renders an artist detail with its discography from the include', async () => {
+    renderAt('/artists/1')
+
+    // The artist header + an album from the compound `include: ['albums']` read (the artist's
+    // `albums` relation is includable, so the discography rides one request).
+    expect(await screen.findByRole('heading', { name: 'Radiohead', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByText('OK Computer')).toBeInTheDocument()
+  })
+
+  it('searches the catalogue via the shared filter[q] across types', async () => {
+    renderAt('/search')
+
+    // Typing narrows every section by the one `filter[q]` key: "comput" keeps OK Computer and
+    // drops the non-matching album (Dummy).
+    fireEvent.change(await screen.findByLabelText('Search the catalogue'), {
+      target: { value: 'comput' },
+    })
+
+    expect(await screen.findByText('OK Computer')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Dummy')).not.toBeInTheDocument()
+    })
+  })
+
   it('renders a playlist detail with ordered tracks carrying the pivot position', async () => {
     renderAt('/playlists/00000000-0000-4000-8000-000000000001')
 

@@ -6,23 +6,15 @@ import { QueryState } from '../components/QueryState'
 import { formatYear } from '../lib/format'
 
 /**
- * Artist detail: the artist + their discography. The `artists` endpoint declares no includable
- * relations, so the albums are a second typed read — `reads.albums.list` filtered by the
- * advertised `artist.name` filter — gated on the artist having loaded (a dependent query).
+ * Artist detail: the artist + their discography, in one compound read. `artists` declares its
+ * `albums` relation includable, so `include: ['albums']` narrows the relation to a typed
+ * Collection of album resources hydrated straight off the compound document — no second request.
  */
 export function ArtistDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
-  const artistQuery = useQuery(reads.artists.get(id))
+  const artistQuery = useQuery(reads.artists.get(id, { include: ['albums'] }))
   const artist = artistQuery.data
-
-  const albumsQuery = useQuery({
-    ...reads.albums.list({
-      filter: { 'artist.name': artist?.name ?? '' },
-      sort: '-releasedAt',
-    }),
-    enabled: artist !== undefined,
-  })
-  const albums = albumsQuery.data ?? []
+  const albums = artist?.albums ?? []
 
   return (
     <QueryState isPending={artistQuery.isPending} error={artistQuery.error}>

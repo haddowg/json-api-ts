@@ -9,46 +9,40 @@ import { formatDuration, formatYear } from '../lib/format'
 type SortKey = 'relevance' | 'title' | '-releasedAt'
 
 /**
- * Search: one text box driving `filter` + `sort` + sparse fieldsets across three typed reads
- * (albums / artists / tracks). Albums and tracks filter by the advertised `title` filter; `artists`
- * advertises only a `slug` filter, so the artist results are narrowed client-side by name. `fields`
- * narrows each result to exactly the members the cards show, `sort` reorders the albums. The three
- * reads run in parallel; an empty term lists the full catalogue.
+ * Search: one text box driving a single `filter[q]` + `sort` + sparse fieldsets across three typed
+ * reads (albums / artists / tracks). The catalogue exposes the same full-text `q` filter on every
+ * type (artists search both name and bio), so the one search key narrows all three server-side.
+ * `fields` narrows each result to exactly the members the cards show, `sort` reorders the albums.
+ * The three reads run in parallel; an empty term lists the full catalogue.
  */
 export function SearchPage() {
   const [term, setTerm] = useState('')
   const [sort, setSort] = useState<SortKey>('relevance')
   const q = term.trim()
   // Build the params so the optional keys are ABSENT when unset (the read query is
-  // `exactOptionalPropertyTypes`, so an explicit `undefined` is rejected). Albums and tracks both
-  // expose a `title` filter; the album `sort` is applied only when a real key is chosen.
-  const titleFilter = q ? { filter: { title: q } } : {}
+  // `exactOptionalPropertyTypes`, so an explicit `undefined` is rejected). The shared `filter[q]`
+  // drives all three reads; the album `sort` is applied only when a real key is chosen.
+  const qFilter = q ? { filter: { q } } : {}
   const albumSort = sort === 'relevance' ? {} : { sort }
 
   const albumsQuery = useQuery(
     reads.albums.list({
-      ...titleFilter,
+      ...qFilter,
       ...albumSort,
       include: ['artist'],
       fields: { albums: ['title', 'releasedAt', 'artist'] },
     }),
   )
   const artistsQuery = useQuery(
-    reads.artists.list({ sort: 'name', fields: { artists: ['name', 'trackCount'] } }),
+    reads.artists.list({ ...qFilter, sort: 'name', fields: { artists: ['name', 'trackCount'] } }),
   )
   const tracksQuery = useQuery(
     reads.tracks.list({
-      ...titleFilter,
+      ...qFilter,
       include: ['album'],
       fields: { tracks: ['title', 'durationSeconds', 'album'] },
     }),
   )
-  // `artists` has no free-text filter, so narrow the loaded list client-side by name.
-  const lower = q.toLowerCase()
-  const artists =
-    q && artistsQuery.data
-      ? artistsQuery.data.filter((a) => a.name.toLowerCase().includes(lower))
-      : artistsQuery.data
 
   return (
     <div>
@@ -102,11 +96,11 @@ export function SearchPage() {
       <QueryState
         isPending={artistsQuery.isPending}
         error={artistsQuery.error}
-        isEmpty={artists?.length === 0}
+        isEmpty={artistsQuery.data?.length === 0}
         emptyLabel="No matching artists."
       >
         <div className="grid">
-          {artists?.map((artist) => (
+          {artistsQuery.data?.map((artist) => (
             <Link key={artist.id} to={`/artists/${artist.id}`} className="card">
               <div className="card__art">
                 <GradientArt

@@ -15,14 +15,14 @@ interface TrackPickerProps {
 }
 
 /**
- * A catalogue track picker: a search box driving the advertised `filter[title]` over a typed
+ * A catalogue track picker: a search box driving the shared full-text `filter[q]` over a typed
  * `reads.tracks.list` (with `include: ['album']` so a row can link to its album), each row an
  * "Add" button. The search reuses the same typed read surface the rest of the app does.
  */
 export function TrackPicker({ excludeIds, pendingId, onAdd }: TrackPickerProps) {
   const [term, setTerm] = useState('')
   const q = term.trim()
-  const filter = q ? { filter: { title: q } } : {}
+  const filter = q ? { filter: { q } } : {}
   const excluded = new Set(excludeIds)
 
   const tracksQuery = useQuery(
