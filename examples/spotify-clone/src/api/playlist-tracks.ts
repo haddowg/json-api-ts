@@ -14,19 +14,21 @@ import { queryClient, reads, writes } from './client'
 /** A related ordered track as the page reads it: a hydrated track carrying its per-edge `$pivot`. */
 export interface OrderedTrackLike {
   id: string
-  $pivot?: { position: number; addedAt?: string }
+  $pivot?: { position: number; weight?: number; addedAt?: string }
   [key: string]: unknown
 }
 
 /**
- * A to-many linkage ref the app sends: a track identifier optionally carrying the writable pivot
- * position (for a reorder). Narrower than the client's full `LinkageRef` union (no `lid`/object
- * branches the app never uses), and assignable to it at the mutation boundary.
+ * A to-many linkage ref the app sends: a track identifier carrying the writable pivot fields
+ * (for an add or a reorder). `orderedTracks` declares two writable pivot fields — `position` and
+ * `weight`, constrained `weight >= position` — so the app sends `weight = position` (always valid,
+ * and robust against later moves). Narrower than the client's full `LinkageRef` union (no
+ * `lid`/object branches the app never uses), and assignable to it at the mutation boundary.
  */
 interface TrackRef {
   type: 'tracks'
   id: string
-  $pivot?: { position: number }
+  $pivot?: { position: number; weight: number }
 }
 
 /** The query key of a playlist's related ordered-tracks read (what we patch optimistically). */
@@ -40,9 +42,15 @@ function currentOrdered(playlistId: string): OrderedTrackLike[] {
   return Array.isArray(data) ? (data as OrderedTrackLike[]) : []
 }
 
-/** Renumber a list's `$pivot.position` to its 1-based index (the canonical playlist order). */
+/**
+ * Renumber a list's `$pivot.position` (and matching `weight`) to its 1-based index — the canonical
+ * playlist order. `weight` tracks `position` so the server's `weight >= position` rule always holds.
+ */
 function renumbered(tracks: OrderedTrackLike[]): OrderedTrackLike[] {
-  return tracks.map((track, i) => ({ ...track, $pivot: { ...track.$pivot, position: i + 1 } }))
+  return tracks.map((track, i) => ({
+    ...track,
+    $pivot: { ...track.$pivot, position: i + 1, weight: i + 1 },
+  }))
 }
 
 /**
@@ -87,7 +95,18 @@ export function addTrackMutation(
   const base = writes.playlists.id(playlistId).rel('orderedTracks').add()
   const settle = base.onSettled
   return {
-    mutationFn: (track) => base.mutationFn([{ type: 'tracks', id: track.id }]),
+    mutationFn: (track) => {
+      // `orderedTracks` requires the writable pivot `position` AND `weight` on a new member (the
+      // server rejects a bare identifier with 422). The optimistic onMutate has already appended +
+      // renumbered the track, so reuse that position (append = end of the list); `weight = position`
+      // satisfies the server's `weight >= position` rule.
+      const ordered = currentOrdered(playlistId)
+      const position =
+        ordered.find((t) => t.id === track.id)?.$pivot?.position ?? ordered.length + 1
+      return base.mutationFn([
+        { type: 'tracks', id: track.id, $pivot: { position, weight: position } },
+      ])
+    },
     onMutate: (track) => ({
       rollback: applyOptimistic(playlistId, [
         ...currentOrdered(playlistId).filter((t) => t.id !== track.id),
@@ -143,9 +162,14 @@ export function reorderTracksMutation(playlistId: string) {
 }
 
 /**
- * Build the ordered `replace` refs for a reorder: each member's `{ type, id, $pivot: { position } }`,
- * positioned by its index. The client lifts `$pivot` onto the wire identifier's `meta.pivot`.
+ * Build the ordered `replace` refs for a reorder: each member's
+ * `{ type, id, $pivot: { position, weight } }`, positioned by its index (`weight = position` to
+ * satisfy `weight >= position`). The client lifts `$pivot` onto the wire identifier's `meta.pivot`.
  */
 export function orderedRefs(tracks: readonly { id: string }[]): TrackRef[] {
-  return tracks.map((track, i) => ({ type: 'tracks', id: track.id, $pivot: { position: i + 1 } }))
+  return tracks.map((track, i) => ({
+    type: 'tracks',
+    id: track.id,
+    $pivot: { position: i + 1, weight: i + 1 },
+  }))
 }
