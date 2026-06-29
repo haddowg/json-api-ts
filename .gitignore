@@ -9,3 +9,5 @@ coverage/
 .vscode/
 .codegen-tmp/
 .workflows/
+.env
+.env.local
