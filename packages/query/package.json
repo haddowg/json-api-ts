@@ -23,13 +23,17 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:publish": "publint --strict && attw --pack ."
   },
   "dependencies": {
     "@haddowg/json-api-client": "workspace:^"

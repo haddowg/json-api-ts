@@ -1,15 +1,11 @@
 /**
  * @haddowg/json-api-client — the generic, framework-agnostic runtime.
  *
- * Parameterised by the generated descriptor (see ./descriptor.ts and ADR 0001). The
- * pieces below are the stable seams already designed in CONTEXT.md; the materialiser,
- * the fluent client builder, and the normalized index land on top of them.
- *
- * TODO (build order):
- *  - createClient(descriptor, options): the fluent, id-scoped builder
- *  - materialise(): compound-doc -> hydrated graph (flatten + $-accessors + per-edge
- *    views + augmented arrays)
- *  - normalized index (optional): type:id merge across responses
+ * Parameterised by the generated descriptor (see ./descriptor.ts and ADR 0001):
+ * createClient builds the fluent, id-scoped read/write surface; materialise turns a
+ * compound document into the hydrated graph (flatten + $-accessors + per-edge views +
+ * augmented arrays); errors/transport/serialize-write/validate/atomic are the seams it
+ * composes. The optional TanStack binding + normalization live in @haddowg/json-api-query.
  */
 export * from './atomic'
 export * from './client'

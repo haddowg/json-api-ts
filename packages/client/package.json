@@ -30,16 +30,27 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
+  "typesVersions": {
+    "*": {
+      "ajv": [
+        "./dist/ajv.d.cts"
+      ]
+    }
+  },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:publish": "publint --strict && attw --pack ."
   },
   "peerDependencies": {
     "ajv": "^8.17.1"

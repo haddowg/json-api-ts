@@ -1,0 +1,17 @@
+{
+  "name": "@haddowg/json-api-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dual ESM/CJS resolution smoke for the built dist of @haddowg/json-api-client and -query. Not published; not aliased to source — it resolves the published `exports` map + conditions against `dist`.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "smoke": "node smoke.mjs && node smoke.cjs"
+  },
+  "dependencies": {
+    "@haddowg/json-api-client": "workspace:^",
+    "@haddowg/json-api-query": "workspace:^",
+    "@tanstack/query-core": "^5.0.0",
+    "ajv": "^8.17.1"
+  }
+}

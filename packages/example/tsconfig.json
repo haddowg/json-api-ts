@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    // Resolve the workspace packages to their SOURCE for type-checking — same as the
+    // vitest alias (vitest.config.ts) — so the example type-checks the live source and one
+    // copy of the client's types is shared across the client, the query bindings, and the
+    // generated `.gen.ts`. (Resolving via the built `dist` would split the client's types
+    // across its ESM/CJS `.d.ts` entry points, producing spurious "two different types with
+    // this name" errors.)
+    "paths": {
+      "@haddowg/json-api-client": ["../client/src/index.ts"],
+      "@haddowg/json-api-client/ajv": ["../client/src/ajv.ts"],
+      "@haddowg/json-api-query": ["../query/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

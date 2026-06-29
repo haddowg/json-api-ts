@@ -16,12 +16,16 @@
     "lint": "oxlint",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
+    "lint:publish": "turbo run lint:publish",
+    "smoke": "pnpm --filter @haddowg/json-api-smoke run smoke",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.0",
     "@types/node": "^22.10.0",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.0.0",
+    "publint": "^0.3.0",
     "tsdown": "^0.22.0",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0",
