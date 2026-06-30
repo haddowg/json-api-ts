@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { reads } from '../api/client'
+import { PAGE_SIZE, reads } from '../api/client'
 import { GradientArt } from '../components/GradientArt'
 import { QueryState } from '../components/QueryState'
 import { formatYear } from '../lib/format'
@@ -16,11 +16,12 @@ export function BrowsePage() {
       include: ['artist'],
       fields: { albums: ['title', 'releasedAt', 'status', 'artist'] },
       sort: '-releasedAt',
+      page: { size: PAGE_SIZE },
     }),
   )
-  const artistsQuery = useQuery(reads.artists.list({ sort: 'name' }))
+  const artistsQuery = useQuery(reads.artists.list({ sort: 'name', page: { size: PAGE_SIZE } }))
   // `playlists` advertises no server-side sort, so list as-is.
-  const playlistsQuery = useQuery(reads.playlists.list())
+  const playlistsQuery = useQuery(reads.playlists.list({ page: { size: PAGE_SIZE } }))
 
   return (
     <div>

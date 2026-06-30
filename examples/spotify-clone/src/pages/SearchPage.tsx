@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { reads } from '../api/client'
+import { PAGE_SIZE, reads } from '../api/client'
 import { GradientArt } from '../components/GradientArt'
 import { QueryState } from '../components/QueryState'
 import { formatDuration, formatYear } from '../lib/format'
@@ -31,16 +31,23 @@ export function SearchPage() {
       ...albumSort,
       include: ['artist'],
       fields: { albums: ['title', 'releasedAt', 'artist'] },
+      page: { size: PAGE_SIZE },
     }),
   )
   const artistsQuery = useQuery(
-    reads.artists.list({ ...qFilter, sort: 'name', fields: { artists: ['name', 'trackCount'] } }),
+    reads.artists.list({
+      ...qFilter,
+      sort: 'name',
+      fields: { artists: ['name', 'trackCount'] },
+      page: { size: PAGE_SIZE },
+    }),
   )
   const tracksQuery = useQuery(
     reads.tracks.list({
       ...qFilter,
       include: ['album'],
       fields: { tracks: ['title', 'durationSeconds', 'album'] },
+      page: { size: PAGE_SIZE },
     }),
   )
 

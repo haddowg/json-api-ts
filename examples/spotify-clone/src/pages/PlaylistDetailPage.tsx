@@ -3,7 +3,7 @@ import type { Collection, HydratedMember } from '@haddowg/json-api-client'
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { reads, writes } from '../api/client'
+import { PAGE_SIZE, reads, writes } from '../api/client'
 import {
   addTrackMutation,
   orderedRefs,
@@ -32,7 +32,9 @@ type OrderedTrack = HydratedMember<ResourceMap, Attributes, 'tracks'> & {
 export function PlaylistDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const playlistQuery = useQuery(reads.playlists.get(id))
-  const tracksQuery = useQuery(reads.playlists.related(id, 'orderedTracks'))
+  const tracksQuery = useQuery(
+    reads.playlists.related(id, 'orderedTracks', { page: { size: PAGE_SIZE } }),
+  )
 
   const playlist = playlistQuery.data
   const tracks = tracksQuery.data as Collection<OrderedTrack> | undefined

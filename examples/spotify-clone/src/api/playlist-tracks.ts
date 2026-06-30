@@ -9,7 +9,7 @@
  * it for rollback, and carry the writable pivot `position` on a reorder via each ref's `$pivot`.
  */
 import type { MutationOptions } from '@haddowg/json-api-query'
-import { queryClient, reads, writes } from './client'
+import { PAGE_SIZE, queryClient, reads, writes } from './client'
 
 /** A related ordered track as the page reads it: a hydrated track carrying its per-edge `$pivot`. */
 export interface OrderedTrackLike {
@@ -31,9 +31,14 @@ interface TrackRef {
   $pivot?: { position: number; weight: number }
 }
 
-/** The query key of a playlist's related ordered-tracks read (what we patch optimistically). */
+/**
+ * The query key of a playlist's related ordered-tracks read (what we patch optimistically). Must
+ * carry the SAME `page` the detail page reads with, or the key won't match and the optimistic
+ * patch would land on an entry the UI never renders.
+ */
 function orderedTracksKey(playlistId: string) {
-  return reads.playlists.related(playlistId, 'orderedTracks').queryKey
+  return reads.playlists.related(playlistId, 'orderedTracks', { page: { size: PAGE_SIZE } })
+    .queryKey
 }
 
 /** Read the current cached ordered tracks (or an empty array when nothing is cached yet). */
