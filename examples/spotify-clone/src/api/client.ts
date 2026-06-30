@@ -53,3 +53,11 @@ export const reads = createQueryApi(client)
 
 /** Bound mutation-option factories: `writes.playlists.id(id).update()` -> `MutationOptions`. */
 export const writes = createMutationApi(queryClient, client, resourceMap)
+
+/**
+ * The `page[size]` the list/related reads request. The views don't paginate (no
+ * `$next`/`$prev` navigation), so they ask for a generous page that shows the whole
+ * demo catalogue at once — 50 is the server's max-per-page cap, enough for every
+ * seeded artist/album/playlist and a full playlist's tracklist.
+ */
+export const PAGE_SIZE = 50
