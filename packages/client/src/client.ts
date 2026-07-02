@@ -82,6 +82,7 @@ async function run(
   vars: Record<string, string>,
   query: ReadQuery | undefined,
   linkage = false,
+  relationForCount?: string,
 ): Promise<unknown> {
   const template = ctx.descriptor[type]?.paths[operation]
   if (template === undefined) {
@@ -90,10 +91,14 @@ async function run(
   const req: JsonApiRequest = { method: 'GET', path: fill(template, vars) }
   if (query !== undefined) {
     req.query = query
-    negotiateProfiles(ctx, type, query, req)
+    negotiateProfiles(ctx, type, query, req, relationForCount)
   }
   const doc = await execute(ctx.request, req)
-  return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage)
+  // Pass the statically-known primary type for the top-level collection read so an EMPTY page
+  // still reports the collection's real `$page.kind` instead of the sniffed-from-`data[0]` `none`
+  // (D6). A single/related read doesn't need it (no top-level page, or the related type is sniffed).
+  const primaryType = operation === 'fetchMany' ? type : undefined
+  return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage, primaryType)
 }
 
 /**
@@ -107,11 +112,17 @@ function negotiateProfiles(
   type: string,
   query: ReadQuery,
   req: JsonApiRequest,
+  relationForCount?: string,
 ): void {
   if (query.withCount === undefined || query.withCount.length === 0) {
     return
   }
-  const profile = ctx.descriptor[type]?.countable?.profile
+  // A related/relationship read negotiates the RELATION's Countable profile (its tokens differ
+  // from the collection's); a top-level collection read uses the type's (D3).
+  const profile =
+    relationForCount !== undefined
+      ? ctx.descriptor[type]?.relations[relationForCount]?.countable?.profile
+      : ctx.descriptor[type]?.countable?.profile
   if (profile !== undefined) {
     req.profiles = [...(req.profiles ?? []), profile]
   }
@@ -315,11 +326,11 @@ function relationshipAccessor(
   const accessor: Record<string, unknown> = {}
   if (relation?.relationship !== false) {
     accessor['get'] = (query?: RelationReadQuery) =>
-      run(ctx, type, 'fetchRelationship', vars, query as ReadQuery | undefined, true)
+      run(ctx, type, 'fetchRelationship', vars, query as ReadQuery | undefined, true, rel)
   }
   if (relation?.related !== false) {
     accessor['related'] = (query?: RelationReadQuery) =>
-      run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined)
+      run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined, false, rel)
   }
   if (cardinality === 'many') {
     if (advertises('add')) {

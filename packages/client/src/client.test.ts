@@ -29,7 +29,16 @@ const descriptor = {
     attributes: { title: 'string', status: 'string' },
     relations: {
       artist: { cardinality: 'one', types: ['artists'], pivot: false },
-      tracks: { cardinality: 'many', types: ['tracks'], pivot: false },
+      tracks: {
+        cardinality: 'many',
+        types: ['tracks'],
+        pivot: false,
+        // the related to-many GET advertises its own withCount + Countable profile (D3).
+        countable: {
+          tokens: ['_self_'],
+          profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+        },
+      },
     },
     paths: {
       create: '/albums',
@@ -194,6 +203,20 @@ describe('createClient — collection reads', () => {
     expect(albums.$page.kind).toBe('page')
     expect(requests[0]!.method).toBe('GET')
     expect(requests[0]!.url).toBe(`${BASE}/albums`)
+  })
+
+  it('reports the real $page.kind on an EMPTY collection page (D6)', async () => {
+    // An empty page can't be sniffed from `data[0]`; the statically-known primary type keeps
+    // `$page.kind` accurate (was degraded to `none`, breaking kind-conditional UI).
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 200, headers: {}, body: JSON.stringify({ data: [] }) }),
+    })
+
+    const albums = asArray(await client.albums.list())
+
+    expect(albums).toHaveLength(0)
+    expect(albums.$page.kind).toBe('page')
   })
 
   it('serialises include/fields/sort/page/filter into the request URL', async () => {
@@ -460,6 +483,20 @@ describe('createClient — relationship + related accessors', () => {
     const tracks = asArray(await client.albums.id('1').rel('tracks').related())
     expect(tracks).toHaveLength(2)
     expect(requests[0]!.url).toBe(`${BASE}/albums/1/tracks`)
+  })
+
+  it('negotiates the RELATION Countable profile for a withCount related read (D3)', async () => {
+    const { transport, requests } = mockTransport({
+      [`${BASE}/albums/1/tracks?withCount=_self_`]: fixtureBody('album-tracks-related.json'),
+    })
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.albums.id('1').tracks.related({ withCount: ['_self_'] })
+
+    // The Accept header carries the relation's Countable profile so a strict server accepts it.
+    expect(requests[0]!.headers['Accept']).toContain(
+      'profile="https://haddowg.github.io/json-api/profiles/countable/"',
+    )
   })
 
   it('omits a suppressed relation read at runtime rather than sending a doomed request (D24)', () => {

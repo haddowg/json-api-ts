@@ -50,6 +50,13 @@ export interface RelationDescriptor {
    * A codegen descriptor always emits this (at least `{}`) so suppression never fails open.
    */
   mutations?: RelationMutations
+  /**
+   * The `withCount` count tokens + negotiation profile this relation's related/relationship reads
+   * advertise (`_self_` + the relation's own countable relations). Lets `.related()`/`.get()` send
+   * `withCount` and negotiate the right profile; absent when the relation advertises no Countable
+   * profile (D3).
+   */
+  countable?: CountableDescriptor
 }
 
 export type PaginatorKind = 'page' | 'offset' | 'cursor' | 'none'

@@ -40,6 +40,12 @@ describe('buildDescriptor (music-catalog default server)', () => {
       pivot: false,
       // to-many: POST/DELETE/PATCH advertised -> add/remove/replace.
       mutations: { add: true, remove: true, replace: true },
+      // the related to-many GET advertises its own withCount (`_self_` + tracks' countable
+      // relations) with the Countable profile (D3).
+      countable: {
+        tokens: ['_self_', 'playlists'],
+        profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+      },
     })
 
     expect(albums.clientId).toBe('forbidden')
@@ -62,6 +68,11 @@ describe('buildDescriptor (music-catalog default server)', () => {
       types: ['tracks'],
       pivot: true,
       mutations: { add: true, remove: true, replace: true },
+      // the related to-many GET advertises its own withCount + Countable profile (D3).
+      countable: {
+        tokens: ['playlists'],
+        profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+      },
     })
   })
 

@@ -376,13 +376,19 @@ export type ReadResult<
   F = unknown,
 > = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F>
 
-/** A loose read query (filter/sort/include/fields/page) for the relationship/related endpoints. */
+/** A loose read query (filter/sort/include/fields/page/withCount) for the relationship/related endpoints. */
 export interface RelationReadQuery {
   filter?: Record<string, unknown>
   sort?: string | readonly string[]
   include?: readonly string[]
   fields?: Record<string, readonly string[]>
   page?: Record<string, unknown>
+  /**
+   * Relationship-count tokens (`_self_` + the relation's countable relations) — the related/
+   * relationship endpoints advertise their own `withCount`, and the client negotiates the
+   * relation's Countable profile so a strict server accepts it (D3).
+   */
+  withCount?: readonly string[]
 }
 
 /**
