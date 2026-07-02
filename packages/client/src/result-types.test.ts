@@ -1126,3 +1126,64 @@ describe('atomic per-op positional call-site', () => {
     expectTypeOf(atomicLidWiringUnderTuple).returns.resolves.toBeVoid()
   })
 })
+
+// ── Pivot typing (D33) ───────────────────────────────────────────────────────────────────
+
+const pivotMap = {
+  playlists: {
+    attributes: { title: 'string' },
+    relations: {
+      orderedTracks: {
+        cardinality: 'many',
+        types: ['tracks'],
+        pivot: true,
+        // field-name -> format hint, exactly what codegen emits from the meta.pivot schema.
+        pivotFields: { position: 'integer', weight: 'integer', addedAt: 'date-time' },
+      },
+    },
+    paths: {
+      fetchOne: '/playlists/{id}',
+      fetchRelated: '/playlists/{id}/{rel}',
+      fetchRelationship: '/playlists/{id}/relationships/{rel}',
+    },
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+  tracks: {
+    attributes: { title: 'string' },
+    relations: {},
+    paths: { fetchOne: '/tracks/{id}' },
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+} as const satisfies ApiDescriptor
+
+interface PivotAttributes {
+  playlists: { title: string }
+  tracks: { title: string }
+}
+
+describe('pivot typing (D33)', () => {
+  type Handle = ReturnType<Client<typeof pivotMap, PivotAttributes>['playlists']['id']>
+
+  it('types $pivot on a related to-many member from the relation pivotFields', () => {
+    type Related = Awaited<ReturnType<Handle['orderedTracks']['related']>>
+    // `$pivot` is `{ position: number; weight: number; addedAt: string } | undefined` — precise,
+    // not the old loose `Record<string, unknown>`.
+    expectTypeOf<NonNullable<Related[number]['$pivot']>['position']>().toEqualTypeOf<number>()
+    expectTypeOf<NonNullable<Related[number]['$pivot']>['weight']>().toEqualTypeOf<number>()
+    expectTypeOf<NonNullable<Related[number]['$pivot']>['addedAt']>().toEqualTypeOf<string>()
+  })
+
+  it('types $pivot on a relationship (linkage) to-many member too', () => {
+    type Linkage = Awaited<ReturnType<Handle['orderedTracks']['get']>>
+    expectTypeOf<NonNullable<Linkage[number]['$pivot']>['position']>().toEqualTypeOf<number>()
+    expectTypeOf<Linkage[number]['type']>().toEqualTypeOf<'tracks'>()
+  })
+
+  it('types $pivot on an add/replace write ref from pivotFields', () => {
+    type AddRef = Parameters<Handle['orderedTracks']['add']>[0][number]
+    expectTypeOf<NonNullable<AddRef['$pivot']>['position']>().toEqualTypeOf<number>()
+    expectTypeOf<NonNullable<AddRef['$pivot']>['addedAt']>().toEqualTypeOf<string>()
+  })
+})

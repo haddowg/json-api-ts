@@ -540,6 +540,11 @@ export const resourceMap = {
           "tracks"
         ],
         pivot: true,
+        pivotFields: {
+          addedAt: "date-time",
+          position: "integer",
+          weight: "integer"
+        },
         mutations: {
           add: true,
           remove: true,

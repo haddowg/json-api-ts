@@ -128,27 +128,39 @@ type IsMany<
  * carrying the per-edge `$edge`/`$pivot` accessors the runtime attaches to every
  * materialised related value.
  */
-export type IdentifierMember<TType extends string> = ResourceIdentifier<TType> & EdgeMembers
+export type IdentifierMember<
+  TType extends string,
+  Pivot = Record<string, unknown>,
+> = ResourceIdentifier<TType> & EdgeMembers<Pivot>
 
 /**
  * A hydrated related resource: a per-edge VIEW — the full `ResourceObjectView` of the
  * related node plus this membership's `$edge`/`$pivot`. Relations one hop deep stay as
  * identifiers (no nested-include narrowing in the read API today). The fieldset map `F`
  * threads through so a sparse fieldset on the included type narrows its attributes/relations.
+ * `Pivot` types the per-edge `$pivot` (a `belongsToMany` relation's `meta.pivot`).
  */
 export type HydratedMember<
   D extends ApiDescriptor,
   A,
   TType extends TypeName<D>,
   F = unknown,
-> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers
+  Pivot = Record<string, unknown>,
+> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot>
 
 /** A hydrated related value distributes over a polymorphic union of related types. */
-type Hydrated<D extends ApiDescriptor, A, TType extends TypeName<D>, F = unknown> =
-  TType extends TypeName<D> ? HydratedMember<D, A, TType, F> : never
+type Hydrated<
+  D extends ApiDescriptor,
+  A,
+  TType extends TypeName<D>,
+  F = unknown,
+  Pivot = Record<string, unknown>,
+> = TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot> : never
 
 /** An identifier related value distributes over a polymorphic union of related types. */
-type Identifier<TType extends string> = TType extends string ? IdentifierMember<TType> : never
+type Identifier<TType extends string, Pivot = Record<string, unknown>> = TType extends string
+  ? IdentifierMember<TType, Pivot>
+  : never
 
 /**
  * The static value of one relation slot, resolved by cardinality and whether the
@@ -391,24 +403,52 @@ export interface RelationReadQuery {
   withCount?: readonly string[]
 }
 
+/** The TS type a descriptor wire-format hint maps to (mirrors the runtime coercion vocabulary). */
+type FormatToTs<H> = H extends 'number' | 'integer'
+  ? number
+  : H extends 'boolean'
+    ? boolean
+    : H extends 'object'
+      ? Record<string, unknown>
+      : H extends 'array'
+        ? readonly unknown[]
+        : H extends 'unknown'
+          ? unknown
+          : string
+
+/**
+ * The typed `meta.pivot` shape of relation `R` — built from the descriptor's per-relation
+ * `pivotFields` (field-name → format hint), e.g. `{ position: number; weight: number; addedAt:
+ * string }`. Falls back to a loose record when the relation carries no pivot fields (D33).
+ */
+type PivotFieldsOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { pivotFields: infer P }
+  ? { readonly [K in keyof P]: FormatToTs<P[K]> }
+  : Record<string, unknown>
+
 /**
  * A hydrated related VALUE for relation `R` of type `T`, resolved by cardinality over the
  * (possibly polymorphic) related type(s): a `Collection` of hydrated members for to-many,
- * the hydrated member (or `null`) for to-one.
+ * the hydrated member (or `null`) for to-one. Each member's `$pivot` is typed from the
+ * relation's `pivotFields` (D33).
  */
 type RelatedValue<D extends ApiDescriptor, A, T extends TypeName<D>, R extends RelationName<D, T>> =
   IsMany<D, T, R> extends true
-    ? Collection<Hydrated<D, A, RelatedType<D, T, R>>>
-    : Hydrated<D, A, RelatedType<D, T, R>> | null
+    ? Collection<Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>>>
+    : Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>> | null
 
 /**
  * A linkage VALUE for relation `R` (the `/relationships/{rel}` endpoint, identifiers only):
  * a `Collection` of identifier members for to-many, a single identifier (or `null`) for to-one.
+ * Each member's `$pivot` is typed from the relation's `pivotFields` (D33).
  */
 type LinkageValue<D extends ApiDescriptor, T extends TypeName<D>, R extends RelationName<D, T>> =
   IsMany<D, T, R> extends true
-    ? Collection<Identifier<RelatedType<D, T, R>>>
-    : Identifier<RelatedType<D, T, R>> | null
+    ? Collection<Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>>>
+    : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>> | null
 
 /**
  * A relationship accessor off a {@link ResourceHandle} (`client.albums.id('1').tracks`):
@@ -434,11 +474,22 @@ export interface RelationshipAccessor<
   related: ExposesRelated<D, T, R> extends true
     ? (query?: RelationReadQuery) => Promise<RelatedValue<D, A, T, R>>
     : never
-  add: RelationMutation<D, T, R, 'add', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  add: RelationMutation<D, T, R, 'add', readonly WriteRef<D, T, R>[]>
   remove: RelationMutation<D, T, R, 'remove', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
-  replace: RelationMutation<D, T, R, 'replace', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
+  replace: RelationMutation<D, T, R, 'replace', readonly WriteRef<D, T, R>[]>
   set: RelationMutation<D, T, R, 'set', LinkageRefOf<RelatedType<D, T, R>> | null>
 }
+
+/**
+ * A linkage ref for a to-many membership WRITE (`add`/`replace`) on relation `R`, with `$pivot`
+ * typed from the relation's `pivotFields` — so a `belongsToMany` add carries the precise pivot
+ * shape (`{ position, weight, … }`) instead of a loose record (D33).
+ */
+type WriteRef<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = LinkageRefOf<RelatedType<D, T, R>> & { $pivot?: PivotFieldsOf<D, T, R> }
 
 /**
  * True unless relation `R`'s related endpoint is suppressed (`related: false`, the bundle's
