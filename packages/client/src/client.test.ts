@@ -462,6 +462,53 @@ describe('createClient — relationship + related accessors', () => {
     expect(requests[0]!.url).toBe(`${BASE}/albums/1/tracks`)
   })
 
+  it('omits a suppressed relation read at runtime rather than sending a doomed request (D24)', () => {
+    const suppressed = {
+      widgets: {
+        attributes: { name: 'string' },
+        relations: {
+          // related endpoint suppressed -> `.related` absent; `.get` kept.
+          gadgets: {
+            cardinality: 'many',
+            types: ['gadgets'],
+            pivot: false,
+            related: false,
+            mutations: { add: true },
+          },
+          // relationship endpoint suppressed -> `.get` absent + no verbs; `.related` kept.
+          labels: {
+            cardinality: 'many',
+            types: ['labels'],
+            pivot: false,
+            relationship: false,
+            mutations: {},
+          },
+        },
+        paths: {
+          fetchOne: '/widgets/{id}',
+          fetchRelated: '/widgets/{id}/{rel}',
+          fetchRelationship: '/widgets/{id}/relationships/{rel}',
+        },
+        paginator: 'page',
+        clientId: 'forbidden',
+      },
+    } as const satisfies ApiDescriptor
+    const client = createClient(suppressed, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 204, headers: {}, body: '' }),
+    })
+
+    const gadgets = asRecord(asRecord(asRecord(client.widgets.id('1'))['gadgets']))
+    expect(typeof gadgets['get']).toBe('function')
+    expect(gadgets['related']).toBeUndefined()
+    expect(typeof gadgets['add']).toBe('function')
+
+    const labels = asRecord(asRecord(asRecord(client.widgets.id('1'))['labels']))
+    expect(typeof labels['related']).toBe('function')
+    expect(labels['get']).toBeUndefined()
+    expect(labels['add']).toBeUndefined()
+  })
+
   it('passes a query through to the related endpoint', async () => {
     const { transport, requests } = mockTransport({
       [`${BASE}/playlists/${PLAYLIST}/orderedTracks?sort=position&page[size]=2`]: fixtureBody(

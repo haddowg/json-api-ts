@@ -408,12 +408,13 @@ type LinkageValue<D extends ApiDescriptor, T extends TypeName<D>, R extends Rela
  * A relationship accessor off a {@link ResourceHandle} (`client.albums.id('1').tracks`):
  * reads — `.get()` (linkage) / `.related()` (related collection); writes — to-many
  * `.add`/`.remove`/`.replace([refs])` (POST/DELETE/PATCH) and to-one `.set(ref|null)`
- * (PATCH). A write method is present only when the relation's endpoint advertises that
- * verb (the descriptor's per-relation `mutations` flags, derived from the bundle's
- * `cannotAdd`/`cannotRemove`/`cannotReplace` + per-relation endpoint exposure); a verb the
- * relation forbids is typed `never`, so calling it is a compile error rather than a server
- * round-trip. A write returns the materialised linkage, or `void` when the server replies
- * `204`.
+ * (PATCH). A read is present only when the relation exposes that endpoint (the descriptor's
+ * `related`/`relationship` flags, from the bundle's `withoutRelatedEndpoint()` /
+ * `withoutRelationshipEndpoint()`, ADR 0027); a write is present only when the relationship
+ * endpoint advertises that verb (the per-relation `mutations` flags, from `cannotAdd`/
+ * `cannotRemove`/`cannotReplace`). A suppressed read or forbidden verb is typed `never`, so
+ * calling it is a compile error rather than a server round-trip. A write returns the materialised
+ * linkage, or `void` when the server replies `204`.
  */
 export interface RelationshipAccessor<
   D extends ApiDescriptor,
@@ -421,13 +422,37 @@ export interface RelationshipAccessor<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
 > {
-  get(query?: RelationReadQuery): Promise<LinkageValue<D, T, R>>
-  related(query?: RelationReadQuery): Promise<RelatedValue<D, A, T, R>>
+  get: ExposesRelationship<D, T, R> extends true
+    ? (query?: RelationReadQuery) => Promise<LinkageValue<D, T, R>>
+    : never
+  related: ExposesRelated<D, T, R> extends true
+    ? (query?: RelationReadQuery) => Promise<RelatedValue<D, A, T, R>>
+    : never
   add: RelationMutation<D, T, R, 'add', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
   remove: RelationMutation<D, T, R, 'remove', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
   replace: RelationMutation<D, T, R, 'replace', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
   set: RelationMutation<D, T, R, 'set', LinkageRefOf<RelatedType<D, T, R>> | null>
 }
+
+/**
+ * True unless relation `R`'s related endpoint is suppressed (`related: false`, the bundle's
+ * `withoutRelatedEndpoint()`). Absent flag ⇒ exposed (the default / a hand-written descriptor).
+ */
+type ExposesRelated<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { related: false } ? false : true
+
+/**
+ * True unless relation `R`'s relationship endpoint is suppressed (`relationship: false`, the
+ * bundle's `withoutRelationshipEndpoint()`). Absent flag ⇒ exposed (the default).
+ */
+type ExposesRelationship<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { relationship: false } ? false : true
 
 /** The mutation verb a relationship accessor method maps to (`add`/`remove`/`replace` to-many, `set` to-one). */
 type MutationVerb = 'add' | 'remove' | 'replace' | 'set'

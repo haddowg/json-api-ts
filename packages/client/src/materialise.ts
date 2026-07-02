@@ -336,10 +336,11 @@ function attachResourceEnvelope(
  */
 function buildEdgeView(node: object, member: RawResource, relationEdge?: RelationEdge): object {
   const view: Record<string, unknown> = {}
-  // Copy the node's own enumerable props (type/id/attributes/relations) for a clean spread.
-  // TODO(Phase 4): ADR-0002 wants the view to READ THROUGH to the node for attributes so a
-  // normalized write-through patch is reflected; copying is correct for a single response (the
-  // node is never mutated) but must become live read-through once normalization lands.
+  // Copy the node's own enumerable props (type/id/attributes/relations) into this per-edge view.
+  // INVARIANT (normalize.ts, ADR 0003): every cache patch must walk and patch ALL cached views
+  // of a resource, not just the canonical node — `patchAll`/`walkResources`/`patchNode` do exactly
+  // that, so these copied props stay consistent across writes. A future node-only write path would
+  // leave edge views stale, so it must preserve this walk-every-view invariant.
   Object.assign(view, node)
   // Delegate the node's non-enumerable `$`-accessors so they read through to the node.
   for (const k of ['$meta', '$links', '$self', '$document', '$raw', '$rel'] as const) {
