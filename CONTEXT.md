@@ -16,7 +16,9 @@ servers). Key facts the codegen relies on:
 - `?include` paths are handed to us literally and **pre-expanded** as a bounded enum
   per endpoint (`tracks.album`, `tracks.playlists`, …) — so include-driven type
   inference is a union over a finite set, not open recursion.
-- Only `x-` extensions present today: `x-enum-varnames`, `x-enum-descriptions`.
+- `x-` extensions present today: `x-enum-varnames`, `x-enum-descriptions`, and
+  `x-profile` (on a parameter — advertises the required profile a client must negotiate,
+  e.g. the Countable profile carried by a `withCount` param).
 
 ## Glossary
 
