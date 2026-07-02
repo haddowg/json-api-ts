@@ -419,7 +419,15 @@ export class DescriptorBuilder {
       if (Array.isArray(items.allOf)) {
         // pivot to-many: the $ref is the allOf entry that carries it
         const type = this.constFromAllOf(items.allOf)
-        return type === undefined ? undefined : { cardinality: 'many', types: [type], pivot: true }
+        if (type === undefined) {
+          return undefined
+        }
+        const relation: RelationDescriptor = { cardinality: 'many', types: [type], pivot: true }
+        const pivotFields = this.pivotFieldsFromAllOf(items.allOf)
+        if (pivotFields !== undefined) {
+          relation.pivotFields = pivotFields
+        }
+        return relation
       }
       if (Array.isArray(items.anyOf)) {
         // polymorphic to-many
@@ -433,6 +441,7 @@ export class DescriptorBuilder {
     if (Array.isArray(data.anyOf)) {
       const types: string[] = []
       let pivot = false
+      let pivotFields: Record<string, string> | undefined
       for (const entry of data.anyOf) {
         if (typeof entry.$ref === 'string') {
           const type = this.resolveConst(entry.$ref)
@@ -444,15 +453,48 @@ export class DescriptorBuilder {
           if (type !== undefined) {
             types.push(type)
             pivot = true
+            pivotFields = this.pivotFieldsFromAllOf(entry.allOf)
           }
         } else if (Array.isArray(entry.anyOf)) {
           // polymorphic to-one: the non-null entry is itself an anyOf of $refs
           types.push(...this.constsFromRefs(entry.anyOf))
         }
       }
-      return types.length === 0 ? undefined : { cardinality: 'one', types, pivot }
+      if (types.length === 0) {
+        return undefined
+      }
+      const relation: RelationDescriptor = { cardinality: 'one', types, pivot }
+      if (pivotFields !== undefined) {
+        relation.pivotFields = pivotFields
+      }
+      return relation
     }
 
+    return undefined
+  }
+
+  /**
+   * Extract the pivot field-shape from a pivot `allOf` — the entry carrying
+   * `properties.meta.properties.pivot.properties` (a `belongsToMany` member's `meta.pivot`), as a
+   * field-name → wire-format-hint map (D33). Returns `undefined` when the allOf carries no pivot
+   * property block.
+   */
+  private pivotFieldsFromAllOf(allOf: readonly SchemaObject[]): Record<string, string> | undefined {
+    for (const entry of allOf) {
+      const meta = entry.properties?.['meta']
+      const pivot = isSchema(meta) ? meta.properties?.['pivot'] : undefined
+      const props = isSchema(pivot) ? pivot.properties : undefined
+      if (props === undefined) {
+        continue
+      }
+      const out: Record<string, string> = {}
+      for (const [name, schema] of Object.entries(props)) {
+        if (isSchema(schema)) {
+          out[name] = formatHint(schema)
+        }
+      }
+      return Object.keys(out).length > 0 ? sortRecord(out) : undefined
+    }
     return undefined
   }
 

@@ -32,6 +32,13 @@ export interface RelationDescriptor {
   /** Whether members carry pivot data (`meta.pivot`). */
   pivot?: boolean
   /**
+   * The pivot fields carried on each member's `meta.pivot` (a `belongsToMany` relation), as a
+   * field-name → wire-format-hint map (the same hint vocabulary as {@link ResourceDescriptor.attributes}).
+   * Types `$pivot` precisely (`{ position: number; weight: number; addedAt: string }`) instead of a
+   * loose `Record<string, unknown>` (D33). Absent when the relation carries no pivot.
+   */
+  pivotFields?: Readonly<Record<string, string>>
+  /**
    * `false` when the related endpoint (`GET /{type}/{id}/{rel}`) is suppressed for this relation
    * (the bundle's `withoutRelatedEndpoint()`, ADR 0027) — `.related()` is then a compile error /
    * runtime guard rather than a 404. Absent means exposed (the default).

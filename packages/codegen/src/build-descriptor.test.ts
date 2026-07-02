@@ -67,6 +67,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       cardinality: 'many',
       types: ['tracks'],
       pivot: true,
+      // the pivot field shape (meta.pivot) as a field-name -> format-hint map (D33).
+      pivotFields: { addedAt: 'date-time', position: 'integer', weight: 'integer' },
       mutations: { add: true, remove: true, replace: true },
       // the related to-many GET advertises its own withCount + Countable profile (D3).
       countable: {
