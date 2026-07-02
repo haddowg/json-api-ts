@@ -23,8 +23,9 @@ music-catalog example, 56 paths / 175 schemas): type identity is `properties.typ
 relationships, cardinality and related type(s) come from each relationship component's
 `data`; allowed `?include` paths are a bounded, pre-expanded enum per endpoint; the
 create client-id policy is encoded in the create request (`id: false` / required /
-optional). Only two `x-` extensions exist today (`x-enum-varnames`,
-`x-enum-descriptions`).
+optional). The `x-` extensions in play are `x-enum-varnames`, `x-enum-descriptions`,
+and `x-profile` (on a parameter — the required profile a client must negotiate, e.g.
+the Countable profile on a `withCount` param).
 
 ---
 
