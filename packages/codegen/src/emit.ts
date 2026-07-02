@@ -6,7 +6,7 @@ import {
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
 import { buildAtomic } from './build-descriptor'
-import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
+import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
 
 const REF_PREFIX = '#/components/schemas/'
 const JSON_API_MEDIA_TYPE = 'application/vnd.api+json'
@@ -326,46 +326,27 @@ export class Emitter {
   }
 
   /**
-   * The TS type for an action's request body (`input`) or response (`output`), resolved
-   * from the JSON:API component the operation references. Returns `undefined` when there is
-   * nothing to type: a `none` input/output, or a `raw` (non-JSON:API) input the codegen
-   * doesn't model. A referenced component expands via {@link tsType} (an emitted attribute
-   * interface stays named); a content-less or unreferenced body falls back to a loose
-   * JSON:API document shape.
+   * The TS type alias (if any) for an action's request body.
+   *
+   * An action's RESULT and its FLAT input are derived at the type level from the descriptor
+   * (`outputType`/`outputCardinality` → the materialised resource view; `inputType` → the
+   * `CreateInput` of that type), so no `output` alias is emitted and a `document` input whose
+   * resource type resolves emits no `input` alias either. Only a bespoke command document (a
+   * `document` input with no resolvable `inputType`) keeps a raw-envelope alias as its typed body,
+   * expanded via {@link tsType} (falling back to a loose JSON:API document shape).
    */
   private actionBodyType(action: ActionDescriptor, side: 'input' | 'output'): string | undefined {
-    if (side === 'input') {
-      if (action.input !== 'document') {
-        return undefined
-      }
-    } else if (action.output !== 'document') {
+    if (side === 'output' || action.input !== 'document' || action.inputType !== undefined) {
       return undefined
     }
     const op = this.doc.paths?.[action.path]?.post
-    const ref =
-      side === 'input'
-        ? op?.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
-        : this.okJsonApiResponseRef(op)
+    const ref = op?.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
     if (typeof ref !== 'string') {
       return LOOSE_DOCUMENT
     }
     const target = refName(ref)
     const resolved = target ? this.schemas[target] : undefined
     return resolved ? this.tsType(resolved) : LOOSE_DOCUMENT
-  }
-
-  /** The `$ref` of the first 2xx JSON:API response on an operation (the action's output document). */
-  private okJsonApiResponseRef(op: OperationObject | undefined): string | undefined {
-    for (const [code, response] of Object.entries(op?.responses ?? {})) {
-      if (!code.startsWith('2')) {
-        continue
-      }
-      const ref = response.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
-      if (typeof ref === 'string') {
-        return ref
-      }
-    }
-    return undefined
   }
 
   /** Emit the server-level atomic capability constant (`{ path }` or `null`). */

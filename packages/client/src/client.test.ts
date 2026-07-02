@@ -50,12 +50,15 @@ const descriptor = {
     sortable: ['title', '-title', 'releasedAt', '-releasedAt'],
     filterable: ['status', 'title'],
     actions: {
-      // resource-scoped, JSON:API document in -> materialised resource out
+      // resource-scoped, FLAT document in (built from `albums` attributes) -> materialised resource out
       reissue: {
         scope: 'resource',
         path: '/albums/{id}/-actions/reissue',
         input: 'document',
         output: 'document',
+        inputType: 'albums',
+        outputType: 'albums',
+        outputCardinality: 'one',
       },
       // resource-scoped, raw (octet-stream) body in -> materialised resource out
       artwork: {
@@ -71,6 +74,23 @@ const descriptor = {
         path: '/albums/-actions/summary',
         input: 'none',
         output: 'document',
+        outputType: 'albums',
+        outputCardinality: 'one',
+      },
+      // collection-scoped, no input -> meta-only document out (D2)
+      stats: {
+        scope: 'collection',
+        path: '/albums/-actions/stats',
+        input: 'none',
+        output: 'meta',
+      },
+      // collection-scoped, declared over PATCH (a non-POST method, D25) -> no output (204)
+      recalculate: {
+        scope: 'collection',
+        path: '/albums/-actions/recalculate',
+        method: 'PATCH',
+        input: 'none',
+        output: 'none',
       },
       // collection-scoped, no input, no output (a 204)
       reindex: {
@@ -783,14 +803,14 @@ describe('createClient — relationship mutation', () => {
 })
 
 describe('createClient — custom actions', () => {
-  it('resource action (reissue): POSTs a JSON:API document and materialises the resource', async () => {
+  it('resource action (reissue): builds the envelope from FLAT input and materialises the resource', async () => {
     const { transport, requests } = writeTransport(() => resourceResponse('albums', '1'))
     const client = createClient(descriptor, { baseUrl: BASE, transport })
 
+    // D37: a document action names its inputType, so the caller passes FLAT attributes (like
+    // create) and the client builds the envelope — no hand-built `{ data: { type, attributes } }`.
     const reissued = asRecord(
-      await client.albums.id('1').actions.reissue({
-        data: { type: 'albums', attributes: { title: 'OK Computer (Reissue)' } },
-      }),
+      await client.albums.id('1').actions.reissue({ title: 'OK Computer (Reissue)' }),
     )
 
     const req = requests[0]!
@@ -800,9 +820,67 @@ describe('createClient — custom actions', () => {
     expect(bodyOf(req)).toEqual({
       data: { type: 'albums', attributes: { title: 'OK Computer (Reissue)' } },
     })
-    // The 2xx document is materialised the same as a read.
+    // D1: the 2xx document is materialised the same as a read — result.type/id, not result.data.
     expect(reissued['type']).toBe('albums')
     expect(reissued['id']).toBe('1')
+  })
+
+  it('resource action (reissue): remaps a 422 pointer to the flat input path (D37)', async () => {
+    const { transport } = writeTransport(() => ({
+      status: 422,
+      headers: {},
+      body: JSON.stringify({
+        errors: [
+          {
+            status: '422',
+            detail: 'must not be blank',
+            source: { pointer: '/data/attributes/title' },
+          },
+        ],
+      }),
+    }))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const error = await client.albums
+      .id('1')
+      .actions.reissue({ title: '' })
+      .then(
+        () => {
+          throw new Error('expected the reissue to reject')
+        },
+        (e: unknown) => e,
+      )
+
+    expect(error).toBeInstanceOf(JsonApiError)
+    const byPath = (error as JsonApiError).byPath()
+    // The pointer is remapped to the flat attribute path, like create/update.
+    expect(byPath['title']![0]!.detail).toBe('must not be blank')
+  })
+
+  it('collection action (stats): a meta-only output returns the document meta (D2)', async () => {
+    const { transport, requests } = writeTransport(() => ({
+      status: 200,
+      headers: { 'content-type': 'application/vnd.api+json' },
+      body: JSON.stringify({ meta: { albums: { published: 3, unpublished: 1, total: 4 } } }),
+    }))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const meta = asRecord(await client.albums.actions.stats())
+
+    expect(requests[0]!.url).toBe(`${BASE}/albums/-actions/stats`)
+    // The meta payload is returned directly — NOT materialised to undefined (the old data-less bug).
+    expect(asRecord(meta['albums'])['total']).toBe(4)
+  })
+
+  it('collection action (recalculate): dispatches over its declared non-POST method (D25)', async () => {
+    const { transport, requests } = writeTransport(() => ({ status: 204, headers: {}, body: '' }))
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    const out = await client.albums.actions.recalculate()
+
+    expect(requests[0]!.method).toBe('PATCH')
+    expect(requests[0]!.url).toBe(`${BASE}/albums/-actions/recalculate`)
+    expect(out).toBeUndefined()
   })
 
   it('resource action (artwork): sends a raw body with the declared media type', async () => {

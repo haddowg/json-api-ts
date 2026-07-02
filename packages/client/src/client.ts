@@ -188,14 +188,20 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
 }
 
 /**
- * Invoke a custom action: `POST` its (filled) path with a body shaped by the action's
- * `input` mode — `none` (no body), `document` (the caller's JSON:API document, sent with the
- * JSON:API content type) or `raw` (the caller's payload, sent with the action's declared media
- * type — e.g. `application/octet-stream` — falling back to a wildcard when the spec declared
- * none, so the server doesn't reject it as a JSON:API document). The response is shaped by the
- * action's `output`: `document` materialises into a resource/collection, `none` resolves
- * `undefined` (a `204`/no body). A thrown {@link JsonApiError} propagates unchanged (an
- * action's body shape is action-defined, so there's no flat-input pointer remapping).
+ * Invoke a custom action over its declared HTTP method (`action.method`, default `POST`) at its
+ * (filled) path, with a body shaped by the action's `input` mode:
+ *
+ * - `none` — no body;
+ * - `document` — when the action names an `inputType`, FLAT input (the resource's attributes /
+ *   relationships) is built into the JSON:API envelope like `create`, and a `422`'s
+ *   `source.pointer`s are remapped to the flat paths; a bespoke command document (no `inputType`)
+ *   is sent verbatim;
+ * - `raw` — the caller's payload, sent with the action's declared media type (e.g.
+ *   `application/octet-stream`), falling back to a wildcard when the spec declared none.
+ *
+ * The response is shaped by the action's `output`: `document` materialises into the resource /
+ * collection view, `meta` returns the document's top-level `meta`, `none` resolves `undefined` (a
+ * `204` / no body).
  */
 async function runAction(
   ctx: ClientContext,
@@ -203,9 +209,18 @@ async function runAction(
   vars: Record<string, string>,
   input: unknown,
 ): Promise<unknown> {
-  const req: JsonApiRequest = { method: 'POST', path: fill(action.path, vars) }
+  const req: JsonApiRequest = { method: action.method ?? 'POST', path: fill(action.path, vars) }
+  let remap: ((error: JsonApiError) => JsonApiError) | undefined
   if (action.input === 'document') {
-    req.body = input
+    if (action.inputType !== undefined) {
+      // Flat input: build the envelope like create, and remap 422 pointers to the flat paths.
+      const inputType = action.inputType
+      req.body = toDocument(ctx.descriptor, inputType, (input ?? {}) as Record<string, unknown>)
+      remap = (error) => withRemappedPaths(error, ctx.descriptor, inputType)
+    } else {
+      // A bespoke command document (no resolvable input type): pass the caller's envelope through.
+      req.body = input
+    }
   } else if (action.input === 'raw') {
     req.body = input
     // Send the action's declared media type (e.g. application/octet-stream); fall back to a
@@ -213,9 +228,20 @@ async function runAction(
     req.contentType = action.contentType ?? '*/*'
     req.raw = true
   }
-  const doc = await execute(ctx.request, req)
+  let doc: Awaited<ReturnType<typeof execute>>
+  try {
+    doc = await execute(ctx.request, req)
+  } catch (error) {
+    if (remap !== undefined && error instanceof JsonApiError) {
+      throw remap(error)
+    }
+    throw error
+  }
   if (action.output === 'none' || doc === undefined) {
     return undefined
+  }
+  if (action.output === 'meta') {
+    return doc.meta
   }
   return materialise(doc, ctx.materialise)
 }
@@ -232,7 +258,7 @@ function actionsAccessor(
   type: string,
   scope: ActionScope,
   vars: Record<string, string>,
-): ActionsAccessor<ApiDescriptor, string, ActionScope> {
+): ActionsAccessor<ApiDescriptor, unknown, unknown, string, ActionScope> {
   const actions = ctx.descriptor[type]?.actions ?? {}
   const out: Record<string, (input?: unknown) => Promise<unknown>> = {}
   for (const [name, action] of Object.entries(actions)) {
@@ -240,7 +266,7 @@ function actionsAccessor(
       out[name] = (input?: unknown) => runAction(ctx, action, vars, input)
     }
   }
-  return out as ActionsAccessor<ApiDescriptor, string, ActionScope>
+  return out as ActionsAccessor<ApiDescriptor, unknown, unknown, string, ActionScope>
 }
 
 /**

@@ -69,9 +69,12 @@ describe('emit (music-catalog default server)', () => {
   })
 
   it('omits `countable` for a type with no withCount endpoint (genres)', () => {
-    // Isolate the genres resourceMap entry (lazy up to its closing 2-space-indented brace)
-    // so the assertion can't bleed into a later type that does carry `countable`.
-    const block = source.match(/\n {2}genres: \{[\s\S]*?\n {2}\}/)?.[0]
+    // Scope to the `resourceMap` section (like the include/sort/filter cases below) so the
+    // `genres:` match binds the multi-line resourceMap entry, not the earlier single-line
+    // `genres:` entry of the WriteAttributes map — and the lazy match can't bleed into a later
+    // type that does carry `countable`.
+    const map = source.slice(source.indexOf('export const resourceMap'))
+    const block = map.match(/\n {2}genres: \{[\s\S]*?\n {2}\}/)?.[0]
     expect(block).toBeDefined()
     expect(block).not.toContain('countable:')
   })
@@ -162,40 +165,34 @@ describe('emit (music-catalog default server)', () => {
 })
 
 describe('emit (custom actions)', () => {
-  it('encodes the actions map in the resourceMap (scope/path/input/output)', () => {
+  it('encodes the actions map in the resourceMap, resolving the input/output types', () => {
     expect(source).toMatch(/actions: \{[\s\S]*?reissue: \{[\s\S]*?scope: "resource"/)
+    // reissue: a document in/out action resolving its input + output resource type + cardinality.
     expect(source).toMatch(/reissue: \{[\s\S]*?input: "document"[\s\S]*?output: "document"/)
-    expect(source).toMatch(/summary: \{[\s\S]*?scope: "collection"[\s\S]*?input: "none"/)
-    expect(source).toMatch(/artwork: \{[\s\S]*?input: "raw"/)
+    expect(source).toContain('inputType: "albums"')
+    expect(source).toContain('outputType: "albums"')
+    expect(source).toContain('outputCardinality: "one"')
+    // summary: a meta-only output; artwork: a raw input with a 204 (none) output.
+    expect(source).toMatch(/summary: \{[\s\S]*?scope: "collection"[\s\S]*?output: "meta"/)
+    expect(source).toMatch(/artwork: \{[\s\S]*?input: "raw"[\s\S]*?output: "none"/)
   })
 
-  it('emits an Input alias for a document action, nesting the named attribute interface', () => {
-    // reissue's input refs AlbumsCreateRequest -> wraps AlbumsCreateAttributes (named, not re-expanded).
-    expect(source).toContain('export type AlbumsReissueInput =')
-    expect(source).toMatch(/export type AlbumsReissueInput =[\s\S]*?AlbumsCreateAttributes/)
+  it('emits no per-action alias when the descriptor resolves the input/output types', () => {
+    // A document action's result + flat input are derived at the type level from the descriptor
+    // (outputType/inputType), so no raw-envelope alias is emitted for a resolvable action.
+    expect(source).not.toContain('export type AlbumsReissueInput')
+    expect(source).not.toContain('export type AlbumsReissueOutput')
+    expect(source).not.toContain('export type AlbumsSummaryOutput')
+    expect(source).not.toContain('export type AlbumsArtworkOutput')
   })
 
-  it('emits an Output alias for a document action, nesting the read attribute interface', () => {
-    expect(source).toContain('export type AlbumsReissueOutput =')
-    expect(source).toMatch(/export type AlbumsReissueOutput =[\s\S]*?AlbumsAttributes/)
-    // summary (no input) gets an Output but no Input alias.
-    expect(source).toContain('export type AlbumsSummaryOutput =')
-    expect(source).not.toContain('export type AlbumsSummaryInput')
-  })
-
-  it('emits no Input alias for a raw-bodied action (artwork)', () => {
-    // artwork's body is application/octet-stream — not modelled, so no Input type.
-    expect(source).not.toContain('export type AlbumsArtworkInput')
-    expect(source).toContain('export type AlbumsArtworkOutput =')
-  })
-
-  it('wires the emitted aliases into an ActionTypes map (the client fourth type arg)', () => {
-    expect(source).toContain('export interface ActionTypes {')
-    // reissue (document in + out) carries both sides; summary (none in) only output.
-    expect(source).toMatch(/reissue: \{ input: AlbumsReissueInput; output: AlbumsReissueOutput \}/)
-    expect(source).toMatch(/summary: \{ output: AlbumsSummaryOutput \}/)
-    // artwork (raw in, document out) carries only its output alias.
-    expect(source).toMatch(/artwork: \{ output: AlbumsArtworkOutput \}/)
+  it('still emits (an empty) ActionTypes threaded as the client fourth type arg', () => {
+    // Every action resolves its types from the descriptor, so the fallback alias map is empty —
+    // still emitted + threaded so a bespoke command document (no resolvable type) can populate it.
+    expect(source).toContain('export interface ActionTypes {}')
+    expect(source).toContain(
+      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(',
+    )
   })
 })
 

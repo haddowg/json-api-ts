@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
 import type { OpenApiDocument } from './openapi'
 
@@ -131,15 +131,21 @@ describe('buildDescriptor — custom actions', () => {
       path: '/albums/{id}/-actions/reissue',
       input: 'document',
       output: 'document',
+      // A document body/output names its resource type so the client accepts flat input and
+      // materialises the response (rather than the raw wire envelope).
+      inputType: 'albums',
+      outputType: 'albums',
+      outputCardinality: 'one',
     })
   })
 
-  it('collects a collection-scoped, body-less action (albums.summary)', () => {
+  it('collects a collection-scoped, meta-output action (albums.summary)', () => {
     expect(descriptor['albums']!.actions?.['summary']).toEqual({
       scope: 'collection',
       path: '/albums/-actions/summary',
       input: 'none',
-      output: 'document',
+      // A meta-only document ($ref MetaDocument) — the client returns its top-level `meta`.
+      output: 'meta',
     })
   })
 
@@ -148,7 +154,8 @@ describe('buildDescriptor — custom actions', () => {
       scope: 'resource',
       path: '/albums/{id}/-actions/artwork',
       input: 'raw',
-      output: 'document',
+      // The handler returns a 204 (no JSON:API body), so the output is `none`.
+      output: 'none',
       // The declared media type (application/octet-stream) rides the descriptor so the client
       // sends the right Content-Type rather than a wildcard.
       contentType: 'application/octet-stream',
@@ -157,6 +164,64 @@ describe('buildDescriptor — custom actions', () => {
 
   it('omits the `actions` key entirely for a type with no custom actions', () => {
     expect(descriptor['tracks']!.actions).toBeUndefined()
+  })
+})
+
+describe('buildDescriptor — non-POST + unusable action operations', () => {
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        get: {
+          responses: {
+            '200': {
+              content: {
+                'application/vnd.api+json': {
+                  schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                },
+              },
+            },
+          },
+        },
+      },
+      // A PATCH-only action (methods: ['PATCH']) — must be collected, carrying its method.
+      '/widgets/-actions/recalculate': {
+        patch: { responses: { '204': {} } },
+      },
+      // A path item advertising no operation at all — skipped with a warning, not collected.
+      '/widgets/-actions/broken': {},
+    },
+    components: {
+      schemas: {
+        WidgetsResource: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'widgets' } },
+        },
+        WidgetsCollection: { type: 'object' },
+      },
+    },
+  }
+
+  it('collects a non-POST action carrying its upper-cased method', () => {
+    const built = buildDescriptor(doc)
+    expect(built['widgets']!.actions?.['recalculate']).toEqual({
+      scope: 'collection',
+      path: '/widgets/-actions/recalculate',
+      method: 'PATCH',
+      input: 'none',
+      output: 'none',
+    })
+  })
+
+  it('warns and skips an -actions path with no usable operation', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const built = buildDescriptor(doc)
+      expect(built['widgets']!.actions?.['broken']).toBeUndefined()
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('/widgets/-actions/broken'))
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 

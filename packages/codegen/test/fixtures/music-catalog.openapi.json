@@ -1981,11 +1981,11 @@
                 "operationId": "action.albums.summary",
                 "responses": {
                     "200": {
-                        "description": "The action result.",
+                        "description": "The action result: a meta-only document.",
                         "content": {
                             "application/vnd.api+json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AlbumsDocument"
+                                    "$ref": "#/components/schemas/MetaDocument"
                                 }
                             }
                         }
@@ -2103,15 +2103,8 @@
                     "required": false
                 },
                 "responses": {
-                    "200": {
-                        "description": "The action result.",
-                        "content": {
-                            "application/vnd.api+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/AlbumsDocument"
-                                }
-                            }
-                        }
+                    "204": {
+                        "description": "The action completed with no content."
                     },
                     "400": {
                         "description": "Bad Request — the request was malformed (e.g. an invalid query parameter).",
@@ -16584,6 +16577,24 @@
                 "type": "object",
                 "description": "A JSON:API meta object: a free-form set of non-standard members.",
                 "additionalProperties": {}
+            },
+            "MetaDocument": {
+                "type": "object",
+                "description": "A JSON:API document whose primary content is its top-level `meta` object (no `data`).",
+                "properties": {
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/Links"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "meta"
+                ]
             },
             "PaginationLinks": {
                 "type": "object",
