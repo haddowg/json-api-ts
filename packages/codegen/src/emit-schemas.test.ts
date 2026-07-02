@@ -19,6 +19,12 @@ describe('emitSchemas', () => {
     expect(source).toContain('} as const')
   })
 
+  it('stamps a stable schema hash in the header for drift tracking', () => {
+    expect(source).toMatch(/\* Schema hash: [0-9a-f]{16}/)
+    // Deterministic: the same bundle always hashes the same (drift-check comparability).
+    expect(emitSchemas(bundle)).toBe(source)
+  })
+
   it('has an entry per type, each carrying its resource-object type const', () => {
     const re = /export const schemas = (\{[\s\S]*\}) as const\n$/
     const match = re.exec(source)
@@ -47,6 +53,8 @@ describe('emitSchemas', () => {
   })
 
   it('matches the committed, type-checked snapshot', async () => {
-    await expect(source).toMatchFileSnapshot('../test/generated/music-catalog.schemas.gen.ts')
+    await expect(source).toMatchFileSnapshot(
+      '../test/generated/music-catalog.client.schemas.gen.ts',
+    )
   })
 })

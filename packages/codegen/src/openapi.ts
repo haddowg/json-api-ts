@@ -59,8 +59,14 @@ export type HttpMethod = 'get' | 'post' | 'patch' | 'put' | 'delete'
 
 export type PathItemObject = Partial<Record<HttpMethod, OperationObject>>
 
+export interface InfoObject {
+  title?: string
+  version?: string
+}
+
 export interface OpenApiDocument {
   openapi?: string
+  info?: InfoObject
   servers?: readonly { url?: string }[]
   paths?: Record<string, PathItemObject>
   components?: {
