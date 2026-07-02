@@ -26,6 +26,16 @@ repos:
         entry: pnpm exec oxlint
         language: system
         types_or: [ts, tsx, javascript, jsx]
+        # Mirror the oxfmt exclude (and .oxlintrc.json `ignorePatterns`): oxlint exits
+        # non-zero ("No files found to lint") when every path it is handed is ignored, so a
+        # commit touching only generated clients would fail. oxlint ignores these paths
+        # anyway; excluding them here keeps such a commit from being handed an all-ignored set.
+        exclude: |
+          (?x)^(
+            packages/codegen/test/fixtures/|
+            pnpm-lock\.yaml$|
+            .*\.gen\.ts$
+          )
 
       - id: typecheck
         name: tsc typecheck
