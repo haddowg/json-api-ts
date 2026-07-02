@@ -629,7 +629,9 @@ export class DescriptorBuilder {
     if (names.has('page[offset]') && names.has('page[limit]')) {
       return 'offset'
     }
-    if (names.has('page[cursor]')) {
+    // Cursor pagination advertises page[after]/page[before] (the CursorPaginator wire form) — the
+    // client's cursor navigation is link-driven, so either bound present marks the kind (D44).
+    if (names.has('page[after]') || names.has('page[before]')) {
       return 'cursor'
     }
     // Page params present but matching no known kind = a drift the client would silently treat

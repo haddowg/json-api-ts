@@ -698,3 +698,41 @@ describe('buildDescriptor — synthetic stub skipping (D27)', () => {
     expect(built['widgets']!.relations['ghost']?.types).toEqual(['ghost'])
   })
 })
+
+describe('buildDescriptor — cursor paginator detection (D44)', () => {
+  it('detects cursor pagination from page[after]/page[before] (the CursorPaginator wire form)', () => {
+    const doc: OpenApiDocument = {
+      openapi: '3.1.0',
+      paths: {
+        '/widgets': {
+          get: {
+            parameters: [
+              { name: 'page[after]', in: 'query' },
+              { name: 'page[before]', in: 'query' },
+              { name: 'page[size]', in: 'query' },
+            ],
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'widgets' } },
+          },
+          WidgetsCollection: { type: 'object' },
+        },
+      },
+    }
+    expect(buildDescriptor(doc)['widgets']!.paginator).toBe('cursor')
+  })
+})
