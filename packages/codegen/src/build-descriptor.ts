@@ -2,6 +2,7 @@ import type {
   ActionDescriptor,
   ApiDescriptor,
   AtomicDescriptor,
+  Cardinality,
   ClientIdPolicy,
   CountableDescriptor,
   PaginatorKind,
@@ -242,16 +243,46 @@ export class DescriptorBuilder {
       if (name.length === 0 || name.includes('/')) {
         continue
       }
-      const post = item.post
-      if (post === undefined) {
+      // An action is invoked over one HTTP method; the bundle lets an author declare a
+      // non-POST method, so read the advertised operation (POST-preferred) rather than only
+      // `post` — else a GET/PATCH/DELETE-only action would silently vanish from the client.
+      const picked = pickOperation(item)
+      if (picked === undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `json-api codegen: custom action path "${path}" advertises no usable operation; skipping.`,
+        )
         continue
       }
-      const input = actionInput(post)
-      const action: ActionDescriptor = { scope, path, input, output: actionOutput(post) }
+      const { method, op } = picked
+      const input = actionInput(op)
+      const output = actionOutput(op)
+      const action: ActionDescriptor = { scope, path, input, output }
+      // Only carried when non-POST (POST is the runtime default), keeping the common descriptor tiny.
+      if (method !== 'post') {
+        action.method = method.toUpperCase()
+      }
+      // A document input names its resource type so the client can accept FLAT input and build the
+      // envelope (+ remap 422 pointers), matching `create`/`update` ergonomics.
+      if (input === 'document') {
+        const inputType = this.documentPrimary(actionRequestRef(op))?.type
+        if (inputType !== undefined) {
+          action.inputType = inputType
+        }
+      }
+      // A document output names its primary resource type + cardinality so the client materialises
+      // the response into that resource view (matching reads), not the raw wire envelope.
+      if (output === 'document') {
+        const primary = this.documentPrimary(this.firstOkJsonApiRef(op))
+        if (primary !== undefined) {
+          action.outputType = primary.type
+          action.outputCardinality = primary.cardinality
+        }
+      }
       // A raw-input action carries its declared (non-JSON:API) media type so the client sends
       // the right `Content-Type` rather than a wildcard the server may reject.
       if (input === 'raw') {
-        const contentType = rawContentType(post)
+        const contentType = rawContentType(op)
         if (contentType !== undefined) {
           action.contentType = contentType
         }
@@ -259,6 +290,54 @@ export class DescriptorBuilder {
       out[name] = action
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The wire type (and cardinality) of a document component's primary `data` — a `$ref` to a
+   * resource, an inline object carrying `properties.type.const` (a create-request body), or an
+   * array of resource/identifier refs (a collection). `undefined` when the type can't be resolved.
+   */
+  private documentPrimary(
+    ref: string | undefined,
+  ): { type: string; cardinality: Cardinality } | undefined {
+    if (typeof ref !== 'string') {
+      return undefined
+    }
+    const component = refName(ref)
+    const data = component === undefined ? undefined : this.schemas[component]?.properties?.['data']
+    if (!isSchema(data)) {
+      return undefined
+    }
+    if (isSchema(data.items)) {
+      const itemRef = data.items.$ref
+      const many = typeof itemRef === 'string' ? this.resolveConst(itemRef) : undefined
+      return many === undefined ? undefined : { type: many, cardinality: 'many' }
+    }
+    const one = this.dataConst(data)
+    return one === undefined ? undefined : { type: one, cardinality: 'one' }
+  }
+
+  /** The wire type of a single `data` schema — a `$ref` to a resource, or an inline `type.const`. */
+  private dataConst(data: SchemaObject): string | undefined {
+    if (typeof data.$ref === 'string') {
+      return this.resolveConst(data.$ref)
+    }
+    const typeProp = data.properties?.['type']
+    return isSchema(typeProp) && typeof typeProp.const === 'string' ? typeProp.const : undefined
+  }
+
+  /** The `$ref` of the first 2xx JSON:API response body on an operation (the output document). */
+  private firstOkJsonApiRef(op: OperationObject): string | undefined {
+    for (const [code, response] of Object.entries(op.responses ?? {})) {
+      if (!code.startsWith('2')) {
+        continue
+      }
+      const ref = response.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+      if (typeof ref === 'string') {
+        return ref
+      }
+    }
+    return undefined
   }
 
   /** Resolve a relationship component's `data` into a {@link RelationDescriptor}. */
@@ -625,13 +704,38 @@ function isAtomicMediaType(mediaType: string): boolean {
   return mediaType.startsWith(JSON_API_MEDIA_TYPE) && mediaType.includes(ATOMIC_EXT)
 }
 
-/** The body shape a custom action's `POST` accepts: a JSON:API document, none, or a raw payload. */
+/** The HTTP methods an action operation may be advertised under, in resolution preference order. */
+const ACTION_METHODS: readonly HttpMethod[] = ['post', 'get', 'put', 'patch', 'delete']
+
+/**
+ * The single operation an action is invoked over: POST when advertised (the common default), else
+ * the first advertised method. `undefined` when the path item carries no operation at all.
+ */
+function pickOperation(
+  item: PathItemObject,
+): { method: HttpMethod; op: OperationObject } | undefined {
+  const available = ACTION_METHODS.filter((method) => item[method] !== undefined)
+  const method = available.includes('post') ? 'post' : available[0]
+  if (method === undefined) {
+    return undefined
+  }
+  const op = item[method]
+  return op === undefined ? undefined : { method, op }
+}
+
+/** The body shape a custom action accepts: a JSON:API document, none, or a raw payload. */
 function actionInput(op: OperationObject): ActionDescriptor['input'] {
   const content = op.requestBody?.content
   if (content === undefined || Object.keys(content).length === 0) {
     return 'none'
   }
   return JSON_API_MEDIA_TYPE in content ? 'document' : 'raw'
+}
+
+/** The `$ref` of an action's JSON:API request body (a `document` input), or `undefined`. */
+function actionRequestRef(op: OperationObject): string | undefined {
+  const ref = op.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+  return typeof ref === 'string' ? ref : undefined
 }
 
 /** The declared media type of a `raw`-input action — the first non-JSON:API content type. */
@@ -643,16 +747,23 @@ function rawContentType(op: OperationObject): string | undefined {
   return Object.keys(content).find((mediaType) => mediaType !== JSON_API_MEDIA_TYPE)
 }
 
-/** What a custom action returns: a JSON:API `document` (a 2xx carries one) or `none` (only `204`). */
+/**
+ * What a custom action returns from its first 2xx response: a `meta`-only document (a `$ref` to the
+ * shared `MetaDocument` — no `data`), a resource `document` (any other JSON:API body), or `none`
+ * (only a `204`).
+ */
 function actionOutput(op: OperationObject): ActionDescriptor['output'] {
   for (const [code, response] of Object.entries(op.responses ?? {})) {
     if (!code.startsWith('2')) {
       continue
     }
     const schema = response.content?.[JSON_API_MEDIA_TYPE]?.schema
-    if (schema !== undefined) {
-      return 'document'
+    if (schema === undefined) {
+      continue
     }
+    return typeof schema.$ref === 'string' && refName(schema.$ref) === 'MetaDocument'
+      ? 'meta'
+      : 'document'
   }
   return 'none'
 }

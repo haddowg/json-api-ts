@@ -18,7 +18,7 @@ import type {
   AtomicResults,
   AtomicUpdateHandle,
 } from './atomic'
-import type { ActionDescriptor, ActionOutput, ApiDescriptor } from './descriptor'
+import type { ActionDescriptor, ApiDescriptor } from './descriptor'
 import type {
   ArrayEnvelope,
   DocumentEnvelope,
@@ -652,45 +652,67 @@ type ActionInputBody<E> = 'input' extends keyof E ? E['input'] : Record<string, 
 type ActionOutputBody<E> = 'output' extends keyof E ? E['output'] : unknown
 
 /**
- * The static value an action returns, by its declared `output`: a `document` output
- * materialises into the generated output type (or `unknown` when the codegen supplied none),
- * and a `none` output is `void`.
+ * The static value an action returns, by its declared `output`:
+ *
+ * - `document` — the MATERIALISED resource view of the action's `outputType` (matching the read
+ *   path — `result.title`, not `result.data.attributes.title`), a {@link Collection} when the
+ *   output is a collection (`outputCardinality: 'many'`). Falls back to the generated
+ *   {@link ActionOutputBody} only when the descriptor names no resolvable `outputType` (a bespoke
+ *   document, or a pre-`outputType` generated client);
+ * - `meta` — the response document's top-level `meta` object;
+ * - `none` — `void` (a `204`).
  */
-type ActionResult<Act extends { output: ActionOutput }, E> = Act extends { output: 'document' }
-  ? Promise<ActionOutputBody<E>>
-  : Promise<void>
+type ActionResult<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Act extends {
+  output: 'document'
+}
+  ? Act extends { outputType: infer OT extends TypeName<D> }
+    ? Act extends { outputCardinality: 'many' }
+      ? Promise<Collection<ReadResult<D, A, OT>>>
+      : Promise<ReadResult<D, A, OT>>
+    : Promise<ActionOutputBody<E>>
+  : Act extends { output: 'meta' }
+    ? Promise<Record<string, unknown>>
+    : Promise<void>
 
 /**
- * A single custom-action method, typed by its declared `input` mode and the generated
- * per-action body types `E` (`{ input?; output? }`):
+ * A single custom-action method, typed by its declared `input` mode:
  *
  * - `none`  — no argument;
- * - `document` — a JSON:API document body (the generated input type, else a loose envelope);
+ * - `document` — FLAT input (the `inputType`'s {@link CreateInput}, so the client builds the
+ *   envelope + remaps `422` pointers like `create`); falls back to the generated
+ *   {@link ActionInputBody} for a bespoke command document with no resolvable `inputType`;
  * - `raw`   — an arbitrary body (sent with a relaxed content type).
  *
  * The result is shaped by the action's `output` (see {@link ActionResult}).
  */
-type ActionMethod<Act extends ActionDescriptor, E> = Act extends { input: 'none' }
-  ? () => ActionResult<Act, E>
+type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E> = Act extends {
+  input: 'none'
+}
+  ? () => ActionResult<D, A, Act, E>
   : Act extends { input: 'document' }
-    ? (input: ActionInputBody<E>) => ActionResult<Act, E>
-    : (input: unknown) => ActionResult<Act, E>
+    ? Act extends { inputType: infer IT extends TypeName<D> }
+      ? (input: CreateInput<D, W, IT>) => ActionResult<D, A, Act, E>
+      : (input: ActionInputBody<E>) => ActionResult<D, A, Act, E>
+    : (input: unknown) => ActionResult<D, A, Act, E>
 
 /**
  * The typed map of a type's custom actions at one scope (`collection` on the
  * {@link TypeAccessor}, `resource` on the {@link ResourceHandle}). Each entry is an
- * {@link ActionMethod} keyed by the action name, typed by both the descriptor's `input`/
- * `output` modes and the generated per-action body types in `Act`; only actions declared at
- * `Scope` are present. Empty (`{}`) when the type declares no actions at that scope.
+ * {@link ActionMethod} keyed by the action name, typed from the descriptor (`input`/`output` modes,
+ * `inputType`/`outputType`/`outputCardinality`) with `A`/`W` for the materialised result + flat
+ * input; only actions declared at `Scope` are present. Empty (`{}`) when the type declares no
+ * actions at that scope. `Act` supplies the generated per-action body-type fallbacks.
  */
 export type ActionsAccessor<
   D extends ApiDescriptor,
+  A,
+  W,
   T extends TypeName<D>,
   Scope extends string,
   Act = DefaultActionTypes,
 > = {
   [N in ActionNameAtScope<D, T, Scope>]: ActionsOf<D, T>[N] extends ActionDescriptor
-    ? ActionMethod<ActionsOf<D, T>[N], ActionTypesFor<Act, T, N>>
+    ? ActionMethod<D, A, W, ActionsOf<D, T>[N], ActionTypesFor<Act, T, N>>
     : never
 }
 
@@ -720,7 +742,7 @@ export type ResourceHandle<
   delete(): Promise<void>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
   /** The type's resource-scoped custom actions, keyed by name (sub `{id}` from this handle). */
-  readonly actions: ActionsAccessor<D, T, 'resource', Act>
+  readonly actions: ActionsAccessor<D, A, W, T, 'resource', Act>
 } & RelationshipAccessors<D, A, T>
 
 /** The collection-scoped accessor for one wire type (`client.albums`). */
@@ -744,7 +766,7 @@ export interface TypeAccessor<
   ): Promise<ReadResult<D, A, T, Inc, F>>
   id(id: string): ResourceHandle<D, A, W, T, Act>
   /** The type's collection-scoped custom actions, keyed by name. */
-  readonly actions: ActionsAccessor<D, T, 'collection', Act>
+  readonly actions: ActionsAccessor<D, A, W, T, 'collection', Act>
 }
 
 /**

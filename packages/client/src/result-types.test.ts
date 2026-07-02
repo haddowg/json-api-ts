@@ -766,6 +766,48 @@ const actionMap = {
 
 type ActionMap = typeof actionMap
 
+// A descriptor whose actions carry the RESOLVED input/output types (the codegen's
+// `inputType`/`outputType`/`outputCardinality` + a `meta` output + a non-POST `method`). The
+// client derives the action surface from these directly — no generated alias map needed.
+const resolvedActionMap = {
+  albums: {
+    attributes: { title: 'string', status: 'string' },
+    relations: {},
+    paths: {},
+    paginator: 'page',
+    clientId: 'forbidden',
+    actions: {
+      // document in/out, resolving the resource type both ways.
+      reissue: {
+        scope: 'resource',
+        path: '/albums/{id}/-actions/reissue',
+        input: 'document',
+        output: 'document',
+        inputType: 'albums',
+        outputType: 'albums',
+        outputCardinality: 'one',
+      },
+      // a meta-only output.
+      stats: {
+        scope: 'collection',
+        path: '/albums/-actions/stats',
+        input: 'none',
+        output: 'meta',
+      },
+      // a non-POST method, no output.
+      recalculate: {
+        scope: 'collection',
+        path: '/albums/-actions/recalculate',
+        method: 'PATCH',
+        input: 'none',
+        output: 'none',
+      },
+    },
+  },
+} as const satisfies ApiDescriptor
+
+type ResolvedActionMap = typeof resolvedActionMap
+
 // The generated per-action body-type map (the codegen's `ActionTypes`, threaded as the
 // client's fourth type argument). `reissue` carries a precise create-envelope input and a
 // materialised-album output; `summary`/`artwork` carry only their output. A type/action
@@ -846,6 +888,50 @@ describe('custom action typing', () => {
   })
 })
 
+describe('custom action typing — resolved input/output types (no alias map)', () => {
+  type Handle = ReturnType<Client<ResolvedActionMap, Attributes, WriteAttributes>['albums']['id']>
+  type Accessor = Client<ResolvedActionMap, Attributes, WriteAttributes>['albums']
+
+  it('materialises a document output into the resource view of its outputType (D1)', () => {
+    type Reissued = Awaited<ReturnType<Handle['actions']['reissue']>>
+    // The result is the MATERIALISED resource (result.title / result.type), not the raw envelope.
+    expectTypeOf<Reissued['type']>().toEqualTypeOf<'albums'>()
+    expectTypeOf<Reissued['title']>().toEqualTypeOf<string>()
+    expectTypeOf<Reissued['status']>().toEqualTypeOf<AlbumStatus>()
+    // A raw-envelope `data` member is NOT present on the materialised result.
+    expectTypeOf<Reissued>().not.toHaveProperty('data')
+  })
+
+  it('accepts FLAT input for a document action naming its inputType (D37)', () => {
+    // The argument is the resource's create input (flat attributes), not a hand-built envelope.
+    expectTypeOf<Parameters<Handle['actions']['reissue']>[0]>().toHaveProperty('title')
+  })
+
+  it('returns the document meta for a meta-output action (D2)', () => {
+    expectTypeOf<ReturnType<Accessor['actions']['stats']>>().resolves.toEqualTypeOf<
+      Record<string, unknown>
+    >()
+    expectTypeOf<Parameters<Accessor['actions']['stats']>>().toEqualTypeOf<[]>()
+  })
+
+  it('a non-POST, none-output action takes no argument and resolves void (D25)', () => {
+    expectTypeOf<Parameters<Accessor['actions']['recalculate']>>().toEqualTypeOf<[]>()
+    expectTypeOf<ReturnType<Accessor['actions']['recalculate']>>().resolves.toBeVoid()
+  })
+})
+
+// Call-site probe: a resolved document action takes FLAT input and returns the materialised view.
+declare const rclient: Client<ResolvedActionMap, Attributes, WriteAttributes>
+async function resolvedActionsCallSite() {
+  const album = await rclient.albums.id('1').actions.reissue({ title: 'Reissued' })
+  album.title.toUpperCase()
+  const meta = await rclient.albums.actions.stats()
+  expectTypeOf(meta).toEqualTypeOf<Record<string, unknown>>()
+  await rclient.albums.actions.recalculate()
+  // @ts-expect-error — a resolved document input is FLAT; a hand-built envelope is not accepted.
+  await rclient.albums.id('1').actions.reissue({ data: { type: 'albums' } })
+}
+
 // Call-site probes: real action invocations whose argument/return shapes tsc checks.
 declare const aclient: Client<ActionMap, Attributes>
 async function actionsCallSite() {
@@ -874,6 +960,8 @@ describe('custom action call-site', () => {
   it('accepts well-typed action calls and rejects ill-typed ones', () => {
     expectTypeOf(actionsCallSite).returns.resolves.toBeVoid()
     expectTypeOf(typedActionsCallSite).returns.resolves.toBeVoid()
+    // The resolved-descriptor probe (flat input, materialised output, meta, non-POST).
+    expectTypeOf(resolvedActionsCallSite).returns.resolves.toBeVoid()
   })
 })
 
