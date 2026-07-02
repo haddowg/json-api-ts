@@ -302,13 +302,12 @@ describe('custom actions', () => {
     })
     const client = createClient({ baseUrl: BASE, transport })
 
-    // `reissue` is declared `input: document, output: document`: it takes a JSON:API document
-    // (typed by the generated `AlbumsReissueInput`) and the response is MATERIALISED into a
-    // flattened resource. Resource-scoped actions live under `.id(id).actions`. The generated
-    // output type mirrors the wire document; the runtime materialises it, so we read the
-    // flattened resource off the result.
+    // `reissue` is `input: document, output: document` with an `inputType`, so the caller
+    // passes FLAT attributes (exactly like a create) and the client builds the
+    // `{ data: { type, attributes } }` envelope. The 2xx document is MATERIALISED into a
+    // flattened resource, so we read `id`/attributes straight off the result.
     const reissued = (await client.albums.id('1').actions.reissue({
-      data: { type: 'albums', attributes: { title: 'OK Computer' } },
+      title: 'OK Computer',
     })) as unknown as { id: string; title: string }
 
     expect(reissued.id).toBe('1')
@@ -319,14 +318,15 @@ describe('custom actions', () => {
 
   it('invokes a collection-scoped action with no input', async () => {
     const { transport, requests } = mockTransport({
-      [`POST ${BASE}/albums/-actions/summary`]: album('summary', { title: 'Catalogue summary' }),
+      [`POST ${BASE}/albums/-actions/summary`]: { meta: { totalAlbums: 42 } },
     })
     const client = createClient({ baseUrl: BASE, transport })
 
-    // `summary` is collection-scoped (`input: none`), reached off the type accessor's `.actions`.
-    // Its document output is likewise materialised at runtime into a flattened resource.
-    const summary = (await client.albums.actions.summary()) as unknown as { title: string }
-    expect(summary.title).toBe('Catalogue summary')
+    // `summary` is collection-scoped (`input: none`, `output: meta`), reached off the type
+    // accessor's `.actions`. A meta-only action returns the document `meta` directly (no
+    // resource to materialise).
+    const summary = (await client.albums.actions.summary()) as unknown as { totalAlbums: number }
+    expect(summary.totalAlbums).toBe(42)
     expect(requests[0]!.url).toBe(`${BASE}/albums/-actions/summary`)
   })
 })

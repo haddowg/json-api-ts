@@ -18,7 +18,8 @@
     "format:check": "oxfmt --check",
     "lint:publish": "turbo run lint:publish",
     "smoke": "pnpm --filter @haddowg/json-api-smoke run smoke",
-    "codegen:check": "node packages/codegen/dist/cli.mjs --input packages/codegen/test/fixtures/music-catalog.openapi.json --output packages/codegen/test/generated/music-catalog.client.gen.ts --schemas packages/codegen/test/fixtures/music-catalog.schemas.json --check",
+    "codegen": "node scripts/codegen.mjs",
+    "codegen:check": "node scripts/codegen.mjs --check",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck"
   },
   "devDependencies": {
