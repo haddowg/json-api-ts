@@ -70,9 +70,10 @@ const fill = (template: string, vars: Record<string, string>): string =>
 /**
  * Run an operation: resolve the path template from the type's descriptor, fill its
  * placeholders, execute, and materialise the resulting document. A no-body / 204 response
- * (or a missing path template) materialises to `undefined`. `linkage` marks a
- * relationship-endpoint read (primary `data` is pure resource-identifier linkage) so an
- * attribute-less, relation-less member is still materialised as an identifier.
+ * materialises to `undefined`; an operation the type does not declare (no path template) throws
+ * a local `Error` before any request. `linkage` marks a relationship-endpoint read (primary
+ * `data` is pure resource-identifier linkage) so an attribute-less, relation-less member is
+ * still materialised as an identifier.
  */
 async function run(
   ctx: ClientContext,
@@ -307,11 +308,18 @@ function relationshipAccessor(
     return mutations === undefined ? true : mutations[verb] === true
   }
 
-  const accessor: Record<string, unknown> = {
-    get: (query?: RelationReadQuery) =>
-      run(ctx, type, 'fetchRelationship', vars, query as ReadQuery | undefined, true),
-    related: (query?: RelationReadQuery) =>
-      run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined),
+  // A read is present only when the relation exposes that endpoint (the descriptor's
+  // `relationship`/`related` flags, from the bundle's `withoutRelationshipEndpoint()` /
+  // `withoutRelatedEndpoint()`). A suppressed read is omitted (a JS caller gets "not a function"
+  // rather than a 404); the static types gate it to `never` for a typed caller (D24).
+  const accessor: Record<string, unknown> = {}
+  if (relation?.relationship !== false) {
+    accessor['get'] = (query?: RelationReadQuery) =>
+      run(ctx, type, 'fetchRelationship', vars, query as ReadQuery | undefined, true)
+  }
+  if (relation?.related !== false) {
+    accessor['related'] = (query?: RelationReadQuery) =>
+      run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined)
   }
   if (cardinality === 'many') {
     if (advertises('add')) {

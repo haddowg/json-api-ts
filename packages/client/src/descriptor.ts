@@ -32,8 +32,22 @@ export interface RelationDescriptor {
   /** Whether members carry pivot data (`meta.pivot`). */
   pivot?: boolean
   /**
-   * The per-relation mutation verbs the relationship endpoint advertises. Absent when
-   * the relation exposes no relationship endpoint at all (no mutation possible).
+   * `false` when the related endpoint (`GET /{type}/{id}/{rel}`) is suppressed for this relation
+   * (the bundle's `withoutRelatedEndpoint()`, ADR 0027) — `.related()` is then a compile error /
+   * runtime guard rather than a 404. Absent means exposed (the default).
+   */
+  related?: boolean
+  /**
+   * `false` when the relationship endpoint (`.../relationships/{rel}`) is suppressed for this
+   * relation (the bundle's `withoutRelationshipEndpoint()`, ADR 0027) — `.get()` (and every
+   * mutation) is then gated off. Absent means exposed (the default).
+   */
+  relationship?: boolean
+  /**
+   * The per-relation mutation verbs the relationship endpoint advertises. An explicit `{}` means
+   * the endpoint exposes no mutation verb (gates every verb OFF). Absent means the descriptor
+   * carries no signal (a hand-written descriptor) — gating then falls back to cardinality alone.
+   * A codegen descriptor always emits this (at least `{}`) so suppression never fails open.
    */
   mutations?: RelationMutations
 }

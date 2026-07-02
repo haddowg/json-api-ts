@@ -81,6 +81,26 @@ const append = (parts: string[], key: string, value: unknown): void => {
   parts.push(`${key}=${encodeURIComponent(String(value))}`)
 }
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * Append a filter value under its (already-bracketed) key. A plain object is a STRUCTURED filter
+ * value — a `Range`/`DateRange` deepObject (`{ min, max }`) — and recurses into nested bracketed
+ * keys (`filter[k][min]=`), matching the server's deepObject wire shape; an array joins with `,`;
+ * a scalar is appended directly. Without the object branch a `{ min, max }` value would reach the
+ * wire as `filter[k]=[object Object]` and be silently ignored by the server (D23).
+ */
+const appendFilterValue = (parts: string[], key: string, value: unknown): void => {
+  if (isPlainObject(value)) {
+    for (const [subKey, subValue] of Object.entries(value)) {
+      appendFilterValue(parts, `${key}[${subKey}]`, subValue)
+    }
+    return
+  }
+  append(parts, key, Array.isArray(value) ? value.join(',') : value)
+}
+
 /**
  * Serialise a read query to a query string (no leading `?`). Bracketed keys
  * (`filter[title]`, `page[number]`, `fields[albums]`) are kept literal; only values
@@ -92,7 +112,7 @@ export function serializeQuery(query: ReadQuery): string {
 
   if (query.filter) {
     for (const [key, value] of Object.entries(query.filter)) {
-      append(parts, `filter[${key}]`, Array.isArray(value) ? value.join(',') : value)
+      appendFilterValue(parts, `filter[${key}]`, value)
     }
   }
 

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
-import type { OpenApiDocument } from './openapi'
+import type { OpenApiDocument, SchemaObject } from './openapi'
 
 function loadFixture(name: string): OpenApiDocument {
   const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
@@ -425,11 +425,263 @@ describe('buildDescriptor (music-catalog admin server)', () => {
 
   it('does not mistake a related collection for a type top-level collection', () => {
     const admin = buildDescriptor(loadFixture('music-catalog-admin.openapi.json'))
-    // `/users/{id}/playlists` and `/albums/{id}/tracks` ref Playlists/TracksCollection
-    // but are parent-scoped related endpoints — they are NOT fetchMany for these types.
+    // `/users/{id}/playlists` and `/albums/{id}/tracks` ref Playlists/TracksCollection but are
+    // parent-scoped related endpoints — they are NOT fetchMany for these types. These are REAL
+    // registered resources (a `type/id/attributes/meta` object) with no top-level collection, so
+    // they stay in the descriptor (with empty paths) — only a permissive type-only stub is
+    // dropped by D27 (see the dedicated test below).
     expect(admin['playlists']!.paths).toEqual({})
     expect(admin['playlists']!.paginator).toBe('none')
     expect(admin['tracks']!.paths).toEqual({})
     expect(admin['tracks']!.paginator).toBe('none')
+  })
+})
+
+// A to-many relationship component whose linkage refs `<IdType>Identifier` (an identifier, not a
+// Resource — so the related type does not become its own descriptor entry).
+const toManyRelationshipComponent = (idType: string): SchemaObject => ({
+  type: 'object',
+  properties: {
+    data: { type: 'array', items: { $ref: `#/components/schemas/${idType}Identifier` } },
+  },
+})
+
+describe('buildDescriptor — per-relation endpoint suppression (D24)', () => {
+  // A `parts` relation exposes both endpoints; `gadgets` has its RELATED endpoint suppressed;
+  // `labels` has its RELATIONSHIP endpoint suppressed.
+  const rel = toManyRelationshipComponent
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        get: {
+          responses: {
+            '200': {
+              content: {
+                'application/vnd.api+json': {
+                  schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                },
+              },
+            },
+          },
+        },
+      },
+      // parts: both endpoints (relationship advertises POST -> add).
+      '/widgets/{id}/parts': { get: {} },
+      '/widgets/{id}/relationships/parts': { get: {}, post: {} },
+      // gadgets: NO related endpoint; relationship present (PATCH -> replace).
+      '/widgets/{id}/relationships/gadgets': { get: {}, patch: {} },
+      // labels: NO relationship endpoint; related present.
+      '/widgets/{id}/labels': { get: {} },
+    },
+    components: {
+      schemas: {
+        WidgetsResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'widgets' },
+            relationships: {
+              type: 'object',
+              properties: {
+                parts: { $ref: '#/components/schemas/WidgetsPartsRelationship' },
+                gadgets: { $ref: '#/components/schemas/WidgetsGadgetsRelationship' },
+                labels: { $ref: '#/components/schemas/WidgetsLabelsRelationship' },
+              },
+            },
+          },
+        },
+        WidgetsCollection: { type: 'object' },
+        WidgetsPartsRelationship: rel('Parts'),
+        WidgetsGadgetsRelationship: rel('Gadgets'),
+        WidgetsLabelsRelationship: rel('Labels'),
+        PartsIdentifier: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'parts' } },
+        },
+        GadgetsIdentifier: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'gadgets' } },
+        },
+        LabelsIdentifier: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'labels' } },
+        },
+      },
+    },
+  }
+
+  it('emits closed exposure signals so a suppressed relation cannot fail open', () => {
+    const relations = buildDescriptor(doc)['widgets']!.relations
+    // Fully exposed: no suppression flags, mutation verbs from the advertised methods.
+    expect(relations['parts']).toEqual({
+      cardinality: 'many',
+      types: ['parts'],
+      pivot: false,
+      mutations: { add: true },
+    })
+    // Related endpoint suppressed -> `related: false` (gates `.related()` off).
+    expect(relations['gadgets']).toEqual({
+      cardinality: 'many',
+      types: ['gadgets'],
+      pivot: false,
+      related: false,
+      mutations: { replace: true },
+    })
+    // Relationship endpoint suppressed -> `relationship: false` + closed `mutations: {}` (no verb
+    // callable), rather than an absent block that the client would read as "all verbs callable".
+    expect(relations['labels']).toEqual({
+      cardinality: 'many',
+      types: ['labels'],
+      pivot: false,
+      relationship: false,
+      mutations: {},
+    })
+  })
+})
+
+describe('buildDescriptor — drift warnings (D28)', () => {
+  it('warns and drops a relationship whose linkage shape is unrecognized', () => {
+    const doc: OpenApiDocument = {
+      openapi: '3.1.0',
+      paths: {
+        '/widgets': {
+          get: {
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', const: 'widgets' },
+              relationships: {
+                type: 'object',
+                properties: {
+                  mystery: { $ref: '#/components/schemas/WidgetsMysteryRelationship' },
+                },
+              },
+            },
+          },
+          WidgetsCollection: { type: 'object' },
+          // An unrecognized linkage shape: `data` is neither an array, a `$ref`, nor an anyOf.
+          WidgetsMysteryRelationship: { type: 'object', properties: { data: { type: 'object' } } },
+        },
+      },
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const relations = buildDescriptor(doc)['widgets']!.relations
+      expect(relations['mystery']).toBeUndefined()
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('mystery'))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('warns when a collection advertises page params matching no known paginator kind', () => {
+    const doc: OpenApiDocument = {
+      openapi: '3.1.0',
+      paths: {
+        '/widgets': {
+          get: {
+            parameters: [{ name: 'page[weird]', in: 'query' }],
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'widgets' } },
+          },
+          WidgetsCollection: { type: 'object' },
+        },
+      },
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(buildDescriptor(doc)['widgets']!.paginator).toBe('none')
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('paginator'))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
+describe('buildDescriptor — synthetic stub skipping (D27)', () => {
+  it('drops a type-only permissive stub, but keeps a real collection-less resource', () => {
+    const doc: OpenApiDocument = {
+      openapi: '3.1.0',
+      paths: {
+        '/widgets': {
+          get: {
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        // widgets exposes a related endpoint for `ghost`, an unregistered related type.
+        '/widgets/{id}/ghost': { get: {} },
+      },
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', const: 'widgets' },
+              id: { type: 'string' },
+              relationships: {
+                type: 'object',
+                properties: { ghost: { $ref: '#/components/schemas/WidgetsGhostRelationship' } },
+              },
+            },
+          },
+          WidgetsCollection: { type: 'object' },
+          WidgetsGhostRelationship: {
+            type: 'object',
+            properties: {
+              data: { anyOf: [{ $ref: '#/components/schemas/GhostResource' }, { type: 'null' }] },
+            },
+          },
+          // The synthetic stub: a `<Rel>Resource` carrying ONLY a `type` const, exactly what
+          // core's `permissiveResourceObject` emits for an unregistered related type.
+          GhostResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'ghost' } },
+          },
+        },
+      },
+    }
+    const built = buildDescriptor(doc)
+    // The real widgets type stays; the type-only ghost stub is NOT a phantom top-level accessor.
+    expect(built['widgets']).toBeDefined()
+    expect(built['ghost']).toBeUndefined()
+    // The relation to the (unregistered) ghost type is still declared on the parent.
+    expect(built['widgets']!.relations['ghost']?.types).toEqual(['ghost'])
   })
 })

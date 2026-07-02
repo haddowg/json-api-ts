@@ -43,6 +43,19 @@ describe('serializeQuery', () => {
     ).toBe('filter[title]=OK%20Computer&filter[status]=released%2Cdraft')
   })
 
+  it('serialises a structured (deepObject) filter value into nested bracketed keys (D23)', () => {
+    // A Range/DateRange value is `{ min, max }` — it must reach the wire as nested keys
+    // (`filter[duration][min]=60&filter[duration][max]=300`), not `filter[duration]=[object Object]`
+    // (which the server silently ignores, returning the unfiltered collection).
+    expect(serializeQuery({ filter: { duration: { min: 60, max: 300 } } })).toBe(
+      'filter[duration][min]=60&filter[duration][max]=300',
+    )
+    // An open-ended range drops the absent bound (undefined is skipped), and nesting recurses.
+    expect(serializeQuery({ filter: { released: { after: '2020-01-01' } } })).toBe(
+      'filter[released][after]=2020-01-01',
+    )
+  })
+
   it('serialises sort as a string or comma-joined array', () => {
     expect(serializeQuery({ sort: 'title' })).toBe('sort=title')
     expect(serializeQuery({ sort: ['-releasedAt', 'title'] })).toBe('sort=-releasedAt%2Ctitle')

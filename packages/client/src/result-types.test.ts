@@ -366,6 +366,22 @@ const verbMap = {
         pivot: false,
         mutations: {},
       },
+      // related endpoint suppressed (withoutRelatedEndpoint) -> `.related()` gated off, `.get()` kept.
+      noRelated: {
+        cardinality: 'many',
+        types: ['albums'],
+        pivot: false,
+        related: false,
+        mutations: { add: true },
+      },
+      // relationship endpoint suppressed (withoutRelationshipEndpoint) -> `.get()` + every verb off.
+      noRelationship: {
+        cardinality: 'many',
+        types: ['albums'],
+        pivot: false,
+        relationship: false,
+        mutations: {},
+      },
     },
     paths: {},
     paginator: 'page',
@@ -435,6 +451,22 @@ describe('per-relation mutation-verb gating', () => {
     expectTypeOf<Handle['readonlyOwner']['add']>().toBeNever()
     expectTypeOf<Handle['readonlyOwner']['remove']>().toBeNever()
     expectTypeOf<Handle['readonlyOwner']['replace']>().toBeNever()
+  })
+
+  it('gates a suppressed related endpoint off `.related()` while keeping `.get()` (D24)', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
+    // `related: false` -> `.related()` is a compile error; the relationship read stays.
+    expectTypeOf<Handle['noRelated']['related']>().toBeNever()
+    expectTypeOf<Handle['noRelated']['get']>().toBeFunction()
+    expectTypeOf<Handle['noRelated']['add']>().toBeFunction()
+  })
+
+  it('gates a suppressed relationship endpoint off `.get()` and every verb (D24)', () => {
+    type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
+    // `relationship: false` -> `.get()` is `never`; the related read stays; no mutation verb.
+    expectTypeOf<Handle['noRelationship']['get']>().toBeNever()
+    expectTypeOf<Handle['noRelationship']['related']>().toBeFunction()
+    expectTypeOf<Handle['noRelationship']['add']>().toBeNever()
   })
 })
 

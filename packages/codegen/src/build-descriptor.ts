@@ -95,6 +95,17 @@ export class DescriptorBuilder {
       if (Object.keys(actions).length > 0) {
         descriptor.actions = actions
       }
+      // A synthetic stub for an unregistered related type — core's `permissiveResourceObject`
+      // emits a `<Rel>Resource` carrying ONLY a `type` const (no `id`/`attributes`) so linkage
+      // refs resolve — is reachable only through a parent's `.related()` (which works via the
+      // parent's own paths). Admitting it would surface a fully-typed top-level `client.<stub>`
+      // whose every method throws, so drop it (D27). A REAL registered resource carries the full
+      // `type/id/attributes/…` object shape and stays, even with no attributes/collection of its
+      // own; only the type-const-only stub (with no operation paths) is dropped.
+      const isTypeOnlyStub = Object.keys(schema.properties ?? {}).every((prop) => prop === 'type')
+      if (isTypeOnlyStub && Object.keys(descriptor.paths).length === 0) {
+        continue
+      }
       out[wireType] = descriptor
     }
     return sortRecord(out)
@@ -173,12 +184,20 @@ export class DescriptorBuilder {
       }
       const component = this.schemas[refName(prop.$ref) ?? '']
       const descriptor = component ? this.relationFromComponent(component) : undefined
-      if (descriptor !== undefined) {
-        const mutations = collection
-          ? this.relationMutations(collection, name, descriptor.cardinality)
-          : undefined
-        out[name] = mutations === undefined ? descriptor : { ...descriptor, mutations }
+      if (descriptor === undefined) {
+        // A relationship component the codegen can't parse (an unknown linkage shape) is
+        // dropped silently otherwise — a drift class (the grammar has grown pivot/polymorphic/
+        // nested forms), so warn rather than emit a client missing the relation (D28).
+        // eslint-disable-next-line no-console
+        console.warn(
+          `json-api codegen: relationship "${name}" has an unrecognized linkage shape; dropping it from the descriptor.`,
+        )
+        continue
       }
+      out[name] =
+        collection === undefined
+          ? descriptor
+          : this.withRelationExposure(descriptor, collection, name)
     }
     return sortRecord(out)
   }
@@ -214,6 +233,35 @@ export class DescriptorBuilder {
       mutations.set = true
     }
     return mutations
+  }
+
+  /**
+   * Attach the per-relation endpoint-exposure signal to a relation descriptor (D24). The bundle
+   * can suppress a relation's related or relationship endpoint (`withoutRelatedEndpoint()` /
+   * `withoutRelationshipEndpoint()`, ADR 0027), which the OpenAPI reflects by simply omitting that
+   * relation's path — but codegen synthesizes generic `{rel}` templates, erasing the per-relation
+   * distinction. So mark `related: false` / `relationship: false` when this relation's specific
+   * path is absent, and ALWAYS emit an explicit `mutations` object (the verb flags when the
+   * relationship endpoint exists, else `{}`) so the client gates a suppressed relation OFF rather
+   * than failing open (offering `.get()`/`.related()`/mutations that 404).
+   */
+  private withRelationExposure(
+    descriptor: RelationDescriptor,
+    collection: string,
+    name: string,
+  ): RelationDescriptor {
+    const out: RelationDescriptor = { ...descriptor }
+    if (this.paths[`${collection}/{id}/${name}`] === undefined) {
+      out.related = false
+    }
+    const mutations = this.relationMutations(collection, name, descriptor.cardinality)
+    if (mutations === undefined) {
+      out.relationship = false
+      out.mutations = {}
+    } else {
+      out.mutations = mutations
+    }
+    return out
   }
 
   /**
@@ -531,6 +579,14 @@ export class DescriptorBuilder {
     }
     if (names.has('page[cursor]')) {
       return 'cursor'
+    }
+    // Page params present but matching no known kind = a drift the client would silently treat
+    // as unpaginated (losing $page/$next); warn rather than swallow it (D28).
+    if (collection !== undefined && [...names].some((name) => name.startsWith('page['))) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `json-api codegen: collection "${collection}" advertises page parameters matching no known paginator kind; treating it as unpaginated.`,
+      )
     }
     return 'none'
   }
