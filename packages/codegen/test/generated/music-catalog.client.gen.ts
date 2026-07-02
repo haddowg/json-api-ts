@@ -263,6 +263,13 @@ export const resourceMap = {
           add: true,
           remove: true,
           replace: true
+        },
+        countable: {
+          tokens: [
+            "_self_",
+            "playlists"
+          ],
+          profile: "https://haddowg.github.io/json-api/profiles/countable/"
         }
       }
     },
@@ -349,6 +356,12 @@ export const resourceMap = {
           add: true,
           remove: true,
           replace: true
+        },
+        countable: {
+          tokens: [
+            "tracks"
+          ],
+          profile: "https://haddowg.github.io/json-api/profiles/countable/"
         }
       }
     },
@@ -531,6 +544,12 @@ export const resourceMap = {
           add: true,
           remove: true,
           replace: true
+        },
+        countable: {
+          tokens: [
+            "playlists"
+          ],
+          profile: "https://haddowg.github.io/json-api/profiles/countable/"
         }
       },
       owner: {
@@ -563,6 +582,13 @@ export const resourceMap = {
           add: true,
           remove: true,
           replace: true
+        },
+        countable: {
+          tokens: [
+            "_self_",
+            "playlists"
+          ],
+          profile: "https://haddowg.github.io/json-api/profiles/countable/"
         }
       }
     },
@@ -671,6 +697,13 @@ export const resourceMap = {
         mutations: {
           add: true,
           remove: true
+        },
+        countable: {
+          tokens: [
+            "_self_",
+            "tracks"
+          ],
+          profile: "https://haddowg.github.io/json-api/profiles/countable/"
         }
       }
     },

@@ -251,7 +251,8 @@ export class DescriptorBuilder {
     name: string,
   ): RelationDescriptor {
     const out: RelationDescriptor = { ...descriptor }
-    if (this.paths[`${collection}/{id}/${name}`] === undefined) {
+    const relatedGet = this.operation(`${collection}/{id}/${name}`, 'get')
+    if (relatedGet === undefined) {
       out.related = false
     }
     const mutations = this.relationMutations(collection, name, descriptor.cardinality)
@@ -260,6 +261,15 @@ export class DescriptorBuilder {
       out.mutations = {}
     } else {
       out.mutations = mutations
+    }
+    // The related/relationship reads may advertise their own `withCount` (`_self_` + the relation's
+    // countable relations) with a negotiation profile — capture it so a typed `.related()`/`.get()`
+    // can send `withCount` and negotiate the profile the endpoint requires (D3).
+    const countable =
+      withCountParam(relatedGet) ??
+      withCountParam(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
+    if (countable !== undefined) {
+      out.countable = countable
     }
     return out
   }

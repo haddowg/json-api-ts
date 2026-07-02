@@ -125,7 +125,12 @@ const defineGetter = (target: object, key: string, get: () => unknown): void => 
  * full resource) — a structural guess can't tell them apart for an attribute-less,
  * relation-less resource, so the caller passes the surface it issued.
  */
-export function materialise(doc: Document, ctx: MaterialiseContext, linkage = false): unknown {
+export function materialise(
+  doc: Document,
+  ctx: MaterialiseContext,
+  linkage = false,
+  primaryType?: string,
+): unknown {
   // Always-on light structural guards: prove the envelope invariant the runtime relies on (a
   // JSON:API document; each data/included member carries type+id). Then, only when configured,
   // run the opt-in per-field validation over each wire resource by its type (ADR 0004).
@@ -155,7 +160,7 @@ export function materialise(doc: Document, ctx: MaterialiseContext, linkage = fa
     const members = linkage
       ? raws.map((raw) => buildIdentifierView(raw))
       : raws.map((raw) => buildEdgeView(build(raw), raw))
-    return augmentArray(members, doc, ctx, linkage)
+    return augmentArray(members, doc, ctx, linkage, primaryType)
   }
 
   if (isObject(data)) {
@@ -419,12 +424,13 @@ function augmentArray(
   doc: Document,
   ctx: MaterialiseContext,
   linkage: boolean,
+  primaryType?: string,
 ): object[] {
   const arr = [...members]
   const links = doc.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => doc.meta)
-  attachPage(arr, paginatorKind(doc, ctx), pageMeta(doc.meta), links, ctx, linkage)
+  attachPage(arr, paginatorKind(doc, ctx, primaryType), pageMeta(doc.meta), links, ctx, linkage)
   return arr
 }
 
@@ -491,13 +497,22 @@ const linkHref = (link: unknown): string | undefined => {
 const pageMeta = (meta: Record<string, unknown> | undefined): Record<string, unknown> | undefined =>
   isObject(meta?.['page']) ? (meta['page'] as Record<string, unknown>) : undefined
 
-/** The document's paginator kind (from the primary type's descriptor; default `none`). */
-function paginatorKind(doc: Document, ctx: MaterialiseContext): PaginatorKind {
+/**
+ * The document's paginator kind (from the primary type's descriptor; default `none`). Prefers the
+ * statically-known `primaryType` (passed by the descriptor binding at the call site) so an EMPTY
+ * page still reports the collection's real kind; falls back to sniffing the first member's type
+ * (for a re-materialised `$next()` page or a related read, where the primary type isn't threaded).
+ */
+function paginatorKind(
+  doc: Document,
+  ctx: MaterialiseContext,
+  primaryType?: string,
+): PaginatorKind {
   const first = Array.isArray(doc.data) ? doc.data[0] : doc.data
-  if (isObject(first) && typeof first['type'] === 'string') {
-    return ctx.descriptor[first['type']]?.paginator ?? 'none'
-  }
-  return 'none'
+  const type =
+    primaryType ??
+    (isObject(first) && typeof first['type'] === 'string' ? first['type'] : undefined)
+  return type !== undefined ? (ctx.descriptor[type]?.paginator ?? 'none') : 'none'
 }
 
 /**
