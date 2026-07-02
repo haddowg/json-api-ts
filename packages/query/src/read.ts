@@ -21,11 +21,37 @@ import type {
   ReadResult,
   RelationName,
   RelationReadQuery,
+  RelationshipAccessor,
   SingleReadQuery,
   TypedReadQuery,
   TypeName,
 } from '@haddowg/json-api-client'
 import { keyFor, type QueryKey } from './keys'
+
+/**
+ * The precise materialised result of `.rel(R).related()` / `.get()` — extracted (via `infer`)
+ * from the client's own {@link RelationshipAccessor} so the read factories carry the client's
+ * full per-relation narrowing (a `Collection` of hydrated members / identifier members, typed
+ * `$pivot`, polymorphic unions) instead of a loose `unknown` (D34). A suppressed endpoint (whose
+ * method the client types `never`) falls back to `unknown`.
+ */
+type RelatedResult<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = RelationshipAccessor<D, A, T, R>['related'] extends (...args: never[]) => Promise<infer V>
+  ? V
+  : unknown
+
+type LinkageResult<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = RelationshipAccessor<D, A, T, R>['get'] extends (...args: never[]) => Promise<infer V>
+  ? V
+  : unknown
 
 /**
  * A TanStack-compatible query-options object: the deterministic {@link QueryKey} plus a
@@ -112,17 +138,22 @@ export function getQueryOptions<
  * shape; the relationship endpoint's per-relation value is loose at the `.rel(name)` boundary, so
  * the option resolves `unknown` unless the caller annotates it (parity with the client's runtime).
  */
-export function relationshipQueryOptions<D extends ApiDescriptor, A, T extends TypeName<D>>(
+export function relationshipQueryOptions<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+>(
   client: TypedClient<D, A>,
   type: T,
   id: string,
-  rel: RelationName<D, T>,
+  rel: R,
   query?: RelationReadQuery,
-): QueryOptions<unknown> {
+): QueryOptions<LinkageResult<D, A, T, R>> {
   const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchRelationship', id, rel }, query),
-    queryFn: () => accessor.id(id).rel(rel).get(query),
+    queryFn: () => accessor.id(id).rel(rel).get(query) as Promise<LinkageResult<D, A, T, R>>,
   }
 }
 
@@ -132,17 +163,22 @@ export function relationshipQueryOptions<D extends ApiDescriptor, A, T extends T
  * 'fetchRelated', id, rel, <params>]`. As with linkage, the related value is loose at the
  * `.rel(name)` boundary, so this resolves `unknown` (parity with the client runtime).
  */
-export function relatedQueryOptions<D extends ApiDescriptor, A, T extends TypeName<D>>(
+export function relatedQueryOptions<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+>(
   client: TypedClient<D, A>,
   type: T,
   id: string,
-  rel: RelationName<D, T>,
+  rel: R,
   query?: RelationReadQuery,
-): QueryOptions<unknown> {
+): QueryOptions<RelatedResult<D, A, T, R>> {
   const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchRelated', id, rel }, query),
-    queryFn: () => accessor.id(id).rel(rel).related(query),
+    queryFn: () => accessor.id(id).rel(rel).related(query) as Promise<RelatedResult<D, A, T, R>>,
   }
 }
 
@@ -157,12 +193,16 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,
   ): QueryOptions<ReadResult<D, A, T, Inc, F>>
-  relationship(
+  relationship<R extends RelationName<D, T>>(
     id: string,
-    rel: RelationName<D, T>,
+    rel: R,
     query?: RelationReadQuery,
-  ): QueryOptions<unknown>
-  related(id: string, rel: RelationName<D, T>, query?: RelationReadQuery): QueryOptions<unknown>
+  ): QueryOptions<LinkageResult<D, A, T, R>>
+  related<R extends RelationName<D, T>>(
+    id: string,
+    rel: R,
+    query?: RelationReadQuery,
+  ): QueryOptions<RelatedResult<D, A, T, R>>
 }
 
 /** The bound query API: one {@link TypeQueryApi} per wire type (`api.albums.list(...)`). */
@@ -203,7 +243,11 @@ function typeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
   return {
     list: (query) => listQueryOptions(client, type, query),
     get: (id, query) => getQueryOptions(client, type, id, query),
-    relationship: (id, rel, query) => relationshipQueryOptions(client, type, id, rel, query),
-    related: (id, rel, query) => relatedQueryOptions(client, type, id, rel, query),
+    relationship<R extends RelationName<D, T>>(id: string, rel: R, query?: RelationReadQuery) {
+      return relationshipQueryOptions(client, type, id, rel, query)
+    },
+    related<R extends RelationName<D, T>>(id: string, rel: R, query?: RelationReadQuery) {
+      return relatedQueryOptions(client, type, id, rel, query)
+    },
   }
 }
