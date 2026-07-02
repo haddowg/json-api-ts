@@ -1,9 +1,9 @@
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { generate, schemasOutputPath } from './index'
+import { check, generate, schemasOutputPath } from './index'
 
 function fixturePath(name: string): string {
   return fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
@@ -135,6 +135,69 @@ describe('generate', () => {
     expect(warn).toHaveBeenCalledTimes(1)
     expect(warn.mock.calls[0]![0]).toContain('widgets')
     expect(warn.mock.calls[0]![0]).toContain('update')
+  })
+})
+
+describe('check (drift gate)', () => {
+  it('reports up to date when the committed client matches a fresh generation', async () => {
+    const output = join(dir, 'check-ok', 'client.gen.ts')
+    await generate({ input: fixturePath('music-catalog.openapi.json'), output })
+
+    const result = await check({ input: fixturePath('music-catalog.openapi.json'), output })
+    expect(result.ok).toBe(true)
+    expect(result.artifacts).toEqual([{ path: output, upToDate: true }])
+  })
+
+  it('does not write anything in check mode', async () => {
+    const output = join(dir, 'check-nowrite', 'client.gen.ts')
+    // No prior generate: the file does not exist and check must not create it.
+    const result = await check({ input: fixturePath('music-catalog.openapi.json'), output })
+    expect(result.ok).toBe(false)
+    expect(result.artifacts[0]!.upToDate).toBe(false)
+    await expect(access(output)).rejects.toThrow()
+  })
+
+  it('detects drift when the committed client no longer matches the spec', async () => {
+    const output = join(dir, 'check-drift', 'client.gen.ts')
+    await generate({ input: fixturePath('music-catalog.openapi.json'), output })
+    // Tamper with the committed file to simulate drift.
+    await writeFile(output, '// stale\n', 'utf8')
+
+    const result = await check({ input: fixturePath('music-catalog.openapi.json'), output })
+    expect(result.ok).toBe(false)
+    expect(result.artifacts).toEqual([{ path: output, upToDate: false }])
+    // Still no write-back: the tampered content survives (check never repairs).
+    expect(await readFile(output, 'utf8')).toBe('// stale\n')
+  })
+
+  it('checks the schema artifact too when --schemas is set', async () => {
+    const output = join(dir, 'check-schemas', 'client.gen.ts')
+    await generate({
+      input: fixturePath('music-catalog.openapi.json'),
+      output,
+      schemas: fixturePath('music-catalog.schemas.json'),
+    })
+
+    const result = await check({
+      input: fixturePath('music-catalog.openapi.json'),
+      output,
+      schemas: fixturePath('music-catalog.schemas.json'),
+    })
+    expect(result.ok).toBe(true)
+    expect(result.artifacts.map((a) => a.path)).toEqual([output, schemasOutputPath(output)])
+
+    // Drift in the schema artifact alone is caught.
+    await writeFile(schemasOutputPath(output), '// stale\n', 'utf8')
+    const drifted = await check({
+      input: fixturePath('music-catalog.openapi.json'),
+      output,
+      schemas: fixturePath('music-catalog.schemas.json'),
+    })
+    expect(drifted.ok).toBe(false)
+    expect(drifted.artifacts).toEqual([
+      { path: output, upToDate: true },
+      { path: schemasOutputPath(output), upToDate: false },
+    ])
   })
 })
 

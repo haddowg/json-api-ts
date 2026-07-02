@@ -35,6 +35,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Drift gate: regenerate the committed client from the pinned fixture spec and fail if
+      # it differs from what is checked in (the provenance-stamped `--check` mode). Needs the
+      # built codegen CLI (above). Keeps the generated client honest against the wire contract.
+      - name: Codegen drift check
+        run: pnpm codegen:check
+
       # Packaging correctness for the publishable packages: publint validates each
       # package.json (exports/types/files/bin), attw validates types resolution under
       # both module systems. Needs the built dist (above).

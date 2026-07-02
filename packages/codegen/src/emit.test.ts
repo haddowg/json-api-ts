@@ -22,6 +22,15 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('createClient as createClientRuntime')
   })
 
+  it('stamps a provenance record (source spec, server, content hash) in the header', () => {
+    // The fixture's info + first server, plus a stable 16-hex content hash.
+    expect(source).toContain('Source spec: Music Catalog API 1.0.0')
+    expect(source).toContain('Server:      https://music.example')
+    expect(source).toMatch(/Spec hash:   [0-9a-f]{16}/)
+    // Deterministic: same spec -> byte-identical output (drift-check comparability).
+    expect(emit(doc, buildDescriptor(doc))).toBe(source)
+  })
+
   it('emits an enum union alias only for a referenced enum', () => {
     expect(source).toContain('export type AlbumStatus = "upcoming" | "released" | "withdrawn"')
   })

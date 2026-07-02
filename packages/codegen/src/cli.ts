@@ -1,18 +1,23 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url'
-import { generate, type CodegenConfig } from './index'
+import { check, generate, type CodegenConfig } from './index'
 
 export const USAGE =
-  'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>]'
+  'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--check]'
 
 /**
  * Thin CLI wrapper. Real arg parsing + `japi.config.ts` discovery land with the
  * generator itself; this stub establishes the bin entry and the shape of invocation.
+ * `--check` is a boolean flag (drift gate) with no value.
  */
 export function parseArgs(argv: string[]): Partial<CodegenConfig> {
   const config: Partial<CodegenConfig> = {}
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
+    if (arg === '--check') {
+      config.check = true
+      continue
+    }
     const next = argv[i + 1]
     if (next === undefined) {
       continue
@@ -39,6 +44,19 @@ export async function run(argv: string[]): Promise<number> {
   if (!config.input || !config.output) {
     console.error(USAGE)
     return 1
+  }
+  if (config.check) {
+    const result = await check(config as CodegenConfig)
+    for (const { path, upToDate } of result.artifacts) {
+      console.error(`${upToDate ? 'ok  ' : 'DRIFT'} ${path}`)
+    }
+    if (!result.ok) {
+      console.error(
+        'Generated client is out of date with the source spec. Regenerate (drop --check) and commit the result.',
+      )
+      return 1
+    }
+    return 0
   }
   await generate(config as CodegenConfig)
   return 0

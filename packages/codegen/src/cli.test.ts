@@ -34,6 +34,14 @@ describe('parseArgs', () => {
   it('ignores unknown flags and a trailing flag with no value', () => {
     expect(parseArgs(['--bogus', 'x', '--input'])).toEqual({})
   })
+
+  it('parses --check as a valueless boolean flag', () => {
+    expect(parseArgs(['--input', 'a.json', '--output', 'out.ts', '--check'])).toEqual({
+      input: 'a.json',
+      output: 'out.ts',
+      check: true,
+    })
+  })
 })
 
 describe('run', () => {
@@ -69,5 +77,36 @@ describe('run', () => {
     const schemas = await readFile(join(dir, 'with-schemas.schemas.gen.ts'), 'utf8')
     expect(schemas).toContain('export const schemas = {')
     expect(schemas).toContain('"const": "albums"')
+  })
+
+  it('returns 0 in --check mode when the committed client is up to date', async () => {
+    const output = join(dir, 'check-ok.gen.ts')
+    await run(['--input', fixturePath('music-catalog.openapi.json'), '--output', output])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(
+      await run([
+        '--input',
+        fixturePath('music-catalog.openapi.json'),
+        '--output',
+        output,
+        '--check',
+      ]),
+    ).toBe(0)
+  })
+
+  it('returns 1 in --check mode when the committed client has drifted', async () => {
+    const output = join(dir, 'check-drift.gen.ts')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // No prior generation: a missing committed file is drift.
+    expect(
+      await run([
+        '--input',
+        fixturePath('music-catalog.openapi.json'),
+        '--output',
+        output,
+        '--check',
+      ]),
+    ).toBe(1)
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('out of date'))
   })
 })
