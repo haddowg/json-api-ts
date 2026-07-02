@@ -348,6 +348,7 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
   it('captures the includable enum (incl. nested dotted paths) from the read params (albums)', () => {
     expect(descriptor['albums']!.includable).toEqual([
       'artist',
+      'artist.albums',
       'tracks',
       'tracks.album',
       'tracks.playlists',
@@ -368,6 +369,7 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
   it('captures the filterable keys (sorted) from the collection GET (albums)', () => {
     expect(descriptor['albums']!.filterable).toEqual([
       'artist.name',
+      'q',
       'rating',
       'releasedAt',
       'title',
@@ -375,11 +377,18 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
     ])
   })
 
-  it('omits `includable` for a type whose relations are all non-includable (artists)', () => {
-    expect(descriptor['artists']!.includable).toBeUndefined()
-    // ...while its sort/filter capabilities are still captured.
+  it('omits `includable` for a type whose relations are all non-includable (favorites)', () => {
+    // favorites declares `user` and the polymorphic `favoritable`, both cannotBeIncluded,
+    // so no includable path is advertised even though the type has relations.
+    expect(descriptor['favorites']!.includable).toBeUndefined()
+  })
+
+  it('captures the capabilities of a type whose relation became includable (artists)', () => {
+    // artists.albums is includable (and reaches deeper), and the collection GET advertises
+    // its full-text `q` filter alongside `slug`.
+    expect(descriptor['artists']!.includable).toEqual(['albums', 'albums.artist', 'albums.tracks'])
     expect(descriptor['artists']!.sortable).toContain('name')
-    expect(descriptor['artists']!.filterable).toEqual(['slug'])
+    expect(descriptor['artists']!.filterable).toEqual(['q', 'slug'])
   })
 
   it('omits `sortable` and `filterable` when the collection advertises neither (playlists)', () => {

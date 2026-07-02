@@ -87,7 +87,18 @@
                             }
                         }
                     }
-                }
+                },
+                "required": [
+                    "title",
+                    "averageRating",
+                    "artwork",
+                    "releasedAt",
+                    "explicit",
+                    "status",
+                    "availableFrom",
+                    "availableUntil",
+                    "releaseInfo"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -148,7 +159,15 @@
                         "type": "string",
                         "format": "date-time"
                     }
-                }
+                },
+                "required": [
+                    "name",
+                    "slug",
+                    "website",
+                    "bio",
+                    "trackCount",
+                    "createdAt"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -185,7 +204,10 @@
                     "label": {
                         "type": "string"
                     }
-                }
+                },
+                "required": [
+                    "label"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -222,7 +244,10 @@
                         "type": "string",
                         "format": "date-time"
                     }
-                }
+                },
+                "required": [
+                    "favoritedAt"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -259,7 +284,10 @@
                     "name": {
                         "type": "string"
                     }
-                }
+                },
+                "required": [
+                    "name"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -342,7 +370,13 @@
                         ],
                         "format": "uuid"
                     }
-                }
+                },
+                "required": [
+                    "title",
+                    "slug",
+                    "public",
+                    "externalId"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -378,7 +412,10 @@
                     "name": {
                         "type": "string"
                     }
-                }
+                },
+                "required": [
+                    "name"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -414,7 +451,10 @@
                     "displayName": {
                         "type": "string"
                     }
-                }
+                },
+                "required": [
+                    "displayName"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -465,6 +505,7 @@
                         "minItems": 1,
                         "uniqueItems": true,
                         "items": {
+                            "type": "string",
                             "minLength": 1
                         }
                     },
@@ -478,7 +519,16 @@
                     "displayTitle": {
                         "type": "string"
                     }
-                }
+                },
+                "required": [
+                    "title",
+                    "trackNumber",
+                    "durationSeconds",
+                    "explicit",
+                    "genres",
+                    "previewOffset",
+                    "displayTitle"
+                ]
             },
             "relationships": {
                 "type": "object"

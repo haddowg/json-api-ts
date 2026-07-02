@@ -50,7 +50,8 @@ describe('emit (music-catalog default server)', () => {
 
   it('types an array attribute (tracks.genres)', () => {
     expect(source).toContain('export interface TracksAttributes {')
-    expect(source).toContain('genres: unknown[]')
+    // The bundle now declares the list element type, so items are typed (not unknown[]).
+    expect(source).toContain('genres: string[]')
   })
 
   it('emits an empty interface for an attribute-less type (users)', () => {
@@ -150,10 +151,10 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain(
       'albums: { create: AlbumsCreateAttributes; update: AlbumsUpdateAttributes }',
     )
-    expect(source).toContain(
-      '"public-profiles": { create: PublicProfilesCreateAttributes; update: PublicProfilesUpdateAttributes }',
-    )
     // A read-only type contributes no entry to the map (no `<type>: { create:` line).
+    // `public-profiles` is a curated read-only view of a user, so it is omitted too
+    // (the served spec now gates write components on the operation allow-list).
+    expect(source).not.toMatch(/\n {2}"public-profiles": \{ create:/)
     expect(source).not.toMatch(/\n {2}charts: \{ create:/)
     expect(source).not.toMatch(/\n {2}countries: \{ create:/)
     expect(source).not.toMatch(/\n {2}users: \{ create:/)

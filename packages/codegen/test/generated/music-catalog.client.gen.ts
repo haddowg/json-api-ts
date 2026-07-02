@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   40e273dff0411f68
+ * Spec hash:   c73c5d49624ebbe8
  */
 
 import {
@@ -81,7 +81,7 @@ export interface TracksAttributes {
   displayTitle: string
   durationSeconds: number
   explicit: boolean
-  genres: unknown[]
+  genres: string[]
   previewOffset: string | null
   title: string
   trackNumber: number
@@ -176,18 +176,10 @@ export interface ProductsUpdateAttributes {
   name?: string
 }
 
-export interface PublicProfilesCreateAttributes {
-  displayName?: string
-}
-
-export interface PublicProfilesUpdateAttributes {
-  displayName?: string
-}
-
 export interface TracksCreateAttributes {
   durationSeconds?: number
   explicit?: boolean
-  genres?: unknown[]
+  genres?: string[]
   previewOffset?: string | null
   title: string
   trackNumber?: number
@@ -196,7 +188,7 @@ export interface TracksCreateAttributes {
 export interface TracksUpdateAttributes {
   durationSeconds?: number
   explicit?: boolean
-  genres?: unknown[]
+  genres?: string[]
   previewOffset?: string | null
   title?: string
   trackNumber?: number
@@ -227,7 +219,6 @@ export interface WriteAttributes {
   libraries: { create: LibrariesCreateAttributes; update: LibrariesUpdateAttributes }
   playlists: { create: PlaylistsCreateAttributes; update: PlaylistsUpdateAttributes }
   products: { create: ProductsCreateAttributes; update: ProductsUpdateAttributes }
-  "public-profiles": { create: PublicProfilesCreateAttributes; update: PublicProfilesUpdateAttributes }
   tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
@@ -296,6 +287,7 @@ export const resourceMap = {
     },
     includable: [
       "artist",
+      "artist.albums",
       "tracks",
       "tracks.album",
       "tracks.playlists"
@@ -310,6 +302,7 @@ export const resourceMap = {
     ],
     filterable: [
       "artist.name",
+      "q",
       "rating",
       "releasedAt",
       "title",
@@ -380,6 +373,11 @@ export const resourceMap = {
     },
     paginator: "page",
     clientId: "forbidden",
+    includable: [
+      "albums",
+      "albums.artist",
+      "albums.tracks"
+    ],
     sortable: [
       "name",
       "-name",
@@ -389,6 +387,7 @@ export const resourceMap = {
       "-createdAt"
     ],
     filterable: [
+      "q",
       "slug"
     ]
   },
@@ -465,11 +464,7 @@ export const resourceMap = {
       update: "/favorites/{id}"
     },
     paginator: "page",
-    clientId: "forbidden",
-    includable: [
-      "user",
-      "favoritable"
-    ]
+    clientId: "forbidden"
   },
   genres: {
     attributes: {
@@ -526,7 +521,6 @@ export const resourceMap = {
     paginator: "page",
     clientId: "forbidden",
     includable: [
-      "owner",
       "items"
     ]
   },
@@ -619,7 +613,6 @@ export const resourceMap = {
       profile: "https://haddowg.github.io/json-api/profiles/countable/"
     },
     includable: [
-      "owner",
       "publicOwner",
       "tracks",
       "tracks.album",
@@ -738,7 +731,6 @@ export const resourceMap = {
       "album.artist",
       "album.tracks",
       "playlists",
-      "playlists.owner",
       "playlists.publicOwner",
       "playlists.tracks",
       "playlists.orderedTracks"
@@ -752,6 +744,7 @@ export const resourceMap = {
     filterable: [
       "explicit",
       "genres",
+      "q",
       "title"
     ]
   },

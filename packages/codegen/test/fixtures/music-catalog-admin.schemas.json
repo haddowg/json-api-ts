@@ -87,7 +87,18 @@
                             }
                         }
                     }
-                }
+                },
+                "required": [
+                    "title",
+                    "averageRating",
+                    "artwork",
+                    "releasedAt",
+                    "explicit",
+                    "status",
+                    "availableFrom",
+                    "availableUntil",
+                    "releaseInfo"
+                ]
             },
             "relationships": {
                 "type": "object"
@@ -147,7 +158,14 @@
                         ],
                         "format": "ipv4"
                     }
-                }
+                },
+                "required": [
+                    "email",
+                    "displayName",
+                    "birthDate",
+                    "preferences",
+                    "lastSeenIp"
+                ]
             },
             "relationships": {
                 "type": "object"
