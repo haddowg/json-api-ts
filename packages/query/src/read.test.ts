@@ -5,7 +5,7 @@ import {
   type TransportResponse,
 } from '@haddowg/json-api-client'
 import { matchQuery, QueryClient } from '@tanstack/query-core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { keyFor, operationKey, resourceKey, typeKey } from './keys'
 import {
   createQueryApi,
@@ -209,6 +209,21 @@ describe('relationship + related options', () => {
     )
     const related = (await qc.fetchQuery(options)) as { id: string; title: string }[]
     expect(related[0]?.title).toBe('One')
+  })
+
+  it('resolves the precise per-relation result type, not unknown (D34)', () => {
+    const { client } = makeClient({})
+    const related = relatedQueryOptions(client, 'albums', '1', 'tracks')
+    type Related = Awaited<ReturnType<typeof related.queryFn>>
+    // No longer `unknown` — it's the client's own related-collection view (a `tracks` collection).
+    expectTypeOf<Related>().not.toBeUnknown()
+    expectTypeOf<Related>().toMatchTypeOf<ReadonlyArray<unknown>>()
+    expectTypeOf<Related[number]['type']>().toEqualTypeOf<'tracks'>()
+
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    type Linkage = Awaited<ReturnType<typeof linkage.queryFn>>
+    expectTypeOf<Linkage>().not.toBeUnknown()
+    expectTypeOf<Linkage[number]['type']>().toEqualTypeOf<'tracks'>()
   })
 })
 
