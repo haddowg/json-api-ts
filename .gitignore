@@ -11,3 +11,6 @@ coverage/
 .workflows/
 .env
 .env.local
+site/
+__pycache__/
+*.pyc

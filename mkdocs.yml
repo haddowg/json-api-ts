@@ -1,0 +1,97 @@
+site_name: haddowg/json-api-ts
+site_description: A typesafe, JSON:API-flavored TypeScript client generated from the OpenAPI 3.1 spec emitted by haddowg/json-api-symfony.
+site_url: https://haddowg.github.io/json-api-ts/
+repo_url: https://github.com/haddowg/json-api-ts
+repo_name: haddowg/json-api-ts
+edit_uri: edit/main/docs/
+copyright: Released under the MIT Licence.
+
+theme:
+  name: material
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+hooks:
+  - mkdocs_hooks.py
+
+validation:
+  nav:
+    omitted_files: ignore
+  links:
+    anchors: warn
+
+exclude_docs: |
+  PLAN.md
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started.md
+      - concepts.md
+      - architecture.md
+  - Generating the client:
+      - codegen.md
+  - Reading:
+      - reads.md
+      - materialisation.md
+      - filtering-and-sorting.md
+      - includes-and-sparse-fieldsets.md
+      - pagination.md
+  - Writing:
+      - writes.md
+      - relationship-mutation.md
+      - custom-actions.md
+      - atomic-operations.md
+  - Errors & validation:
+      - errors.md
+      - validation.md
+  - TanStack Query:
+      - tanstack-query.md
+  - Examples:
+      - example-app.md

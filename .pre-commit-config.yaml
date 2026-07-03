@@ -13,9 +13,14 @@ repos:
         # Mirror the committable entries of .oxfmtrc.json `ignorePatterns`: oxfmt
         # exits non-zero ("Expected at least one target file") if every path it is
         # handed is ignored, which would fail any commit touching only generated
-        # output, the lockfile, or the raw codegen fixtures. Keep the two in sync.
+        # output, the lockfile, the raw codegen fixtures, or the docs. Keep the two
+        # in sync. docs/ is excluded because MkDocs Material's admonition/collapsible
+        # syntax (indented content under `!!!`/`???` markers) is not CommonMark, and
+        # oxfmt de-indents it — corrupting the rendered site. mkdocs --strict guards
+        # the docs instead (see the mkdocs-build hook below).
         exclude: |
           (?x)^(
+            docs/|
             packages/codegen/test/fixtures/|
             pnpm-lock\.yaml$|
             .*\.gen\.ts$
@@ -42,4 +47,11 @@ repos:
         entry: pnpm typecheck
         language: system
         files: \.(m|c)?tsx?$
+        pass_filenames: false
+
+      - id: mkdocs-build
+        name: mkdocs build (strict)
+        entry: mkdocs build --strict
+        language: system
+        files: ^(docs/.*|mkdocs\.yml|mkdocs_hooks\.py)$
         pass_filenames: false

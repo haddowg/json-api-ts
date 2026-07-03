@@ -11,6 +11,7 @@
     ".turbo",
     "pnpm-lock.yaml",
     "**/*.gen.ts",
-    "packages/codegen/test/fixtures"
+    "packages/codegen/test/fixtures",
+    "docs"
   ]
 }
