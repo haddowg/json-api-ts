@@ -2,6 +2,9 @@
 
 A typesafe, JSON:API-flavored TypeScript client, **generated** from the OpenAPI 3.1 document your API already serves. Point the codegen at your spec, commit the emitted client, and every read and write is typed end to end — `?include` hydrates the requested relations into the result type, sparse `fields` narrow it, and the wire envelope is materialised into clean, flat resource objects.
 
+!!! example "See it running"
+    The [spotify-clone example](example-app.md) is hosted **[live on this site](https://haddowg.github.io/json-api-ts/spotify-clone/)** — a full React + TanStack Query app running backend-free on the generated client's mock transport.
+
 ## Lineage
 
 The OpenAPI document is the contract. The [`haddowg/json-api-symfony`](https://github.com/haddowg/json-api-symfony) bundle emits it (with the per-type JSON Schemas); this repo consumes it — the codegen reads it, and a generic, framework-agnostic runtime is parameterised by it.
