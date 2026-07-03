@@ -1,6 +1,6 @@
 {
   "name": "@haddowg/json-api-client",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Generic, framework-agnostic runtime for a typesafe JSON:API client. Parameterised by a generated descriptor.",
   "license": "MIT",
   "type": "module",
