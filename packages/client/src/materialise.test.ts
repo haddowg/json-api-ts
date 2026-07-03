@@ -7,6 +7,7 @@ import {
   type EdgeEnvelope,
   materialise,
   type MaterialiseContext,
+  relatedPaginatorKind,
   type ResourceEnvelope,
 } from './materialise'
 import type { Document } from './request'
@@ -301,8 +302,9 @@ describe('materialise — navigation seam', () => {
     const navigate = vi.fn(async () => 'PAGE2')
     const arr = asArray<unknown>(materialise(doc, context(navigate)))
     await expect(arr.$next()).resolves.toBe('PAGE2')
-    // A top-level collection re-materialises its next page as resources (linkage=false).
-    expect(navigate).toHaveBeenCalledWith(next, false)
+    // A top-level collection re-materialises its next page as resources (linkage=false), threading
+    // the current page's paginator kind so an empty/divergent next page keeps the discriminant (D6a).
+    expect(navigate).toHaveBeenCalledWith(next, false, 'none')
   })
 })
 
@@ -431,5 +433,60 @@ describe('materialise — per-edge view identity', () => {
     // distinct response => distinct objects, equal by type:id, never by reference
     expect(t0['id']).toBe(standalone[0]!['id'])
     expect(t0).not.toBe(standalone[0])
+  })
+})
+
+describe('materialise — per-relation paginator divergence (D6a)', () => {
+  // A relation whose OWN related endpoint paginates by `cursor` even though the related type's
+  // top-level collection is `page`. The descriptor carries the per-relation kind on the relation.
+  const divergent: ApiDescriptor = {
+    parents: res({
+      attributes: {},
+      relations: {
+        // The related endpoint diverges (cursor) from `children`'s collection (page).
+        children: { cardinality: 'many', types: ['children'], pivot: false, paginator: 'cursor' },
+        // No per-relation kind -> falls back to the related type's collection paginator (page).
+        mirror: { cardinality: 'many', types: ['children'], pivot: false },
+      },
+      paths: {},
+      paginator: 'page',
+      clientId: 'optional',
+    }),
+    children: res({
+      attributes: {},
+      relations: {},
+      paths: {},
+      paginator: 'page',
+      clientId: 'optional',
+    }),
+  }
+  const ctx = (nav: MaterialiseContext['navigate'] = vi.fn(async () => undefined)) => ({
+    descriptor: divergent,
+    navigate: nav,
+  })
+
+  it('relatedPaginatorKind prefers the per-relation kind over the related type default', () => {
+    expect(relatedPaginatorKind(divergent['parents']!.relations['children'], ctx())).toBe('cursor')
+    expect(relatedPaginatorKind(divergent['parents']!.relations['mirror'], ctx())).toBe('page')
+  })
+
+  it('a compound-include to-many array reports the diverging per-relation kind', () => {
+    const doc: Document = {
+      data: {
+        type: 'parents',
+        id: '1',
+        relationships: { children: { data: [{ type: 'children', id: '9' }] } },
+      },
+      included: [{ type: 'children', id: '9', attributes: {} }],
+    }
+    const parent = asResource(materialise(doc, ctx()))
+    expect(asArray<unknown>(parent['children']).$page.kind).toBe('cursor')
+  })
+
+  it('an EMPTY related-collection read reports the threaded per-relation kind (not a sniffed none)', () => {
+    // A related read passes the resolved per-relation paginator as the override so an empty page
+    // (no member to sniff a type from) still reports the relation's real kind.
+    const empty = asArray<unknown>(materialise({ data: [] }, ctx(), false, undefined, 'cursor'))
+    expect(empty.$page.kind).toBe('cursor')
   })
 })

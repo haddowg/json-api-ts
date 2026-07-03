@@ -442,6 +442,10 @@ describe('buildDescriptor (music-catalog admin server)', () => {
       types: ['playlists'],
       pivot: false,
       mutations: { add: true, remove: true, replace: true },
+      // On admin, `playlists` has no top-level collection (paginator `none`), yet `users.playlists`
+      // paginates by page — a genuine per-relation divergence, so the relation carries its OWN
+      // paginator kind (D6a); the client resolves `$page.kind` from it, not the `none` type default.
+      paginator: 'page',
     })
   })
 
@@ -743,5 +747,107 @@ describe('buildDescriptor — cursor paginator detection (D44)', () => {
       },
     }
     expect(buildDescriptor(doc)['widgets']!.paginator).toBe('cursor')
+  })
+})
+
+describe('buildDescriptor — per-relation paginator divergence (D6a)', () => {
+  // `widgets` is cursor-paginated at its top-level collection; `parents.widgets` is a to-many
+  // related endpoint that paginates by PAGE — a divergence. `parents.mirror` is a second to-many
+  // related endpoint that agrees with `widgets` (cursor), and must NOT carry a per-relation kind.
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    paths: {
+      '/widgets': {
+        get: {
+          parameters: [
+            { name: 'page[after]', in: 'query' },
+            { name: 'page[before]', in: 'query' },
+          ],
+          responses: {
+            '200': {
+              content: {
+                'application/vnd.api+json': {
+                  schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/parents': {
+        get: {
+          responses: {
+            '200': {
+              content: {
+                'application/vnd.api+json': {
+                  schema: { $ref: '#/components/schemas/ParentsCollection' },
+                },
+              },
+            },
+          },
+        },
+      },
+      // The related endpoint paginates by PAGE — diverging from widgets' cursor collection.
+      '/parents/{id}/widgets': {
+        get: {
+          parameters: [
+            { name: 'page[number]', in: 'query' },
+            { name: 'page[size]', in: 'query' },
+          ],
+        },
+      },
+      // This related endpoint agrees with widgets' collection (cursor).
+      '/parents/{id}/mirror': {
+        get: {
+          parameters: [
+            { name: 'page[after]', in: 'query' },
+            { name: 'page[before]', in: 'query' },
+          ],
+        },
+      },
+    },
+    components: {
+      schemas: {
+        WidgetsResource: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'widgets' } },
+        },
+        WidgetsCollection: { type: 'object' },
+        ParentsResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'parents' },
+            relationships: {
+              type: 'object',
+              properties: {
+                widgets: { $ref: '#/components/schemas/ParentsWidgetsRelationship' },
+                mirror: { $ref: '#/components/schemas/ParentsWidgetsRelationship' },
+              },
+            },
+          },
+        },
+        ParentsCollection: { type: 'object' },
+        ParentsWidgetsRelationship: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { $ref: '#/components/schemas/WidgetsResource' } },
+          },
+        },
+      },
+    },
+  }
+
+  it('carries a per-relation paginator kind when it diverges from the related type', () => {
+    const built = buildDescriptor(doc)
+    // The related endpoint (page) diverges from the widgets collection (cursor) -> carried.
+    expect(built['parents']!.relations['widgets']?.paginator).toBe('page')
+  })
+
+  it('omits the per-relation paginator when it agrees with the related type', () => {
+    const built = buildDescriptor(doc)
+    // `mirror` is cursor too, matching widgets' collection -> nothing to carry (fallback resolves it).
+    expect(built['parents']!.relations['mirror']?.paginator).toBeUndefined()
+    // The related type itself is cursor.
+    expect(built['widgets']!.paginator).toBe('cursor')
   })
 })

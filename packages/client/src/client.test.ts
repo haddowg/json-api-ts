@@ -376,6 +376,88 @@ describe('createClient — cursor pagination', () => {
   })
 })
 
+describe('createClient — per-relation paginator divergence (D6a)', () => {
+  // `entries` is `page`-paginated at its top-level collection, but `parents.entries`'s OWN related
+  // endpoint is `cursor`-paginated — a divergence the descriptor carries on the relation. The
+  // related read must report the relation's kind, not the related type's collection kind.
+  const divergent = {
+    parents: {
+      attributes: {},
+      relations: {
+        entries: {
+          cardinality: 'many',
+          types: ['entries'],
+          pivot: false,
+          paginator: 'cursor',
+        },
+      },
+      paths: {
+        fetchOne: '/parents/{id}',
+        fetchRelated: '/parents/{id}/{rel}',
+        fetchRelationship: '/parents/{id}/relationships/{rel}',
+      },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+    entries: {
+      attributes: { label: 'string' },
+      relations: {},
+      paths: { fetchMany: '/entries', fetchOne: '/entries/{id}' },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+  } as const satisfies ApiDescriptor
+
+  it('.related() reports the relation cursor kind and $next follows the cursor link', async () => {
+    const page1: TransportResponse = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        data: [{ type: 'entries', id: '1', attributes: { label: 'First' } }],
+        links: {
+          self: `${BASE}/parents/9/entries`,
+          next: `${BASE}/parents/9/entries?page[cursor]=c2`,
+        },
+        jsonapi: { version: '1.1' },
+      }),
+    }
+    const page2: TransportResponse = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        data: [{ type: 'entries', id: '2', attributes: { label: 'Second' } }],
+        links: { self: `${BASE}/parents/9/entries?page[cursor]=c2` },
+        jsonapi: { version: '1.1' },
+      }),
+    }
+    const transport = vi.fn(async (req: TransportRequest) =>
+      req.url.includes('page[cursor]=c2') ? page2 : page1,
+    )
+    const client = createClient(divergent, { baseUrl: BASE, transport })
+
+    const related = asArray(await client.parents.id('9').rel('entries').related())
+    // The relation's own (cursor) kind wins over `entries`' collection (page) kind.
+    expect(related.$page.kind).toBe('cursor')
+
+    // $next re-materialises the next page, keeping the diverging kind (threaded through navigate).
+    const next = asArray(await related.$next())
+    expect(next[0]!['label']).toBe('Second')
+    expect(next.$page.kind).toBe('cursor')
+  })
+
+  it('reports the relation kind on an EMPTY related page (no member to sniff)', async () => {
+    const client = createClient(divergent, {
+      baseUrl: BASE,
+      transport: async () => ({ status: 200, headers: {}, body: JSON.stringify({ data: [] }) }),
+    })
+
+    const related = asArray(await client.parents.id('9').rel('entries').related())
+    expect(related).toHaveLength(0)
+    // Would have degraded to `none` (sniff-from-data[0]) before D6a; now the relation kind holds.
+    expect(related.$page.kind).toBe('cursor')
+  })
+})
+
 describe('createClient — resource reads + hydration', () => {
   it('client.<type>.get(id, {include}) hydrates the included relations', async () => {
     const { transport, requests } = mockTransport({

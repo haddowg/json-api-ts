@@ -1,7 +1,7 @@
 import { type AtomicRecorder, runAtomic } from './atomic'
 import type { ActionDescriptor, ActionScope, ApiDescriptor, AtomicDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
-import { materialise, type MaterialiseContext } from './materialise'
+import { materialise, type MaterialiseContext, relatedPaginatorKind } from './materialise'
 import { execute, type JsonApiContext, type JsonApiRequest, type ReadQuery } from './request'
 import type {
   ActionsAccessor,
@@ -96,9 +96,16 @@ async function run(
   const doc = await execute(ctx.request, req)
   // Pass the statically-known primary type for the top-level collection read so an EMPTY page
   // still reports the collection's real `$page.kind` instead of the sniffed-from-`data[0]` `none`
-  // (D6). A single/related read doesn't need it (no top-level page, or the related type is sniffed).
+  // (D6). A related/relationship read instead threads the RELATION's paginator kind — which may
+  // diverge from the related type's collection (D6a) and which an empty page can't sniff.
   const primaryType = operation === 'fetchMany' ? type : undefined
-  return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage, primaryType)
+  const paginatorOverride =
+    (operation === 'fetchRelated' || operation === 'fetchRelationship') && vars['rel'] !== undefined
+      ? relatedPaginatorKind(ctx.descriptor[type]?.relations[vars['rel']], ctx.materialise)
+      : undefined
+  return doc === undefined
+    ? undefined
+    : materialise(doc, ctx.materialise, linkage, primaryType, paginatorOverride)
 }
 
 /**
@@ -459,9 +466,11 @@ export function createClient<
     descriptor,
     materialise: {
       descriptor,
-      navigate: async (url, linkage = false) => {
+      navigate: async (url, linkage = false, paginator) => {
         const doc = await execute(request, { method: 'GET', path: url })
-        return doc === undefined ? undefined : materialise(doc, ctx.materialise, linkage)
+        return doc === undefined
+          ? undefined
+          : materialise(doc, ctx.materialise, linkage, undefined, paginator)
       },
       ...(validator !== undefined ? { validate: validator } : {}),
     },
