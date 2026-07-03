@@ -8,6 +8,9 @@ on:
       - mkdocs.yml
       - mkdocs_hooks.py
       - .github/workflows/docs.yml
+      - examples/spotify-clone/**
+      - packages/client/**
+      - packages/query/**
   workflow_dispatch:
 
 permissions:
@@ -29,6 +32,19 @@ jobs:
           python-version: '3.x'
       - run: pip install mkdocs-material
       - run: mkdocs build --strict
+
+      # Build the spotify-clone demo (backend-free mock mode) and publish it
+      # alongside the docs at /spotify-clone/. It builds from workspace source
+      # via the example's vite aliases, so no package build is needed first.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @haddowg/json-api-spotify-clone exec vite build --base=/json-api-ts/spotify-clone/
+      - run: mv examples/spotify-clone/dist site/spotify-clone
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
