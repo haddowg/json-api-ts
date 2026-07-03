@@ -53,10 +53,30 @@ function typeKeys(type: string | readonly string[] | undefined): string[] {
 export class DescriptorBuilder {
   private readonly schemas: Record<string, SchemaObject>
   private readonly paths: Record<string, PathItemObject>
+  /** Lazily-built wire-type -> collection-level paginator kind (for per-relation divergence, D6a). */
+  private typePaginators?: Map<string, PaginatorKind>
 
   constructor(private readonly doc: OpenApiDocument) {
     this.schemas = doc.components?.schemas ?? {}
     this.paths = doc.paths ?? {}
+  }
+
+  /**
+   * The collection-level paginator kind for a WIRE type (`tracks`), memoised. Resolves each
+   * resource schema's wire type (its `type.const`) to the paginator of its collection GET — the
+   * baseline a per-relation related-endpoint paginator is compared against (D6a).
+   */
+  private typePaginator(wireType: string): PaginatorKind {
+    if (this.typePaginators === undefined) {
+      this.typePaginators = new Map()
+      for (const [name, schema] of Object.entries(this.schemas)) {
+        const type = this.resourceType(name, schema)
+        if (type !== undefined) {
+          this.typePaginators.set(type, this.paginator(name.slice(0, -'Resource'.length)))
+        }
+      }
+    }
+    return this.typePaginators.get(wireType) ?? 'none'
   }
 
   build(): ApiDescriptor {
@@ -270,6 +290,21 @@ export class DescriptorBuilder {
       withCountParam(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
     if (countable !== undefined) {
       out.countable = countable
+    }
+    // A to-many related endpoint can advertise a DIFFERENT paginator than the related type's
+    // top-level collection (D6a). Read the related-endpoint kind (preferring the related over the
+    // relationship endpoint) and carry it ONLY when it diverges from the related type's collection
+    // paginator — the client falls back to that type's paginator otherwise, so parity stays silent.
+    if (descriptor.cardinality === 'many') {
+      const relatedKind =
+        this.paginatorKindOf(relatedGet) === 'none'
+          ? this.paginatorKindOf(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
+          : this.paginatorKindOf(relatedGet)
+      const relatedType = descriptor.types[0]
+      const typeKind = relatedType !== undefined ? this.typePaginator(relatedType) : 'none'
+      if (relatedKind !== 'none' && relatedKind !== typeKind) {
+        out.paginator = relatedKind
+      }
     }
     return out
   }
@@ -620,9 +655,17 @@ export class DescriptorBuilder {
   /** Detect the paginator kind from the fetchMany operation's query parameter names. */
   private paginator(base: string): PaginatorKind {
     const collection = this.collectionPath(base)
-    const names = collection
-      ? this.queryParamNames(this.operation(collection, 'get'))
-      : new Set<string>()
+    return this.paginatorKindOf(this.operation(collection ?? '', 'get'), collection)
+  }
+
+  /**
+   * Detect the paginator kind an operation advertises from its `page[...]` query parameter names.
+   * `page[number]`+`page[size]` = `page`; `page[offset]`+`page[limit]` = `offset`; either cursor
+   * bound (`page[after]`/`page[before]`) = `cursor` (link-driven, D44); anything else = `none`.
+   * `label` (a path, for the drift warning) names the endpoint when page params match no known kind.
+   */
+  private paginatorKindOf(op: OperationObject | undefined, label?: string): PaginatorKind {
+    const names = this.queryParamNames(op)
     if (names.has('page[number]') && names.has('page[size]')) {
       return 'page'
     }
@@ -636,10 +679,10 @@ export class DescriptorBuilder {
     }
     // Page params present but matching no known kind = a drift the client would silently treat
     // as unpaginated (losing $page/$next); warn rather than swallow it (D28).
-    if (collection !== undefined && [...names].some((name) => name.startsWith('page['))) {
+    if (label !== undefined && [...names].some((name) => name.startsWith('page['))) {
       // eslint-disable-next-line no-console
       console.warn(
-        `json-api codegen: collection "${collection}" advertises page parameters matching no known paginator kind; treating it as unpaginated.`,
+        `json-api codegen: endpoint "${label}" advertises page parameters matching no known paginator kind; treating it as unpaginated.`,
       )
     }
     return 'none'

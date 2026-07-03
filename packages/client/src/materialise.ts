@@ -68,9 +68,11 @@ export interface MaterialiseContext {
   /**
    * Re-fetch + re-materialise a link (wired in Build 4); returns the materialised value.
    * `linkage` propagates the originating surface so a paginated relationship-endpoint
-   * array re-materialises as identifiers (not resources) on `$next()`/`$prev()`.
+   * array re-materialises as identifiers (not resources) on `$next()`/`$prev()`. `paginator`
+   * carries the current page's kind so the re-materialised page reports the same `$page.kind`
+   * (a divergent per-relation paginator, or an EMPTY next page that carries no member to sniff).
    */
-  navigate: (url: string, linkage?: boolean) => Promise<unknown>
+  navigate: (url: string, linkage?: boolean, paginator?: PaginatorKind) => Promise<unknown>
   /**
    * The opt-in per-resource validator (ADR 0004), resolved from `ClientOptions.validate`. When
    * present, every wire resource in `data`/`included` is validated against its per-type schema
@@ -124,12 +126,18 @@ const defineGetter = (target: object, key: string, get: () => unknown): void => 
  * resource-identifier linkage) from a resource/collection response (primary `data` is a
  * full resource) — a structural guess can't tell them apart for an attribute-less,
  * relation-less resource, so the caller passes the surface it issued.
+ *
+ * `paginatorOverride` sets the top-level array's `$page.kind` for a related/relationship read,
+ * where the paginator is the RELATION's (which may diverge from the related type's collection —
+ * D6a) and an empty page carries no member to sniff a type from. `primaryType` is preferred for a
+ * top-level collection read (statically-known); both override the sniff-from-`data[0]` fallback.
  */
 export function materialise(
   doc: Document,
   ctx: MaterialiseContext,
   linkage = false,
   primaryType?: string,
+  paginatorOverride?: PaginatorKind,
 ): unknown {
   // Always-on light structural guards: prove the envelope invariant the runtime relies on (a
   // JSON:API document; each data/included member carries type+id). Then, only when configured,
@@ -160,7 +168,7 @@ export function materialise(
     const members = linkage
       ? raws.map((raw) => buildIdentifierView(raw))
       : raws.map((raw) => buildEdgeView(build(raw), raw))
-    return augmentArray(members, doc, ctx, linkage, primaryType)
+    return augmentArray(members, doc, ctx, linkage, primaryType, paginatorOverride)
   }
 
   if (isObject(data)) {
@@ -425,12 +433,14 @@ function augmentArray(
   ctx: MaterialiseContext,
   linkage: boolean,
   primaryType?: string,
+  paginatorOverride?: PaginatorKind,
 ): object[] {
   const arr = [...members]
   const links = doc.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => doc.meta)
-  attachPage(arr, paginatorKind(doc, ctx, primaryType), pageMeta(doc.meta), links, ctx, linkage)
+  const kind = paginatorOverride ?? paginatorKind(doc, ctx, primaryType)
+  attachPage(arr, kind, pageMeta(doc.meta), links, ctx, linkage)
   return arr
 }
 
@@ -466,16 +476,17 @@ function attachPage(
   const page: Page = { kind, links: pageLinks(links) }
   if (meta !== undefined) page.meta = meta
   defineGetter(arr, '$page', () => page)
-  define(arr, '$next', () => navigateLink(page.links.next, ctx, linkage))
-  define(arr, '$prev', () => navigateLink(page.links.prev, ctx, linkage))
+  define(arr, '$next', () => navigateLink(page.links.next, ctx, linkage, kind))
+  define(arr, '$prev', () => navigateLink(page.links.prev, ctx, linkage, kind))
 }
 
 const navigateLink = (
   link: string | undefined,
   ctx: MaterialiseContext,
   linkage: boolean,
+  paginator: PaginatorKind,
 ): Promise<unknown> =>
-  link === undefined ? Promise.resolve(undefined) : ctx.navigate(link, linkage)
+  link === undefined ? Promise.resolve(undefined) : ctx.navigate(link, linkage, paginator)
 
 /** Extract the navigation links (a link may be a string or a `{href}` object). */
 function pageLinks(links: Record<string, unknown> | undefined): Page['links'] {
@@ -516,15 +527,19 @@ function paginatorKind(
 }
 
 /**
- * A to-many relation's paginator kind: the related type's own paginator (the relationship
- * and related endpoints both paginate that type), so the discriminant is identical across the
- * three surfaces. A polymorphic relation resolves off its first declared related type (its
- * members span types, matching the relationship endpoint's first-member resolution).
+ * A to-many relation's paginator kind. The relation's OWN related/relationship endpoint may
+ * paginate differently than the related type's top-level collection (D6a), so prefer the
+ * per-relation `paginator` (carried in the descriptor only when it diverges); otherwise fall back
+ * to the related type's own paginator (the relationship and related endpoints both paginate that
+ * type), so the discriminant is identical across the three surfaces. A polymorphic relation
+ * resolves off its first declared related type (its members span types, matching the relationship
+ * endpoint's first-member resolution).
  */
-function relatedPaginatorKind(
+export function relatedPaginatorKind(
   relation: RelationDescriptor | undefined,
   ctx: MaterialiseContext,
 ): PaginatorKind {
+  if (relation?.paginator !== undefined) return relation.paginator
   const relatedType = relation?.types[0]
   if (relatedType === undefined) return 'none'
   return ctx.descriptor[relatedType]?.paginator ?? 'none'

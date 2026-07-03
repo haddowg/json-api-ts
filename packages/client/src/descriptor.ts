@@ -64,6 +64,16 @@ export interface RelationDescriptor {
    * profile (D3).
    */
   countable?: CountableDescriptor
+  /**
+   * The paginator kind this relation's OWN related/relationship endpoints advertise
+   * (`GET /{type}/{id}/{rel}` / `.../relationships/{rel}`), when it DIVERGES from the related
+   * type's collection-level {@link ResourceDescriptor.paginator}. A related endpoint may paginate
+   * differently than the related type's own collection (e.g. a cursor-paginated related to-many
+   * whose target type is page-paginated at its top-level collection) — so the client resolves a
+   * related/embedded to-many array's `$page.kind` from this per-relation value first, falling back
+   * to the related type's collection paginator (D6a). Absent when the two agree (the common case).
+   */
+  paginator?: PaginatorKind
 }
 
 export type PaginatorKind = 'page' | 'offset' | 'cursor' | 'none'
