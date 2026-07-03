@@ -443,3 +443,39 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---- small screens: the sidebar collapses into a horizontal nav bar ---- */
+
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+
+  .sidebar__brand {
+    padding: 0 10px 0 0;
+    font-size: 17px;
+  }
+
+  .sidebar__dot {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-link {
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .main {
+    padding: 20px 16px 48px;
+  }
+}
