@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { keyFor, normalizeParams, operationKey, resourceKey, typeKey } from './keys'
+import {
+  keyFor,
+  keyHasPrefix,
+  normalizeParams,
+  operationKey,
+  relationReadKeys,
+  resourceKey,
+  typeKey,
+} from './keys'
 
 describe('normalizeParams', () => {
   it('sorts object keys recursively so authoring order is irrelevant', () => {
@@ -89,5 +97,51 @@ describe('hierarchical prefixes', () => {
     const prefix = resourceKey('albums', '1')
     const full = keyFor({ type: 'albums', operation: 'fetchOne', id: '1' }, { include: ['artist'] })
     expect(full.slice(0, prefix.length)).toEqual(prefix)
+  })
+})
+
+describe('relationReadKeys / keyHasPrefix (D35b)', () => {
+  it('returns BOTH the related and relationship prefixes for a (parent, relation)', () => {
+    expect(relationReadKeys('playlists', '1', 'tracks')).toEqual([
+      ['playlists', 'fetchRelated', '1', 'tracks'],
+      ['playlists', 'fetchRelationship', '1', 'tracks'],
+    ])
+  })
+
+  it('each prefix matches its read key across ALL page/param variants', () => {
+    const [related, relationship] = relationReadKeys('playlists', '1', 'tracks')
+    const relatedPage1 = keyFor(
+      { type: 'playlists', operation: 'fetchRelated', id: '1', rel: 'tracks' },
+      { page: { size: 50 } },
+    )
+    const relatedPage2 = keyFor(
+      { type: 'playlists', operation: 'fetchRelated', id: '1', rel: 'tracks' },
+      { page: { number: 2, size: 10 } },
+    )
+    const linkage = keyFor({
+      type: 'playlists',
+      operation: 'fetchRelationship',
+      id: '1',
+      rel: 'tracks',
+    })
+    // The related prefix covers every page variant of the related read...
+    expect(keyHasPrefix(relatedPage1, related)).toBe(true)
+    expect(keyHasPrefix(relatedPage2, related)).toBe(true)
+    // ...and the relationship prefix covers the linkage read.
+    expect(keyHasPrefix(linkage, relationship)).toBe(true)
+    // Cross-surface / cross-relation keys do not match.
+    expect(keyHasPrefix(relatedPage1, relationship)).toBe(false)
+    expect(
+      keyHasPrefix(
+        keyFor({ type: 'playlists', operation: 'fetchRelated', id: '1', rel: 'owner' }),
+        related,
+      ),
+    ).toBe(false)
+  })
+
+  it('keyHasPrefix rejects a key shorter than the prefix', () => {
+    expect(
+      keyHasPrefix(['playlists', 'fetchRelated'], ['playlists', 'fetchRelated', '1', 'tracks']),
+    ).toBe(false)
   })
 })

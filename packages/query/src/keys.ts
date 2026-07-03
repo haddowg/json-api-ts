@@ -151,3 +151,41 @@ export function relationKey(
 ): readonly [string, string, string, string] {
   return [type, operation, id, rel]
 }
+
+/**
+ * BOTH read prefixes for one parent's one relation — its related-collection reads
+ * (`[type, 'fetchRelated', id, rel]`) AND its relationship-linkage reads
+ * (`[type, 'fetchRelationship', id, rel]`). A relation is read over two surfaces, so a single
+ * prefix can't cover both; this returns the pair so an app targets every cached page of a
+ * `(parent, relation)` — for invalidation or an optimistic membership patch — WITHOUT
+ * reconstructing keys (or coupling to the page params a read used). PUBLIC: it is the key helper
+ * the relationship-mutation optimistic path and apps share (D35b).
+ */
+export function relationReadKeys(
+  type: string,
+  id: string,
+  rel: string,
+): readonly [readonly [string, string, string, string], readonly [string, string, string, string]] {
+  return [
+    relationKey(type, 'fetchRelated', id, rel),
+    relationKey(type, 'fetchRelationship', id, rel),
+  ]
+}
+
+/**
+ * True when `key` is prefixed by `prefix` (segment-by-segment string equality over the prefix's
+ * length). The cache-walking optimistic/invalidation paths use it to find every page variant of a
+ * `(parent, relation)` read (whose params ride the key's trailing segment). Mirrors TanStack's own
+ * prefix-based `queryKey` matching so a targeted patch and TanStack's `invalidateQueries` agree.
+ */
+export function keyHasPrefix(key: QueryKey, prefix: QueryKey): boolean {
+  if (key.length < prefix.length) {
+    return false
+  }
+  for (let i = 0; i < prefix.length; i++) {
+    if (key[i] !== prefix[i]) {
+      return false
+    }
+  }
+  return true
+}

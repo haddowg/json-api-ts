@@ -40,7 +40,15 @@ import type {
 } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
 import { operationKey, relationKey, resourceKey } from './keys'
-import { applyOptimisticPatch, normalize, type Snapshot } from './normalize'
+import {
+  applyOptimisticMembership,
+  applyOptimisticPatch,
+  applyOptimisticToOne,
+  type MembershipRef,
+  normalize,
+  sameRef,
+  type Snapshot,
+} from './normalize'
 
 /**
  * A TanStack-compatible mutation-options object: the async `mutationFn` plus the lifecycle
@@ -263,12 +271,79 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
 
 // ── Relationship mutations ──────────────────────────────────────────────────────────────────
 
+/** Options for a relationship mutation: opt into an optimistic membership/linkage patch (default off). */
+export interface RelationshipMutationOpts {
+  /**
+   * Apply the membership change to the parent's cached related/relationship reads immediately
+   * (by key prefix — every page variant), snapshotting for automatic rollback on error. The factory
+   * still invalidates the relation subtree on settle so the server reconciles. Default off (a plain
+   * invalidate-on-settle). An optimistic `add` appends bare identifier members (`{type,id}` + any
+   * `$pivot` on the ref) — the settle refetch replaces them with the fully-hydrated resources.
+   */
+  optimistic?: boolean
+}
+
+/** True when `opts` requests the optimistic membership patch. */
+const isOptimistic = (opts?: RelationshipMutationOpts): boolean => opts?.optimistic === true
+
+/**
+ * Coerce a linkage ref (`{type,id}` / `{type,lid}` / a resource view, optionally `$pivot`) to a
+ * membership ref for the optimistic array patch. The whole ref is preserved (so a hydrated member
+ * carrying attributes yields a rich optimistic row), requiring only a string `type`+`id`. A ref
+ * addressed only by `lid` (an atomic handle) has no cache identity, so it is dropped from the
+ * optimistic view (it still writes on the wire).
+ */
+function toMembershipRef(ref: LinkageRef<string>): MembershipRef | undefined {
+  const r = ref as { type?: unknown; id?: unknown }
+  if (typeof r.type !== 'string' || typeof r.id !== 'string') {
+    return undefined
+  }
+  return { ...(ref as Record<string, unknown>), type: r.type, id: r.id }
+}
+
+/** The membership refs (cache-addressable) of a to-many mutation's variables. */
+const membershipRefs = (refs: readonly LinkageRef<string>[]): MembershipRef[] =>
+  refs.map(toMembershipRef).filter((r): r is MembershipRef => r !== undefined)
+
+/**
+ * Wire the optimistic membership lifecycle onto a to-many relationship mutation: `onMutate` applies
+ * `transform` to the parent's cached related/relationship arrays (snapshotting), `onError` rolls
+ * back, `onSettled` invalidates the relation subtree (kept from the base). When not optimistic, the
+ * base (invalidate-on-settle only) is returned untouched.
+ */
+function withMembershipOptimism<TVars extends readonly LinkageRef<string>[]>(
+  queryClient: QueryClient,
+  type: string,
+  id: string,
+  rel: string,
+  base: MutationOptions<unknown, TVars, MutationContext>,
+  transform: (current: readonly MembershipRef[], vars: TVars) => readonly MembershipRef[],
+  optimistic: boolean,
+): MutationOptions<unknown, TVars, MutationContext> {
+  if (!optimistic) {
+    return base
+  }
+  return {
+    ...base,
+    onMutate: (vars) => ({
+      snapshot: applyOptimisticMembership(queryClient, type, id, rel, (current) =>
+        transform(current, vars),
+      ),
+    }),
+    onError: (_error, _vars, context) => {
+      context?.snapshot.restore()
+    },
+  }
+}
+
 /**
  * A to-one relationship `set` (`PATCH …/relationships/{rel}` with a single ref or `null`):
  * `mutationFn` runs `client.<type>.id(id).rel(rel).set(ref)`. A `set` changes which resource the
  * to-one points at — linkage, not collection membership and not a node attribute — so on settle
  * we invalidate the PARENT's relations subtree (its `fetchRelationship`/`fetchRelated`/included
- * reads refetch). The mutation response (linkage) is also normalized on success.
+ * reads refetch). The mutation response (linkage) is also normalized on success. When optimistic,
+ * `onMutate` swaps the parent's cached relationship/related reads to the new single value (or `null`)
+ * and rolls back on error.
  */
 export function setRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -282,14 +357,30 @@ export function setRelationshipMutationOptions<
   type: T,
   id: string,
   rel: RelationName<D, T>,
-): MutationOptions<unknown, LinkageRef<string> | null> {
+  opts?: RelationshipMutationOpts,
+): MutationOptions<unknown, LinkageRef<string> | null, MutationContext> {
   const accessor = client[type]
-  return {
+  const base: MutationOptions<unknown, LinkageRef<string> | null, MutationContext> = {
     mutationFn: (ref) => accessor.id(id).rel(rel).set(ref),
     onSuccess: (data) => {
       normalize(queryClient, data, descriptor)
     },
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
+  }
+  if (!isOptimistic(opts)) {
+    return base
+  }
+  return {
+    ...base,
+    onMutate: (ref) => {
+      const next = ref === null ? undefined : toMembershipRef(ref)
+      return {
+        snapshot: applyOptimisticToOne(queryClient, type, id, rel, ref === null ? null : next),
+      }
+    },
+    onError: (_error, _ref, context) => {
+      context?.snapshot.restore()
+    },
   }
 }
 
@@ -297,7 +388,8 @@ export function setRelationshipMutationOptions<
  * A to-many relationship `replace` (`PATCH …/relationships/{rel}` with the full new set):
  * `mutationFn` runs `client.<type>.id(id).rel(rel).replace(refs)`. A full replacement resets the
  * relation's membership, so on settle the parent's relations subtree is invalidated. The
- * mutation response (the new linkage) is normalized on success.
+ * mutation response (the new linkage) is normalized on success. When optimistic, the cached
+ * membership is swapped to `refs` and rolled back on error.
  */
 export function replaceRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -311,21 +403,34 @@ export function replaceRelationshipMutationOptions<
   type: T,
   id: string,
   rel: RelationName<D, T>,
-): MutationOptions<unknown, readonly LinkageRef<string>[]> {
+  opts?: RelationshipMutationOpts,
+): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
   const accessor = client[type]
-  return {
+  const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
     mutationFn: (refs) => accessor.id(id).rel(rel).replace(refs),
     onSuccess: (data) => {
       normalize(queryClient, data, descriptor)
     },
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
+  // Replace: the optimistic set IS the new refs (order preserved), regardless of the current members.
+  return withMembershipOptimism(
+    queryClient,
+    type,
+    id,
+    rel,
+    base,
+    (_current, refs) => membershipRefs(refs),
+    isOptimistic(opts),
+  )
 }
 
 /**
  * A to-many relationship `add` (`POST …/relationships/{rel}`): `mutationFn` runs
  * `client.<type>.id(id).rel(rel).add(refs)`. Adding changes the relation's membership, so on
  * settle the parent's relations subtree is invalidated (a patch can't insert linkage members).
+ * When optimistic, the added refs are appended to the cached membership (deduplicated by `type:id`)
+ * and rolled back on error.
  */
 export function addRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -338,18 +443,34 @@ export function addRelationshipMutationOptions<
   type: T,
   id: string,
   rel: RelationName<D, T>,
-): MutationOptions<unknown, readonly LinkageRef<string>[]> {
+  opts?: RelationshipMutationOpts,
+): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
   const accessor = client[type]
-  return {
+  const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
     mutationFn: (refs) => accessor.id(id).rel(rel).add(refs),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
+  return withMembershipOptimism(
+    queryClient,
+    type,
+    id,
+    rel,
+    base,
+    (current, refs) => {
+      const added = membershipRefs(refs)
+      // Append the added refs, skipping any already present (an add is idempotent on membership).
+      const kept = current.filter((m) => !added.some((a) => sameRef(a, m)))
+      return [...kept, ...added]
+    },
+    isOptimistic(opts),
+  )
 }
 
 /**
  * A to-many relationship `remove` (`DELETE …/relationships/{rel}`): `mutationFn` runs
  * `client.<type>.id(id).rel(rel).remove(refs)`. Removing changes the relation's membership, so on
- * settle the parent's relations subtree is invalidated.
+ * settle the parent's relations subtree is invalidated. When optimistic, the removed refs are
+ * dropped from the cached membership and rolled back on error.
  */
 export function removeRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -362,12 +483,25 @@ export function removeRelationshipMutationOptions<
   type: T,
   id: string,
   rel: RelationName<D, T>,
-): MutationOptions<unknown, readonly LinkageRef<string>[]> {
+  opts?: RelationshipMutationOpts,
+): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
   const accessor = client[type]
-  return {
+  const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
     mutationFn: (refs) => accessor.id(id).rel(rel).remove(refs),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
+  return withMembershipOptimism(
+    queryClient,
+    type,
+    id,
+    rel,
+    base,
+    (current, refs) => {
+      const removed = membershipRefs(refs)
+      return current.filter((m) => !removed.some((r) => sameRef(r, m)))
+    },
+    isOptimistic(opts),
+  )
 }
 
 // ── Atomic (a thin passthrough) ─────────────────────────────────────────────────────────────
@@ -442,13 +576,22 @@ export type UpdateMutationOpts<
  * The relationship-mutation option factories for one relation (`api.<type>.id(id).rel(rel).add(...)`).
  * Refs are typed loosely (`LinkageRef<string>`) at the `.rel(name)` boundary — parity with the
  * read API, whose per-relation value is also loose there (the related type isn't recoverable from
- * the relation name alone in the bound surface).
+ * the relation name alone in the bound surface). Each accepts an optional
+ * {@link RelationshipMutationOpts} to opt into the optimistic membership/linkage patch.
  */
 export interface RelationMutationApi {
-  add(): MutationOptions<unknown, readonly LinkageRef<string>[]>
-  remove(): MutationOptions<unknown, readonly LinkageRef<string>[]>
-  replace(): MutationOptions<unknown, readonly LinkageRef<string>[]>
-  set(): MutationOptions<unknown, LinkageRef<string> | null>
+  add(
+    opts?: RelationshipMutationOpts,
+  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
+  remove(
+    opts?: RelationshipMutationOpts,
+  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
+  replace(
+    opts?: RelationshipMutationOpts,
+  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
+  set(
+    opts?: RelationshipMutationOpts,
+  ): MutationOptions<unknown, LinkageRef<string> | null, MutationContext>
 }
 
 /** The id-scoped mutation option factories (`api.<type>.id(id).update(...)` etc.). */
@@ -514,11 +657,13 @@ function typeMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
       update: (opts) => updateMutationOptions(queryClient, client, descriptor, type, id, opts),
       delete: () => deleteMutationOptions(queryClient, client, type, id),
       rel: (name) => ({
-        add: () => addRelationshipMutationOptions(queryClient, client, type, id, name),
-        remove: () => removeRelationshipMutationOptions(queryClient, client, type, id, name),
-        replace: () =>
-          replaceRelationshipMutationOptions(queryClient, client, descriptor, type, id, name),
-        set: () => setRelationshipMutationOptions(queryClient, client, descriptor, type, id, name),
+        add: (opts) => addRelationshipMutationOptions(queryClient, client, type, id, name, opts),
+        remove: (opts) =>
+          removeRelationshipMutationOptions(queryClient, client, type, id, name, opts),
+        replace: (opts) =>
+          replaceRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
+        set: (opts) =>
+          setRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
       }),
     }),
   }

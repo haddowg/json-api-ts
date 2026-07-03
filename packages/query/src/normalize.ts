@@ -21,6 +21,7 @@
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
+import { keyHasPrefix, type QueryKey, relationReadKeys } from './keys'
 
 /** A `type:id` cache key for a resource. */
 type ResourceKey = string
@@ -361,6 +362,125 @@ export function applyOptimisticPatch(
             delete edit.target[k]
           }
         }
+      }
+    },
+  }
+}
+
+// ── Optimistic relationship membership (by key prefix, with rollback) — ./mutate.ts ──────────
+
+/**
+ * A to-many array member for the optimistic patch: at minimum a linkage identifier (`type`+`id`,
+ * optional `$pivot`), but any extra own props are preserved — so a caller who passes a fully
+ * hydrated member (a resource view carrying attributes) gets a rich optimistic row, while a bare
+ * `{type,id}` identifier is equally valid. Membership identity is by `type:id` alone (`sameRef`).
+ */
+export interface MembershipRef {
+  type: string
+  id: string
+  $pivot?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+/**
+ * A membership transform over the CURRENT members of a cached related/relationship read: given the
+ * present members (each an identifier `{type,id}` or a hydrated resource view — both expose
+ * `type`/`id`), return the optimistic next members. The relationship-mutation factories build one
+ * per verb (append the added refs, drop the removed ones, or swap in the replacement set).
+ */
+export type MembershipTransform = (members: readonly MembershipRef[]) => readonly MembershipRef[]
+
+/**
+ * Apply an OPTIMISTIC membership change to EVERY cached read of one parent's one relation — both its
+ * related-collection (`fetchRelated`) and its relationship-linkage (`fetchRelationship`) reads,
+ * matched BY KEY PREFIX so every page/param variant is covered at once (no coupling to the page
+ * params a read used — the pain point D35b removes). The to-many read caches an array of members, so
+ * the transform runs over that array; the snapshot restores each touched query's PRIOR data
+ * wholesale on error. On settle the factory invalidates the relation subtree, so the server
+ * reconciles regardless (a degraded optimistic member — an identifier without attributes — is
+ * replaced by the real one). A to-one `set` is handled separately (it caches a single value, not an
+ * array).
+ */
+export function applyOptimisticMembership(
+  queryClient: QueryClient,
+  type: string,
+  id: string,
+  rel: string,
+  transform: MembershipTransform,
+): Snapshot {
+  const prefixes = relationReadKeys(type, id, rel)
+  const edits: { key: QueryKey; previous: unknown }[] = []
+
+  for (const query of queryClient.getQueryCache().getAll()) {
+    const key = query.queryKey as QueryKey
+    if (!prefixes.some((prefix) => keyHasPrefix(key, prefix))) {
+      continue
+    }
+    const data = query.state.data
+    if (!Array.isArray(data)) {
+      // Only a to-many read caches an array; skip anything else (e.g. an in-flight/empty entry).
+      continue
+    }
+    edits.push({ key, previous: data })
+    // Set a fresh array (the augmented `$page`/`$links` accessors are dropped until the settle
+    // refetch reconciles — the same trade-off a hand-rolled `setQueryData(next)` makes; the UI
+    // renders the members immediately and the real page envelope returns on reconcile).
+    queryClient.setQueryData(key, transform(data as readonly MembershipRef[]))
+  }
+
+  return {
+    restore() {
+      for (const edit of edits) {
+        queryClient.setQueryData(edit.key, edit.previous)
+      }
+    },
+  }
+}
+
+/** True when two refs address the same resource (`type:id`). Ignores `$pivot`/attributes. */
+export function sameRef(a: MembershipRef, b: MembershipRef): boolean {
+  return a.type === b.type && a.id === b.id
+}
+
+/**
+ * Apply an OPTIMISTIC to-one `set` to every cached relationship/related read of one parent's one
+ * relation (by key prefix): swap each cached value to `next` (a bare identifier ref, or `null` to
+ * clear), snapshotting the prior value for rollback. A to-one read caches a single value (not an
+ * array), so a plain replacement is correct; the settle refetch reconciles a bare identifier into
+ * the fully-hydrated resource. `undefined` next means the ref carried no cache identity (an
+ * lid-only atomic handle) — the cache is left untouched (the wire write still happens).
+ */
+export function applyOptimisticToOne(
+  queryClient: QueryClient,
+  type: string,
+  id: string,
+  rel: string,
+  next: MembershipRef | null | undefined,
+): Snapshot {
+  const prefixes = relationReadKeys(type, id, rel)
+  const edits: { key: QueryKey; previous: unknown }[] = []
+  if (next === undefined) {
+    return { restore() {} }
+  }
+
+  for (const query of queryClient.getQueryCache().getAll()) {
+    const key = query.queryKey as QueryKey
+    if (!prefixes.some((prefix) => keyHasPrefix(key, prefix))) {
+      continue
+    }
+    const data = query.state.data
+    // A to-one read caches a single value or null (an array would be a to-many — skip it).
+    if (Array.isArray(data)) {
+      continue
+    }
+    edits.push({ key, previous: data })
+    queryClient.setQueryData(key, next)
+  }
+
+  return {
+    restore() {
+      for (const edit of edits) {
+        queryClient.setQueryData(edit.key, edit.previous)
       }
     },
   }

@@ -31,6 +31,14 @@
  * updates (`{ optimistic: true }` on `update`) pre-apply the patch's attributes through the
  * normalized patch and roll back on error (compare-and-swap, so a concurrent optimistic patch on
  * the same resource is not stomped by an earlier one's rollback).
+ *
+ * Optimistic RELATIONSHIP membership (D35b): `{ optimistic: true }` on a relationship
+ * `add`/`remove`/`replace`/`set` pre-applies the membership/linkage change to the parent's cached
+ * related + relationship reads BY KEY PREFIX — covering every page/param variant at once (no
+ * coupling to the params a page read with) — snapshots them, and rolls back on error; the settle
+ * invalidation still reconciles against the server. The public key helper `relationReadKeys(type,
+ * id, rel)` (both `(parent, relation)` prefixes) lets an app target those caches without
+ * reconstructing keys by hand.
  */
 export * from './install'
 export * from './keys'

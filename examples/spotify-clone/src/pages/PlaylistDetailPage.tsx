@@ -4,12 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { PAGE_SIZE, reads, writes } from '../api/client'
-import {
-  addTrackMutation,
-  orderedRefs,
-  removeTrackMutation,
-  reorderTracksMutation,
-} from '../api/playlist-tracks'
+import { orderedRefs, type OrderedTrackLike, trackRef } from '../api/playlist-tracks'
 import { GradientArt } from '../components/GradientArt'
 import { QueryState } from '../components/QueryState'
 import { TrackPicker } from '../components/TrackPicker'
@@ -40,10 +35,15 @@ export function PlaylistDetailPage() {
   const tracks = tracksQuery.data as Collection<OrderedTrack> | undefined
   const ordered: OrderedTrack[] = tracks ? [...tracks] : []
 
+  // Every relationship mutation is optimistic via the library's `{ optimistic: true }` — it patches
+  // the parent's cached related/relationship reads by key prefix (every page variant), snapshots,
+  // and rolls back on error, with the settle refetch reconciling. The app only shapes the refs
+  // (the pivot position); no hand-rolled onMutate/onError/snapshot/key reconstruction.
+  const relTracks = writes.playlists.id(id).rel('orderedTracks')
   const rename = useMutation(writes.playlists.id(id).update({ optimistic: true }))
-  const add = useMutation(addTrackMutation(id))
-  const remove = useMutation(removeTrackMutation(id))
-  const reorder = useMutation(reorderTracksMutation(id))
+  const add = useMutation(relTracks.add({ optimistic: true }))
+  const remove = useMutation(relTracks.remove({ optimistic: true }))
+  const reorder = useMutation(relTracks.replace({ optimistic: true }))
   const busy = remove.isPending || reorder.isPending
 
   // Move a track one slot up/down: replace the whole set in the new order, carrying the pivot.
@@ -55,6 +55,16 @@ export function PlaylistDetailPage() {
     next.splice(to, 0, moved)
     reorder.mutate(orderedRefs(next))
   }
+
+  // Append a track: the full hydrated track carrying its pivot position (end of the current list) —
+  // the library appends it optimistically (rich row) and dedupes by `type:id`.
+  const addTrack = (track: OrderedTrackLike) => add.mutate([trackRef(track, ordered.length + 1)])
+
+  // The id of the in-flight add (its ref carries `id`), for the picker's pending indicator.
+  const pendingAddId = (() => {
+    const ref = add.variables?.[0]
+    return ref !== undefined && 'id' in ref ? ref.id : null
+  })()
 
   return (
     <div>
@@ -116,7 +126,7 @@ export function PlaylistDetailPage() {
                   type="button"
                   aria-label={`Remove ${track.title}`}
                   disabled={busy}
-                  onClick={() => remove.mutate(track.id)}
+                  onClick={() => remove.mutate([{ type: 'tracks', id: track.id }])}
                 >
                   ✕
                 </button>
@@ -129,8 +139,8 @@ export function PlaylistDetailPage() {
       <h2 className="section-title">Add tracks</h2>
       <TrackPicker
         excludeIds={ordered.map((t) => t.id)}
-        pendingId={add.isPending ? (add.variables?.id ?? null) : null}
-        onAdd={(track) => add.mutate(track)}
+        pendingId={add.isPending ? pendingAddId : null}
+        onAdd={addTrack}
       />
     </div>
   )

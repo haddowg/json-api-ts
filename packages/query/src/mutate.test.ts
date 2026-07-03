@@ -411,6 +411,161 @@ describe('relationship mutations — TARGETED invalidation (regression: not the 
   })
 })
 
+// A related-read key for a specific page (the page-param coupling apps used to hand-roll).
+const trackPage = (c: ReturnType<typeof makeClient>['client'], size: number) =>
+  relatedQueryOptions(c, 'albums', '1', 'tracks', { page: { size } })
+
+describe('relationship mutations — optimistic membership (D35b)', () => {
+  it('add: appends the ref to EVERY cached page variant of the relation, rolls back on error', async () => {
+    const { client: c } = makeClient({
+      'GET /albums/1/tracks': { data: [resource('tracks', 't1', { title: 'One' })] },
+      'POST /albums/1/relationships/tracks': 'error', // the write rejects -> rollback
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+
+    // Two cached pages of the SAME relation (different page params -> different keys).
+    const page50 = relatedQueryOptions(c, 'albums', '1', 'tracks', { page: { size: 50 } })
+    const page10 = relatedQueryOptions(c, 'albums', '1', 'tracks', { page: { size: 10 } })
+    await qc.fetchQuery(page50)
+    await qc.fetchQuery(page10)
+
+    const options = addRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks', {
+      optimistic: true,
+    })
+    const vars = [{ type: 'tracks', id: 't2' }] as const
+    const context = await options.onMutate?.(vars)
+
+    // Both page variants gained the added member immediately (patched by key PREFIX).
+    for (const opts of [page50, page10]) {
+      const cached = qc.getQueryData(opts.queryKey) as Array<Record<string, unknown>>
+      expect(cached.map((m) => m['id'])).toEqual(['t1', 't2'])
+    }
+
+    // The write rejects, then onError rolls both pages back.
+    let error: unknown
+    try {
+      await options.mutationFn(vars)
+    } catch (e) {
+      error = e
+    }
+    expect(error).toBeDefined()
+    options.onError?.(error, vars, context)
+
+    for (const opts of [page50, page10]) {
+      const cached = qc.getQueryData(opts.queryKey) as Array<Record<string, unknown>>
+      expect(cached.map((m) => m['id'])).toEqual(['t1'])
+    }
+  })
+
+  it('add: is idempotent on membership (an already-present ref is not duplicated)', async () => {
+    const { client: c } = makeClient({
+      'GET /albums/1/tracks': { data: [resource('tracks', 't1')] },
+      'POST /albums/1/relationships/tracks': { data: [resource('tracks', 't1')] },
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const page = trackPage(c, 50)
+    await qc.fetchQuery(page)
+
+    const options = addRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks', {
+      optimistic: true,
+    })
+    await options.onMutate?.([{ type: 'tracks', id: 't1' }])
+    const cached = qc.getQueryData(page.queryKey) as Array<Record<string, unknown>>
+    expect(cached.map((m) => m['id'])).toEqual(['t1'])
+  })
+
+  it('remove: drops the ref from the cached membership', async () => {
+    const { client: c } = makeClient({
+      'GET /albums/1/tracks': { data: [resource('tracks', 't1'), resource('tracks', 't2')] },
+      'DELETE /albums/1/relationships/tracks': { data: [resource('tracks', 't1')] },
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const page = trackPage(c, 50)
+    await qc.fetchQuery(page)
+
+    const options = removeRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks', {
+      optimistic: true,
+    })
+    await options.onMutate?.([{ type: 'tracks', id: 't2' }])
+    const cached = qc.getQueryData(page.queryKey) as Array<Record<string, unknown>>
+    expect(cached.map((m) => m['id'])).toEqual(['t1'])
+  })
+
+  it('replace: swaps the whole cached membership to the new refs (order preserved)', async () => {
+    const { client: c } = makeClient({
+      'GET /albums/1/tracks': { data: [resource('tracks', 't1'), resource('tracks', 't2')] },
+      'PATCH /albums/1/relationships/tracks': { data: [resource('tracks', 't3')] },
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const page = trackPage(c, 50)
+    await qc.fetchQuery(page)
+
+    const options = replaceRelationshipMutationOptions(qc, c, descriptor, 'albums', '1', 'tracks', {
+      optimistic: true,
+    })
+    await options.onMutate?.([
+      { type: 'tracks', id: 't3' },
+      { type: 'tracks', id: 't1' },
+    ])
+    const cached = qc.getQueryData(page.queryKey) as Array<Record<string, unknown>>
+    expect(cached.map((m) => m['id'])).toEqual(['t3', 't1'])
+  })
+
+  it('set (to-one): swaps the cached linkage value and rolls back on error', async () => {
+    const { client: c } = makeClient({
+      'GET /albums/1/relationships/artist': { data: { type: 'artists', id: '9' } },
+      'PATCH /albums/1/relationships/artist': 'error',
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const rel = relationshipQueryOptions(c, 'albums', '1', 'artist')
+    await qc.fetchQuery(rel)
+
+    const options = setRelationshipMutationOptions(qc, c, descriptor, 'albums', '1', 'artist', {
+      optimistic: true,
+    })
+    const vars = { type: 'artists', id: '5' } as const
+    const context = await options.onMutate?.(vars)
+    expect((qc.getQueryData(rel.queryKey) as Record<string, unknown>)['id']).toBe('5')
+
+    let error: unknown
+    try {
+      await options.mutationFn(vars)
+    } catch (e) {
+      error = e
+    }
+    options.onError?.(error, vars, context)
+    // Rolled back to the original linkage.
+    expect((qc.getQueryData(rel.queryKey) as Record<string, unknown>)['id']).toBe('9')
+  })
+
+  it('non-optimistic relationship mutation exposes no onMutate/onError (invalidate-on-settle only)', () => {
+    const { client: c } = makeClient({})
+    const qc = new QueryClient()
+    const opts = addRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks')
+    expect(opts.onMutate).toBeUndefined()
+    expect(opts.onError).toBeUndefined()
+    expect(typeof opts.onSettled).toBe('function')
+  })
+
+  it('still invalidates the relation subtree on settle even when optimistic', async () => {
+    const { client: c } = makeClient({
+      'GET /albums/1/tracks': { data: [resource('tracks', 't1')] },
+      'POST /albums/1/relationships/tracks': { data: [resource('tracks', 't1')] },
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const page = trackPage(c, 50)
+    await qc.fetchQuery(page)
+
+    await runMutation(
+      qc,
+      addRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks', { optimistic: true }),
+      [{ type: 'tracks', id: 't2' }],
+    )
+    // The settle invalidation runs regardless of the optimistic patch.
+    expect(qc.getQueryState(page.queryKey)?.isInvalidated).toBe(true)
+  })
+})
+
 describe('createMutationApi (bound)', () => {
   it('produces options equivalent to the standalone factories', async () => {
     const { client } = makeClient({
