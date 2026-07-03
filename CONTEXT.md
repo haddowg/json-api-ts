@@ -181,7 +181,12 @@ resourceMap>; export const createClient = …`. The descriptor carries what the 
 - Deterministic **query-key factory** from `(type, operation, id?, rel?, normalized
 params)` — drives cache hits and targeted invalidation.
 - Mutations: option factories with **optimistic updates done through the normalized
-  patch** (apply expected change immediately, roll back on error).
+  patch** (apply expected change immediately, roll back on error). An `update` patches a
+  node's attributes; a relationship `add`/`remove`/`replace`/`set` (opt in with
+  `optimistic: true`) patches the parent's cached related/relationship reads **by key
+  prefix** — every page variant at once, snapshot + auto-rollback — via the public
+  `relationReadKeys(type, id, rel)` helper (both `(parent, relation)` prefixes), so apps
+  never reconstruct keys by hand or couple to the page params a read used.
 
 ### Dependency policy (supersedes "zero runtime deps")
 
