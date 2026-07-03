@@ -4,6 +4,9 @@
 
 It is **backend-free by default**: a seeded in-memory mock sits behind the client's transport seam, so it runs with no server. You can also point it at a real bundle server.
 
+!!! example "Try it live"
+    A build of the app in mock mode is hosted on this site at **[/spotify-clone/](https://haddowg.github.io/json-api-ts/spotify-clone/)** — no install required. It is rebuilt from the current `client`/`query` package source on every docs deploy.
+
 !!! tip "Two example surfaces, two jobs"
     The spotify-clone shows the whole thing working together in a real UI. [`packages/example/src/example.test.ts`](../packages/example/src/example.test.ts) is the other reference — every code snippet across these docs is a real, typed call from that file, run under `pnpm test`. When you want to copy a signature, that test is the source of truth; when you want to see it in context, this app is.
 
