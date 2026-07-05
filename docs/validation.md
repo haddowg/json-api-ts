@@ -13,13 +13,13 @@ document and that each `data`/`included` member carries a string `type` (and, fo
 full resource, an `id`). A body that isn't a JSON:API document, or a resource missing
 its `type`, throws a `StructuralGuardError`.
 
-That's it. Because the same OpenAPI spec generates both the bundle's output and this
+That's it. Because the same OpenAPI spec generates both the server's output and this
 client, the envelope is invariant — so the runtime doesn't pay to re-check every
 attribute on every read. There is no validation engine in the client's dependency
 tree until you add one.
 
 !!! note "Why trust the wire by default?"
-    We own both ends: the bundle serves the spec, the codegen consumes it. Full
+    We own both ends: the server serves the spec, the codegen consumes it. Full
     per-field validation by default would add cost for little benefit. It's there
     when you need it — e.g. validating against a server you don't control — and free
     when you don't (ADR 0004). See [errors](errors.md) for how a failure surfaces.
@@ -32,7 +32,7 @@ to `createClient`.
 ### 1. Generate the schemas
 
 Add `--schemas` to your codegen invocation. It writes a sibling `*.schemas.gen.ts`
-next to the client output — a per-type map of the JSON Schemas the bundle serves
+next to the client output — a per-type map of the JSON Schemas the server serves
 (from its `/schemas.json` endpoint):
 
 ```bash
@@ -58,7 +58,7 @@ import { createAjvValidator } from '@haddowg/json-api-client/ajv'
 import { createClient } from './generated/music-catalog.gen'
 import { schemas } from './generated/music-catalog.schemas.gen'
 
-// The bundle emits JSON Schema 2020-12, so use `Ajv2020`. `strict: false` tolerates
+// The server emits JSON Schema 2020-12, so use `Ajv2020`. `strict: false` tolerates
 // the schemas' `x-enum-*` annotations; `allErrors` aggregates every failing field.
 const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false })
 
@@ -92,8 +92,8 @@ failing `keyword`, and the `message`), with a summary message listing the failin
 pointers. See [errors](errors.md) for catching and inspecting it.
 
 !!! tip "ajv options that matter"
-    - Use **`Ajv2020`** — the bundle emits the JSON Schema 2020-12 dialect.
-    - **`strict: false`** tolerates the `x-enum-*` annotations the bundle attaches.
+    - Use **`Ajv2020`** — the server emits the JSON Schema 2020-12 dialect.
+    - **`strict: false`** tolerates the `x-enum-*` annotations the server attaches.
     - **`allErrors: true`** reports every failing field, not just the first.
     - Formats (`date-time`, `uuid`, `uri`, …) are **advisory**. ajv ignores unknown
       formats by default; to enforce them attach `ajv-formats`. The client's posture
@@ -107,7 +107,7 @@ on but rarely have to think about.
 
 ??? note "Per-type validation and graceful partial coverage"
     The schema-driven config (`{ schemas, validator }`) looks each resource's schema up
-    by `resource.type` and validates against `schemas[type]`. A type the bundle does
+    by `resource.type` and validates against `schemas[type]`. A type the server does
     **not** cover is *skipped, not failed* — so a partially-covered schema bundle is fine;
     the resources it does describe are validated, the rest pass through. The `included`
     array is validated the same way, member by member, each against its own type's schema.

@@ -1,7 +1,7 @@
 # Generating the client
 
 The typed client is generated, not hand-written. `@haddowg/json-api-codegen`
-reads the OpenAPI 3.1 document your `haddowg/json-api-symfony` API serves and
+reads the OpenAPI 3.1 document your `haddowg/json-api`-powered API serves and
 emits a single TypeScript module — a runtime descriptor, per-type attribute
 types, and a descriptor-bound `createClient`. This page walks the CLI from the
 one-line invocation through to wiring the drift gate into CI.
@@ -12,7 +12,7 @@ Point `--input` at your served (or exported) OpenAPI document and `--output` at
 a file in your repo:
 
 ```bash
-pnpm add -D @haddowg/json-api-codegen
+npm install -D @haddowg/json-api-codegen
 
 json-api-codegen \
   --input https://music.example/docs.json \
@@ -21,6 +21,9 @@ json-api-codegen \
 
 That writes one file — `src/api/music.gen.ts` — which you commit like any other
 source. The [getting started](getting-started.md) walkthrough uses exactly this.
+To try it without a running API, point `--input` at the committed music-catalog
+spec this repo's own clients are generated from and conformance-tested against:
+`https://raw.githubusercontent.com/haddowg/json-api-ts/main/packages/codegen/test/fixtures/music-catalog.openapi.json`.
 
 !!! note "Two bin names"
     The package installs both `json-api-codegen` and the short alias `japi`, so
@@ -48,7 +51,7 @@ generated output for the same spec content.
 
 ### The validation schemas
 
-Add `--schemas` to also read the bundle's JSON Schema bundle and emit a sibling
+Add `--schemas` to also read the server's JSON Schema bundle and emit a sibling
 module carrying a per-type schema map — the fuel for the client's opt-in
 [validation](validation.md) seam:
 
@@ -66,7 +69,7 @@ becomes `.schemas.gen.ts` (so the example above also writes
 
 ### Multiple servers
 
-The bundle serves **one document per server** (a `default` and an `admin` server
+The backend serves **one document per server** (a `default` and an `admin` server
 typically differ in their type set and path prefix). Generate one client per
 server by pointing `--input` at each server's document, writing each to its own
 `--output`. The `--server` flag is metadata-only — it does not slice a combined

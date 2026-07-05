@@ -96,7 +96,7 @@ const album = albumQuery.data
 ## Nested include paths
 
 Where the spec advertises them, `include` accepts dotted paths — a relation of a related
-resource, pre-expanded by the bundle into a bounded enum (e.g. `artist.albums`, `tracks.album`).
+resource, pre-expanded by the server into a bounded enum (e.g. `artist.albums`, `tracks.album`).
 The server hydrates the whole chain into one compound document, and the runtime stitches it all
 in.
 

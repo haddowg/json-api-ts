@@ -7,16 +7,18 @@ A typesafe, JSON:API-flavored TypeScript client, **generated** from the OpenAPI 
 
 ## Lineage
 
-The OpenAPI document is the contract. The [`haddowg/json-api-symfony`](https://github.com/haddowg/json-api-symfony) bundle emits it (with the per-type JSON Schemas); this repo consumes it — the codegen reads it, and a generic, framework-agnostic runtime is parameterised by it.
+The OpenAPI document is the contract. Any backend built on [`haddowg/json-api`](https://github.com/haddowg/json-api) emits it (with the per-type JSON Schemas) — the [Symfony bundle](https://github.com/haddowg/json-api-symfony), the [Laravel package](https://github.com/haddowg/json-api-laravel), or the core wired into your own stack. This repo consumes it — the codegen reads it, and a generic, framework-agnostic runtime is parameterised by it.
 
 ```
-haddowg/json-api          (core PHP library — framework-agnostic JSON:API)
+haddowg/json-api            (core PHP library — framework-agnostic JSON:API)
         │
         ▼
-haddowg/json-api-symfony  (Symfony bundle — emits the OpenAPI 3.1 + JSON Schemas)
+haddowg/json-api-symfony    (framework integrations — each emits the same
+haddowg/json-api-laravel     OpenAPI 3.1 document + JSON Schemas; the core
+  …or the core directly      serves them from any PSR-15 stack)
         │
         ▼
-haddowg/json-api-ts       (this repo — consumes the spec, generates the TS client)
+haddowg/json-api-ts         (this repo — consumes the contract, generates the TS client)
 ```
 
 That spec carries everything the runtime needs: machine-readable type identity, relationship cardinality and related types, the allowed `?include` paths, the per-type client-id policy, and paginator kinds. See [concepts](concepts.md) for the mental model and [architecture](architecture.md) for how the pieces fit together.
@@ -40,16 +42,26 @@ Three published packages, plus a worked example workspace.
 
 ```bash
 # Install the codegen (dev-only — the generated output has no runtime tie to it).
-pnpm add -D @haddowg/json-api-codegen
+npm install -D @haddowg/json-api-codegen
 # Install the runtime (and the TanStack bindings, if you want them).
-pnpm add @haddowg/json-api-client @haddowg/json-api-query
+npm install @haddowg/json-api-client @haddowg/json-api-query
 
 # Read the served OpenAPI document, emit the typed client, and (optionally) the JSON Schema map.
-pnpm exec json-api-codegen \
+npx json-api-codegen \
   --input https://music.example/docs.json \
   --output src/api/music.gen.ts \
   --schemas https://music.example/schemas.json
 ```
+
+!!! tip "No running API yet?"
+    Point `--input` at the committed music-catalog spec this repo's own clients are generated
+    from and conformance-tested against — the command is immediately runnable:
+
+    ```bash
+    npx json-api-codegen \
+      --input https://raw.githubusercontent.com/haddowg/json-api-ts/main/packages/codegen/test/fixtures/music-catalog.openapi.json \
+      --output src/api/music.gen.ts
+    ```
 
 The generated `src/api/music.gen.ts` is **committed into your repo** — reviewable, diffable, versioned, à la `openapi-typescript`. It imports `@haddowg/json-api-client` at runtime; regenerate it when the API changes. See [codegen](codegen.md) for the full CLI.
 

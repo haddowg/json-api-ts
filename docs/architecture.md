@@ -4,16 +4,18 @@ A map of the `json-api-ts` monorepo: what each package is for, where the seams a
 
 ## The lineage
 
-`json-api-ts` sits at the end of a three-repo chain. It never talks to your database or your PHP — it consumes a contract.
+`json-api-ts` sits at the end of the chain. It never talks to your database or your PHP — it consumes a contract, and any backend built on `haddowg/json-api` emits that contract: the Symfony bundle, the Laravel package, or the core wired into your own stack.
 
 ```
-haddowg/json-api          core PHP library (framework-agnostic JSON:API)
+haddowg/json-api            core PHP library (framework-agnostic JSON:API)
         │
         ▼
-haddowg/json-api-symfony  Symfony bundle — emits the OpenAPI 3.1 document + JSON Schemas
+haddowg/json-api-symfony    framework integrations — each emits the same
+haddowg/json-api-laravel    OpenAPI 3.1 document + JSON Schemas; the core
+  …or the core directly     serves them from any PSR-15 stack
         │
         ▼
-haddowg/json-api-ts       this repo — reads the spec, generates the typed TS client
+haddowg/json-api-ts         this repo — reads the spec, generates the typed TS client
 ```
 
 The OpenAPI document is the contract. It carries machine-readable type identity, relationship cardinality and related types, the allowed `?include` paths, the per-type client-id policy, and paginator kinds — everything the runtime needs to be fully generic. See [concepts](concepts.md) for the vocabulary those pieces map onto.

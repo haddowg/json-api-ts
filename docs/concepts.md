@@ -19,8 +19,8 @@ Everything else is machinery in service of those two ideas.
 JSON:API's wire shape is invariant — every response is `{ data, included?, meta?, links? }`,
 every resource is `{ type, id, attributes?, relationships? }`. That regularity is the whole
 point: the *shape* never changes, only the *catalogue of types* does. And the catalogue is
-fully described by the OpenAPI 3.1 document the [`haddowg/json-api-symfony`](https://github.com/haddowg/json-api-symfony)
-bundle emits at `/docs.json`.
+fully described by the OpenAPI 3.1 document your [`haddowg/json-api`](https://github.com/haddowg/json-api)-powered
+backend — the Symfony bundle, the Laravel package, or the core in your own stack — emits at `/docs.json`.
 
 The spec is **self-describing** for everything the client needs — no bespoke extension is
 required to read it:

@@ -95,7 +95,7 @@ error.byPath()['title']?.[0]?.detail // 'must not be blank'
 The remapping is descriptor-aware, so it understands nesting: a nested map attribute (`/data/attributes/releaseInfo/label`) becomes `releaseInfo.label`, a relationship (`/data/relationships/artist/data`) becomes `artist`, and a client-id conflict (`/data/id`) stays `id`. Query-side errors (a bad `filter[x]`) already carry `source.parameter` and are left as-is. The raw `source.pointer` stays on every error object as an escape hatch. See [error handling](errors.md) for the full status matchers and `byPath()` contract.
 
 !!! warning "Server-side validation, not client-side"
-    A `422` comes from the API validating your write (the bundle's [validation](validation.md) rules). The client does **not** run those checks before sending — it trusts the types and lets the server be the authority. The opt-in client-side [validation seam](validation.md) validates *wire responses*, not your write input.
+    A `422` comes from the API validating your write (the server's [validation](validation.md) rules). The client does **not** run those checks before sending — it trusts the types and lets the server be the authority. The opt-in client-side [validation seam](validation.md) validates *wire responses*, not your write input.
 
 ## See it in the example app
 

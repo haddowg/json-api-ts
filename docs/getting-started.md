@@ -5,10 +5,13 @@ client from your API's OpenAPI document, create it once, then read and write wit
 full end-to-end types — no hand-written models, no casts.
 
 !!! note "Prerequisites"
-    Your API is served by the [`haddowg/json-api-symfony`](https://github.com/haddowg/json-api-symfony)
-    bundle, which exposes an OpenAPI 3.1 document (usually at `/docs.json`) and,
-    optionally, a JSON Schema map (at `/schemas.json`). That document is the
-    contract the codegen reads — see [concepts](concepts.md) for why.
+    Your API is built on [`haddowg/json-api`](https://github.com/haddowg/json-api) —
+    via the [Symfony bundle](https://github.com/haddowg/json-api-symfony), the
+    [Laravel package](https://github.com/haddowg/json-api-laravel), or the core in
+    your own stack — and exposes an OpenAPI 3.1 document (usually at `/docs.json`)
+    and, optionally, a JSON Schema map (at `/schemas.json`). That document is the
+    contract the codegen reads — see [concepts](concepts.md) for why. No API yet?
+    Step 2 below can run against this repo's committed example spec.
 
 ## 1. Install
 
@@ -18,13 +21,13 @@ bindings) are ordinary runtime dependencies.
 
 ```bash
 # dev-only — generates the client, then gets out of the way
-pnpm add -D @haddowg/json-api-codegen
+npm install -D @haddowg/json-api-codegen
 
 # runtime — the generic client the generated module binds to
-pnpm add @haddowg/json-api-client
+npm install @haddowg/json-api-client
 
 # optional — TanStack Query bindings (add when you want caching + normalisation)
-pnpm add @haddowg/json-api-query
+npm install @haddowg/json-api-query
 ```
 
 ## 2. Generate the client
@@ -34,11 +37,21 @@ lands. Add `--schemas` to also emit the per-type JSON Schema map that powers the
 optional [validation](validation.md) seam.
 
 ```bash
-pnpm exec json-api-codegen \
+npx json-api-codegen \
   --input https://music.example/docs.json \
   --output src/api/music.gen.ts \
   --schemas https://music.example/schemas.json
 ```
+
+!!! tip "No running API yet?"
+    Generate from the committed music-catalog spec this repo's own clients are
+    generated from and conformance-tested against — immediately runnable as-is:
+
+    ```bash
+    npx json-api-codegen \
+      --input https://raw.githubusercontent.com/haddowg/json-api-ts/main/packages/codegen/test/fixtures/music-catalog.openapi.json \
+      --output src/api/music.gen.ts
+    ```
 
 `--input` and `--schemas` each accept an **http(s) URL or a local file** (JSON or
 YAML) — so you can generate straight from a running server or from a spec fixture
