@@ -7,7 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write # required for npm provenance
+  id-token: write # OIDC auth for npm trusted publishing + provenance signing
 
 jobs:
   release-please:
@@ -41,10 +41,10 @@ jobs:
 
       - run: pnpm build
 
-      # Publishes every package whose version changed. --provenance signs the
-      # build provenance (requires the id-token permission above).
+      # Publishes every package whose version changed. Authentication is via
+      # OIDC trusted publishing (no NPM_TOKEN) — each package must list this
+      # repo + workflow as a trusted publisher on npmjs.com. --provenance signs
+      # the build provenance using the same id-token permission above.
+      # Requires pnpm >= 10 for OIDC support (see packageManager in package.json).
       - name: Publish
         run: pnpm -r publish --access public --no-git-checks --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'
