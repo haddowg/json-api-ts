@@ -3,6 +3,24 @@
   "version": "0.0.0",
   "description": "TanStack Query bindings for the JSON:API client: option/key factories + type:id cache normalization.",
   "license": "MIT",
+  "author": "Gregory Haddow (https://github.com/haddowg)",
+  "homepage": "https://haddowg.github.io/json-api-ts/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haddowg/json-api-ts.git",
+    "directory": "packages/query"
+  },
+  "bugs": "https://github.com/haddowg/json-api-ts/issues",
+  "keywords": [
+    "json-api",
+    "jsonapi",
+    "typescript",
+    "tanstack-query",
+    "react-query",
+    "cache",
+    "normalization",
+    "openapi"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

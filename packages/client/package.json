@@ -3,6 +3,24 @@
   "version": "0.0.0",
   "description": "Generic, framework-agnostic runtime for a typesafe JSON:API client. Parameterised by a generated descriptor.",
   "license": "MIT",
+  "author": "Gregory Haddow (https://github.com/haddowg)",
+  "homepage": "https://haddowg.github.io/json-api-ts/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haddowg/json-api-ts.git",
+    "directory": "packages/client"
+  },
+  "bugs": "https://github.com/haddowg/json-api-ts/issues",
+  "keywords": [
+    "json-api",
+    "jsonapi",
+    "typescript",
+    "typed",
+    "client",
+    "openapi",
+    "rest",
+    "api"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
