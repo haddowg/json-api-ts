@@ -3,6 +3,24 @@
   "version": "0.0.0",
   "description": "CLI that reads the json-api-symfony OpenAPI spec (+ JSON Schemas) and emits a typed client descriptor.",
   "license": "MIT",
+  "author": "Gregory Haddow (https://github.com/haddowg)",
+  "homepage": "https://haddowg.github.io/json-api-ts/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haddowg/json-api-ts.git",
+    "directory": "packages/codegen"
+  },
+  "bugs": "https://github.com/haddowg/json-api-ts/issues",
+  "keywords": [
+    "json-api",
+    "jsonapi",
+    "typescript",
+    "openapi",
+    "codegen",
+    "code-generation",
+    "cli",
+    "api"
+  ],
   "type": "module",
   "bin": {
     "json-api-codegen": "./dist/cli.mjs",
