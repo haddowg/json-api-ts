@@ -1,6 +1,6 @@
 # Custom actions
 
-Some endpoints aren't CRUD — an album gets *reissued*, a collection gets *summarised*, a file gets *imported*. The bundle advertises these as custom actions in the OpenAPI document, the codegen records them in the descriptor, and the client exposes them as typed method calls whose input and output shapes are derived entirely from that descriptor.
+Some endpoints aren't CRUD — an album gets *reissued*, a collection gets *summarised*, a file gets *imported*. The server advertises these as custom actions in the OpenAPI document, the codegen records them in the descriptor, and the client exposes them as typed method calls whose input and output shapes are derived entirely from that descriptor.
 
 ## The two scopes
 

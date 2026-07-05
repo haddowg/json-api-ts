@@ -94,7 +94,7 @@ the [TanStack Query](tanstack-query.md) page.
 ## Verb gating: only the verbs the endpoint advertises exist
 
 The generated descriptor records which mutation verbs each relationship endpoint
-advertises (the bundle's `cannotAdd` / `cannotRemove` / `cannotReplace`). The client
+advertises (the server's `cannotAdd` / `cannotRemove` / `cannotReplace`). The client
 honours that on **both** surfaces:
 
 - the static type of an unadvertised verb is `never` — calling it is a compile error;

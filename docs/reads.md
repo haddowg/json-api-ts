@@ -108,7 +108,7 @@ relationship endpoints advertise their own vocabulary.
     [client.ts](../packages/client/src/client.ts).
 
     If the server suppressed an endpoint (`withoutRelatedEndpoint()` /
-    `withoutRelationshipEndpoint()` in the bundle), that read is *absent* — the static type
+    `withoutRelationshipEndpoint()` in the resource schema), that read is *absent* — the static type
     is `never`, so calling it is a compile error rather than a `404` round-trip. Likewise a
     to-many relation carries pivot data on each member's typed `$pivot` accessor (see the
     `orderedTracks` case in [example.test.ts](../packages/example/src/example.test.ts)).

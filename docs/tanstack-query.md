@@ -5,7 +5,7 @@
 The binding exposes **option factories, not pre-bound hooks**, over `@tanstack/query-core`. One package therefore covers React / Vue / Svelte / Solid — you pass the returned `{ queryKey, queryFn }` / `MutationOptions` to your framework's own `useQuery` / `useMutation`. Reads keep the client's full static narrowing (`include` widens, sparse `fields` narrows) end to end.
 
 ```bash
-pnpm add @haddowg/json-api-query @tanstack/query-core
+npm install @haddowg/json-api-query @tanstack/query-core
 ```
 
 `@tanstack/query-core` is a peer dependency (your framework adapter — `@tanstack/react-query` etc. — brings it in).

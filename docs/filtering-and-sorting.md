@@ -72,7 +72,7 @@ GET /albums?filter[title]=OK&sort=-releasedAt
 Only values are percent-encoded; bracketed keys stay literal. Array filter values join with `,`, and a structured value (a `Range`/`DateRange` `{ min, max }`) is expanded into nested bracketed keys (`filter[key][min]=…`) to match the server's deepObject shape.
 
 ??? note "Going deeper: how the codegen narrows these types"
-    The codegen reads the OpenAPI document the [json-api-symfony](https://github.com/haddowg/json-api-symfony) bundle emits and records, per type, the exact `sortable` and `filterable` string arrays into the generated descriptor (see [the generated client](../examples/spotify-clone/src/generated/music-catalog.gen.ts)):
+    The codegen reads the OpenAPI document your backend emits and records, per type, the exact `sortable` and `filterable` string arrays into the generated descriptor (see [the generated client](../examples/spotify-clone/src/generated/music-catalog.gen.ts)):
 
     ```ts
     sortable: ['title', '-title', 'releasedAt', '-releasedAt', 'status', '-status'],
