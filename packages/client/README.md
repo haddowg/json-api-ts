@@ -1,5 +1,12 @@
 # @haddowg/json-api-client
 
+> **Part of the [jsonapi.rest](https://jsonapi.rest) suite** — a complete, spec-compliant
+> JSON:API 1.1 stack: a framework-agnostic PHP [core](https://github.com/haddowg/json-api), a
+> [Symfony bundle](https://github.com/haddowg/json-api-symfony), a
+> [Laravel package](https://github.com/haddowg/json-api-laravel), and this **typed TypeScript
+> client**, bound together by one conformance-tested OpenAPI 3.1 contract.
+> Full documentation: **[haddowg.github.io/json-api-ts](https://haddowg.github.io/json-api-ts/)**.
+
 The generic, framework-agnostic runtime for a typesafe JSON:API client. Parameterised by a
 descriptor emitted by [`@haddowg/json-api-codegen`](../codegen) — the codegen reads your API's
 OpenAPI document; this package does the de/serialisation, hydration, and the fluent surface.

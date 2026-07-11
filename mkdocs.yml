@@ -66,9 +66,6 @@ validation:
   links:
     anchors: warn
 
-exclude_docs: |
-  PLAN.md
-
 nav:
   - Home: index.md
   - Getting started:
