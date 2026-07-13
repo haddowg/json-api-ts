@@ -1,5 +1,5 @@
 {
-  "packages/client": "0.0.0",
-  "packages/codegen": "0.0.0",
-  "packages/query": "0.0.0"
+  "packages/client": "1.0.0",
+  "packages/codegen": "1.0.0",
+  "packages/query": "1.0.0"
 }
