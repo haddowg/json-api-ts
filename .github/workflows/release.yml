@@ -45,12 +45,7 @@ jobs:
       # OIDC trusted publishing (no NPM_TOKEN) — each package must list this
       # repo + workflow as a trusted publisher on npmjs.com. --provenance signs
       # the build provenance using the same id-token permission above.
-      # Requires pnpm >= 10 for OIDC support (see packageManager in package.json).
+      # Requires pnpm 10.x for OIDC: pnpm 11 regressed OIDC publishing (404s —
+      # pnpm/pnpm#11513), so keep the packageManager pin in package.json on 10.x.
       - name: Publish
-        # Initial release only: trusted publishing (OIDC) can't be configured
-        # until a package exists on the registry, so the first publish of these
-        # packages authenticates with a token. Provenance is still signed via the
-        # id-token permission above. Reverted to OIDC-only once the packages exist.
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm -r publish --access public --no-git-checks --provenance
