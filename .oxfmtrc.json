@@ -12,6 +12,7 @@
     "pnpm-lock.yaml",
     "**/*.gen.ts",
     "packages/codegen/test/fixtures",
-    "docs"
+    "docs",
+    "**/CHANGELOG.md"
   ]
 }
