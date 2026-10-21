@@ -10,6 +10,7 @@ const { createAjvValidator } = require('@haddowg/json-api-client/ajv')
 const { createQueryApi, keyFor, listQueryOptions } = require('@haddowg/json-api-query')
 const {
   httpClientTransport,
+  jsonApiMutation,
   jsonApiResource,
   loadAll,
   provideJsonApiClient,
@@ -26,6 +27,7 @@ for (const [name, fn] of [
   ['httpClientTransport', httpClientTransport],
   ['provideJsonApiClient', provideJsonApiClient],
   ['jsonApiResource', jsonApiResource],
+  ['jsonApiMutation', jsonApiMutation],
   ['loadAll', loadAll],
 ]) {
   assert.equal(typeof fn, 'function', `[cjs] expected ${name} to be a function`)

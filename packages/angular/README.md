@@ -9,7 +9,8 @@
 
 Signal-based Angular bindings for a generated [`@haddowg/json-api-client`](../client). The client
 goes into dependency injection and sends through Angular's `HttpClient`, so your interceptors run
-on every request. Reads become signals through Angular's `resource()`.
+on every request. Reads become signals through Angular's `resource()`, and writes get a small
+signal-based mutation handle.
 
 ## Install
 
@@ -80,6 +81,21 @@ Changing `search` starts a new read and cancels the one in flight. Return `undef
 `nextPage(list)` and `prevPage(list)` return the `page` params from a collection's links, ready to
 set on the signal your params read. `loadAll(firstPage, { signal })` follows `next` links and
 returns every member in one array.
+
+## Write with a mutation
+
+```ts
+readonly rename = jsonApiMutation((client, title: string) =>
+  client.albums.id(this.id()).update({ title }),
+)
+
+save(title: string) {
+  this.rename.mutate(title).then(() => this.albums.reload(), () => {})
+}
+```
+
+`isPending()`, `error()`, `jsonApiError()`, `value()` and `reset()` track the latest call. Nothing
+is cached between resources, so reload the reads a write affects.
 
 See the [Angular guide](https://haddowg.github.io/json-api-ts/angular/) for the details.
 

@@ -9,6 +9,7 @@ import { createClient, materialise, serializeQuery } from '@haddowg/json-api-cli
 import { createAjvValidator } from '@haddowg/json-api-client/ajv'
 import {
   httpClientTransport,
+  jsonApiMutation,
   jsonApiResource,
   loadAll,
   provideJsonApiClient,
@@ -26,6 +27,7 @@ for (const [name, fn] of [
   ['httpClientTransport', httpClientTransport],
   ['provideJsonApiClient', provideJsonApiClient],
   ['jsonApiResource', jsonApiResource],
+  ['jsonApiMutation', jsonApiMutation],
   ['loadAll', loadAll],
 ]) {
   assert.equal(typeof fn, 'function', `[esm] expected ${name} to be a function`)
