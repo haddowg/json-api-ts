@@ -25,13 +25,14 @@ That spec carries everything the runtime needs: machine-readable type identity, 
 
 ## Packages
 
-Three published packages, plus a worked example workspace.
+Four published packages, plus a worked example workspace.
 
 | Package                                                    | Role                                                                          |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | [`@haddowg/json-api-client`](../packages/client)          | Generic, framework-agnostic runtime, parameterised by a generated descriptor. |
 | [`@haddowg/json-api-codegen`](../packages/codegen)        | CLI: OpenAPI (+ JSON Schemas) → descriptor + types + a bound `createClient`.   |
 | [`@haddowg/json-api-query`](../packages/query)            | TanStack Query option/key factories + `type:id` cache normalisation.          |
+| [`@haddowg/json-api-angular`](../packages/angular)        | Angular bindings: `HttpClient` transport, DI providers, signal-based reads.   |
 
 !!! tip "The example workspace is the source of truth for API shape"
     [`packages/example`](../packages/example) is a worked, tested usage reference: every snippet in [`example.test.ts`](../packages/example/src/example.test.ts) is a real, typed call against the generated client, run under `pnpm test` so it can't rot. When in doubt about a signature, read it there.
@@ -116,5 +117,6 @@ You pass flat attributes; the client wraps them into the JSON:API document and f
 - [Concepts](concepts.md) — resource objects, materialisation, hydration, and the augmented arrays that carry the envelope.
 - [Reading](reads.md) — list, get, follow relationships, filter, sort, include, and paginate.
 - [TanStack Query bindings](tanstack-query.md) — option/key factories and `type:id` write-through normalisation for React.
+- [Angular bindings](angular.md): the `HttpClient` transport, DI providers, and signal-based reads and writes.
 
 For the full worked application, see the [example app](example-app.md) — a React + TanStack Query Spotify clone over a mock transport.

@@ -160,7 +160,8 @@ resourceMap>; export const createClient = …`. The descriptor carries what the 
   descriptor; transport iface + `fetch` impl, de/serialise, materialise, optional
   normalized index) · `@haddowg/json-api-codegen` (CLI: OpenAPI + schemas → descriptor +
   types + bound `createClient`) · `@haddowg/json-api-query` (TanStack option/key
-  factories + normalization glue) · `@haddowg/json-api-angular` (later, optional RxJS).
+  factories + normalization glue) · `@haddowg/json-api-angular` (signal-based Angular
+  bindings over an `HttpClient` transport; see below).
 
 ### Cache & normalization (TanStack layer)
 
@@ -187,6 +188,25 @@ params)` — drives cache hits and targeted invalidation.
   prefix** — every page variant at once, snapshot + auto-rollback — via the public
   `relationReadKeys(type, id, rel)` helper (both `(parent, relation)` prefixes), so apps
   never reconstruct keys by hand or couple to the page params a read used.
+
+### Angular bindings (signals, not RxJS)
+
+ADR 0006. `@haddowg/json-api-angular` is signal-based. RxJS stays at the edges
+(`toObservable()` on a signal, `from()` on a client call).
+
+- **`httpClientTransport(http)`** is the default transport there, so app interceptors run.
+  A non-2xx response resolves for the client to map to `JsonApiError`; only a status-0
+  failure rejects. Aborting `req.signal` unsubscribes, which cancels the request.
+- **DI:** `provideJsonApiClient(createClient, options, token?)` → `EnvironmentProviders`;
+  one token per server (`createJsonApiClientToken<T>()`); `injectJsonApiClient(token?)`.
+  The default client is typed by augmenting the package's `Register` interface.
+- **Reads:** `jsonApiResource()` wraps Angular's `resource()` (params `undefined` = idle;
+  the loader gets client + params + abort signal). It is the only module that imports
+  `resource()`, which is experimental before Angular 22. `nextPage`/`prevPage` read `page`
+  params off a collection's links; `loadAll` walks `next` links.
+- **Writes:** `jsonApiMutation()` → `{ mutate, isPending, error, value, reset }`.
+- **No shared cache:** callers `reload()` what a write affects. A later cache would be
+  TanStack's Angular adapter or a small signal store keyed by `type:id`.
 
 ### Dependency policy (supersedes "zero runtime deps")
 
@@ -215,7 +235,7 @@ The codegen reads from **a URL or a local file** for both inputs:
 ### Transport seam & error model
 
 - **Transport** is a tiny `fetch`-shaped function (not a class):
-  `(req:{method,url,headers,body?}) => Promise<{status,headers,body}>`; default is a
+  `(req:{method,url,headers,body?,signal?}) => Promise<{status,headers,body}>`; default is a
   `fetch` adapter. `createClient({ baseUrl, transport?, headers?: ()=>HeadersInit|Promise,
 onError?, onResponse? })` — async `headers` provider for per-request bearer auth; a
   _small_ hook pair, not a full interceptor stack. Runtime owns content negotiation

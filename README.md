@@ -14,7 +14,8 @@ get a `createClient` whose every read and write is typed end to end — `?includ
 requested relations into the result type, sparse `fields` narrow it, and the wire envelope is
 materialised into clean, flat resource objects. First-class **TanStack Query** bindings sit on
 top, with `type:id` cache normalization, full reads and mutations, custom actions, Atomic
-Operations, and opt-in per-field validation against your server's JSON Schemas.
+Operations, and opt-in per-field validation against your server's JSON Schemas. Angular apps get
+signal-based bindings that send through `HttpClient`.
 
 ## Packages
 
@@ -23,6 +24,7 @@ Operations, and opt-in per-field validation against your server's JSON Schemas.
 | [`@haddowg/json-api-client`](./packages/client)   | Generic, framework-agnostic runtime, parameterised by a generated descriptor. |
 | [`@haddowg/json-api-codegen`](./packages/codegen) | CLI: OpenAPI (+ JSON Schemas) → descriptor + types + bound `createClient`.    |
 | [`@haddowg/json-api-query`](./packages/query)     | TanStack Query option/key factories + `type:id` normalization.                |
+| [`@haddowg/json-api-angular`](./packages/angular) | Angular bindings: `HttpClient` transport, DI providers, signal-based reads.   |
 
 ## Install
 

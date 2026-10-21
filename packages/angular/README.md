@@ -56,8 +56,10 @@ resource's `client` option.
 ```ts
 @Component({
   template: `
-    @for (album of albums.value(); track album.id) {
-      <li>{{ album.title }} by {{ album.artist?.name }}</li>
+    @if (albums.hasValue()) {
+      @for (album of albums.value(); track album.id) {
+        <li>{{ album.title }} by {{ album.artist?.name }}</li>
+      }
     }
     @if (albums.jsonApiError(); as error) {
       <p>{{ error.status }}</p>
@@ -76,7 +78,8 @@ export class AlbumList {
 ```
 
 Changing `search` starts a new read and cancels the one in flight. Return `undefined` from
-`params` to hold the read until its inputs are ready.
+`params` to hold the read until its inputs are ready. As with any Angular resource, `value()`
+throws in the error state, so guard it with `hasValue()`.
 
 `nextPage(list)` and `prevPage(list)` return the `page` params from a collection's links, ready to
 set on the signal your params read. `loadAll(firstPage, { signal })` follows `next` links and
