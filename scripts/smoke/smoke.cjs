@@ -2,10 +2,18 @@
 // through each package's `exports` map under the `require` condition (-> dist/*.cjs),
 // so this proves the CJS build + the `./ajv` sub-path export load and run as published.
 const assert = require('node:assert/strict')
+// Angular's packages are partially compiled; plain Node needs the JIT compiler to link them.
+require('@angular/compiler')
 
 const { createClient, materialise, serializeQuery } = require('@haddowg/json-api-client')
 const { createAjvValidator } = require('@haddowg/json-api-client/ajv')
 const { createQueryApi, keyFor, listQueryOptions } = require('@haddowg/json-api-query')
+const {
+  httpClientTransport,
+  jsonApiResource,
+  loadAll,
+  provideJsonApiClient,
+} = require('@haddowg/json-api-angular')
 
 for (const [name, fn] of [
   ['createClient', createClient],
@@ -15,8 +23,12 @@ for (const [name, fn] of [
   ['createQueryApi', createQueryApi],
   ['keyFor', keyFor],
   ['listQueryOptions', listQueryOptions],
+  ['httpClientTransport', httpClientTransport],
+  ['provideJsonApiClient', provideJsonApiClient],
+  ['jsonApiResource', jsonApiResource],
+  ['loadAll', loadAll],
 ]) {
   assert.equal(typeof fn, 'function', `[cjs] expected ${name} to be a function`)
 }
 
-console.log('[cjs] @haddowg/json-api-client, /ajv, and -query resolved from dist OK')
+console.log('[cjs] @haddowg/json-api-client, /ajv, -query and -angular resolved from dist OK')
