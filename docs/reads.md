@@ -151,6 +151,22 @@ assertion is the first case in [example.test.ts](../packages/example/src/example
     `400` (e.g. `SORTING_UNSUPPORTED`, `INCLUSION_NOT_ALLOWED`). See
     [concepts](concepts.md).
 
+## Cancelling a read
+
+Every read accepts a `signal`. The client hands it to the transport and never sends it to the
+server. The default `fetch` transport passes it to `fetch`, so aborting the controller cancels
+the request and the read rejects with the abort error:
+
+```ts
+const controller = new AbortController()
+const albums = client.albums.list({ sort: 'title', signal: controller.signal })
+
+controller.abort()
+```
+
+`$next()` and `$prev()` take the same option: `await albums.$next({ signal })`. A custom
+transport that ignores `signal` still works; its requests just can't be cancelled.
+
 ## What a read resolves to
 
 Every read materialises the wire document into flat resource objects:

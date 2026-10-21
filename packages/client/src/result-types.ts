@@ -23,6 +23,7 @@ import type {
   ArrayEnvelope,
   DocumentEnvelope,
   Edge,
+  NavigateOptions,
   RelationView,
   ResourceLinks,
 } from './materialise'
@@ -37,8 +38,8 @@ import type { LocalIdentifier, ResourceIdentifier } from './types'
  */
 export type Collection<T> = ReadonlyArray<T> &
   Omit<ArrayEnvelope, '$next' | '$prev'> & {
-    $next(): Promise<Collection<T> | undefined>
-    $prev(): Promise<Collection<T> | undefined>
+    $next(options?: NavigateOptions): Promise<Collection<T> | undefined>
+    $prev(options?: NavigateOptions): Promise<Collection<T> | undefined>
   }
 
 /**
@@ -355,6 +356,8 @@ export interface TypedReadQuery<
   /** Relationship-count tokens (the Countable profile) — comma-joined onto `withCount`. */
   withCount?: readonly CountToken<D, T>[]
   page?: Record<string, unknown>
+  /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
+  signal?: AbortSignal
 }
 
 /**
@@ -373,6 +376,8 @@ export interface SingleReadQuery<
   include?: Inc
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F
+  /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
+  signal?: AbortSignal
 }
 
 /**
@@ -401,6 +406,8 @@ export interface RelationReadQuery {
    * relation's Countable profile so a strict server accepts it (D3).
    */
   withCount?: readonly string[]
+  /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
+  signal?: AbortSignal
 }
 
 /** The TS type a descriptor wire-format hint maps to (mirrors the runtime coercion vocabulary). */

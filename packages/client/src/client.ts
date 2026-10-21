@@ -90,8 +90,12 @@ async function run(
   }
   const req: JsonApiRequest = { method: 'GET', path: fill(template, vars) }
   if (query !== undefined) {
-    req.query = query
-    negotiateProfiles(ctx, type, query, req, relationForCount)
+    const { signal, ...params } = query
+    req.query = params
+    if (signal !== undefined) {
+      req.signal = signal
+    }
+    negotiateProfiles(ctx, type, params, req, relationForCount)
   }
   const doc = await execute(ctx.request, req)
   // Pass the statically-known primary type for the top-level collection read so an EMPTY page
@@ -466,8 +470,12 @@ export function createClient<
     descriptor,
     materialise: {
       descriptor,
-      navigate: async (url, linkage = false, paginator) => {
-        const doc = await execute(request, { method: 'GET', path: url })
+      navigate: async (url, linkage = false, paginator, signal) => {
+        const doc = await execute(request, {
+          method: 'GET',
+          path: url,
+          ...(signal !== undefined ? { signal } : {}),
+        })
         return doc === undefined
           ? undefined
           : materialise(doc, ctx.materialise, linkage, undefined, paginator)

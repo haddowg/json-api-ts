@@ -4,6 +4,11 @@ export interface TransportRequest {
   url: string
   headers: Record<string, string>
   body?: string
+  /**
+   * Aborts the request when signalled. Optional: a transport that ignores it still works, the
+   * caller just can't cancel an in-flight request through it.
+   */
+  signal?: AbortSignal
 }
 
 /** A single inbound response, body still a string for the runtime to parse. */
@@ -25,6 +30,9 @@ export const fetchTransport: JsonApiTransport = async (req) => {
   const init: RequestInit = { method: req.method, headers: req.headers }
   if (req.body !== undefined) {
     init.body = req.body
+  }
+  if (req.signal !== undefined) {
+    init.signal = req.signal
   }
 
   const res = await fetch(req.url, init)

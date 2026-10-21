@@ -289,6 +289,10 @@ const client = createClient({ baseUrl: 'https://music.example', transport })
 
 Retries are deliberately out of scope here — the transport (or the TanStack layer) owns them.
 
+`req.signal` is set when the caller passed a `signal` to a read (`client.albums.list({ signal })`
+or `$next({ signal })`). Forward it to your HTTP library so the request can be cancelled; the
+default `fetch` transport passes it to `fetch`.
+
 ## Opt-in validation
 
 The core runtime trusts the wire (you own both ends; the envelope is invariant) and only runs the

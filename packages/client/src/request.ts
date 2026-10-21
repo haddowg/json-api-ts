@@ -15,6 +15,8 @@ export interface ReadQuery {
   /** Relationship-count tokens (the Countable profile) — serialised comma-joined onto `withCount`. */
   withCount?: readonly string[]
   page?: Record<string, unknown>
+  /** Cancels the read when signalled. Never serialised; passed to the transport. */
+  signal?: AbortSignal
 }
 
 /** A loose JSON:API document — enough structure for the runtime to materialise. */
@@ -70,6 +72,8 @@ export interface JsonApiRequest {
    * `JSON.stringify`.
    */
   raw?: boolean
+  /** Passed through to the transport so the caller can cancel the request. */
+  signal?: AbortSignal
 }
 
 const isAbsolute = (path: string): boolean => /^https?:\/\//i.test(path)
@@ -173,6 +177,9 @@ export async function execute(
   const headers: Record<string, string> = { Accept: req.accept ?? negotiated }
 
   const transportReq: TransportRequest = { method: req.method, url, headers }
+  if (req.signal !== undefined) {
+    transportReq.signal = req.signal
+  }
   if (req.body !== undefined) {
     headers['Content-Type'] = req.contentType ?? negotiated
     transportReq.body =
