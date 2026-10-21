@@ -90,5 +90,7 @@ nav:
       - validation.md
   - TanStack Query:
       - tanstack-query.md
+  - Angular:
+      - angular.md
   - Examples:
       - example-app.md

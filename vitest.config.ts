@@ -27,18 +27,21 @@ export default defineConfig({
       include: ['packages/*/src/**'],
       exclude: ['**/*.test.ts', '**/index.ts'],
     },
-    // Two projects under one run: the library/packages suite (node), and the example app's
-    // render smoke (jsdom). The example carries its own vite.config.ts (jsdom + plugin-react
-    // + setup), so it is referenced by path; the packages project inlines its node config here.
+    // Three projects under one run: the library/packages suite (node), the Angular bindings
+    // (jsdom + TestBed), and the example app's render smoke (jsdom). The Angular package and the
+    // example carry their own configs, so they are referenced by path; the packages project
+    // inlines its node config here.
     projects: [
       {
         resolve: { alias },
         test: {
           name: 'packages',
           include: ['packages/*/src/**/*.test.ts'],
+          exclude: ['packages/angular/**', '**/node_modules/**'],
           environment: 'node',
         },
       },
+      './packages/angular/vitest.config.ts',
       './examples/spotify-clone/vite.config.ts',
     ],
   },

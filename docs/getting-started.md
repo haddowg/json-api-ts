@@ -28,6 +28,9 @@ npm install @haddowg/json-api-client
 
 # optional — TanStack Query bindings (add when you want caching + normalisation)
 npm install @haddowg/json-api-query
+
+# optional: Angular bindings (HttpClient transport, DI, signals)
+npm install @haddowg/json-api-angular
 ```
 
 ## 2. Generate the client

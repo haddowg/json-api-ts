@@ -4,6 +4,7 @@
   "plugins": ["node-workspace"],
   "separate-pull-requests": false,
   "packages": {
+    "packages/angular": {},
     "packages/client": {},
     "packages/codegen": {},
     "packages/query": {}

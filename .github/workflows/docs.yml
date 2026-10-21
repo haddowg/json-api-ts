@@ -9,6 +9,7 @@ on:
       - mkdocs_hooks.py
       - .github/workflows/docs.yml
       - examples/spotify-clone/**
+      - packages/angular/**
       - packages/client/**
       - packages/query/**
   workflow_dispatch:

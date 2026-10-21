@@ -29,6 +29,7 @@ The core idea is a single split: a **build-time reader** that turns your spec in
 | [`@haddowg/json-api-client`](../packages/client) | The generic, framework-agnostic runtime. |
 | [`@haddowg/json-api-codegen`](../packages/codegen) | The build-time CLI. |
 | [`@haddowg/json-api-query`](../packages/query) | TanStack Query bindings. |
+| [`@haddowg/json-api-angular`](../packages/angular) | Signal-based Angular bindings. |
 
 ### `@haddowg/json-api-client` — the runtime
 
@@ -61,6 +62,10 @@ An optional layer on top of the runtime. It exposes query/mutation **option fact
 
 !!! note "The core client stands alone"
     `await client.albums.list()` works with no TanStack in the tree. `json-api-query` is purely additive — reach for it when you want caching and normalization, skip it otherwise.
+
+### `@haddowg/json-api-angular`
+
+Another optional layer. `httpClientTransport` sends the client's requests through Angular's `HttpClient`, so the app's interceptors run. `provideJsonApiClient` puts a generated client in dependency injection, `jsonApiResource` wraps a read in Angular's `resource()`, and `jsonApiMutation` wraps a write in signals. It peer-depends on `@angular/core` and `@angular/common`, and has no cache of its own. See [angular](angular.md).
 
 ## The descriptor: the seam between codegen and runtime
 
@@ -106,10 +111,11 @@ A heavy or deep-tree dependency is rejected; a small, well-kept one is accepted 
 
 ## The example workspaces
 
-Two non-published workspaces exercise the packages end to end:
+Three non-published workspaces exercise the packages end to end:
 
 - [`packages/example`](../packages/example) — the canonical, **tested** usage reference. Every snippet in [`example.test.ts`](../packages/example/src/example.test.ts) is a real typed call run under `pnpm test`, grouped by `describe(...)`, so it can't rot. This is the source of truth for API shape.
 - [`examples/spotify-clone`](../examples/spotify-clone) — a full worked React + TanStack Query app over a mock transport, with feature pages, generated clients, and the query bindings wired in. See [example-app](example-app.md).
+- [`examples/angular-catalog`](../examples/angular-catalog): a small standalone Angular app on the Angular bindings, with an interceptor in the `HttpClient` chain. See [angular](angular.md#see-it-in-the-example-app).
 
 ??? note "Going deeper: the toolchain"
     The monorepo is pnpm workspaces + Turborepo, with tsdown (rolldown; dual ESM/CJS + `.d.ts`), Vitest, oxlint/oxfmt, and tsc. Packaging is guarded in CI by `publint` and `@arethetypeswrong/cli` plus a dual ESM/CJS smoke test. Versioning is release-please in manifest mode, matching the PHP repos in the lineage. The build wiring lives at the repo root and in each package's `package.json`; the full development command list is in the [README](../README.md).
