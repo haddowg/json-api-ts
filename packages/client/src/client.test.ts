@@ -1378,3 +1378,77 @@ describe('createClient — write error remapping', () => {
     expect(Object.keys(error.byPath())).toContain('orderedTracks')
   })
 })
+
+describe('createClient — cancellation', () => {
+  const listBody = JSON.stringify({
+    data: [{ type: 'albums', id: '1', attributes: { title: 'OK Computer' } }],
+    links: { self: `${BASE}/albums`, next: `${BASE}/albums?page[number]=2` },
+  })
+  const okTransport = () =>
+    vi.fn(
+      async (_req: TransportRequest): Promise<TransportResponse> => ({
+        status: 200,
+        headers: {},
+        body: listBody,
+      }),
+    )
+
+  it('threads a read signal to the transport without serialising it', async () => {
+    const transport = okTransport()
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+    const controller = new AbortController()
+
+    await client.albums.list({ sort: 'title', signal: controller.signal })
+    await client.albums.id('1').tracks.related({ signal: controller.signal })
+    await client.albums.id('1').tracks.get({ signal: controller.signal })
+
+    expect(transport).toHaveBeenCalledTimes(3)
+    for (const [req] of transport.mock.calls) {
+      expect(req.signal).toBe(controller.signal)
+      expect(req.url).not.toContain('signal')
+    }
+    expect(transport.mock.calls[0]![0].url).toBe(`${BASE}/albums?sort=title`)
+  })
+
+  it('threads the signal on a single-resource read', async () => {
+    const transport = vi.fn(
+      async (_req: TransportRequest): Promise<TransportResponse> => ({
+        status: 200,
+        headers: {},
+        body: JSON.stringify({ data: { type: 'albums', id: '1', attributes: { title: 'x' } } }),
+      }),
+    )
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+    const controller = new AbortController()
+
+    await client.albums.get('1', { signal: controller.signal })
+    await client.albums.id('1').get({ signal: controller.signal })
+
+    expect(transport.mock.calls.map(([req]) => req.signal)).toEqual([
+      controller.signal,
+      controller.signal,
+    ])
+    expect(transport.mock.calls[0]![0].url).toBe(`${BASE}/albums/1`)
+  })
+
+  it('sends no signal when the read passes none', async () => {
+    const transport = okTransport()
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+
+    await client.albums.list()
+
+    expect('signal' in transport.mock.calls[0]![0]).toBe(false)
+  })
+
+  it('$next({ signal }) passes the signal to the page fetch', async () => {
+    const transport = okTransport()
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+    const controller = new AbortController()
+
+    const first = asArray(await client.albums.list())
+    await first.$next({ signal: controller.signal })
+
+    expect(transport.mock.calls[1]![0].signal).toBe(controller.signal)
+    expect(transport.mock.calls[1]![0].url).toBe(`${BASE}/albums?page[number]=2`)
+  })
+})

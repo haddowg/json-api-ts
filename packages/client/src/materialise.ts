@@ -58,8 +58,14 @@ export interface ArrayEnvelope {
   readonly $page: Page
   readonly $links: Record<string, unknown> | undefined
   readonly $meta: Record<string, unknown> | undefined
-  $next(): Promise<unknown>
-  $prev(): Promise<unknown>
+  $next(options?: NavigateOptions): Promise<unknown>
+  $prev(options?: NavigateOptions): Promise<unknown>
+}
+
+/** Per-call options for `$next()`/`$prev()`. */
+export interface NavigateOptions {
+  /** Cancels the page fetch when signalled. */
+  signal?: AbortSignal
 }
 
 /** The runtime context materialise reads its descriptor + navigation seam from. */
@@ -72,7 +78,12 @@ export interface MaterialiseContext {
    * carries the current page's kind so the re-materialised page reports the same `$page.kind`
    * (a divergent per-relation paginator, or an EMPTY next page that carries no member to sniff).
    */
-  navigate: (url: string, linkage?: boolean, paginator?: PaginatorKind) => Promise<unknown>
+  navigate: (
+    url: string,
+    linkage?: boolean,
+    paginator?: PaginatorKind,
+    signal?: AbortSignal,
+  ) => Promise<unknown>
   /**
    * The opt-in per-resource validator (ADR 0004), resolved from `ClientOptions.validate`. When
    * present, every wire resource in `data`/`included` is validated against its per-type schema
@@ -476,8 +487,12 @@ function attachPage(
   const page: Page = { kind, links: pageLinks(links) }
   if (meta !== undefined) page.meta = meta
   defineGetter(arr, '$page', () => page)
-  define(arr, '$next', () => navigateLink(page.links.next, ctx, linkage, kind))
-  define(arr, '$prev', () => navigateLink(page.links.prev, ctx, linkage, kind))
+  define(arr, '$next', (options?: NavigateOptions) =>
+    navigateLink(page.links.next, ctx, linkage, kind, options?.signal),
+  )
+  define(arr, '$prev', (options?: NavigateOptions) =>
+    navigateLink(page.links.prev, ctx, linkage, kind, options?.signal),
+  )
 }
 
 const navigateLink = (
@@ -485,8 +500,15 @@ const navigateLink = (
   ctx: MaterialiseContext,
   linkage: boolean,
   paginator: PaginatorKind,
-): Promise<unknown> =>
-  link === undefined ? Promise.resolve(undefined) : ctx.navigate(link, linkage, paginator)
+  signal: AbortSignal | undefined,
+): Promise<unknown> => {
+  if (link === undefined) {
+    return Promise.resolve(undefined)
+  }
+  return signal === undefined
+    ? ctx.navigate(link, linkage, paginator)
+    : ctx.navigate(link, linkage, paginator, signal)
+}
 
 /** Extract the navigation links (a link may be a string or a `{href}` object). */
 function pageLinks(links: Record<string, unknown> | undefined): Page['links'] {
