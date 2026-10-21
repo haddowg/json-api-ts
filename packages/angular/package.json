@@ -1,6 +1,6 @@
 {
   "name": "@haddowg/json-api-angular",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Signal-based Angular bindings for the JSON:API client: an HttpClient transport, DI providers, and resource/mutation helpers.",
   "license": "MIT",
   "author": "Gregory Haddow (https://github.com/haddowg)",

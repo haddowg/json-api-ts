@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.0.0...json-api-codegen-v1.0.1) (2026-10-21)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.1.0
+
 ## 1.0.0 (2026-07-13)
 
 

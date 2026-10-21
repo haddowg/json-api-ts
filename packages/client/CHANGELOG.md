@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.0.0...json-api-client-v1.1.0) (2026-10-21)
+
+
+### Features
+
+* **client:** accept an AbortSignal on reads and pass it to the transport ([#44](https://github.com/haddowg/json-api-ts/issues/44)) ([45ff501](https://github.com/haddowg/json-api-ts/commit/45ff501d2012e61b9eb587beac18c63bdc614435))
+
 ## 1.0.0 (2026-07-13)
 
 
