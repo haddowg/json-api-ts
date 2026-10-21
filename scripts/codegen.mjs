@@ -2,7 +2,7 @@
 // repo from the single committed source spec (the music-catalog fixture). Run without a
 // flag to regenerate all of them (`pnpm codegen`); run with `--check` (`pnpm codegen:check`,
 // the CI gate) to fail if any committed client differs from what the current codegen would
-// produce for that spec. Keeping the test snapshot and the two example clients on one
+// produce for that spec. Keeping the test snapshot and the example clients on one
 // source keeps them honest against the same wire contract.
 import { spawnSync } from 'node:child_process'
 
@@ -14,6 +14,7 @@ const OUTPUTS = [
   'packages/codegen/test/generated/music-catalog.client.gen.ts',
   'packages/example/src/generated/music-catalog.gen.ts',
   'examples/spotify-clone/src/generated/music-catalog.gen.ts',
+  'examples/angular-catalog/src/generated/music-catalog.gen.ts',
 ]
 
 const check = process.argv.includes('--check')
