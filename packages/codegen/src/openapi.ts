@@ -45,6 +45,8 @@ export interface ParameterObject {
   in?: string
   $ref?: string
   schema?: SchemaObject
+  style?: string
+  explode?: boolean
   /** The negotiation profile a client must opt into to use this parameter (e.g. `withCount`). */
   'x-profile'?: string
 }

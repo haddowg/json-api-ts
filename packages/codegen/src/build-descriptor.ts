@@ -652,40 +652,73 @@ export class DescriptorBuilder {
     )
   }
 
-  /** Detect the paginator kind from the fetchMany operation's query parameter names. */
+  /** Detect the paginator kind from the fetchMany operation's page parameters. */
   private paginator(base: string): PaginatorKind {
     const collection = this.collectionPath(base)
     return this.paginatorKindOf(this.operation(collection ?? '', 'get'), collection)
   }
 
   /**
-   * Detect the paginator kind an operation advertises from its `page[...]` query parameter names.
-   * `page[number]`+`page[size]` = `page`; `page[offset]`+`page[limit]` = `offset`; either cursor
-   * bound (`page[after]`/`page[before]`) = `cursor` (link-driven, D44); anything else = `none`.
-   * `label` (a path, for the drift warning) names the endpoint when page params match no known kind.
+   * Detect the paginator kind an operation advertises from its page members (see
+   * {@link pageMembers}). `number`+`size` = `page`; `offset`+`limit` = `offset`; either cursor
+   * bound (`after`/`before`) = `cursor` (link-driven, D44); `number` alone = `fixed` (the server
+   * fixes the size); anything else = `none`. `label` (a path, for the drift warning) names the endpoint when page members match
+   * no known kind.
    */
   private paginatorKindOf(op: OperationObject | undefined, label?: string): PaginatorKind {
-    const names = this.queryParamNames(op)
-    if (names.has('page[number]') && names.has('page[size]')) {
-      return 'page'
+    const { members, menu } = this.pageMembers(op)
+    if (!menu) {
+      if (members.has('number') && members.has('size')) {
+        return 'page'
+      }
+      if (members.has('offset') && members.has('limit')) {
+        return 'offset'
+      }
+      if (members.has('after') || members.has('before')) {
+        return 'cursor'
+      }
+      if (members.size === 1 && members.has('number')) {
+        return 'fixed'
+      }
     }
-    if (names.has('page[offset]') && names.has('page[limit]')) {
-      return 'offset'
-    }
-    // Cursor pagination advertises page[after]/page[before] (the CursorPaginator wire form) — the
-    // client's cursor navigation is link-driven, so either bound present marks the kind (D44).
-    if (names.has('page[after]') || names.has('page[before]')) {
-      return 'cursor'
-    }
-    // Page params present but matching no known kind = a drift the client would silently treat
-    // as unpaginated (losing $page/$next); warn rather than swallow it (D28).
-    if (label !== undefined && [...names].some((name) => name.startsWith('page['))) {
+    // A page parameter matching no known kind is a drift the client would silently treat as
+    // unpaginated (losing $page/$next); warn rather than swallow it (D28).
+    if (label !== undefined && (menu || members.size > 0)) {
+      const found = menu
+        ? 'a selectable page strategy (oneOf)'
+        : // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+          [...members].sort().join(', ')
       // eslint-disable-next-line no-console
       console.warn(
-        `json-api codegen: endpoint "${label}" advertises page parameters matching no known paginator kind; treating it as unpaginated.`,
+        `json-api codegen: endpoint "${label}" advertises page parameters matching no known paginator kind (${found}); treating it as unpaginated.`,
       )
     }
     return 'none'
+  }
+
+  /**
+   * The `page` members an operation accepts, from either wire form: one `page` parameter
+   * (`style: deepObject`) whose schema `properties` name the members, as `haddowg/json-api` v1
+   * projects it, or the older flattened `page[number]`/`page[size]` parameters. `menu` flags a
+   * `oneOf` page schema (a client-selectable strategy menu), which no single kind describes.
+   */
+  private pageMembers(op: OperationObject | undefined): { members: Set<string>; menu: boolean } {
+    const members = new Set<string>()
+    let menu = false
+    for (const param of op?.parameters ?? []) {
+      const name = param.name
+      if (name === 'page') {
+        if (param.schema?.oneOf !== undefined) {
+          menu = true
+        }
+        for (const member of Object.keys(param.schema?.properties ?? {})) {
+          members.add(member)
+        }
+      } else if (name?.startsWith('page[') === true && name.endsWith(']')) {
+        members.add(name.slice('page['.length, -1))
+      }
+    }
+    return { members, menu }
   }
 
   /**
@@ -757,16 +790,6 @@ export class DescriptorBuilder {
     }
     // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
     return keys.length > 0 ? keys.sort() : undefined
-  }
-
-  private queryParamNames(op: OperationObject | undefined): Set<string> {
-    const names = new Set<string>()
-    for (const param of op?.parameters ?? []) {
-      if (typeof param.name === 'string') {
-        names.add(param.name)
-      }
-    }
-    return names
   }
 
   private operation(path: string, method: HttpMethod): OperationObject | undefined {

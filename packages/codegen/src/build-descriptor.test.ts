@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
-import type { OpenApiDocument, SchemaObject } from './openapi'
+import type { PaginatorKind } from '@haddowg/json-api-client'
+import type { OpenApiDocument, ParameterObject, SchemaObject } from './openapi'
 
 function loadFixture(name: string): OpenApiDocument {
   const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
@@ -747,6 +748,186 @@ describe('buildDescriptor — cursor paginator detection (D44)', () => {
       },
     }
     expect(buildDescriptor(doc)['widgets']!.paginator).toBe('cursor')
+  })
+})
+
+// haddowg/json-api v1 projects the page family as ONE `page` parameter (deepObject) whose
+// schema properties name the members; older documents flatten it to `page[number]` etc.
+const objectForm = (members: readonly string[]): ParameterObject[] =>
+  members.length === 0
+    ? []
+    : [
+        {
+          name: 'page',
+          in: 'query',
+          style: 'deepObject',
+          explode: true,
+          schema: {
+            type: 'object',
+            properties: Object.fromEntries(members.map((m) => [m, { type: 'integer' }])),
+          },
+        },
+      ]
+const flatForm = (members: readonly string[]): ParameterObject[] =>
+  members.map((m) => ({ name: `page[${m}]`, in: 'query', schema: { type: 'integer' } }))
+
+const widgets = (parameters: readonly ParameterObject[]): OpenApiDocument => ({
+  openapi: '3.1.0',
+  paths: {
+    '/widgets': {
+      get: {
+        parameters,
+        responses: {
+          '200': {
+            content: {
+              'application/vnd.api+json': {
+                schema: { $ref: '#/components/schemas/WidgetsCollection' },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      WidgetsResource: {
+        type: 'object',
+        properties: { type: { type: 'string', const: 'widgets' } },
+      },
+      WidgetsCollection: { type: 'object' },
+    },
+  },
+})
+
+const paginatorOf = (parameters: readonly ParameterObject[]): PaginatorKind => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    const kind = buildDescriptor(widgets(parameters))['widgets']!.paginator
+    expect(warn).not.toHaveBeenCalled()
+    return kind
+  } finally {
+    warn.mockRestore()
+  }
+}
+
+describe('buildDescriptor — paginator detection in both wire forms', () => {
+  const strategies: [string, string[], PaginatorKind][] = [
+    ['page', ['number', 'size'], 'page'],
+    ['offset', ['offset', 'limit'], 'offset'],
+    ['cursor', ['after', 'before', 'size'], 'cursor'],
+    ['cursor with one bound', ['after', 'size'], 'cursor'],
+    ['fixed', ['number'], 'fixed'],
+    ['unpaginated', [], 'none'],
+  ]
+
+  it.each(strategies)('reads %s from the page object parameter', (_, members, kind) => {
+    expect(paginatorOf(objectForm(members))).toBe(kind)
+  })
+
+  it.each(strategies)('reads %s from flattened page[...] parameters', (_, members, kind) => {
+    expect(paginatorOf(flatForm(members))).toBe(kind)
+  })
+
+  it('treats a page parameter with no schema as unpaginated', () => {
+    expect(paginatorOf([{ name: 'page', in: 'query' }])).toBe('none')
+  })
+
+  it.each([
+    ['page object', objectForm(['number', 'limit']), 'limit, number'],
+    ['flattened', flatForm(['number', 'limit']), 'limit, number'],
+    ['lone unknown page object', objectForm(['weird']), 'weird'],
+  ])('warns on a %s member set matching no known kind', (_, parameters, found) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(buildDescriptor(widgets(parameters))['widgets']!.paginator).toBe('none')
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(found))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('warns on a selectable strategy menu rather than picking one arm', () => {
+    const menu: ParameterObject = {
+      name: 'page',
+      in: 'query',
+      schema: {
+        oneOf: [
+          { type: 'object', properties: { number: { type: 'integer' } } },
+          { type: 'object', properties: { after: { type: 'string' } } },
+        ],
+      },
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(buildDescriptor(widgets([menu]))['widgets']!.paginator).toBe('none')
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('oneOf'))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('detects a related endpoint paginator from the page object parameter', () => {
+    const doc = widgets(objectForm(['after', 'before']))
+    doc.paths!['/parents'] = {
+      get: {
+        responses: {
+          '200': {
+            content: {
+              'application/vnd.api+json': {
+                schema: { $ref: '#/components/schemas/ParentsCollection' },
+              },
+            },
+          },
+        },
+      },
+    }
+    doc.paths!['/parents/{id}/widgets'] = { get: { parameters: objectForm(['number']) } }
+    doc.components!.schemas!['ParentsResource'] = {
+      type: 'object',
+      properties: {
+        type: { type: 'string', const: 'parents' },
+        relationships: {
+          type: 'object',
+          properties: { widgets: { $ref: '#/components/schemas/ParentsWidgetsRelationship' } },
+        },
+      },
+    }
+    doc.components!.schemas!['ParentsCollection'] = { type: 'object' }
+    doc.components!.schemas!['ParentsWidgetsRelationship'] = {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { $ref: '#/components/schemas/WidgetsResource' } },
+      },
+    }
+    expect(buildDescriptor(doc)['parents']!.relations['widgets']!.paginator).toBe('fixed')
+  })
+
+  it('reads a v1 document (one page object parameter) the same as the flattened fixture', () => {
+    // Rewrite every flattened page family in the fixture into the v1 projection.
+    const flat = loadFixture('music-catalog.openapi.json')
+    const v1 = structuredClone(flat)
+    let rewritten = 0
+    for (const item of Object.values(v1.paths ?? {})) {
+      for (const op of Object.values(item)) {
+        const params = op?.parameters
+        if (op === undefined || params === undefined) continue
+        const members = params
+          .map((p) => /^page\[(.+)\]$/.exec(p.name ?? '')?.[1])
+          .filter((m): m is string => m !== undefined)
+        if (members.length === 0) continue
+        rewritten++
+        op.parameters = [
+          ...params.filter((p) => !p.name?.startsWith('page[')),
+          ...objectForm(members),
+        ]
+      }
+    }
+    expect(rewritten).toBeGreaterThan(0)
+
+    const built = buildDescriptor(v1)
+    expect(built['albums']!.paginator).toBe('page')
+    expect(built).toEqual(buildDescriptor(flat))
   })
 })
 
