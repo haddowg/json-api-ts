@@ -27,7 +27,7 @@ import type {
   RelationView,
   ResourceLinks,
 } from './materialise'
-import type { Page, PageOf } from './pagination'
+import type { ExactPageParams, Page, PageOf, PageParams } from './pagination'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 
 /**
@@ -357,10 +357,15 @@ export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
   | RelationName<D, T>
 
+/** The `page` argument a collection read of type `T` accepts (see {@link PageParams}). */
+export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = PageParams<
+  D[T]['paginator']
+>
+
 /**
  * A read query carrying a typed, narrowing `include`, a typed `fields` (drives sparse-fieldset
- * return narrowing), a `withCount` constrained to the type's count tokens, plus the loose
- * JSON:API query families. `Inc`/`F` are inferred (as `const`) at the call site. Used for the
+ * return narrowing), a `withCount` constrained to the type's count tokens, a `page` typed by the
+ * collection's paginator (`Pg` drives the `$page` type), plus the loose JSON:API query families. `Inc`/`F` are inferred (as `const`) at the call site. Used for the
  * COLLECTION read (`list`); the single-resource read (`get`) uses {@link SingleReadQuery}, which
  * drops `withCount` (no `GET /{type}/{id}` endpoint advertises it).
  */
@@ -369,6 +374,7 @@ export interface TypedReadQuery<
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[],
   F extends FieldsMap<D> = FieldsMap<D>,
+  Pg extends ListPageParams<D, T> | undefined = ListPageParams<D, T> | undefined,
 > {
   /** The relations to include — drives static narrowing; constrained to the advertised paths. */
   include?: Inc
@@ -380,7 +386,11 @@ export interface TypedReadQuery<
   fields?: F
   /** Relationship-count tokens (the Countable profile) — comma-joined onto `withCount`. */
   withCount?: readonly CountToken<D, T>[]
-  page?: Record<string, unknown>
+  /**
+   * The page to read, under the paginator's wire keys. On a menu, `kind` picks a strategy;
+   * without it the server answers with its default.
+   */
+  page?: ExactPageParams<Pg, ListPageParams<D, T>>
   /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
   signal?: AbortSignal
 }
@@ -418,13 +428,16 @@ export type ReadResult<
   F = unknown,
 > = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F>
 
-/** A loose read query (filter/sort/include/fields/page/withCount) for the relationship/related endpoints. */
-export interface RelationReadQuery {
+/**
+ * A read query for the relationship/related endpoints: loose filter/sort/include/fields/withCount,
+ * and a `page` of type `Pg` (typed from the relation's paginator on a typed accessor).
+ */
+export interface RelationReadQuery<Pg = Readonly<Record<string, unknown>>> {
   filter?: Record<string, unknown>
   sort?: string | readonly string[]
   include?: readonly string[]
   fields?: Record<string, readonly string[]>
-  page?: Record<string, unknown>
+  page?: Pg
   /**
    * Relationship-count tokens (`_self_` + the relation's countable relations) — the related/
    * relationship endpoints advertise their own `withCount`, and the client negotiates the
@@ -496,6 +509,13 @@ type LinkageValue<
     ? Collection<Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>>, RelationPage<D, T, R, Q>>
     : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>> | null
 
+/** The `page` argument relation `R`'s to-many reads accept; `never` for a to-one. */
+export type RelationPageParams<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = IsMany<D, T, R> extends true ? PageParams<RelationPaginator<D, T, R>> : never
+
 /**
  * A relationship accessor off a {@link ResourceHandle} (`client.albums.id('1').tracks`):
  * reads — `.get()` (linkage) / `.related()` (related collection); writes — to-many
@@ -515,10 +535,14 @@ export interface RelationshipAccessor<
   R extends RelationName<D, T>,
 > {
   get: ExposesRelationship<D, T, R> extends true
-    ? (query?: RelationReadQuery) => Promise<LinkageValue<D, T, R>>
+    ? <const Pg extends RelationPageParams<D, T, R> | undefined = undefined>(
+        query?: RelationReadQuery<ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
+      ) => Promise<LinkageValue<D, T, R, Pg>>
     : never
   related: ExposesRelated<D, T, R> extends true
-    ? (query?: RelationReadQuery) => Promise<RelatedValue<D, A, T, R>>
+    ? <const Pg extends RelationPageParams<D, T, R> | undefined = undefined>(
+        query?: RelationReadQuery<ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
+      ) => Promise<RelatedValue<D, A, T, R, Pg>>
     : never
   add: RelationMutation<D, T, R, 'add', readonly WriteRef<D, T, R>[]>
   remove: RelationMutation<D, T, R, 'remove', readonly LinkageRefOf<RelatedType<D, T, R>>[]>
@@ -881,9 +905,13 @@ export interface TypeAccessor<
   T extends TypeName<D>,
   Act = DefaultActionTypes,
 > {
-  list<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    query?: TypedReadQuery<D, T, Inc, F>,
-  ): Promise<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator']>>>
+  list<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Pg extends ListPageParams<D, T> | undefined = undefined,
+  >(
+    query?: TypedReadQuery<D, T, Inc, F, Pg>,
+  ): Promise<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>>
   get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,

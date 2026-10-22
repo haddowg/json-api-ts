@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient } from './client'
 import type { ApiDescriptor } from './descriptor'
 import { type PageParams, resolvePaginator, type TypedPage } from './pagination'
-import type { Client } from './result-types'
+import type { Client, ListPageParams, RelationPageParams } from './result-types'
 import type { TransportRequest, TransportResponse } from './transport'
 
 const BASE = 'https://api.example'
@@ -158,30 +158,34 @@ describe('paginated reads', () => {
 
 describe('page parameter typing', () => {
   it('keys each strategy by its wire names, counts as numbers and cursors as strings', () => {
-    expectTypeOf<PageParams<Map['pages']['paginator']>>().toEqualTypeOf<{
-      p?: number
-      per?: number
-    }>()
-    expectTypeOf<PageParams<Map['offsets']['paginator']>>().toEqualTypeOf<{
+    expectTypeOf<ListPageParams<Map, 'pages'>>().toEqualTypeOf<{ p?: number; per?: number }>()
+    expectTypeOf<ListPageParams<Map, 'offsets'>>().toEqualTypeOf<{
       offset?: number
       limit?: number
     }>()
-    expectTypeOf<PageParams<Map['cursors']['paginator']>>().toEqualTypeOf<{
+    expectTypeOf<ListPageParams<Map, 'cursors'>>().toEqualTypeOf<{
       after?: string
       before?: string
       size?: number
     }>()
-    expectTypeOf<PageParams<Map['fixeds']['paginator']>>().toEqualTypeOf<{ n?: number }>()
-    expectTypeOf<PageParams<Map['plain']['paginator']>>().toBeNever()
+    expectTypeOf<ListPageParams<Map, 'fixeds'>>().toEqualTypeOf<{ n?: number }>()
+    expectTypeOf<ListPageParams<Map, 'plain'>>().toBeNever()
   })
 
   it('types a menu as one arm tagged by kind, or the default untagged', () => {
-    type Menu = PageParams<Map['menus']['paginator']>
+    type Menu = ListPageParams<Map, 'menus'>
     expectTypeOf<{ kind: 'stream'; after: string }>().toMatchTypeOf<Menu>()
     expectTypeOf<{ kind: 'numbered'; number: number }>().toMatchTypeOf<Menu>()
     expectTypeOf<{ number: number; size: number }>().toMatchTypeOf<Menu>()
     // A member only another arm reads would make the server pick that arm, so it needs `kind`.
     expectTypeOf<{ after: string }>().not.toMatchTypeOf<Menu>()
+  })
+
+  it('types a relation by its paginator, and a to-one as unpageable', () => {
+    expectTypeOf<RelationPageParams<Map, 'pages', 'menu'>>().toEqualTypeOf<
+      ListPageParams<Map, 'menus'>
+    >()
+    expectTypeOf<RelationPageParams<Map, 'pages', 'owner'>>().toBeNever()
   })
 
   it('falls back to a loose record for a descriptor that is not a literal', () => {
@@ -213,6 +217,12 @@ async function pageTypingFollowsTheAnsweringStrategy() {
   const next = await pages.$next()
   expectTypeOf(next).toEqualTypeOf<typeof pages | undefined>()
 
+  const picked = await typed.menus.list({ page: { kind: 'stream', after: 'c' } })
+  expectTypeOf(picked.$page.kind).toEqualTypeOf<'cursor'>()
+  expectTypeOf(picked.$page.arm).toEqualTypeOf<'stream'>()
+
+  const defaulted = await typed.menus.list({ page: { size: 5 } })
+  expectTypeOf(defaulted.$page.kind).toEqualTypeOf<'page'>()
   const unpaged = await typed.menus.list()
   expectTypeOf(unpaged.$page.kind).toEqualTypeOf<'page'>()
 
@@ -221,8 +231,26 @@ async function pageTypingFollowsTheAnsweringStrategy() {
     { currentPage: number; total?: number; lastPage?: number } | undefined
   >()
 
-  const related = await typed.pages.id('1').menu.related()
-  expectTypeOf(related.$page.kind).toEqualTypeOf<'page'>()
+  const related = await typed.pages.id('1').menu.related({ page: { kind: 'stream' } })
+  expectTypeOf(related.$page.kind).toEqualTypeOf<'cursor'>()
+}
+
+async function pageArgumentsAreChecked() {
+  // @ts-expect-error — `number` is renamed to `p` on this collection.
+  await typed.pages.list({ page: { number: 1 } })
+  // @ts-expect-error — a page size is a number.
+  await typed.pages.list({ page: { per: '10' } })
+  // @ts-expect-error — an unpaginated collection takes no page.
+  await typed.plain.list({ page: { number: 1 } })
+  // @ts-expect-error — `after` selects the stream arm, so it must name it.
+  await typed.menus.list({ page: { after: 'c' } })
+  // @ts-expect-error — `after` belongs to the stream arm, not the numbered one.
+  await typed.menus.list({ page: { kind: 'numbered', after: 'c' } })
+  // @ts-expect-error — no arm is called `pages`.
+  await typed.menus.list({ page: { kind: 'pages' } })
+  // @ts-expect-error — a to-one related read does not paginate.
+  await typed.pages.id('1').owner.related({ page: { number: 1 } })
 }
 
 void pageTypingFollowsTheAnsweringStrategy
+void pageArgumentsAreChecked

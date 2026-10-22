@@ -157,7 +157,8 @@ Two helpers read a materialised collection's `$page`.
 `nextPage(list)` returns the `page` parameters of the collection's `next` link, or `undefined` on the last page. `prevPage(list)` does the same for `prev`. The server's links already carry the right parameters, so this works the same for every strategy. The result is typed by the collection's `$page`: counts are numbers, cursors are strings, renamed keys keep their wire names, and a read that picked a MultiPaginator arm gets its `kind` back. Keep the page in a signal that `params` reads, and set it from the helper:
 
 ```ts
-readonly page = signal<PageParams>({ size: 20 })
+// ListPageParams comes from @haddowg/json-api-client, resourceMap from your generated client.
+readonly page = signal<ListPageParams<typeof resourceMap, 'albums'>>({ size: 20 })
 
 readonly albums = jsonApiResource({
   params: () => ({ page: this.page() }),

@@ -2,9 +2,14 @@ import { provideHttpClient } from '@angular/common/http'
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing'
 import { signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
-import { JsonApiError, type Page, StructuralGuardError } from '@haddowg/json-api-client'
+import {
+  JsonApiError,
+  type ListPageParams,
+  type Page,
+  StructuralGuardError,
+} from '@haddowg/json-api-client'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
-import { loadAll, nextPage, type PageParams, prevPage } from './pagination'
+import { loadAll, nextPage, prevPage } from './pagination'
 import { createJsonApiClientToken, provideJsonApiClient } from './provide'
 import { jsonApiResource, type JsonApiResourceError } from './resource'
 import {
@@ -15,6 +20,7 @@ import {
   createAdminClient,
   createMusicClient,
   type MusicClient,
+  type MusicDescriptor,
   settle,
 } from './test-api'
 
@@ -260,7 +266,7 @@ describe('pagination helpers', () => {
   })
 
   it('a page signal drives the resource from page to page', async () => {
-    const page = signal<PageParams>({ size: 1 })
+    const page = signal<ListPageParams<MusicDescriptor, 'albums'>>({ size: 1 })
     const ref = TestBed.runInInjectionContext(() =>
       jsonApiResource({
         params: () => ({ page: page() }),

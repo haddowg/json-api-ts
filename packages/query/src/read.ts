@@ -18,6 +18,8 @@ import type {
   Collection,
   FieldsMap,
   IncludePath,
+  ListPageParams,
+  PageOf,
   ReadResult,
   RelationName,
   RelationReadQuery,
@@ -67,9 +69,13 @@ export interface QueryOptions<R> {
 /** A client narrowed to its per-type accessors (drops the `atomic` member, which reads don't use). */
 type TypedClient<D extends ApiDescriptor, A> = {
   [T in TypeName<D>]: {
-    list<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-      query?: TypedReadQuery<D, T, Inc, F>,
-    ): Promise<Collection<ReadResult<D, A, T, Inc, F>>>
+    list<
+      const Inc extends readonly IncludePath<D, T>[] = [],
+      const F extends FieldsMap<D> = {},
+      const Pg extends ListPageParams<D, T> | undefined = undefined,
+    >(
+      query?: TypedReadQuery<D, T, Inc, F, Pg>,
+    ): Promise<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>>
     get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
       id: string,
       query?: SingleReadQuery<D, T, Inc, F>,
@@ -94,15 +100,16 @@ export function listQueryOptions<
   T extends TypeName<D>,
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
+  const Pg extends ListPageParams<D, T> | undefined = undefined,
 >(
   client: TypedClient<D, A>,
   type: T,
-  query?: TypedReadQuery<D, T, Inc, F>,
-): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>>> {
+  query?: TypedReadQuery<D, T, Inc, F, Pg>,
+): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>> {
   const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
-    queryFn: () => accessor.list<Inc, F>(query),
+    queryFn: () => accessor.list<Inc, F, Pg>(query),
   }
 }
 
@@ -186,9 +193,13 @@ export function relatedQueryOptions<
 
 /** The per-type read-option factories, with `client`/`type` pre-applied (`api.<type>.list(...)`). */
 export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>> {
-  list<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    query?: TypedReadQuery<D, T, Inc, F>,
-  ): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>>>
+  list<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Pg extends ListPageParams<D, T> | undefined = undefined,
+  >(
+    query?: TypedReadQuery<D, T, Inc, F, Pg>,
+  ): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>>
   get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,

@@ -40,6 +40,7 @@ export const createAdminClient = (options: ClientOptions) =>
   createClient<typeof descriptor, Attributes>(descriptor, options)
 
 export type MusicClient = ReturnType<typeof createMusicClient>
+export type MusicDescriptor = typeof descriptor
 
 declare module './provide' {
   interface Register {

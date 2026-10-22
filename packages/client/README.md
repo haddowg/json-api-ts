@@ -132,7 +132,7 @@ const albums = await client.albums.list({ withCount: ['tracks'] })
 All three collection surfaces (top-level lists, related collections, to-many relationship arrays)
 expose the same `$page` + `$next()` / `$prev()`. Navigation is **count-free-safe** — driven by
 link presence, not a total. Cursor pagination is just a paginator `kind`; page with
-`page[cursor]` / `page[size]` query params and walk it with `$next()`:
+`page[after]` / `page[before]` / `page[size]` query params and walk it with `$next()`:
 
 ```ts
 let page = await client.tracks.list({ page: { size: 50 } })
