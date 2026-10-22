@@ -5,7 +5,14 @@ import { JsonApiError } from '@haddowg/json-api-client'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import { jsonApiMutation } from './mutation'
 import { createJsonApiClientToken, provideJsonApiClient } from './provide'
-import { albumDocument, BASE, createAdminClient, createMusicClient, settle } from './test-api'
+import {
+  type AdminErrorCode,
+  albumDocument,
+  BASE,
+  createAdminClient,
+  createMusicClient,
+  settle,
+} from './test-api'
 
 let backend: HttpTestingController
 
@@ -150,6 +157,9 @@ describe('jsonApiMutation', () => {
     const remove = TestBed.runInInjectionContext(() =>
       jsonApiMutation((client, id: string) => client.albums.id(id).delete(), { client: ADMIN }),
     )
+    expectTypeOf(remove.jsonApiError).returns.toEqualTypeOf<
+      JsonApiError<AdminErrorCode> | undefined
+    >()
 
     const done = remove.mutate('1')
     await settle()

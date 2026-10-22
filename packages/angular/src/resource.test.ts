@@ -17,6 +17,7 @@ import {
   albumDocument,
   albumsPage,
   BASE,
+  type AdminErrorCode,
   createAdminClient,
   createMusicClient,
   type MusicClient,
@@ -194,6 +195,8 @@ describe('jsonApiResource', () => {
       }),
     )
     expectTypeOf<NonNullable<ReturnType<typeof ref.value>>['title']>().toEqualTypeOf<string>()
+    // The client's error-code union reaches the errors the ref surfaces.
+    expectTypeOf(ref.jsonApiError).returns.toEqualTypeOf<JsonApiError<AdminErrorCode> | undefined>()
     await flushEffects()
     backend.expectOne(`${BASE}/admin/albums/1`).flush(albumDocument('1', 'admin'))
     await settle()

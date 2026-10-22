@@ -7,7 +7,7 @@ import {
   type Signal,
   signal,
 } from '@angular/core'
-import { JsonApiError } from '@haddowg/json-api-client'
+import { type ErrorCodeOf, JsonApiError } from '@haddowg/json-api-client'
 import { JSON_API_CLIENT, type RegisteredClient } from './provide'
 import type { JsonApiResourceError } from './resource'
 
@@ -19,17 +19,20 @@ export interface JsonApiMutationOptions<C> {
   injector?: Injector
 }
 
-/** The signal-based handle {@link jsonApiMutation} returns. */
-export interface JsonApiMutationRef<I, T> {
+/**
+ * The signal-based handle {@link jsonApiMutation} returns. `E` is the client's error-code union,
+ * so a generated client's `jsonApiError()` carries its server's `ErrorCode`.
+ */
+export interface JsonApiMutationRef<I, T, E extends string = string> {
   /**
    * Run the write. Resolves with its result and rejects with its error; the signals track the
    * latest call either way.
    */
   mutate(input: I): Promise<T>
   readonly isPending: Signal<boolean>
-  readonly error: Signal<JsonApiResourceError | undefined>
+  readonly error: Signal<JsonApiResourceError<E> | undefined>
   /** The error when it is a `JsonApiError`; use `byPath()` on it for form errors. */
-  readonly jsonApiError: Signal<JsonApiError | undefined>
+  readonly jsonApiError: Signal<JsonApiError<E> | undefined>
   /** The latest successful result. */
   readonly value: Signal<T | undefined>
   /** Clear the value and error. A call still in flight no longer updates the signals. */
@@ -50,7 +53,7 @@ export interface JsonApiMutationRef<I, T> {
 export function jsonApiMutation<I, T, C = RegisteredClient>(
   mutation: (client: C, input: I) => PromiseLike<T>,
   options: JsonApiMutationOptions<C> = {},
-): JsonApiMutationRef<I, T> {
+): JsonApiMutationRef<I, T, ErrorCodeOf<C>> {
   if (options.injector === undefined) {
     assertInInjectionContext(jsonApiMutation)
   }
