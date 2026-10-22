@@ -54,8 +54,8 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('genres: string[]')
   })
 
-  it('emits an empty interface for an attribute-less type (users)', () => {
-    expect(source).toContain('export interface UsersAttributes {}')
+  it('emits an empty interface for an attribute-less type (libraries)', () => {
+    expect(source).toContain('export interface LibrariesAttributes {}')
   })
 
   it('emits the resourceMap as const satisfies ApiDescriptor', () => {

@@ -115,6 +115,277 @@
             "id"
         ]
     },
+    "artists": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:artists",
+        "type": "object",
+        "description": "An `artists` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "artists"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "website": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "uri"
+                    },
+                    "bio": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 1000
+                    },
+                    "trackCount": {
+                        "type": "integer"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "name",
+                    "slug",
+                    "website",
+                    "bio",
+                    "trackCount",
+                    "createdAt"
+                ]
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "libraries": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:libraries",
+        "type": "object",
+        "description": "An `libraries` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "libraries"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object"
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "playlists": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:playlists",
+        "type": "object",
+        "description": "An `playlists` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "playlists"
+            },
+            "id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                        "example": "example-slug"
+                    },
+                    "public": {
+                        "type": "boolean"
+                    },
+                    "externalId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "uuid"
+                    }
+                },
+                "required": [
+                    "title",
+                    "slug",
+                    "public",
+                    "externalId"
+                ]
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "public-profiles": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:public-profiles",
+        "type": "object",
+        "description": "An `public-profiles` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "public-profiles"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "displayName": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "displayName"
+                ]
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
+    "tracks": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:jsonapi:schema:tracks",
+        "type": "object",
+        "description": "An `tracks` resource object.",
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "tracks"
+            },
+            "id": {
+                "type": "string"
+            },
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "trackNumber": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "durationSeconds": {
+                        "type": "integer"
+                    },
+                    "explicit": {
+                        "type": "boolean"
+                    },
+                    "genres": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "previewOffset": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
+                    },
+                    "displayTitle": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title",
+                    "trackNumber",
+                    "durationSeconds",
+                    "explicit",
+                    "genres",
+                    "previewOffset",
+                    "displayTitle"
+                ]
+            },
+            "relationships": {
+                "type": "object"
+            },
+            "links": {
+                "type": "object"
+            },
+            "meta": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "type",
+            "id"
+        ]
+    },
     "users": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:users",
