@@ -1,7 +1,8 @@
 import { type AtomicRecorder, runAtomic } from './atomic'
 import type { ActionDescriptor, ActionScope, ApiDescriptor, AtomicDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
-import { materialise, type MaterialiseContext, relatedPaginatorKind } from './materialise'
+import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
+import { resolvePaginator } from './pagination'
 import { execute, type JsonApiContext, type JsonApiRequest, type ReadQuery } from './request'
 import type {
   ActionsAccessor,
@@ -98,15 +99,23 @@ async function run(
     negotiateProfiles(ctx, type, params, req, relationForCount)
   }
   const doc = await execute(ctx.request, req)
-  // Pass the statically-known primary type for the top-level collection read so an EMPTY page
-  // still reports the collection's real `$page.kind` instead of the sniffed-from-`data[0]` `none`
-  // (D6). A related/relationship read instead threads the RELATION's paginator kind — which may
-  // diverge from the related type's collection (D6a) and which an empty page can't sniff.
+  // Resolve the strategy that answers from the endpoint's paginator and the `page` sent, so an
+  // EMPTY page still reports the real `$page.kind` (D6) and a menu read reports the arm it picked.
+  // A related/relationship read uses the RELATION's paginator, which may diverge from the related
+  // type's collection (D6a).
+  const relation =
+    (operation === 'fetchRelated' || operation === 'fetchRelationship') && vars['rel'] !== undefined
+      ? ctx.descriptor[type]?.relations[vars['rel']]
+      : undefined
+  const paginator =
+    operation === 'fetchMany'
+      ? ctx.descriptor[type]?.paginator
+      : relation !== undefined
+        ? relatedPaginator(relation, ctx.materialise)
+        : undefined
   const primaryType = operation === 'fetchMany' ? type : undefined
   const paginatorOverride =
-    (operation === 'fetchRelated' || operation === 'fetchRelationship') && vars['rel'] !== undefined
-      ? relatedPaginatorKind(ctx.descriptor[type]?.relations[vars['rel']], ctx.materialise)
-      : undefined
+    paginator === undefined ? undefined : resolvePaginator(paginator, query?.page)
   return doc === undefined
     ? undefined
     : materialise(doc, ctx.materialise, linkage, primaryType, paginatorOverride)

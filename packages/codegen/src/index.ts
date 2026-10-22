@@ -14,11 +14,13 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { buildDescriptor } from './build-descriptor'
+import { checkContract } from './contract'
 import { detectVerbCollisions, emit } from './emit'
 import { emitSchemas } from './emit-schemas'
 import { readDocument, readSchemas } from './reader'
 
 export { buildAtomic, buildDescriptor, DescriptorBuilder } from './build-descriptor'
+export { checkContract, MAXIMUM_CONTRACT, MINIMUM_CONTRACT } from './contract'
 export { detectVerbCollisions, emit, Emitter } from './emit'
 export type { VerbCollision } from './emit'
 export { emitSchemas } from './emit-schemas'
@@ -87,6 +89,10 @@ interface RenderedArtifact {
  */
 async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
   const doc = await readDocument(config.input)
+  const contractWarning = checkContract(doc)
+  if (contractWarning !== undefined) {
+    console.warn(`[json-api-codegen] ${contractWarning}`)
+  }
   const descriptor = buildDescriptor(doc)
 
   for (const { type, relation } of detectVerbCollisions(descriptor)) {

@@ -1,14 +1,12 @@
 import { DatePipe } from '@angular/common'
 import { Component, signal } from '@angular/core'
-import {
-  jsonApiMutation,
-  jsonApiResource,
-  nextPage,
-  type PageParams,
-  prevPage,
-} from '@haddowg/json-api-angular'
+import { jsonApiMutation, jsonApiResource, nextPage, prevPage } from '@haddowg/json-api-angular'
+import type { ListPageParams } from '@haddowg/json-api-client'
+import type { resourceMap } from '../generated/music-catalog.gen'
 
-const FIRST_PAGE: PageParams = { size: '5' }
+type AlbumsPage = ListPageParams<typeof resourceMap, 'albums'>
+
+const FIRST_PAGE: AlbumsPage = { size: 5 }
 
 @Component({
   selector: 'app-album-list',
@@ -36,7 +34,7 @@ const FIRST_PAGE: PageParams = { size: '5' }
       </ul>
       <nav>
         <button type="button" [disabled]="!previous()" (click)="goTo(previous())">Previous</button>
-        <span>Page {{ albums.value().$page.meta?.['currentPage'] }}</span>
+        <span>Page {{ albums.value().$page.meta?.currentPage }}</span>
         <button type="button" [disabled]="!next()" (click)="goTo(next())">Next</button>
       </nav>
     }
@@ -61,7 +59,7 @@ const FIRST_PAGE: PageParams = { size: '5' }
 })
 export class AlbumList {
   readonly search = signal('')
-  readonly page = signal<PageParams>(FIRST_PAGE)
+  readonly page = signal<AlbumsPage>(FIRST_PAGE)
   readonly selectedId = signal<string | undefined>(undefined)
 
   // Typing in the box changes the params, which cancels the request still in flight.
@@ -91,11 +89,11 @@ export class AlbumList {
     client.albums.id(input.id).update({ title: input.title }),
   )
 
-  next(): PageParams | undefined {
+  next(): AlbumsPage | undefined {
     return this.albums.hasValue() ? nextPage(this.albums.value()) : undefined
   }
 
-  previous(): PageParams | undefined {
+  previous(): AlbumsPage | undefined {
     return this.albums.hasValue() ? prevPage(this.albums.value()) : undefined
   }
 
@@ -104,7 +102,7 @@ export class AlbumList {
     this.page.set(FIRST_PAGE)
   }
 
-  goTo(page: PageParams | undefined): void {
+  goTo(page: AlbumsPage | undefined): void {
     if (page !== undefined) {
       this.page.set(page)
     }

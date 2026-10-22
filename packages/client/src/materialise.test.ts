@@ -303,8 +303,8 @@ describe('materialise — navigation seam', () => {
     const arr = asArray<unknown>(materialise(doc, context(navigate)))
     await expect(arr.$next()).resolves.toBe('PAGE2')
     // A top-level collection re-materialises its next page as resources (linkage=false), threading
-    // the current page's paginator kind so an empty/divergent next page keeps the discriminant (D6a).
-    expect(navigate).toHaveBeenCalledWith(next, false, 'none')
+    // the current page's paginator so an empty/divergent next page keeps the discriminant (D6a).
+    expect(navigate).toHaveBeenCalledWith(next, false, { kind: 'none', keys: {} })
   })
 })
 
@@ -333,8 +333,9 @@ describe('materialise — fixed-size page collection', () => {
     const albums = asArray<Materialised>(materialise(doc, { descriptor: fixed, navigate }))
     await albums.$next()
     await albums.$prev()
-    expect(navigate).toHaveBeenNthCalledWith(1, next, false, 'fixed')
-    expect(navigate).toHaveBeenNthCalledWith(2, prev, false, 'fixed')
+    const fixedPaginator = { kind: 'fixed', keys: { number: 'number' } }
+    expect(navigate).toHaveBeenNthCalledWith(1, next, false, fixedPaginator)
+    expect(navigate).toHaveBeenNthCalledWith(2, prev, false, fixedPaginator)
   })
 })
 

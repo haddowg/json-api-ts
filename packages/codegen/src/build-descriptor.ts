@@ -5,12 +5,16 @@ import type {
   Cardinality,
   ClientIdPolicy,
   CountableDescriptor,
+  MenuDescriptor,
+  PaginatorDescriptor,
   PaginatorKind,
+  PaginatorRole,
+  PaginatorStrategy,
   RelationDescriptor,
   RelationMutations,
   ResourceDescriptor,
 } from '@haddowg/json-api-client'
-import { ATOMIC_EXT } from '@haddowg/json-api-client'
+import { ATOMIC_EXT, CANONICAL_PAGE_KEYS } from '@haddowg/json-api-client'
 import type {
   HttpMethod,
   OpenApiDocument,
@@ -54,7 +58,7 @@ export class DescriptorBuilder {
   private readonly schemas: Record<string, SchemaObject>
   private readonly paths: Record<string, PathItemObject>
   /** Lazily-built wire-type -> collection-level paginator kind (for per-relation divergence, D6a). */
-  private typePaginators?: Map<string, PaginatorKind>
+  private typePaginators?: Map<string, PaginatorDescriptor>
 
   constructor(private readonly doc: OpenApiDocument) {
     this.schemas = doc.components?.schemas ?? {}
@@ -66,7 +70,7 @@ export class DescriptorBuilder {
    * resource schema's wire type (its `type.const`) to the paginator of its collection GET — the
    * baseline a per-relation related-endpoint paginator is compared against (D6a).
    */
-  private typePaginator(wireType: string): PaginatorKind {
+  private typePaginator(wireType: string): PaginatorDescriptor {
     if (this.typePaginators === undefined) {
       this.typePaginators = new Map()
       for (const [name, schema] of Object.entries(this.schemas)) {
@@ -296,14 +300,17 @@ export class DescriptorBuilder {
     // relationship endpoint) and carry it ONLY when it diverges from the related type's collection
     // paginator — the client falls back to that type's paginator otherwise, so parity stays silent.
     if (descriptor.cardinality === 'many') {
-      const relatedKind =
-        this.paginatorKindOf(relatedGet) === 'none'
-          ? this.paginatorKindOf(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
-          : this.paginatorKindOf(relatedGet)
+      const relatedPaginator =
+        this.paginatorOf(relatedGet) === 'none'
+          ? this.paginatorOf(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
+          : this.paginatorOf(relatedGet)
       const relatedType = descriptor.types[0]
-      const typeKind = relatedType !== undefined ? this.typePaginator(relatedType) : 'none'
-      if (relatedKind !== 'none' && relatedKind !== typeKind) {
-        out.paginator = relatedKind
+      const typePaginator = relatedType !== undefined ? this.typePaginator(relatedType) : 'none'
+      if (
+        relatedPaginator !== 'none' &&
+        JSON.stringify(relatedPaginator) !== JSON.stringify(typePaginator)
+      ) {
+        out.paginator = relatedPaginator
       }
     }
     return out
@@ -652,22 +659,35 @@ export class DescriptorBuilder {
     )
   }
 
-  /** Detect the paginator kind from the fetchMany operation's page parameters. */
-  private paginator(base: string): PaginatorKind {
+  /** Detect the paginator from the fetchMany operation's page parameters. */
+  private paginator(base: string): PaginatorDescriptor {
     const collection = this.collectionPath(base)
-    return this.paginatorKindOf(this.operation(collection ?? '', 'get'), collection)
+    return this.paginatorOf(this.operation(collection ?? '', 'get'), collection)
   }
 
   /**
-   * Detect the paginator kind an operation advertises from its page members (see
-   * {@link pageMembers} and {@link kindOfMembers}). `label` (a path, for the drift warning) names
-   * the endpoint when the page parameter matches no single known kind.
-   *
-   * A `oneOf` page schema is a MultiPaginator menu: the client picks a strategy per request and
-   * the server's default is not projected, so no one kind describes the collection. It falls back
-   * to `none` with a warning naming the offered kinds, as the PHP codegen refuses to pick an arm.
+   * Detect the paginator an operation advertises. A page schema stamped with `x-paginator`
+   * (contract 3) names its strategy and the wire key for each role, so it decides both. Without
+   * the stamp, the strategy is inferred from canonical member names (see {@link kindOfMembers}).
+   * Anything unrecognised warns and generates as unpaginated. `label` (a path) names the endpoint
+   * in the warning; without it nothing is logged.
    */
-  private paginatorKindOf(op: OperationObject | undefined, label?: string): PaginatorKind {
+  private paginatorOf(op: OperationObject | undefined, label?: string): PaginatorDescriptor {
+    const warn = (problem: string): 'none' => {
+      if (label !== undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `json-api codegen: endpoint "${label}" ${problem}; treating it as unpaginated.`,
+        )
+      }
+      return 'none'
+    }
+
+    const schema = op?.parameters?.find((param) => param.name === 'page')?.schema
+    if (schema?.['x-paginator'] !== undefined) {
+      return stampedPaginator(schema, warn)
+    }
+
     const { members, menu } = this.pageMembers(op)
     if (menu === undefined) {
       const kind = kindOfMembers(members)
@@ -677,19 +697,18 @@ export class DescriptorBuilder {
     }
     // A page parameter matching no single known kind is a drift the client would silently treat
     // as unpaginated; warn rather than swallow it (D28).
-    if (label !== undefined && (menu !== undefined || members.size > 0)) {
-      const found =
-        menu === undefined
-          ? `members ${sortedList(members)}`
-          : `a selectable strategy menu (${menu
-              .map((arm) => kindOfMembers(arm) ?? sortedList(arm))
-              .join(' | ')}), which is not generated yet`
-      // eslint-disable-next-line no-console
-      console.warn(
-        `json-api codegen: endpoint "${label}" advertises page parameters matching no known paginator kind (${found}); treating it as unpaginated.`,
+    if (menu !== undefined) {
+      return warn(
+        `advertises a selectable page strategy menu (${menu
+          .map((arm) => kindOfMembers(arm) ?? sortedList(arm))
+          .join(' | ')}) without an x-paginator stamp naming its default`,
       )
     }
-    return 'none'
+    return members.size > 0
+      ? warn(
+          `advertises page parameters matching no known paginator kind (members ${sortedList(members)})`,
+        )
+      : 'none'
   }
 
   /**
@@ -980,3 +999,80 @@ function kindOfMembers(members: ReadonlySet<string>): PaginatorKind | undefined 
 
 // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
 const sortedList = (members: ReadonlySet<string>): string => [...members].sort().join(', ')
+
+const STRATEGIES: readonly PaginatorStrategy[] = ['page', 'offset', 'cursor', 'fixed']
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * Read a page schema's `x-paginator` stamp. A strategy keeps the wire key the stamp names for
+ * each of its roles (a missing role keeps its canonical name) and collapses to the bare kind when
+ * every key is canonical. A `multi` stamp reads each `oneOf` arm by its `kind` const: an arm's own
+ * stamp decides it, an unstamped arm falls back to name inference, and an arm neither recognises
+ * is left out of the menu.
+ */
+function stampedPaginator(
+  schema: SchemaObject,
+  warn: (problem: string) => 'none',
+): PaginatorDescriptor {
+  const stamp = schema['x-paginator']
+  const strategy = isRecord(stamp) ? stamp['strategy'] : undefined
+  if (!isRecord(stamp) || typeof strategy !== 'string') {
+    return warn('stamps a malformed x-paginator')
+  }
+  if (strategy === 'multi') {
+    return stampedMenu(schema, stamp, warn)
+  }
+  if (!(STRATEGIES as readonly string[]).includes(strategy)) {
+    return warn(`stamps an x-paginator strategy "${strategy}" this codegen does not know`)
+  }
+  const kind = strategy as PaginatorStrategy
+  const canonical: Partial<Record<PaginatorRole, string>> = CANONICAL_PAGE_KEYS[kind]
+  const stamped = isRecord(stamp['keys']) ? stamp['keys'] : {}
+  const keys: Partial<Record<PaginatorRole, string>> = {}
+  let renamed = false
+  for (const [role, fallback] of Object.entries(canonical) as [PaginatorRole, string][]) {
+    const key = typeof stamped[role] === 'string' ? stamped[role] : fallback
+    keys[role] = key
+    renamed ||= key !== fallback
+  }
+  return renamed ? { strategy: kind, keys } : kind
+}
+
+function stampedMenu(
+  schema: SchemaObject,
+  stamp: Record<string, unknown>,
+  warn: (problem: string) => 'none',
+): PaginatorDescriptor {
+  const arms: Record<string, MenuDescriptor['arms'][string]> = {}
+  for (const arm of schema.oneOf ?? []) {
+    const discriminator = arm.properties?.['kind']
+    const kind = isRecord(discriminator) ? discriminator['const'] : undefined
+    if (typeof kind !== 'string') {
+      warn('offers a page strategy menu arm without a kind const, which is left out')
+      continue
+    }
+    const paginator =
+      arm['x-paginator'] !== undefined
+        ? stampedPaginator(arm, (problem) =>
+            warn(`offers a menu arm "${kind}" that ${problem}, which is left out`),
+          )
+        : (kindOfMembers(new Set(Object.keys(arm.properties ?? {}).filter((m) => m !== 'kind'))) ??
+          warn(`offers a menu arm "${kind}" matching no known paginator kind, which is left out`))
+    if (typeof paginator === 'object' && paginator.strategy === 'multi') {
+      warn(`nests a page strategy menu in arm "${kind}", which is left out`)
+      continue
+    }
+    if (paginator !== 'none') {
+      arms[kind] = paginator
+    }
+  }
+  const fallback = stamp['default']
+  if (typeof fallback !== 'string' || arms[fallback] === undefined) {
+    return warn(
+      `stamps a page strategy menu whose default ${typeof fallback === 'string' ? `"${fallback}"` : '(missing)'} is not one of its generated arms`,
+    )
+  }
+  return { strategy: 'multi', default: fallback, arms }
+}

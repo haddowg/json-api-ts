@@ -364,15 +364,15 @@ describe('createClient — cursor pagination', () => {
 
   it('serialises cursor page params on a list request', async () => {
     const { transport, requests } = mockTransport({
-      [`${BASE}/feed?page[cursor]=c2&page[size]=20`]: JSON.stringify({
+      [`${BASE}/feed?page[after]=c2&page[size]=20`]: JSON.stringify({
         data: [],
-        links: { self: `${BASE}/feed?page[cursor]=c2&page[size]=20` },
+        links: { self: `${BASE}/feed?page[after]=c2&page[size]=20` },
       }),
     })
     const client = createClient(descriptor, { baseUrl: BASE, transport })
 
-    await client.feed.list({ page: { cursor: 'c2', size: 20 } })
-    expect(requests[0]!.url).toBe(`${BASE}/feed?page[cursor]=c2&page[size]=20`)
+    await client.feed.list({ page: { after: 'c2', size: 20 } })
+    expect(requests[0]!.url).toBe(`${BASE}/feed?page[after]=c2&page[size]=20`)
   })
 })
 

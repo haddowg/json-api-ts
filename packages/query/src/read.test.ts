@@ -108,6 +108,18 @@ describe('listQueryOptions', () => {
     expect(requests).toHaveLength(1)
   })
 
+  it('types the page argument and $page from the collection paginator', async () => {
+    const { client, requests } = makeClient({ 'GET /albums': { data: [] } })
+    const options = listQueryOptions(client, 'albums', { page: { number: 2, size: 5 } })
+    const result = await new QueryClient().fetchQuery(options)
+
+    expect(requests[0]?.url).toContain('page[number]=2&page[size]=5')
+    expect(result.$page.kind).toBe('page')
+    expectTypeOf(result.$page.kind).toEqualTypeOf<'page'>()
+    // @ts-expect-error — a page size is a number.
+    listQueryOptions(client, 'albums', { page: { size: '5' } })
+  })
+
   it('serialises include/fields into the request URL (narrowing is wired through)', async () => {
     const { client, requests } = makeClient({
       'GET /albums': { data: [resource('albums', '1', { title: 'A' })] },

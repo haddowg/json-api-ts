@@ -2,7 +2,12 @@ import { provideHttpClient } from '@angular/common/http'
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing'
 import { signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
-import { JsonApiError, StructuralGuardError } from '@haddowg/json-api-client'
+import {
+  JsonApiError,
+  type ListPageParams,
+  type Page,
+  StructuralGuardError,
+} from '@haddowg/json-api-client'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import { loadAll, nextPage, prevPage } from './pagination'
 import { createJsonApiClientToken, provideJsonApiClient } from './provide'
@@ -15,6 +20,7 @@ import {
   createAdminClient,
   createMusicClient,
   type MusicClient,
+  type MusicDescriptor,
   settle,
 } from './test-api'
 
@@ -233,8 +239,9 @@ describe('pagination helpers', () => {
 
     const page = await client.albums.list()
 
-    expect(nextPage(page)).toEqual({ number: '3', size: '1' })
-    expect(prevPage(page)).toEqual({ number: '1', size: '1' })
+    expect(nextPage(page)).toEqual({ number: 3, size: 1 })
+    expect(prevPage(page)).toEqual({ number: 1, size: 1 })
+    expectTypeOf(nextPage(page)).toEqualTypeOf<{ number?: number; size?: number } | undefined>()
     expect(nextPage(undefined)).toBeUndefined()
   })
 
@@ -254,12 +261,12 @@ describe('pagination helpers', () => {
     const page = await client.artists.list()
 
     expect(page.$page.kind).toBe('cursor')
-    expect(nextPage(page)).toEqual({ after: 'abc=', size: '1' })
+    expect(nextPage(page)).toEqual({ after: 'abc=', size: 1 })
     expect(prevPage(page)).toBeUndefined()
   })
 
   it('a page signal drives the resource from page to page', async () => {
-    const page = signal<Record<string, string>>({ size: '1' })
+    const page = signal<ListPageParams<MusicDescriptor, 'albums'>>({ size: 1 })
     const ref = TestBed.runInInjectionContext(() =>
       jsonApiResource({
         params: () => ({ page: page() }),
@@ -339,6 +346,25 @@ describe('pagination helpers', () => {
     expect(calls).toBe(2)
   })
 
+  it('nextPage() reads renamed keys and the picked menu arm from the link', () => {
+    const page: Page = {
+      kind: 'page',
+      keys: { number: 'p', size: 'size' },
+      arm: 'numbered',
+      links: { next: '/albums?page%5Bkind%5D=numbered&page%5Bp%5D=2&page%5Bsize%5D=10' },
+    }
+    expect(nextPage({ $page: page })).toEqual({ kind: 'numbered', p: 2, size: 10 })
+  })
+
+  it("nextPage() leaves kind out on a menu's default strategy, whose links carry none", () => {
+    const page: Page = {
+      kind: 'page',
+      keys: { number: 'number', size: 'size' },
+      links: { next: '/albums?page%5Bnumber%5D=2&page%5Bsize%5D=10' },
+    }
+    expect(nextPage({ $page: page })).toEqual({ number: 2, size: 10 })
+  })
+
   it('loadAll() and nextPage() follow root-relative links against a base with a path', async () => {
     const urls: string[] = []
     const client = createMusicClient({
@@ -357,7 +383,7 @@ describe('pagination helpers', () => {
       },
     })
 
-    expect(nextPage(await client.albums.list())).toEqual({ number: '2', size: '1' })
+    expect(nextPage(await client.albums.list())).toEqual({ number: 2, size: 1 })
     urls.length = 0
     const all = await loadAll(client.albums.list())
 

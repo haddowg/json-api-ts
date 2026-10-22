@@ -6,7 +6,7 @@ The model is **count-free-safe**: you can page forward and back without the serv
 
 ## Reading a page
 
-Pass a `page` object to any collection read. Its keys are the paginator's knobs — for page-based pagination, `number` and `size`:
+Pass a `page` object to any collection read. Its keys are the paginator's wire keys, typed per collection from the descriptor: counts (`number`, `size`, `offset`, `limit`) are numbers, cursors (`after`, `before`) are strings. For page-based pagination with the default keys, that's `number` and `size`:
 
 ```ts
 const albums = await client.albums.list({
@@ -23,7 +23,15 @@ The page state rides the array as `$page`:
 
 ```ts
 albums.$page.kind                    // 'page'
-albums.$meta?.['page']               // the raw meta.page block, e.g. { currentPage: 1, ... }
+albums.$page.meta?.currentPage       // number, from the meta.page block
+albums.$page.meta?.total             // number | undefined (present when the server counts)
+```
+
+A key the collection doesn't accept is a compile error, and so is a `page` on an unpaginated collection:
+
+```ts
+client.albums.list({ page: { numbr: 1 } })   // error: not a page key
+client.albums.list({ page: { size: '20' } }) // error: a size is a number
 ```
 
 !!! note "`$page` is non-enumerable"
@@ -70,6 +78,45 @@ while (page) {
 
 A `fixed` collection reads like a `page` one, except you can only pick the page number: `client.albums.list({ page: { number: 2 } })`. Its `$page.meta` carries `currentPage`, plus `total` and `lastPage` when the server counts.
 
+`$page.meta` is typed per kind, following what `haddowg/json-api`'s paginators render:
+
+| `kind`   | `$page.meta` |
+| -------- | ------------ |
+| `page`   | `currentPage`, `perPage`, `from`, and `to`, `total`, `lastPage` when known |
+| `fixed`  | `currentPage`, and `total`, `lastPage` when counted |
+| `offset` | `offset`, `limit`, `from`, and `to`, `total` when known |
+| `cursor` | `perPage`, `hasMore`, and the `from`/`to` row ids on a non-empty page |
+
+## Renamed page keys
+
+A server can rename any page key (`PagePaginator::make()->withPageKey('p')`). The server stamps the names it uses into the OpenAPI document, the codegen carries them in the descriptor, and the `page` argument takes the real wire keys:
+
+```ts
+// paginator: { strategy: 'page', keys: { number: 'p', size: 'size' } }
+const albums = await client.albums.list({ page: { p: 2, size: 20 } }) // ?page[p]=2&page[size]=20
+albums.$page.keys // { number: 'p', size: 'size' }
+```
+
+`$page.keys` maps each role (`number`, `size`, `offset`, `limit`, `after`, `before`) to its wire key, for code that builds page arguments generically.
+
+## Choosing a strategy (MultiPaginator)
+
+A collection backed by a `MultiPaginator` offers a menu of strategies. Each one has a `kind`, and the server answers with its default when a request names none. The `page` argument is a union: pick a strategy by its `kind` and pass that strategy's members, or leave `kind` out and pass the default's members.
+
+```ts
+// paginator: { strategy: 'multi', default: 'page', arms: { page: 'page', cursor: 'cursor' } }
+
+const byCursor = await client.events.list({ page: { kind: 'cursor', after: 'abc', size: 50 } })
+// sends ?page[kind]=cursor&page[after]=abc&page[size]=50
+byCursor.$page.kind // 'cursor' (typed as 'cursor')
+byCursor.$page.arm  // 'cursor'
+
+const byDefault = await client.events.list({ page: { number: 2 } })
+byDefault.$page.kind // 'page' (typed as the default arm's strategy)
+```
+
+`$page` is typed by the strategy that will answer: the arm you picked, or the default when you picked none. A member only another arm reads, such as `after` without `kind: 'cursor'`, is a compile error, because the server would pick that other arm by it while the response is typed as the default. An arm's `kind` can differ from its strategy (`withKind()` on the server); the client sends the `kind` and types the response by the strategy.
+
 The kind is **declared per resource (and per relation) in the spec** and baked into the generated descriptor — the client reads it from there, it never guesses from the response. That is what makes it reliable even for an empty page: an empty collection carries no member to sniff a type from, but the descriptor still knows the collection's real kind, so `$page.kind` is correct rather than falling back to `none`.
 
 !!! note "Why the client knows which knobs exist"
@@ -99,16 +146,18 @@ Because navigation is link-driven, cursor pagination needs no special handling: 
     ```ts
     interface Page {
       kind: 'page' | 'offset' | 'cursor' | 'fixed' | 'none'
+      keys: { number?; size?; offset?; limit?; after?; before? } // role -> wire key
+      arm?: string                            // the menu arm the read picked, if any
       meta?: Record<string, unknown>          // the raw meta.page block, when present
       links: { first?; prev?; next?; last? }  // navigation links, when present
     }
     ```
 
-    `$page.meta` is the untouched `meta.page` block from the wire (its shape varies by paginator — `currentPage`, `total`, a cursor value, etc.), and `$page.links` are the extracted navigation hrefs `$next()`/`$prev()` follow. Both are optional: a count-free paginator may carry only links, and the last page may carry no `next`.
+    That is the runtime shape. On a generated client each read's `$page` is the narrower `TypedPage<kind, keys, arm>`, whose `meta` is typed for its kind (see the table above). `$page.meta` is the untouched `meta.page` block from the wire, and `$page.links` are the extracted navigation hrefs `$next()`/`$prev()` follow. Both are optional: a count-free paginator may carry only links, and the last page may carry no `next`.
 
 ## Paginating a related collection
 
-A related collection paginates the same way. Fetch a to-many relation with `.related()` and pass `page`; the returned array carries its own `$page`, and it reports the **relation's** paginator kind — which the spec may declare differently from the related type's own top-level collection:
+A related collection paginates the same way. Fetch a to-many relation with `.related()` and pass `page`; the returned array carries its own `$page`, and it reports the **relation's** paginator — which the spec may declare differently from the related type's own top-level collection. The `page` argument is typed from that paginator too, and a to-one relation takes no `page`:
 
 ```ts
 const tracks = await client.albums

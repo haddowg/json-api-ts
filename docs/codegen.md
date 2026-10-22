@@ -136,8 +136,9 @@ export const resourceMap = {
 } as const satisfies ApiDescriptor
 ```
 
-Every field is derived structurally from the spec — no proprietary extension is
-required:
+Every field is derived from the spec. Where the server stamps a vendor extension
+(`x-profile`, `x-paginator`) the codegen reads it; otherwise it works from the
+document's structure:
 
 - **`attributes`** — the read attribute names with a coarse wire-format hint
   (`string` / `number` / `boolean` / `date` / `date-time` / `object`). The
@@ -155,16 +156,28 @@ required:
 - **`paths`** — only the per-operation paths that actually exist
   (`fetchMany`/`fetchOne`/`create`/`update`/`delete`/`fetchRelated`/`fetchRelationship`).
   A read-only type simply has no `create`/`update`/`delete`.
-- **`paginator`** — the collection's paginator kind, detected from the members of
-  its `page` query parameter. The codegen reads both the single `page` object
-  parameter (`style: deepObject`) that `haddowg/json-api` v1 projects and the
-  older flattened `page[number]`/`page[size]` form: `number`+`size` is `page`,
-  `offset`+`limit` is `offset`, `after` or `before` is `cursor`, `number` alone
-  is `fixed`, and no page parameter is `none`. A page parameter matching none of
-  these logs a warning and falls back to `none`. So does a `MultiPaginator`,
-  whose `page` schema is a `oneOf` menu the client picks from per request: the
-  warning names the kinds it offers, and `$next()`/`$prev()` still follow the
-  server's links. See [pagination](pagination.md).
+- **`paginator`** — how the collection paginates, read from its `page` query
+  parameter:
+    - When the page schema carries `x-paginator` (generator contract 3), the stamp
+      decides the strategy (`page`, `offset`, `cursor` or `fixed`) and the wire key
+      for each of its roles. With the default keys the descriptor holds the bare
+      kind (`"page"`); with renamed keys it holds
+      `{ strategy: "page", keys: { number: "p", size: "size" } }`.
+    - A `MultiPaginator` stamps `{ strategy: "multi", default }` on a `oneOf` of
+      arms. The descriptor becomes a menu,
+      `{ strategy: "multi", default: "page", arms: { page: "page", cursor: "cursor" } }`,
+      keyed by each arm's `kind` const. An arm without its own stamp is inferred
+      from its member names; an arm nothing recognises is left out with a warning.
+    - Without a stamp (an older document, or a custom paginator that stamps
+      nothing) the codegen infers the strategy from canonical member names, in
+      either the `page` object parameter or the flattened `page[number]` form:
+      `number`+`size` is `page`, `offset`+`limit` is `offset`, `after` or `before`
+      is `cursor`, `number` alone is `fixed`. Renamed keys can't be inferred.
+    - Anything unrecognised, including a strategy this codegen doesn't know, logs a
+      warning and generates as `none`.
+
+    See [pagination](pagination.md) for the typed `page` argument and `$page` this
+    drives.
 - **`clientId`** — the create client-id policy: `forbidden` / `optional` /
   `required`, read from the create-request schema. See [writes](writes.md).
 - **`includable` / `sortable` / `filterable`** — the bounded, pre-expanded token
