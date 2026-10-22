@@ -378,10 +378,10 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
     ])
   })
 
-  it('omits `includable` for a type whose relations are all non-includable (favorites)', () => {
-    // favorites declares `user` and the polymorphic `favoritable`, both cannotBeIncluded,
-    // so no includable path is advertised even though the type has relations.
-    expect(descriptor['favorites']!.includable).toBeUndefined()
+  it('leaves a non-includable relation out of `includable` (favorites)', () => {
+    // favorites declares `user` and the polymorphic `favoritable`; only `user` is includable.
+    expect(Object.keys(descriptor['favorites']!.relations)).toEqual(['favoritable', 'user'])
+    expect(descriptor['favorites']!.includable).toEqual(['user'])
   })
 
   it('captures the capabilities of a type whose relation became includable (artists)', () => {
@@ -438,29 +438,79 @@ describe('buildDescriptor (music-catalog admin server)', () => {
     // The admin server omits the public-only types.
     expect(admin['charts']).toBeUndefined()
     expect(admin['countries']).toBeUndefined()
+    // `users.playlists` paginates like the `playlists` collection, so it carries no paginator
+    // of its own (D6a).
     expect(admin['users']!.relations['playlists']).toEqual({
       cardinality: 'many',
       types: ['playlists'],
       pivot: false,
       mutations: { add: true, remove: true, replace: true },
-      // On admin, `playlists` has no top-level collection (paginator `none`), yet `users.playlists`
-      // paginates by page — a genuine per-relation divergence, so the relation carries its OWN
-      // paginator kind (D6a); the client resolves `$page.kind` from it, not the `none` type default.
-      paginator: 'page',
+      countable: {
+        tokens: ['tracks'],
+        profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+      },
     })
   })
 
-  it('does not mistake a related collection for a type top-level collection', () => {
+  it('reads the cursor-paginated users collection from its page object parameter', () => {
     const admin = buildDescriptor(loadFixture('music-catalog-admin.openapi.json'))
-    // `/users/{id}/playlists` and `/albums/{id}/tracks` ref Playlists/TracksCollection but are
-    // parent-scoped related endpoints — they are NOT fetchMany for these types. These are REAL
-    // registered resources (a `type/id/attributes/meta` object) with no top-level collection, so
-    // they stay in the descriptor (with empty paths) — only a permissive type-only stub is
-    // dropped by D27 (see the dedicated test below).
-    expect(admin['playlists']!.paths).toEqual({})
-    expect(admin['playlists']!.paginator).toBe('none')
-    expect(admin['tracks']!.paths).toEqual({})
-    expect(admin['tracks']!.paginator).toBe('none')
+    expect(admin['users']!.paginator).toBe('cursor')
+  })
+})
+
+describe('buildDescriptor — related collections', () => {
+  it('does not mistake a related collection for a type top-level collection', () => {
+    // `/parents/{id}/widgets` refs WidgetsCollection, but it is a parent-scoped related endpoint,
+    // not fetchMany for `widgets`. widgets is a real registered resource with no top-level
+    // collection, so it stays in the descriptor with empty paths (only a type-only stub is
+    // dropped, see D27).
+    const paged: ParameterObject[] = objectForm(['number', 'size'])
+    const doc: OpenApiDocument = {
+      openapi: '3.1.0',
+      paths: {
+        '/parents': { get: { parameters: paged, responses: collectionOf('ParentsCollection') } },
+        '/parents/{id}/widgets': {
+          get: { parameters: paged, responses: collectionOf('WidgetsCollection') },
+        },
+      },
+      components: {
+        schemas: {
+          ParentsResource: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', const: 'parents' },
+              id: { type: 'string' },
+              relationships: {
+                type: 'object',
+                properties: {
+                  widgets: { $ref: '#/components/schemas/ParentsWidgetsRelationship' },
+                },
+              },
+            },
+          },
+          ParentsCollection: { type: 'object' },
+          ParentsWidgetsRelationship: {
+            type: 'object',
+            properties: {
+              data: { type: 'array', items: { $ref: '#/components/schemas/WidgetsIdentifier' } },
+            },
+          },
+          WidgetsResource: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', const: 'widgets' },
+              id: { type: 'string' },
+              attributes: { type: 'object', properties: { name: { type: 'string' } } },
+            },
+          },
+          WidgetsCollection: { type: 'object' },
+        },
+      },
+    }
+    const built = buildDescriptor(doc)
+    expect(built['parents']!.paginator).toBe('page')
+    expect(built['widgets']!.paths).toEqual({})
+    expect(built['widgets']!.paginator).toBe('none')
   })
 })
 
@@ -771,6 +821,15 @@ const objectForm = (members: readonly string[]): ParameterObject[] =>
 const flatForm = (members: readonly string[]): ParameterObject[] =>
   members.map((m) => ({ name: `page[${m}]`, in: 'query', schema: { type: 'integer' } }))
 
+// A 200 response whose JSON:API document refs the named `<Type>Collection` component.
+const collectionOf = (component: string) => ({
+  '200': {
+    content: {
+      'application/vnd.api+json': { schema: { $ref: `#/components/schemas/${component}` } },
+    },
+  },
+})
+
 const widgets = (parameters: readonly ParameterObject[]): OpenApiDocument => ({
   openapi: '3.1.0',
   paths: {
@@ -915,23 +974,20 @@ describe('buildDescriptor — paginator detection in both wire forms', () => {
     expect(buildDescriptor(doc)['parents']!.relations['widgets']!.paginator).toBe('fixed')
   })
 
-  it('reads a v1 document (one page object parameter) the same as the flattened fixture', () => {
-    // Rewrite every flattened page family in the fixture into the v1 projection.
-    const flat = loadFixture('music-catalog.openapi.json')
-    const v1 = structuredClone(flat)
+  it('reads the fixture flattened into page[...] parameters the same as its page object form', () => {
+    // Rewrite every v1 page object parameter in the fixture into the pre-v1 flattened form.
+    const v1 = loadFixture('music-catalog.openapi.json')
+    const flat = structuredClone(v1)
     let rewritten = 0
-    for (const item of Object.values(v1.paths ?? {})) {
+    for (const item of Object.values(flat.paths ?? {})) {
       for (const op of Object.values(item)) {
         const params = op?.parameters
-        if (op === undefined || params === undefined) continue
-        const members = params
-          .map((p) => /^page\[(.+)\]$/.exec(p.name ?? '')?.[1])
-          .filter((m): m is string => m !== undefined)
-        if (members.length === 0) continue
+        const page = params?.find((p) => p.name === 'page')
+        if (op === undefined || params === undefined || page === undefined) continue
         rewritten++
         op.parameters = [
-          ...params.filter((p) => !p.name?.startsWith('page[')),
-          ...objectForm(members),
+          ...params.filter((p) => p !== page),
+          ...flatForm(Object.keys(page.schema?.properties ?? {})),
         ]
       }
     }
@@ -939,7 +995,7 @@ describe('buildDescriptor — paginator detection in both wire forms', () => {
 
     const built = buildDescriptor(v1)
     expect(built['albums']!.paginator).toBe('page')
-    expect(built).toEqual(buildDescriptor(flat))
+    expect(buildDescriptor(flat)).toEqual(built)
   })
 })
 

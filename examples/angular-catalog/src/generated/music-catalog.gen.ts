@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   c73c5d49624ebbe8
+ * Spec hash:   3753db87055e792d
  */
 
 import {
@@ -44,12 +44,21 @@ export interface ArtistsAttributes {
   website: string | null
 }
 
+export interface CatalogExportsAttributes {
+  format: string
+  status: string
+}
+
 export interface ChartsAttributes {}
 
 export interface CountriesAttributes {}
 
 export interface DevicesAttributes {
   label: string
+}
+
+export interface ExportJobsAttributes {
+  state: string
 }
 
 export interface FavoritesAttributes {
@@ -77,17 +86,24 @@ export interface PublicProfilesAttributes {
   displayName: string
 }
 
+export interface ReleasesAttributes {
+  availability: Record<string, unknown> | null
+  catalogNumber: string
+  dimensions: Record<string, unknown> | null
+  format: unknown
+  packaging: { material?: string; gatefold?: boolean } | null
+}
+
 export interface TracksAttributes {
   displayTitle: string
   durationSeconds: number
   explicit: boolean
   genres: string[]
+  /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset: string | null
   title: string
   trackNumber: number
 }
-
-export interface UsersAttributes {}
 
 export interface AlbumsCreateAttributes {
   availableFrom?: string | null
@@ -128,6 +144,10 @@ export interface ArtistsUpdateAttributes {
   name?: string
   slug?: string
   website?: string | null
+}
+
+export interface CatalogExportsCreateAttributes {
+  format: string
 }
 
 export interface DevicesCreateAttributes {
@@ -176,10 +196,27 @@ export interface ProductsUpdateAttributes {
   name?: string
 }
 
+export interface ReleasesCreateAttributes {
+  availability?: Record<string, unknown> | null
+  catalogNumber: string
+  dimensions?: Record<string, unknown> | null
+  format?: unknown
+  packaging?: { material: string; gatefold?: boolean } | null
+}
+
+export interface ReleasesUpdateAttributes {
+  availability?: Record<string, unknown> | null
+  catalogNumber?: string
+  dimensions?: Record<string, unknown> | null
+  format?: unknown
+  packaging?: { material?: string; gatefold?: boolean } | null
+}
+
 export interface TracksCreateAttributes {
   durationSeconds?: number
   explicit?: boolean
   genres?: string[]
+  /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset?: string | null
   title: string
   trackNumber?: number
@@ -189,6 +226,7 @@ export interface TracksUpdateAttributes {
   durationSeconds?: number
   explicit?: boolean
   genres?: string[]
+  /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset?: string | null
   title?: string
   trackNumber?: number
@@ -197,28 +235,32 @@ export interface TracksUpdateAttributes {
 export interface Attributes {
   albums: AlbumsAttributes
   artists: ArtistsAttributes
+  "catalog-exports": CatalogExportsAttributes
   charts: ChartsAttributes
   countries: CountriesAttributes
   devices: DevicesAttributes
+  "export-jobs": ExportJobsAttributes
   favorites: FavoritesAttributes
   genres: GenresAttributes
   libraries: LibrariesAttributes
   playlists: PlaylistsAttributes
   products: ProductsAttributes
   "public-profiles": PublicProfilesAttributes
+  releases: ReleasesAttributes
   tracks: TracksAttributes
-  users: UsersAttributes
 }
 
 export interface WriteAttributes {
   albums: { create: AlbumsCreateAttributes; update: AlbumsUpdateAttributes }
   artists: { create: ArtistsCreateAttributes; update: ArtistsUpdateAttributes }
+  "catalog-exports": { create: CatalogExportsCreateAttributes }
   devices: { create: DevicesCreateAttributes; update: DevicesUpdateAttributes }
   favorites: { create: FavoritesCreateAttributes; update: FavoritesUpdateAttributes }
   genres: { create: GenresCreateAttributes; update: GenresUpdateAttributes }
   libraries: { create: LibrariesCreateAttributes; update: LibrariesUpdateAttributes }
   playlists: { create: PlaylistsCreateAttributes; update: PlaylistsUpdateAttributes }
   products: { create: ProductsCreateAttributes; update: ProductsUpdateAttributes }
+  releases: { create: ReleasesCreateAttributes; update: ReleasesUpdateAttributes }
   tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
@@ -391,6 +433,21 @@ export const resourceMap = {
       "slug"
     ]
   },
+  "catalog-exports": {
+    attributes: {
+      format: "string",
+      status: "string"
+    },
+    relations: {},
+    paths: {
+      create: "/catalog-exports",
+      delete: "/catalog-exports/{id}",
+      fetchMany: "/catalog-exports",
+      fetchOne: "/catalog-exports/{id}"
+    },
+    paginator: "page",
+    clientId: "forbidden"
+  },
   charts: {
     attributes: {},
     relations: {},
@@ -426,6 +483,18 @@ export const resourceMap = {
     paginator: "page",
     clientId: "forbidden"
   },
+  "export-jobs": {
+    attributes: {
+      state: "string"
+    },
+    relations: {},
+    paths: {
+      fetchMany: "/export-jobs",
+      fetchOne: "/export-jobs/{id}"
+    },
+    paginator: "page",
+    clientId: "forbidden"
+  },
   favorites: {
     attributes: {
       favoritedAt: "date-time"
@@ -446,7 +515,7 @@ export const resourceMap = {
       user: {
         cardinality: "one",
         types: [
-          "users"
+          "public-profiles"
         ],
         pivot: false,
         mutations: {
@@ -464,7 +533,10 @@ export const resourceMap = {
       update: "/favorites/{id}"
     },
     paginator: "page",
-    clientId: "forbidden"
+    clientId: "forbidden",
+    includable: [
+      "user"
+    ]
   },
   genres: {
     attributes: {
@@ -501,7 +573,7 @@ export const resourceMap = {
       owner: {
         cardinality: "one",
         types: [
-          "users"
+          "public-profiles"
         ],
         pivot: false,
         mutations: {
@@ -521,6 +593,7 @@ export const resourceMap = {
     paginator: "page",
     clientId: "forbidden",
     includable: [
+      "owner",
       "items"
     ]
   },
@@ -561,6 +634,7 @@ export const resourceMap = {
           "users"
         ],
         pivot: false,
+        related: false,
         mutations: {
           set: true
         }
@@ -669,13 +743,54 @@ export const resourceMap = {
       "-displayName"
     ]
   },
+  releases: {
+    attributes: {
+      availability: "object",
+      catalogNumber: "string",
+      dimensions: "object",
+      format: "unknown",
+      packaging: "object"
+    },
+    relations: {
+      album: {
+        cardinality: "one",
+        types: [
+          "albums"
+        ],
+        pivot: false,
+        mutations: {
+          set: true
+        }
+      }
+    },
+    paths: {
+      create: "/releases",
+      delete: "/releases/{id}",
+      fetchMany: "/releases",
+      fetchOne: "/releases/{id}",
+      fetchRelated: "/releases/{id}/{rel}",
+      fetchRelationship: "/releases/{id}/relationships/{rel}",
+      update: "/releases/{id}"
+    },
+    paginator: "page",
+    clientId: "forbidden",
+    includable: [
+      "album",
+      "album.artist",
+      "album.tracks"
+    ],
+    sortable: [
+      "catalogNumber",
+      "-catalogNumber"
+    ]
+  },
   tracks: {
     attributes: {
       displayTitle: "string",
       durationSeconds: "integer",
       explicit: "boolean",
       genres: "array",
-      previewOffset: "time",
+      previewOffset: "string",
       title: "string",
       trackNumber: "integer"
     },
@@ -747,13 +862,6 @@ export const resourceMap = {
       "q",
       "title"
     ]
-  },
-  users: {
-    attributes: {},
-    relations: {},
-    paths: {},
-    paginator: "none",
-    clientId: "forbidden"
   }
 } as const satisfies ApiDescriptor
 
