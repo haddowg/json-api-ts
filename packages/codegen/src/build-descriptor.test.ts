@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
+import { checkContract, MAXIMUM_CONTRACT, MINIMUM_CONTRACT } from './contract'
 import type { PaginatorDescriptor, PaginatorKind } from '@haddowg/json-api-client'
 import type { OpenApiDocument, ParameterObject, SchemaObject } from './openapi'
 
@@ -996,6 +997,169 @@ describe('buildDescriptor — paginator detection in both wire forms', () => {
     const built = buildDescriptor(v1)
     expect(built['albums']!.paginator).toBe('page')
     expect(buildDescriptor(flat)).toEqual(built)
+  })
+})
+
+// A `page` object parameter carrying an x-paginator stamp.
+const stamped = (
+  properties: Record<string, SchemaObject>,
+  stamp: Record<string, unknown>,
+): ParameterObject[] => [
+  {
+    name: 'page',
+    in: 'query',
+    style: 'deepObject',
+    explode: true,
+    schema: { type: 'object', properties, 'x-paginator': stamp },
+  },
+]
+describe('buildDescriptor — x-paginator stamp (contract 3)', () => {
+  const int = { type: 'integer' }
+  const str = { type: 'string' }
+
+  // Every strategy with its roles renamed: the stamp decides the keys.
+  it.each([
+    ['page', { p: int, per: int }, { number: 'p', size: 'per' }],
+    ['offset', { skip: int, take: int }, { offset: 'skip', limit: 'take' }],
+    [
+      'cursor',
+      { after: str, before: str, n: int },
+      { after: 'after', before: 'before', size: 'n' },
+    ],
+    ['fixed', { pg: int }, { number: 'pg' }],
+  ])('reads a %s strategy with renamed keys', (strategy, properties, keys) => {
+    expect(paginatorOf(stamped(properties, { strategy, keys }))).toEqual({ strategy, keys })
+  })
+
+  it('collapses a stamp with canonical keys to the bare kind', () => {
+    const keys = { number: 'number', size: 'size' }
+    expect(paginatorOf(stamped({ number: int, size: int }, { strategy: 'page', keys }))).toBe(
+      'page',
+    )
+  })
+
+  it('lets the stamp decide over the member names', () => {
+    // Names alone read a lone `number` as fixed; the stamp says page.
+    const params = stamped(
+      { number: int },
+      { strategy: 'page', keys: { number: 'number', size: 'size' } },
+    )
+    expect(paginatorOf(params)).toBe('page')
+  })
+
+  it('reads a MultiPaginator menu: each arm by its kind const, plus the default', () => {
+    const menu: ParameterObject = {
+      name: 'page',
+      in: 'query',
+      style: 'deepObject',
+      explode: true,
+      schema: {
+        oneOf: [
+          {
+            ...arm('numbered', { p: int, size: int }),
+            'x-paginator': { strategy: 'page', keys: { number: 'p', size: 'size' } },
+          },
+          {
+            ...arm('stream', { after: str, before: str, size: int }),
+            'x-paginator': {
+              strategy: 'cursor',
+              keys: { after: 'after', before: 'before', size: 'size' },
+            },
+          },
+          // A custom child that stamps nothing falls back to name inference.
+          arm('chunks', { offset: int, limit: int }),
+        ],
+        discriminator: { propertyName: 'kind' },
+        'x-paginator': { strategy: 'multi', default: 'stream' },
+      },
+    }
+    expect(paginatorOf([menu])).toEqual({
+      strategy: 'multi',
+      default: 'stream',
+      arms: {
+        numbered: { strategy: 'page', keys: { number: 'p', size: 'size' } },
+        stream: 'cursor',
+        chunks: 'offset',
+      },
+    })
+  })
+
+  const warned = (parameters: ParameterObject[]): [PaginatorDescriptor, string[]] => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const paginator = buildDescriptor(widgets(parameters))['widgets']!.paginator
+      return [paginator, warn.mock.calls.map(([message]) => String(message))]
+    } finally {
+      warn.mockRestore()
+    }
+  }
+
+  it('warns and generates unpaginated for a strategy it does not know', () => {
+    const [paginator, warnings] = warned(stamped({ token: str }, { strategy: 'keyset' }))
+    expect(paginator).toBe('none')
+    expect(warnings).toEqual([
+      expect.stringContaining('strategy "keyset" this codegen does not know'),
+    ])
+  })
+
+  it('leaves an unknown arm out of a menu and keeps the rest', () => {
+    const menu: ParameterObject = {
+      name: 'page',
+      in: 'query',
+      schema: {
+        oneOf: [
+          { ...arm('page', { number: int, size: int }), 'x-paginator': { strategy: 'page' } },
+          { ...arm('keys', { token: str }), 'x-paginator': { strategy: 'keyset' } },
+        ],
+        'x-paginator': { strategy: 'multi', default: 'page' },
+      },
+    }
+    const [paginator, warnings] = warned([menu])
+    expect(paginator).toEqual({ strategy: 'multi', default: 'page', arms: { page: 'page' } })
+    expect(warnings).toEqual([expect.stringContaining('menu arm "keys"')])
+  })
+
+  it('warns and generates unpaginated when the default is not a generated arm', () => {
+    const menu: ParameterObject = {
+      name: 'page',
+      in: 'query',
+      schema: {
+        oneOf: [
+          { ...arm('page', { number: int, size: int }), 'x-paginator': { strategy: 'page' } },
+        ],
+        'x-paginator': { strategy: 'multi', default: 'cursor' },
+      },
+    }
+    const [paginator, warnings] = warned([menu])
+    expect(paginator).toBe('none')
+    expect(warnings).toEqual([
+      expect.stringContaining('default "cursor" is not one of its generated arms'),
+    ])
+  })
+
+  it('falls back to canonical names without a stamp, so a renamed key warns', () => {
+    const [paginator, warnings] = warned(objectForm(['p', 'size']))
+    expect(paginator).toBe('none')
+    expect(warnings).toEqual([expect.stringContaining('members p, size')])
+  })
+})
+
+const contractDoc = (contract?: number): OpenApiDocument => ({
+  openapi: '3.1.0',
+  info: contract === undefined ? {} : { 'x-generator': { contract } },
+})
+
+describe('checkContract', () => {
+  it('passes a document within the supported range, or with no contract', () => {
+    expect(checkContract(contractDoc())).toBeUndefined()
+    expect(checkContract(contractDoc(MINIMUM_CONTRACT))).toBeUndefined()
+    expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
+    expect(MAXIMUM_CONTRACT).toBe(3)
+  })
+
+  it('warns about a newer contract and rejects an older one', () => {
+    expect(checkContract(contractDoc(MAXIMUM_CONTRACT + 1))).toContain('reads up to 3')
+    expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
 })
 

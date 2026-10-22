@@ -64,6 +64,8 @@ export type PathItemObject = Partial<Record<HttpMethod, OperationObject>>
 export interface InfoObject {
   title?: string
   version?: string
+  /** The projector's generator contract, bumped whenever the emitted structure changes. */
+  'x-generator'?: { contract?: number }
 }
 
 export interface OpenApiDocument {
