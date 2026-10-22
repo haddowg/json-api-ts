@@ -262,6 +262,10 @@ Status matchers: `hasStatus(n)`, `is4xx()`, `is5xx()`, `isBadRequest()` /400,
 `parameter`) — the payoff for form/validation UX. Each error keeps its raw `source.pointer` as an
 escape hatch; atomic errors also carry an `opIndex`.
 
+`hasErrorCode(err, code)` is true when `err` is a `JsonApiError` and any of its error objects
+carries `code`. A generated client exports a version bound to its server's documented `ErrorCode`
+union, so a misspelt code fails to compile and a match narrows to `JsonApiError<ErrorCode>`.
+
 > A response that parses but violates the JSON:API envelope shape (not a document, a member
 > missing `type`/`id`) throws a `StructuralGuardError` — distinct from a server-reported
 > `JsonApiError`. These light structural guards are always on; full per-field validation is opt-in

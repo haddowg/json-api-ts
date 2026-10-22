@@ -1,8 +1,14 @@
-/** A single JSON:API error object (spec: error objects). */
-export interface JsonApiErrorObject {
+/**
+ * A single JSON:API error object (spec: error objects).
+ *
+ * `C` is the server's documented error-code union (a generated client's `ErrorCode`). `code` is
+ * typed `C | (string & {})`: editors suggest the documented codes, yet any other string still
+ * fits, because the catalogue is open and a server may send a code it never documented.
+ */
+export interface JsonApiErrorObject<C extends string = string> {
   id?: string
   status?: string
-  code?: string
+  code?: C | (string & {})
   title?: string
   detail?: string
   source?: { pointer?: string; parameter?: string; header?: string }
@@ -38,12 +44,15 @@ export class StructuralGuardError extends Error {
 /**
  * Thrown for any non-2xx JSON:API response. Carries the parsed error document plus
  * expressive status matchers and pointer-grouping helpers.
+ *
+ * `C` types each error object's `code` (see {@link JsonApiErrorObject}). It is a compile-time
+ * hint only: the runtime never checks a code against it.
  */
-export class JsonApiError extends Error {
+export class JsonApiError<C extends string = string> extends Error {
   readonly status: number
-  readonly errors: JsonApiErrorObject[]
+  readonly errors: JsonApiErrorObject<C>[]
 
-  constructor(status: number, errors: JsonApiErrorObject[], message?: string) {
+  constructor(status: number, errors: JsonApiErrorObject<C>[], message?: string) {
     super(message ?? `JSON:API request failed with status ${status}`)
     this.name = 'JsonApiError'
     this.status = status
@@ -108,8 +117,8 @@ export class JsonApiError extends Error {
    * query parameter). The payoff for form/validation UX — 422 `source.pointer`s are
    * remapped to the flat shape the caller actually supplied.
    */
-  byPath(): Record<string, JsonApiErrorObject[]> {
-    const out: Record<string, JsonApiErrorObject[]> = {}
+  byPath(): Record<string, JsonApiErrorObject<C>[]> {
+    const out: Record<string, JsonApiErrorObject<C>[]> = {}
     for (const e of this.errors) {
       const key = e.path ?? e.source?.pointer ?? e.source?.parameter ?? '_'
       ;(out[key] ??= []).push(e)
@@ -117,3 +126,20 @@ export class JsonApiError extends Error {
     return out
   }
 }
+
+/**
+ * True when `err` is a {@link JsonApiError} and any of its error objects carries `code`. Takes
+ * any string, so it also matches codes the server never documented. A generated client exports a
+ * `hasErrorCode` bound to its server's `ErrorCode` union, which rejects a misspelt code at
+ * compile time; reach for this one only to match an undocumented code.
+ */
+export function hasErrorCode(err: unknown, code: string): err is JsonApiError {
+  return err instanceof JsonApiError && err.errors.some((e) => e.code === code)
+}
+
+/**
+ * {@link hasErrorCode} restricted to one server's documented codes. A generated client binds it:
+ * `export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>`. The cast is
+ * needed because `JsonApiError<string>` doesn't assign to `JsonApiError<ErrorCode>`.
+ */
+export type ErrorCodeGuard<C extends string> = (err: unknown, code: C) => err is JsonApiError<C>
