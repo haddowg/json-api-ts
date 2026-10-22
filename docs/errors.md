@@ -41,6 +41,59 @@ Each entry in `error.errors` is a JSON:API error object — `status`, `code`, `t
 !!! note "`isValidationError()` is `isUnprocessable()`"
     They are aliases — 422 is the JSON:API validation status. Use whichever reads better at the call site.
 
+## Match on an error code
+
+A status says what class of thing went wrong. The `code` says which thing. A `haddowg/json-api` server documents the codes it can send in its OpenAPI document, and the [codegen](codegen.md#error-codes) turns that catalogue into types on your generated client:
+
+- `ErrorCodes`, a const object with a key per documented code. Hover a key, or pick one from completion, to read what the code means.
+- `ErrorCode`, the union of every documented code.
+- `ErrorCodeByStatus`, the codes each status's error document lists, e.g. `ErrorCodeByStatus[403]`.
+- `hasErrorCode(err, code)`, a type guard that only accepts a code from `ErrorCode`.
+
+```ts
+import { hasErrorCode } from './api/music.gen'
+
+try {
+  await client.albums.id('1').delete()
+} catch (error) {
+  if (hasErrorCode(error, 'RESOURCE_NOT_FOUND')) {
+    // error is a JsonApiError<ErrorCode>: status matchers, byPath() and typed codes
+    return
+  }
+  throw error
+}
+
+hasErrorCode(error, 'RESOURCE_NOT_FOUN') // compile error: not a documented code
+```
+
+A string literal works, but `ErrorCodes.RESOURCE_NOT_FOUND` carries the server's description and example detail into your editor. TypeScript shows TSDoc for an object key, not for a member of a literal union, so the object is where to look:
+
+```ts
+import { ErrorCodes, hasErrorCode } from './api/music.gen'
+
+if (hasErrorCode(error, ErrorCodes.RESOURCE_NOT_FOUND)) {
+  // ...
+}
+```
+
+The guard is true when the error is a `JsonApiError` and *any* of its error objects carries the code. A document can hold several errors, so the guard doesn't care where the match sits.
+
+`JsonApiError` takes the code union as a type parameter, and each error object types `code` as `ErrorCode | (string & {})`. Your editor suggests the documented codes, and a code the server never documented still fits. The catalogue is open on purpose: an application can raise its own errors, and a server is never wrong to send a code its document didn't list. The type parameter defaults to `string`, so untyped code sees no change.
+
+To match an undocumented code, use the unbound guard from the runtime package. It takes any string:
+
+```ts
+import { hasErrorCode } from '@haddowg/json-api-client'
+
+if (hasErrorCode(error, 'LEGACY_ACCOUNT_LOCKED')) {
+  // ...
+}
+```
+
+Reaching for it is a visible decision at the call site, which is the point. A typo in a documented code is the bug the bound guard catches, and a loose overload would let it straight back in.
+
+The generated `createClient` also carries `ErrorCode` on the client type, so bindings that only see the client can type the errors they surface. The [Angular](angular.md#errors) refs do this, so `jsonApiError()` is a `JsonApiError<ErrorCode>`. A `catch` clause can't be typed in TypeScript, so outside those bindings the guard is how a caught error gets its codes.
+
 ## `byPath()` — map a 422 back to your input
 
 When a write fails validation, the payoff is form UX: you want each field error keyed by the field you supplied, not by the wire pointer the server reported. Because the client built the JSON:API envelope from your flat input, it knows the inverse mapping — so on a thrown error it re-keys each error's `source.pointer` (e.g. `/data/attributes/title`) to the flat input path (`title`) and exposes `byPath()` to group by it:
@@ -106,7 +159,8 @@ Distinct from `JsonApiError` (an application error the server *reported*) is `St
 ## See it in the example app
 
 - The tested 422 `byPath()` snippet lives in the `writes` group of [example.test.ts](../packages/example/src/example.test.ts) — every line runs under `pnpm test`.
-- The error type surface, matchers, and `byPath()` grouping are defined in [errors.ts](../packages/client/src/errors.ts).
+- The error type surface, matchers, `byPath()` grouping and `hasErrorCode` are defined in [errors.ts](../packages/client/src/errors.ts).
+- The generated `ErrorCodes`, `ErrorCode`, `ErrorCodeByStatus` and bound `hasErrorCode` sit near the end of [music-catalog.client.gen.ts](../packages/codegen/test/generated/music-catalog.client.gen.ts).
 
 ## Next
 

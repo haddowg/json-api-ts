@@ -243,6 +243,11 @@ onError?, onResponse? })` — async `headers` provider for per-request bearer au
   transport / TanStack handle them).
 - Non-2xx → **throw a typed `JsonApiError`** (matches TanStack + `try/catch`): carries
   `status` + `errors: JsonApiErrorObject[]` ({status,code,title,detail,source,meta}).
+- **Typed error codes** (ADR 0009): the codegen emits `ErrorCodes` (a const object, one
+  TSDoc'd key per code the document's `ErrorDocument*` schemas list), the `ErrorCode` union
+  derived from it and `ErrorCodeByStatus`, plus a `hasErrorCode` guard bound to
+  `ErrorCode`. `JsonApiError<C = string>` types `code` as `C | (string & {})`; the catalogue is
+  open, so an undocumented code still fits and the runtime's unbound `hasErrorCode` matches it.
 - **Expressive status matchers:** `hasStatus(n)`, `is4xx()`, `is5xx()`,
   `isBadRequest()`/400, `isUnauthorized()`/401, `isForbidden()`/403, `isNotFound()`/404,
   `isNotAcceptable()`/406, `isConflict()`/409, `isUnsupportedMediaType()`/415,

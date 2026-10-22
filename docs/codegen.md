@@ -49,6 +49,10 @@ A local spec is convenient for CI (see [below](#drift-checking-in-ci)); a URL is
 convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
+The document's `info.x-generator.contract` says which structures it carries. This
+codegen reads contracts 1 to 4. An older document is an error, and a newer one
+generates with a warning that the client may miss what the server added.
+
 ### The validation schemas
 
 Add `--schemas` to also read the server's JSON Schema bundle and emit a sibling
@@ -92,9 +96,54 @@ runtime's needs, and all the real machinery lives in the generic
   create/update), plus the per-type `…Attributes` / `…CreateAttributes` /
   `…UpdateAttributes` interfaces, enum unions (e.g. `AlbumStatus`), and per-action
   input/output aliases.
+- **`ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode`** — the server's documented
+  error codes and a type guard bound to them. See [below](#error-codes).
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema
 2020-12 map.
+
+### Error codes
+
+A `haddowg/json-api` document catalogues the error codes the server can send. Each
+`components.schemas.ErrorDocument<NNN>` offers its codes as `anyOf` branches, one
+`<Code>Error` component per code with a `code` const, plus the open generic `Error`.
+The codegen reads them into four exports:
+
+```ts
+export const ErrorCodes = {
+  /** The credential is valid but lacks permission. */
+  ACCESS_DENIED: "ACCESS_DENIED",
+  RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",
+  // …
+} as const
+
+export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
+
+export interface ErrorCodeByStatus {
+  403: "ACCESS_DENIED"
+  404: "RESOURCE_NOT_FOUND"
+  500: never
+}
+
+export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
+```
+
+- `ErrorCodes` has a key for every code any error document lists, sorted, each
+  holding its own code. A key gets TSDoc when its component has a `description`
+  (generator contract 4), plus an `@example` for each `example`/`examples` value on
+  the component's `detail` property. An older document has neither, so its keys
+  carry no TSDoc. A code that isn't a valid identifier gets a quoted key.
+- `ErrorCode` is the union of those codes, derived from `ErrorCodes`. The TSDoc
+  lives on the object because editors show it on hover and in completion for an
+  object key, but not for a member of a string literal union.
+- `ErrorCodeByStatus` maps each status that has an `ErrorDocument<NNN>` to its
+  codes. A status whose document offers only the generic `Error` maps to `never`.
+- `hasErrorCode` only accepts an `ErrorCode`, so a misspelt code fails to compile.
+  See [errors](errors.md#match-on-an-error-code) for using it.
+
+The bound `createClient` passes `ErrorCode` to the runtime, so the client type
+carries it too. A document with no error catalogue gets an empty `ErrorCodes` and
+`ErrorCode = string`, and the guard then takes any code.
 
 ```ts
 import { createClient, type ResourceMap, resourceMap } from './api/music.gen'
