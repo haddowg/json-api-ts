@@ -76,7 +76,7 @@ export interface RelationDescriptor {
   paginator?: PaginatorKind
 }
 
-export type PaginatorKind = 'page' | 'offset' | 'cursor' | 'none'
+export type PaginatorKind = 'page' | 'offset' | 'cursor' | 'fixed' | 'none'
 
 export type ClientIdPolicy = 'forbidden' | 'optional' | 'required'
 

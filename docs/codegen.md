@@ -155,9 +155,16 @@ required:
 - **`paths`** — only the per-operation paths that actually exist
   (`fetchMany`/`fetchOne`/`create`/`update`/`delete`/`fetchRelated`/`fetchRelationship`).
   A read-only type simply has no `create`/`update`/`delete`.
-- **`paginator`** — the collection's paginator kind, detected from its `page[…]`
-  query parameters: `page`, `offset`, `cursor`, or `none`. See
-  [pagination](pagination.md).
+- **`paginator`** — the collection's paginator kind, detected from the members of
+  its `page` query parameter. The codegen reads both the single `page` object
+  parameter (`style: deepObject`) that `haddowg/json-api` v1 projects and the
+  older flattened `page[number]`/`page[size]` form: `number`+`size` is `page`,
+  `offset`+`limit` is `offset`, `after` or `before` is `cursor`, `number` alone
+  is `fixed`, and no page parameter is `none`. A page parameter matching none of
+  these logs a warning and falls back to `none`. So does a `MultiPaginator`,
+  whose `page` schema is a `oneOf` menu the client picks from per request: the
+  warning names the kinds it offers, and `$next()`/`$prev()` still follow the
+  server's links. See [pagination](pagination.md).
 - **`clientId`** — the create client-id policy: `forbidden` / `optional` /
   `required`, read from the create-request schema. See [writes](writes.md).
 - **`includable` / `sortable` / `filterable`** — the bounded, pre-expanded token

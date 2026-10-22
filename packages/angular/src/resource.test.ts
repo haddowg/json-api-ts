@@ -339,6 +339,35 @@ describe('pagination helpers', () => {
     expect(calls).toBe(2)
   })
 
+  it('loadAll() and nextPage() follow root-relative links against a base with a path', async () => {
+    const urls: string[] = []
+    const client = createMusicClient({
+      baseUrl: 'https://host.example/api/v5',
+      transport: async (req) => {
+        urls.push(req.url)
+        const last = req.url.includes('page%5Bnumber%5D=2')
+        return {
+          status: 200,
+          headers: {},
+          body: albumsPage(
+            [album(last ? '2' : '1', 'x')],
+            last ? {} : { next: '/api/v5/albums?page%5Bnumber%5D=2&page%5Bsize%5D=1' },
+          ),
+        }
+      },
+    })
+
+    expect(nextPage(await client.albums.list())).toEqual({ number: '2', size: '1' })
+    urls.length = 0
+    const all = await loadAll(client.albums.list())
+
+    expect(all.map((a) => a.id)).toEqual(['1', '2'])
+    expect(urls).toEqual([
+      'https://host.example/api/v5/albums',
+      'https://host.example/api/v5/albums?page%5Bnumber%5D=2&page%5Bsize%5D=1',
+    ])
+  })
+
   it('loadAll() aborts mid-walk when the signal fires', async () => {
     const controller = new AbortController()
     const ref = TestBed.runInInjectionContext(() =>

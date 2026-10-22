@@ -97,6 +97,12 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
     )
   }
 
+  if (Object.keys(descriptor).length === 0) {
+    console.warn(
+      `[json-api-codegen] found no JSON:API resource types in ${config.input}; the generated client is empty.`,
+    )
+  }
+
   const artifacts: RenderedArtifact[] = [{ path: config.output, content: emit(doc, descriptor) }]
 
   if (config.schemas !== undefined) {

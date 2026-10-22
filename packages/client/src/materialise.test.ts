@@ -308,6 +308,36 @@ describe('materialise — navigation seam', () => {
   })
 })
 
+describe('materialise — fixed-size page collection', () => {
+  // A FixedPagePaginator advertises only the page number; the server fixes the size.
+  const fixed: ApiDescriptor = {
+    ...descriptor,
+    albums: res({ ...descriptor['albums']!, paginator: 'fixed' }),
+  }
+  const next = 'https://music.example/albums?page%5Bnumber%5D=3'
+  const prev = 'https://music.example/albums?page%5Bnumber%5D=1'
+  const doc: Document = {
+    data: [{ type: 'albums', id: '1', attributes: { title: 'OK Computer' } }],
+    links: { self: 'x', prev, next },
+    meta: { page: { currentPage: 2, total: 45, lastPage: 3 } },
+  }
+
+  it('reports the fixed kind with the page number and counts from meta.page', () => {
+    const albums = asArray<Materialised>(materialise(doc, { descriptor: fixed, navigate: vi.fn() }))
+    expect(albums.$page.kind).toBe('fixed')
+    expect(albums.$page.meta).toEqual({ currentPage: 2, total: 45, lastPage: 3 })
+  })
+
+  it('navigates by link, threading the fixed kind to the next page', async () => {
+    const navigate = vi.fn(async () => 'PAGE')
+    const albums = asArray<Materialised>(materialise(doc, { descriptor: fixed, navigate }))
+    await albums.$next()
+    await albums.$prev()
+    expect(navigate).toHaveBeenNthCalledWith(1, next, false, 'fixed')
+    expect(navigate).toHaveBeenNthCalledWith(2, prev, false, 'fixed')
+  })
+})
+
 describe('materialise — to-one / empty shapes', () => {
   it('returns null for an empty to-one document', () => {
     expect(materialise({ data: null }, context())).toBeNull()

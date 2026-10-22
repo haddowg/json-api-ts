@@ -450,7 +450,7 @@ function typeAccessor(
  * not per-type codegen: `client.<type>` yields a {@link TypeAccessor}, `.id(id)` a handle,
  * and a handle's relation accessors drive the relationship/related endpoints. Navigation
  * (`$next()`/`$prev()`, related links) is wired through `materialise`'s `navigate` seam,
- * which executes the (absolute) link and re-materialises.
+ * which resolves the server's link against `baseUrl`, executes it and re-materialises.
  */
 export function createClient<
   D extends ApiDescriptor,
@@ -474,6 +474,7 @@ export function createClient<
         const doc = await execute(request, {
           method: 'GET',
           path: url,
+          link: true,
           ...(signal !== undefined ? { signal } : {}),
         })
         return doc === undefined

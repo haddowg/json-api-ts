@@ -38,8 +38,17 @@ export interface JsonApiContext {
 /** A single read/write request, before serialisation. */
 export interface JsonApiRequest {
   method: string
-  /** A path relative to `baseUrl`, or an absolute `http(s)://` URL (e.g. a page link). */
+  /**
+   * A path appended to `baseUrl` (a filled path template such as `/albums/1`), or an absolute
+   * `http(s)://` URL. With {@link link} set, a link from the server instead.
+   */
   path: string
+  /**
+   * `path` is a link the server sent (a `links` member such as `next`, or a `Location` header).
+   * It resolves against `baseUrl` per RFC 3986, so a root-relative `/api/v5/albums?page[number]=2`
+   * keeps the base's origin but not its path, where a path template is appended to the base.
+   */
+  link?: boolean
   query?: ReadQuery
   body?: unknown
   /**
@@ -77,6 +86,23 @@ export interface JsonApiRequest {
 }
 
 const isAbsolute = (path: string): boolean => /^https?:\/\//i.test(path)
+
+// Stands in for the origin when `baseUrl` is itself relative (e.g. `/api` in a browser app).
+const RELATIVE_ORIGIN = 'http://relative.invalid'
+
+/** Resolve a server link against `baseUrl` per RFC 3986. An absolute link is kept verbatim. */
+function resolveLink(link: string, baseUrl: string): string {
+  if (isAbsolute(link)) {
+    return link
+  }
+  if (isAbsolute(baseUrl)) {
+    return new URL(link, baseUrl).href
+  }
+  const resolved = new URL(link, new URL(baseUrl, RELATIVE_ORIGIN))
+  return resolved.origin === RELATIVE_ORIGIN
+    ? resolved.pathname + resolved.search + resolved.hash
+    : resolved.href
+}
 
 const append = (parts: string[], key: string, value: unknown): void => {
   if (value === undefined || value === null || value === '') {
@@ -152,8 +178,8 @@ export function serializeQuery(query: ReadQuery): string {
 }
 
 /**
- * Execute a request: build the URL (verbatim when already absolute — for page links —
- * else `baseUrl + path`), apply content negotiation and any async per-request headers,
+ * Execute a request: build the URL (a server link resolved against `baseUrl`, an absolute path
+ * verbatim, else `baseUrl + path`), apply content negotiation and any async per-request headers,
  * then drive the transport. A 2xx with a body parses to a {@link Document}; an empty /
  * 204 body resolves to `undefined`. A non-2xx throws a {@link JsonApiError} carrying the
  * parsed error objects (tolerating a non-JSON error body with an empty list).
@@ -162,7 +188,11 @@ export async function execute(
   ctx: JsonApiContext,
   req: JsonApiRequest,
 ): Promise<Document | undefined> {
-  let url = isAbsolute(req.path) ? req.path : ctx.baseUrl + req.path
+  let url = req.link
+    ? resolveLink(req.path, ctx.baseUrl)
+    : isAbsolute(req.path)
+      ? req.path
+      : ctx.baseUrl + req.path
   if (req.query) {
     const qs = serializeQuery(req.query)
     if (qs) {
