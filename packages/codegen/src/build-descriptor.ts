@@ -660,34 +660,30 @@ export class DescriptorBuilder {
 
   /**
    * Detect the paginator kind an operation advertises from its page members (see
-   * {@link pageMembers}). `number`+`size` = `page`; `offset`+`limit` = `offset`; either cursor
-   * bound (`after`/`before`) = `cursor` (link-driven, D44); `number` alone = `fixed` (the server
-   * fixes the size); anything else = `none`. `label` (a path, for the drift warning) names the endpoint when page members match
-   * no known kind.
+   * {@link pageMembers} and {@link kindOfMembers}). `label` (a path, for the drift warning) names
+   * the endpoint when the page parameter matches no single known kind.
+   *
+   * A `oneOf` page schema is a MultiPaginator menu: the client picks a strategy per request and
+   * the server's default is not projected, so no one kind describes the collection. It falls back
+   * to `none` with a warning naming the offered kinds, as the PHP codegen refuses to pick an arm.
    */
   private paginatorKindOf(op: OperationObject | undefined, label?: string): PaginatorKind {
     const { members, menu } = this.pageMembers(op)
-    if (!menu) {
-      if (members.has('number') && members.has('size')) {
-        return 'page'
-      }
-      if (members.has('offset') && members.has('limit')) {
-        return 'offset'
-      }
-      if (members.has('after') || members.has('before')) {
-        return 'cursor'
-      }
-      if (members.size === 1 && members.has('number')) {
-        return 'fixed'
+    if (menu === undefined) {
+      const kind = kindOfMembers(members)
+      if (kind !== undefined) {
+        return kind
       }
     }
-    // A page parameter matching no known kind is a drift the client would silently treat as
-    // unpaginated (losing $page/$next); warn rather than swallow it (D28).
-    if (label !== undefined && (menu || members.size > 0)) {
-      const found = menu
-        ? 'a selectable page strategy (oneOf)'
-        : // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
-          [...members].sort().join(', ')
+    // A page parameter matching no single known kind is a drift the client would silently treat
+    // as unpaginated; warn rather than swallow it (D28).
+    if (label !== undefined && (menu !== undefined || members.size > 0)) {
+      const found =
+        menu === undefined
+          ? `members ${sortedList(members)}`
+          : `a selectable strategy menu (${menu
+              .map((arm) => kindOfMembers(arm) ?? sortedList(arm))
+              .join(' | ')}), which is not generated yet`
       // eslint-disable-next-line no-console
       console.warn(
         `json-api codegen: endpoint "${label}" advertises page parameters matching no known paginator kind (${found}); treating it as unpaginated.`,
@@ -699,17 +695,24 @@ export class DescriptorBuilder {
   /**
    * The `page` members an operation accepts, from either wire form: one `page` parameter
    * (`style: deepObject`) whose schema `properties` name the members, as `haddowg/json-api` v1
-   * projects it, or the older flattened `page[number]`/`page[size]` parameters. `menu` flags a
-   * `oneOf` page schema (a client-selectable strategy menu), which no single kind describes.
+   * projects it, or the older flattened `page[number]`/`page[size]` parameters. A `oneOf` page
+   * schema (a MultiPaginator menu) yields each arm's members in `menu` instead, minus the
+   * `kind` discriminator.
    */
-  private pageMembers(op: OperationObject | undefined): { members: Set<string>; menu: boolean } {
+  private pageMembers(op: OperationObject | undefined): {
+    members: Set<string>
+    menu?: Set<string>[]
+  } {
     const members = new Set<string>()
-    let menu = false
+    let menu: Set<string>[] | undefined
     for (const param of op?.parameters ?? []) {
       const name = param.name
       if (name === 'page') {
-        if (param.schema?.oneOf !== undefined) {
-          menu = true
+        const arms = param.schema?.oneOf
+        if (arms !== undefined) {
+          menu = arms.map(
+            (arm) => new Set(Object.keys(arm.properties ?? {}).filter((m) => m !== 'kind')),
+          )
         }
         for (const member of Object.keys(param.schema?.properties ?? {})) {
           members.add(member)
@@ -718,7 +721,7 @@ export class DescriptorBuilder {
         members.add(name.slice('page['.length, -1))
       }
     }
-    return { members, menu }
+    return menu === undefined ? { members } : { members, menu }
   }
 
   /**
@@ -953,3 +956,27 @@ export function buildDescriptor(doc: OpenApiDocument): ApiDescriptor {
 export function buildAtomic(doc: OpenApiDocument): AtomicDescriptor | null {
   return new DescriptorBuilder(doc).buildAtomic()
 }
+
+/**
+ * Classify a page member set: `number`+`size` = `page`; `offset`+`limit` = `offset`; either
+ * cursor bound (`after`/`before`) = `cursor` (link-driven, D44); `number` alone = `fixed` (the
+ * server fixes the size); no members = `none`; anything else = `undefined` (unrecognised).
+ */
+function kindOfMembers(members: ReadonlySet<string>): PaginatorKind | undefined {
+  if (members.has('number') && members.has('size')) {
+    return 'page'
+  }
+  if (members.has('offset') && members.has('limit')) {
+    return 'offset'
+  }
+  if (members.has('after') || members.has('before')) {
+    return 'cursor'
+  }
+  if (members.size === 1 && members.has('number')) {
+    return 'fixed'
+  }
+  return members.size === 0 ? 'none' : undefined
+}
+
+// oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+const sortedList = (members: ReadonlySet<string>): string => [...members].sort().join(', ')

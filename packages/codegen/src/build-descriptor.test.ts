@@ -811,6 +811,13 @@ const paginatorOf = (parameters: readonly ParameterObject[]): PaginatorKind => {
   }
 }
 
+// One MultiPaginator arm as core projects it: the child's page object plus a `kind` const.
+const arm = (kind: string, members: Record<string, SchemaObject>): SchemaObject => ({
+  type: 'object',
+  properties: { ...members, kind: { type: 'string', const: kind } },
+  additionalProperties: false,
+})
+
 describe('buildDescriptor — paginator detection in both wire forms', () => {
   const strategies: [string, string[], PaginatorKind][] = [
     ['page', ['number', 'size'], 'page'],
@@ -847,21 +854,26 @@ describe('buildDescriptor — paginator detection in both wire forms', () => {
     }
   })
 
-  it('warns on a selectable strategy menu rather than picking one arm', () => {
+  it('warns on a MultiPaginator menu, naming the offered kinds, rather than picking one arm', () => {
+    // The default strategy is not projected, so no single kind describes the collection.
     const menu: ParameterObject = {
       name: 'page',
       in: 'query',
+      style: 'deepObject',
+      explode: true,
       schema: {
         oneOf: [
-          { type: 'object', properties: { number: { type: 'integer' } } },
-          { type: 'object', properties: { after: { type: 'string' } } },
+          arm('page', { number: { type: 'integer' }, size: { type: 'integer' } }),
+          arm('cursor', { after: { type: 'string' }, before: { type: 'string' } }),
+          arm('custom', { token: { type: 'string' } }),
         ],
+        discriminator: { propertyName: 'kind' },
       },
     }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       expect(buildDescriptor(widgets([menu]))['widgets']!.paginator).toBe('none')
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('oneOf'))
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('menu (page | cursor | token)'))
     } finally {
       warn.mockRestore()
     }
