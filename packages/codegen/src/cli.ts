@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { pathToFileURL } from 'node:url'
-import { check, generate, type CodegenConfig } from './index'
+import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { check, generate, schemasOutputPath, type CodegenConfig } from './index'
 
 export const USAGE =
   'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--check]'
@@ -59,7 +60,27 @@ export async function run(argv: string[]): Promise<number> {
     return 0
   }
   await generate(config as CodegenConfig)
+  console.error(`wrote ${config.output}`)
+  if (config.schemas !== undefined) {
+    console.error(`wrote ${schemasOutputPath(config.output)}`)
+  }
   return 0
+}
+
+/**
+ * Whether the module at `moduleUrl` is the script node was asked to run (`argv1`). Compares real
+ * paths, because a package manager installs the bin as a symlink (`node_modules/.bin/...`) and
+ * node reports the symlink in `process.argv[1]` but the resolved file in `import.meta.url`.
+ */
+export function isEntry(moduleUrl: string, argv1: string | undefined): boolean {
+  if (argv1 === undefined) {
+    return false
+  }
+  try {
+    return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(argv1)
+  } catch {
+    return false
+  }
 }
 
 async function main(): Promise<void> {
@@ -67,8 +88,7 @@ async function main(): Promise<void> {
 }
 
 // Only run when invoked as the bin, not when imported (e.g. by tests).
-const entry = process.argv[1]
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+if (isEntry(import.meta.url, process.argv[1])) {
   main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : error)
     process.exitCode = 1
