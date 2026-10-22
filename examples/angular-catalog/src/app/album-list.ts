@@ -8,7 +8,7 @@ import {
   prevPage,
 } from '@haddowg/json-api-angular'
 
-const FIRST_PAGE: PageParams = { size: '5' }
+const FIRST_PAGE: PageParams = { size: 5 }
 
 @Component({
   selector: 'app-album-list',
@@ -36,7 +36,7 @@ const FIRST_PAGE: PageParams = { size: '5' }
       </ul>
       <nav>
         <button type="button" [disabled]="!previous()" (click)="goTo(previous())">Previous</button>
-        <span>Page {{ albums.value().$page.meta?.['currentPage'] }}</span>
+        <span>Page {{ albums.value().$page.meta?.currentPage }}</span>
         <button type="button" [disabled]="!next()" (click)="goTo(next())">Next</button>
       </nav>
     }
