@@ -6,6 +6,7 @@ import {
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
 import { buildAtomic } from './build-descriptor'
+import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
 
@@ -181,6 +182,7 @@ export class Emitter {
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
       this.atomicConst(),
+      emitErrorCodes(readErrorCatalogue(this.doc)),
       this.boundFactory(),
     ]
     return `${parts.join('\n\n')}\n`
@@ -203,6 +205,8 @@ export class Emitter {
       '  type ApiDescriptor,',
       '  type ClientOptions,',
       '  createClient as createClientRuntime,',
+      '  type ErrorCodeGuard,',
+      '  hasErrorCode as hasErrorCodeRuntime,',
       "} from '@haddowg/json-api-client'",
     ].join('\n')
   }
@@ -615,10 +619,11 @@ export class Emitter {
       '/**',
       ' * Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`.',
       ' * The server-level `atomic` capability is threaded in by default so `client.atomic` is wired',
-      ' * (a caller may still override it via `options.atomic`).',
+      ' * (a caller may still override it via `options.atomic`). The client type carries `ErrorCode`,',
+      ' * so bindings that only see the client (the Angular refs) type its errors.',
       ' */',
       'export const createClient = (options: ClientOptions) =>',
-      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(',
+      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(',
       '    resourceMap,',
       '    {',
       '      atomic,',
