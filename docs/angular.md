@@ -138,7 +138,7 @@ The `signal` option is part of the core client, so it works outside Angular too.
 - `StructuralGuardError` is a response that isn't a JSON:API document.
 - Anything else is a transport failure, such as the `HttpErrorResponse` for a network error, or an error from your validator.
 
-Templates can't use `instanceof`, so the resource also has `jsonApiError()`, the error when it is a `JsonApiError` and `undefined` otherwise:
+Templates can't use `instanceof`, so the resource also has `jsonApiError()`, the error when it is a `JsonApiError` and `undefined` otherwise. With a generated client it is a `JsonApiError<ErrorCode>`, typed by the client's documented [error codes](errors.md#match-on-an-error-code):
 
 ```html
 @if (album.jsonApiError(); as error) {
