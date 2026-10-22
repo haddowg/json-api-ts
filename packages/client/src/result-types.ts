@@ -929,13 +929,15 @@ export interface TypeAccessor<
  * The descriptor-driven client surface: one {@link TypeAccessor} per wire type. `W` is the
  * generated `WriteAttributes` map (per-type `{ create; update }` attribute pairs) and `Act`
  * the generated per-action body-type map; both thread through to the write/action surfaces and
- * default so read-only / codegen-less callers compile.
+ * default so read-only / codegen-less callers compile. `E` is the server's documented
+ * error-code union, carried at the type level only (read it back with `ErrorCodeOf`).
  */
 export type Client<
   D extends ApiDescriptor,
   A = DefaultAttributes<D>,
   W = DefaultWriteAttributes<D>,
   Act = DefaultActionTypes,
+  E extends string = string,
 > = {
   [T in TypeName<D>]: TypeAccessor<D, A, W, T, Act>
 } & {
@@ -958,7 +960,17 @@ export type Client<
   atomic<const Ops>(
     build: (tx: AtomicRecorder<D, W>) => Ops,
   ): Promise<Ops extends readonly AtomicHandle[] ? AtomicResults<D, A, Ops> : AtomicResult[]>
+  // Here rather than in its own intersection member, which stops json-api-query inferring `D`.
+  readonly [errorCodes]?: E
 }
+
+// Type-only key: never assigned, so it costs nothing at runtime.
+declare const errorCodes: unique symbol
+
+/** The error-code union a client type carries, or `string` for one that carries none. */
+export type ErrorCodeOf<T> = T extends { readonly [errorCodes]?: infer C extends string }
+  ? C
+  : string
 
 /**
  * The fallback attribute map when a caller doesn't supply the generated `Attributes`
