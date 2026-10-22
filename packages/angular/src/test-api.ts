@@ -1,5 +1,11 @@
 // A small descriptor-bound client for the tests, shaped like the codegen's output.
-import { type ApiDescriptor, type ClientOptions, createClient } from '@haddowg/json-api-client'
+import {
+  type ApiDescriptor,
+  type ClientOptions,
+  createClient,
+  type DefaultActionTypes,
+  type DefaultWriteAttributes,
+} from '@haddowg/json-api-client'
 
 export const BASE = 'https://music.example'
 
@@ -36,8 +42,17 @@ interface Attributes {
 
 export const createMusicClient = (options: ClientOptions) =>
   createClient<typeof descriptor, Attributes>(descriptor, options)
+/** The admin server documents error codes, as a generated client would carry them. */
+export type AdminErrorCode = 'ACCESS_DENIED' | 'RESOURCE_NOT_FOUND'
+
 export const createAdminClient = (options: ClientOptions) =>
-  createClient<typeof descriptor, Attributes>(descriptor, options)
+  createClient<
+    typeof descriptor,
+    Attributes,
+    DefaultWriteAttributes<typeof descriptor>,
+    DefaultActionTypes,
+    AdminErrorCode
+  >(descriptor, options)
 
 export type MusicClient = ReturnType<typeof createMusicClient>
 export type MusicDescriptor = typeof descriptor

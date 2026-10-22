@@ -12,15 +12,18 @@ import {
   type Signal,
   type ValueEqualityFn,
 } from '@angular/core'
-import { JsonApiError, type StructuralGuardError } from '@haddowg/json-api-client'
+import { type ErrorCodeOf, JsonApiError, type StructuralGuardError } from '@haddowg/json-api-client'
 import { JSON_API_CLIENT, type RegisteredClient } from './provide'
 
 /**
  * What a read can fail with: a `JsonApiError` for a non-2xx response, a `StructuralGuardError`
  * for a response that isn't a JSON:API document, or any other error (a network failure, a
- * validator's error). Narrow with `instanceof`.
+ * validator's error). Narrow with `instanceof`. `E` types the `JsonApiError`'s codes.
  */
-export type JsonApiResourceError = JsonApiError | StructuralGuardError | Error
+export type JsonApiResourceError<E extends string = string> =
+  | JsonApiError<E>
+  | StructuralGuardError
+  | Error
 
 /** What the loader receives each time the params change or the resource reloads. */
 export interface JsonApiLoaderContext<C, P> {
@@ -53,15 +56,19 @@ export interface JsonApiResourceOptions<T, P, C> {
 /**
  * Angular's `ResourceRef` with `error()` typed to what a JSON:API read throws, plus
  * `jsonApiError()`, the error when it is a `JsonApiError` (handy in templates, which can't
- * use `instanceof`).
+ * use `instanceof`). `E` is the client's error-code union, so a generated client's
+ * `jsonApiError()` carries its server's `ErrorCode`.
  */
-export interface JsonApiResourceRef<T> extends Omit<ResourceRef<T>, 'error' | 'hasValue'> {
-  readonly error: Signal<JsonApiResourceError | undefined>
-  readonly jsonApiError: Signal<JsonApiError | undefined>
+export interface JsonApiResourceRef<T, E extends string = string> extends Omit<
+  ResourceRef<T>,
+  'error' | 'hasValue'
+> {
+  readonly error: Signal<JsonApiResourceError<E> | undefined>
+  readonly jsonApiError: Signal<JsonApiError<E> | undefined>
   /** Whether a value is loaded. Narrows `value()` to exclude `undefined`, in templates too. */
   hasValue(
     this: T extends undefined ? this : never,
-  ): this is JsonApiResourceRef<Exclude<T, undefined>>
+  ): this is JsonApiResourceRef<Exclude<T, undefined>, E>
   hasValue(): boolean
 }
 
@@ -80,13 +87,13 @@ export interface JsonApiResourceRef<T> extends Omit<ResourceRef<T>, 'error' | 'h
  */
 export function jsonApiResource<T, P = unknown, C = RegisteredClient>(
   options: JsonApiResourceOptions<T, P, C> & { defaultValue: T },
-): JsonApiResourceRef<T>
+): JsonApiResourceRef<T, ErrorCodeOf<C>>
 export function jsonApiResource<T, P = unknown, C = RegisteredClient>(
   options: JsonApiResourceOptions<T, P, C>,
-): JsonApiResourceRef<T | undefined>
+): JsonApiResourceRef<T | undefined, ErrorCodeOf<C>>
 export function jsonApiResource<T, P, C>(
   options: JsonApiResourceOptions<T, P, C>,
-): JsonApiResourceRef<T | undefined> {
+): JsonApiResourceRef<T | undefined, ErrorCodeOf<C>> {
   if (options.injector === undefined) {
     assertInInjectionContext(jsonApiResource)
   }
@@ -110,5 +117,5 @@ export function jsonApiResource<T, P, C>(
     return error instanceof JsonApiError ? error : undefined
   })
   Object.defineProperty(ref, 'jsonApiError', { value: jsonApiError, enumerable: true })
-  return ref as unknown as JsonApiResourceRef<T | undefined>
+  return ref as unknown as JsonApiResourceRef<T | undefined, ErrorCodeOf<C>>
 }
