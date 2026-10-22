@@ -65,7 +65,10 @@ while (page) {
 | `page`   | page-number pagination (`page[number]` / `page[size]`) |
 | `offset` | offset/limit pagination                             |
 | `cursor` | opaque-cursor pagination                            |
+| `fixed`  | page-number pagination where the server fixes the size (only `page[number]`) |
 | `none`   | the endpoint is not paginated                       |
+
+A `fixed` collection reads like a `page` one, except you can only pick the page number: `client.albums.list({ page: { number: 2 } })`. Its `$page.meta` carries `currentPage`, plus `total` and `lastPage` when the server counts.
 
 The kind is **declared per resource (and per relation) in the spec** and baked into the generated descriptor — the client reads it from there, it never guesses from the response. That is what makes it reliable even for an empty page: an empty collection carries no member to sniff a type from, but the descriptor still knows the collection's real kind, so `$page.kind` is correct rather than falling back to `none`.
 
@@ -95,7 +98,7 @@ Because navigation is link-driven, cursor pagination needs no special handling: 
 
     ```ts
     interface Page {
-      kind: 'page' | 'offset' | 'cursor' | 'none'
+      kind: 'page' | 'offset' | 'cursor' | 'fixed' | 'none'
       meta?: Record<string, unknown>          // the raw meta.page block, when present
       links: { first?; prev?; next?; last? }  // navigation links, when present
     }
