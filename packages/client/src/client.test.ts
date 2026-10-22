@@ -695,6 +695,34 @@ describe('createClient — navigation seam', () => {
   })
 })
 
+const linkedPage = (id: string, links: Record<string, string>): TransportResponse => ({
+  status: 200,
+  headers: {},
+  body: JSON.stringify({ data: [{ type: 'albums', id, attributes: {} }], links }),
+})
+
+describe('createClient — server links against a base with a path', () => {
+  it('follows a root-relative next link without doubling the base path', async () => {
+    const base = 'https://host.example/api/v5'
+    const transport = vi.fn(async (req: TransportRequest) =>
+      req.url.includes('page%5Bnumber%5D=2')
+        ? linkedPage('2', { self: '/api/v5/albums?page%5Bnumber%5D=2' })
+        : linkedPage('1', { self: '/api/v5/albums', next: '/api/v5/albums?page%5Bnumber%5D=2' }),
+    )
+    const client = createClient(descriptor, { baseUrl: base, transport })
+
+    const first = asArray(await client.albums.list())
+    const second = asArray(await first.$next())
+
+    expect(second[0]!['id']).toBe('2')
+    // The generated path template joins onto the base; the server's link resolves against it.
+    expect(transport.mock.calls.map(([req]) => req.url)).toEqual([
+      `${base}/albums`,
+      `${base}/albums?page%5Bnumber%5D=2`,
+    ])
+  })
+})
+
 describe('createClient — surface shape', () => {
   it('exposes a defined accessor per descriptor type and undefined otherwise', () => {
     const client = asRecord(

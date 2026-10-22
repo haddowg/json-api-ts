@@ -300,6 +300,48 @@ describe('execute', () => {
     expect(native.sent().headers['x-trace']).toBe('7')
   })
 
+  it('appends a path template to a base with a path', async () => {
+    const { transport, sent } = recording(ok({ data: [] }))
+    await execute(ctx({ transport, baseUrl: 'https://host.example/api/v5' }), {
+      method: 'GET',
+      path: '/advertisers/7',
+    })
+
+    expect(sent().url).toBe('https://host.example/api/v5/advertisers/7')
+  })
+
+  it.each([
+    [
+      'a root-relative link keeps the origin, not the path',
+      'https://host.example/api/v5',
+      '/api/v5/advertisers?page%5Bnumber%5D=2',
+      'https://host.example/api/v5/advertisers?page%5Bnumber%5D=2',
+    ],
+    [
+      'an absolute link verbatim',
+      'https://host.example/api/v5',
+      'https://other.example/advertisers?page[number]=2',
+      'https://other.example/advertisers?page[number]=2',
+    ],
+    [
+      'a root-relative link against a relative base',
+      '/api/v5',
+      '/api/v5/advertisers?page%5Bnumber%5D=2',
+      '/api/v5/advertisers?page%5Bnumber%5D=2',
+    ],
+    [
+      'a path-relative link against the base per RFC 3986',
+      'https://host.example/api/v5/',
+      'advertisers?page%5Bnumber%5D=2',
+      'https://host.example/api/v5/advertisers?page%5Bnumber%5D=2',
+    ],
+  ])('resolves a server link: %s', async (_, baseUrl, link, expected) => {
+    const { transport, sent } = recording(ok({ data: [] }))
+    await execute(ctx({ transport, baseUrl }), { method: 'GET', path: link, link: true })
+
+    expect(sent().url).toBe(expected)
+  })
+
   it('uses an absolute-URL path verbatim, bypassing baseUrl', async () => {
     const { transport, sent } = recording(ok({ data: [] }))
     await execute(ctx({ transport }), {
