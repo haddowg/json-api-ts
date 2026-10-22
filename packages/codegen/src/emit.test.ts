@@ -160,10 +160,10 @@ describe('emit (music-catalog default server)', () => {
     expect(source).not.toMatch(/\n {2}users: \{ create:/)
   })
 
-  it('emits the descriptor-bound createClient factory passing Attributes + WriteAttributes + ActionTypes', () => {
+  it('emits the descriptor-bound createClient factory passing Attributes + WriteAttributes + ActionTypes + ErrorCode', () => {
     expect(source).toContain('export const createClient = (options: ClientOptions) =>')
     expect(source).toContain(
-      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(',
+      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(',
     )
     // The server-level atomic capability is threaded into the bound client by default.
     expect(source).toMatch(/createClientRuntime<[^>]*>\([\s\S]*?atomic,\s*\.\.\.options,/)
@@ -201,7 +201,7 @@ describe('emit (custom actions)', () => {
     // still emitted + threaded so a bespoke command document (no resolvable type) can populate it.
     expect(source).toContain('export interface ActionTypes {}')
     expect(source).toContain(
-      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes>(',
+      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(',
     )
   })
 })
