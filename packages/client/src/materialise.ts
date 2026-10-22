@@ -1,4 +1,10 @@
-import type { ApiDescriptor, PaginatorKind, RelationDescriptor } from './descriptor'
+import type {
+  ApiDescriptor,
+  PaginatorDescriptor,
+  PaginatorKind,
+  RelationDescriptor,
+} from './descriptor'
+import { type Page, type ResolvedPaginator, resolvePaginator } from './pagination'
 import type { Document } from './request'
 import { assertJsonApiDocument, type ResolvedValidator, validateDocument } from './validate'
 
@@ -19,15 +25,6 @@ export interface ResourceLinks {
 export interface Edge {
   links?: Record<string, unknown>
   meta?: Record<string, unknown>
-}
-
-/** Normalised pagination, discriminated by paginator kind; count-free-safe. */
-export interface Page {
-  kind: PaginatorKind
-  /** The raw `meta.page` block, when present (shape varies by kind). */
-  meta?: Record<string, unknown>
-  /** Navigation links by relation (`first`/`prev`/`next`/`last`), when present. */
-  links: { first?: string; prev?: string; next?: string; last?: string }
 }
 
 /** The uniform shape `$rel(name)` returns. */
@@ -75,13 +72,14 @@ export interface MaterialiseContext {
    * Re-fetch + re-materialise a link (wired in Build 4); returns the materialised value.
    * `linkage` propagates the originating surface so a paginated relationship-endpoint
    * array re-materialises as identifiers (not resources) on `$next()`/`$prev()`. `paginator`
-   * carries the current page's kind so the re-materialised page reports the same `$page.kind`
-   * (a divergent per-relation paginator, or an EMPTY next page that carries no member to sniff).
+   * carries the strategy that answered the current page, so the re-materialised page reports the
+   * same `$page` (a divergent per-relation paginator, a picked menu arm, or an EMPTY next page
+   * that carries no member to sniff).
    */
   navigate: (
     url: string,
     linkage?: boolean,
-    paginator?: PaginatorKind,
+    paginator?: ResolvedPaginator,
     signal?: AbortSignal,
   ) => Promise<unknown>
   /**
@@ -138,9 +136,10 @@ const defineGetter = (target: object, key: string, get: () => unknown): void => 
  * full resource) — a structural guess can't tell them apart for an attribute-less,
  * relation-less resource, so the caller passes the surface it issued.
  *
- * `paginatorOverride` sets the top-level array's `$page.kind` for a related/relationship read,
- * where the paginator is the RELATION's (which may diverge from the related type's collection —
- * D6a) and an empty page carries no member to sniff a type from. `primaryType` is preferred for a
+ * `paginatorOverride` sets the top-level array's `$page` for a related/relationship read, where the
+ * paginator is the RELATION's (which may diverge from the related type's collection — D6a), for a
+ * menu read that picked an arm, and where an empty page carries no member to sniff a type from. A
+ * bare kind is read with its canonical wire keys. `primaryType` is preferred for a
  * top-level collection read (statically-known); both override the sniff-from-`data[0]` fallback.
  */
 export function materialise(
@@ -148,7 +147,7 @@ export function materialise(
   ctx: MaterialiseContext,
   linkage = false,
   primaryType?: string,
-  paginatorOverride?: PaginatorKind,
+  paginatorOverride?: ResolvedPaginator | PaginatorKind,
 ): unknown {
   // Always-on light structural guards: prove the envelope invariant the runtime relies on (a
   // JSON:API document; each data/included member carries type+id). Then, only when configured,
@@ -245,7 +244,7 @@ function buildNode(
     node[name] = hydrateRelation(
       rel,
       relDesc?.cardinality,
-      relatedPaginatorKind(relDesc, ctx),
+      resolvePaginator(relatedPaginator(relDesc, ctx)),
       env,
       index,
       nodes,
@@ -262,13 +261,13 @@ function buildNode(
  * linked-but-not-included member stays an identifier, an empty to-one is `null`, and a
  * to-many is always an augmented array (of views and/or identifiers).
  *
- * `relatedKind` is the related type's paginator kind (from the descriptor), threaded so a
- * to-many array reports the same `$page.kind` it would on its dedicated endpoint.
+ * `related` is the relation's paginator (from the descriptor), threaded so a to-many array
+ * reports the same `$page` it would on its dedicated endpoint without a `page` argument.
  */
 function hydrateRelation(
   rel: RawRelationship,
   cardinality: 'one' | 'many' | undefined,
-  relatedKind: PaginatorKind,
+  related: ResolvedPaginator,
   env: DocumentEnvelope,
   index: Map<string, RawResource>,
   nodes: Map<string, object>,
@@ -280,12 +279,12 @@ function hydrateRelation(
     const members = (data as RawResource[]).map((member) =>
       resolveMember(member, env, index, nodes, ctx),
     )
-    return augmentRelationArray(members, rel, relatedKind, ctx)
+    return augmentRelationArray(members, rel, related, ctx)
   }
 
   // A declared to-many with no array yet (count-free / lazy) still reads as an array.
   if (data === undefined && cardinality === 'many') {
-    return augmentRelationArray([], rel, relatedKind, ctx)
+    return augmentRelationArray([], rel, related, ctx)
   }
 
   if (data === null || data === undefined) {
@@ -444,54 +443,60 @@ function augmentArray(
   ctx: MaterialiseContext,
   linkage: boolean,
   primaryType?: string,
-  paginatorOverride?: PaginatorKind,
+  paginatorOverride?: ResolvedPaginator | PaginatorKind,
 ): object[] {
   const arr = [...members]
   const links = doc.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => doc.meta)
-  const kind = paginatorOverride ?? paginatorKind(doc, ctx, primaryType)
-  attachPage(arr, kind, pageMeta(doc.meta), links, ctx, linkage)
+  const paginator =
+    paginatorOverride === undefined
+      ? resolvePaginator(primaryPaginator(doc, ctx, primaryType))
+      : typeof paginatorOverride === 'string'
+        ? resolvePaginator(paginatorOverride)
+        : paginatorOverride
+  attachPage(arr, paginator, pageMeta(doc.meta), links, ctx, linkage)
   return arr
 }
 
 /**
- * A to-many relationship array: `$page`/links/meta come from the relationship object. `kind`
- * is the related type's paginator (so an in-document compound-include to-many reports the same
+ * A to-many relationship array: `$page`/links/meta come from the relationship object.
+ * `paginator` is the relation's (so an in-document compound-include to-many reports the same
  * discriminant it would when fetched at its own relationship/related endpoint — "one model,
  * three surfaces").
  */
 function augmentRelationArray(
   members: object[],
   rel: RawRelationship,
-  kind: PaginatorKind,
+  paginator: ResolvedPaginator,
   ctx: MaterialiseContext,
 ): object[] {
   const arr = [...members]
   const links = rel.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => rel.meta)
-  attachPage(arr, kind, pageMeta(rel.meta), links, ctx, false)
+  attachPage(arr, paginator, pageMeta(rel.meta), links, ctx, false)
   return arr
 }
 
 /** Attach `$page` + `$next()`/`$prev()` driven by link presence (count-free-safe). */
 function attachPage(
   arr: object[],
-  kind: PaginatorKind,
+  paginator: ResolvedPaginator,
   meta: Record<string, unknown> | undefined,
   links: Record<string, unknown> | undefined,
   ctx: MaterialiseContext,
   linkage: boolean,
 ): void {
-  const page: Page = { kind, links: pageLinks(links) }
+  const page: Page = { kind: paginator.kind, keys: paginator.keys, links: pageLinks(links) }
+  if (paginator.arm !== undefined) page.arm = paginator.arm
   if (meta !== undefined) page.meta = meta
   defineGetter(arr, '$page', () => page)
   define(arr, '$next', (options?: NavigateOptions) =>
-    navigateLink(page.links.next, ctx, linkage, kind, options?.signal),
+    navigateLink(page.links.next, ctx, linkage, paginator, options?.signal),
   )
   define(arr, '$prev', (options?: NavigateOptions) =>
-    navigateLink(page.links.prev, ctx, linkage, kind, options?.signal),
+    navigateLink(page.links.prev, ctx, linkage, paginator, options?.signal),
   )
 }
 
@@ -499,7 +504,7 @@ const navigateLink = (
   link: string | undefined,
   ctx: MaterialiseContext,
   linkage: boolean,
-  paginator: PaginatorKind,
+  paginator: ResolvedPaginator,
   signal: AbortSignal | undefined,
 ): Promise<unknown> => {
   if (link === undefined) {
@@ -531,25 +536,25 @@ const pageMeta = (meta: Record<string, unknown> | undefined): Record<string, unk
   isObject(meta?.['page']) ? (meta['page'] as Record<string, unknown>) : undefined
 
 /**
- * The document's paginator kind (from the primary type's descriptor; default `none`). Prefers the
- * statically-known `primaryType` (passed by the descriptor binding at the call site) so an EMPTY
- * page still reports the collection's real kind; falls back to sniffing the first member's type
- * (for a re-materialised `$next()` page or a related read, where the primary type isn't threaded).
+ * The document's paginator (from the primary type's descriptor). Prefers the statically-known
+ * `primaryType` (passed by the descriptor binding at the call site) so an EMPTY page still reports
+ * the collection's real kind; falls back to sniffing the first member's type (for a re-materialised
+ * `$next()` page or a related read, where the primary type isn't threaded).
  */
-function paginatorKind(
+function primaryPaginator(
   doc: Document,
   ctx: MaterialiseContext,
   primaryType?: string,
-): PaginatorKind {
+): PaginatorDescriptor | undefined {
   const first = Array.isArray(doc.data) ? doc.data[0] : doc.data
   const type =
     primaryType ??
     (isObject(first) && typeof first['type'] === 'string' ? first['type'] : undefined)
-  return type !== undefined ? (ctx.descriptor[type]?.paginator ?? 'none') : 'none'
+  return type !== undefined ? ctx.descriptor[type]?.paginator : undefined
 }
 
 /**
- * A to-many relation's paginator kind. The relation's OWN related/relationship endpoint may
+ * A to-many relation's paginator. The relation's OWN related/relationship endpoint may
  * paginate differently than the related type's top-level collection (D6a), so prefer the
  * per-relation `paginator` (carried in the descriptor only when it diverges); otherwise fall back
  * to the related type's own paginator (the relationship and related endpoints both paginate that
@@ -557,12 +562,19 @@ function paginatorKind(
  * resolves off its first declared related type (its members span types, matching the relationship
  * endpoint's first-member resolution).
  */
+export function relatedPaginator(
+  relation: RelationDescriptor | undefined,
+  ctx: MaterialiseContext,
+): PaginatorDescriptor | undefined {
+  if (relation?.paginator !== undefined) return relation.paginator
+  const relatedType = relation?.types[0]
+  return relatedType === undefined ? undefined : ctx.descriptor[relatedType]?.paginator
+}
+
+/** The kind a relation's related read answers with when it sends no `page`. See {@link relatedPaginator}. */
 export function relatedPaginatorKind(
   relation: RelationDescriptor | undefined,
   ctx: MaterialiseContext,
 ): PaginatorKind {
-  if (relation?.paginator !== undefined) return relation.paginator
-  const relatedType = relation?.types[0]
-  if (relatedType === undefined) return 'none'
-  return ctx.descriptor[relatedType]?.paginator ?? 'none'
+  return resolvePaginator(relatedPaginator(relation, ctx)).kind
 }

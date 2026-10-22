@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
-import type { PaginatorKind } from '@haddowg/json-api-client'
+import type { PaginatorDescriptor, PaginatorKind } from '@haddowg/json-api-client'
 import type { OpenApiDocument, ParameterObject, SchemaObject } from './openapi'
 
 function loadFixture(name: string): OpenApiDocument {
@@ -859,7 +859,7 @@ const widgets = (parameters: readonly ParameterObject[]): OpenApiDocument => ({
   },
 })
 
-const paginatorOf = (parameters: readonly ParameterObject[]): PaginatorKind => {
+const paginatorOf = (parameters: readonly ParameterObject[]): PaginatorDescriptor => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   try {
     const kind = buildDescriptor(widgets(parameters))['widgets']!.paginator

@@ -27,6 +27,7 @@ import type {
   RelationView,
   ResourceLinks,
 } from './materialise'
+import type { Page, PageOf } from './pagination'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 
 /**
@@ -34,12 +35,14 @@ import type { LocalIdentifier, ResourceIdentifier } from './types'
  * a real, read-only `T[]` carrying the non-enumerable relationship-level envelope
  * (`$page`/`$links`/`$meta`) plus link-driven `$next()`/`$prev()` navigation. The same
  * model backs top-level collections, related-endpoint collections, and hydrated/linkage
- * to-many relationship values ("one model, three surfaces").
+ * to-many relationship values ("one model, three surfaces"). `P` types `$page` by the strategy
+ * that answered (see {@link PageOf}); following a link keeps it.
  */
-export type Collection<T> = ReadonlyArray<T> &
-  Omit<ArrayEnvelope, '$next' | '$prev'> & {
-    $next(options?: NavigateOptions): Promise<Collection<T> | undefined>
-    $prev(options?: NavigateOptions): Promise<Collection<T> | undefined>
+export type Collection<T, P = Page> = ReadonlyArray<T> &
+  Omit<ArrayEnvelope, '$page' | '$next' | '$prev'> & {
+    readonly $page: P
+    $next(options?: NavigateOptions): Promise<Collection<T, P> | undefined>
+    $prev(options?: NavigateOptions): Promise<Collection<T, P> | undefined>
   }
 
 /**
@@ -125,6 +128,28 @@ type IsMany<
 > = D[T]['relations'][R]['cardinality'] extends 'many' ? true : false
 
 /**
+ * The paginator relation `R`'s related/relationship endpoints use: the relation's own when it
+ * diverges (D6a), else its first related type's collection paginator (as the runtime resolves).
+ */
+export type RelationPaginator<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { paginator: infer P }
+  ? P
+  : D[T]['relations'][R]['types'][0] extends infer First extends TypeName<D>
+    ? D[First]['paginator']
+    : 'none'
+
+/** The `$page` of relation `R`'s to-many value read with page argument `Q` (none = the default). */
+type RelationPage<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Q = undefined,
+> = PageOf<RelationPaginator<D, T, R>, Q>
+
+/**
  * The bare resource-identifier shape a non-included (but linked) relation takes,
  * carrying the per-edge `$edge`/`$pivot` accessors the runtime attaches to every
  * materialised related value.
@@ -185,10 +210,10 @@ type RelationValue<
   F = unknown,
 > = R extends Inc
   ? IsMany<D, T, R> extends true
-    ? Collection<Hydrated<D, A, RelatedType<D, T, R>, F>>
+    ? Collection<Hydrated<D, A, RelatedType<D, T, R>, F>, RelationPage<D, T, R>>
     : Hydrated<D, A, RelatedType<D, T, R>, F> | null
   : IsMany<D, T, R> extends true
-    ? Collection<Identifier<RelatedType<D, T, R>>>
+    ? Collection<Identifier<RelatedType<D, T, R>>, RelationPage<D, T, R>>
     : Identifier<RelatedType<D, T, R>> | null | undefined
 
 /**
@@ -442,9 +467,18 @@ type PivotFieldsOf<
  * the hydrated member (or `null`) for to-one. Each member's `$pivot` is typed from the
  * relation's `pivotFields` (D33).
  */
-type RelatedValue<D extends ApiDescriptor, A, T extends TypeName<D>, R extends RelationName<D, T>> =
+type RelatedValue<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Q = undefined,
+> =
   IsMany<D, T, R> extends true
-    ? Collection<Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>>>
+    ? Collection<
+        Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>>,
+        RelationPage<D, T, R, Q>
+      >
     : Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>> | null
 
 /**
@@ -452,9 +486,14 @@ type RelatedValue<D extends ApiDescriptor, A, T extends TypeName<D>, R extends R
  * a `Collection` of identifier members for to-many, a single identifier (or `null`) for to-one.
  * Each member's `$pivot` is typed from the relation's `pivotFields` (D33).
  */
-type LinkageValue<D extends ApiDescriptor, T extends TypeName<D>, R extends RelationName<D, T>> =
+type LinkageValue<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Q = undefined,
+> =
   IsMany<D, T, R> extends true
-    ? Collection<Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>>>
+    ? Collection<Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>>, RelationPage<D, T, R, Q>>
     : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>> | null
 
 /**
@@ -844,7 +883,7 @@ export interface TypeAccessor<
 > {
   list<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     query?: TypedReadQuery<D, T, Inc, F>,
-  ): Promise<Collection<ReadResult<D, A, T, Inc, F>>>
+  ): Promise<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator']>>>
   get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,

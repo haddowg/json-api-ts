@@ -65,7 +65,7 @@ export interface RelationDescriptor {
    */
   countable?: CountableDescriptor
   /**
-   * The paginator kind this relation's OWN related/relationship endpoints advertise
+   * The paginator this relation's OWN related/relationship endpoints advertise
    * (`GET /{type}/{id}/{rel}` / `.../relationships/{rel}`), when it DIVERGES from the related
    * type's collection-level {@link ResourceDescriptor.paginator}. A related endpoint may paginate
    * differently than the related type's own collection (e.g. a cursor-paginated related to-many
@@ -73,10 +73,43 @@ export interface RelationDescriptor {
    * related/embedded to-many array's `$page.kind` from this per-relation value first, falling back
    * to the related type's collection paginator (D6a). Absent when the two agree (the common case).
    */
-  paginator?: PaginatorKind
+  paginator?: PaginatorDescriptor
 }
 
-export type PaginatorKind = 'page' | 'offset' | 'cursor' | 'fixed' | 'none'
+/** A built-in pagination strategy. */
+export type PaginatorStrategy = 'page' | 'offset' | 'cursor' | 'fixed'
+
+/** The strategy that answers a read, or `none` for an unpaginated endpoint. */
+export type PaginatorKind = PaginatorStrategy | 'none'
+
+/**
+ * A role a page parameter fills. `page`: number, size; `offset`: offset, limit; `cursor`: after,
+ * before, size; `fixed`: number.
+ */
+export type PaginatorRole = 'number' | 'size' | 'offset' | 'limit' | 'after' | 'before'
+
+/** A strategy whose roles are filled by renamed wire keys, e.g. `{ number: 'p', size: 'size' }`. */
+export interface StrategyDescriptor {
+  strategy: PaginatorStrategy
+  keys: Readonly<Partial<Record<PaginatorRole, string>>>
+}
+
+/**
+ * A MultiPaginator menu: the client picks an arm by its `kind` (sent as `page[kind]`), and the
+ * server answers with `default` when the request names none. Arm keys are the `kind` values.
+ */
+export interface MenuDescriptor {
+  strategy: 'multi'
+  default: string
+  arms: Readonly<Record<string, PaginatorStrategy | StrategyDescriptor>>
+}
+
+/**
+ * How an endpoint paginates. A bare kind uses the canonical wire keys (`page[number]`,
+ * `page[size]`, ...); a {@link StrategyDescriptor} names renamed keys; a {@link MenuDescriptor}
+ * offers several strategies.
+ */
+export type PaginatorDescriptor = PaginatorKind | StrategyDescriptor | MenuDescriptor
 
 export type ClientIdPolicy = 'forbidden' | 'optional' | 'required'
 
@@ -154,7 +187,7 @@ export interface ResourceDescriptor {
   relations: Readonly<Record<string, RelationDescriptor>>
   /** Per-operation path templates, e.g. `{ fetchOne: '/albums/{id}' }`. */
   paths: Readonly<Record<string, string>>
-  paginator: PaginatorKind
+  paginator: PaginatorDescriptor
   clientId: ClientIdPolicy
   /**
    * The `withCount` count tokens + negotiation profile for this type's read endpoints.
