@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.0.0...json-api-angular-v1.1.0) (2026-10-23)
+
+
+### Features
+
+* **angular:** type jsonApiError() by the client's error codes ([55834a8](https://github.com/haddowg/json-api-ts/commit/55834a8aad66f2a1eff4f22123897fc55d58b6d4))
+* **angular:** type nextPage() and prevPage() by the page that answered ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+* **client:** describe renamed page keys and strategy menus, and type $page ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+* **client:** type the page argument from the collection's paginator ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+* **codegen:** read the x-paginator stamp and support generator contract 3 ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+
+
+### Bug Fixes
+
+* **client:** add the fixed paginator kind ([acbcf06](https://github.com/haddowg/json-api-ts/commit/acbcf06482ecdbfeda211afca4effdfa16564393))
+* **client:** resolve server links against the base URL per RFC 3986 ([acbcf06](https://github.com/haddowg/json-api-ts/commit/acbcf06482ecdbfeda211afca4effdfa16564393))
+* **codegen:** detect pagination from the page object parameter ([acbcf06](https://github.com/haddowg/json-api-ts/commit/acbcf06482ecdbfeda211afca4effdfa16564393))
+* **codegen:** name the kinds a MultiPaginator menu offers ([acbcf06](https://github.com/haddowg/json-api-ts/commit/acbcf06482ecdbfeda211afca4effdfa16564393))
+* **codegen:** run the CLI when invoked through a bin symlink ([acbcf06](https://github.com/haddowg/json-api-ts/commit/acbcf06482ecdbfeda211afca4effdfa16564393))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.2.0
+
 ## 1.0.0 (2026-10-21)
 
 
