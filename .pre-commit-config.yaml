@@ -1,7 +1,7 @@
 # Local hooks run via the project's own toolchain (pnpm). Install once with
 # `pre-commit install`. oxfmt and oxlint operate on the staged files; the
-# typecheck runs project-wide (tsc needs the whole program), only when a TS file
-# changed.
+# typecheck runs for the workspaces those files belong to (CI typechecks every
+# workspace), only when a TS file changed.
 repos:
   - repo: local
     hooks:
@@ -44,10 +44,9 @@ repos:
 
       - id: typecheck
         name: tsc typecheck
-        entry: pnpm typecheck
+        entry: node scripts/typecheck-changed.mjs
         language: system
         files: \.(m|c)?tsx?$
-        pass_filenames: false
 
       - id: mkdocs-build
         name: mkdocs build (strict)

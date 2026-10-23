@@ -277,6 +277,20 @@ migrate to `vp` once it's ≥1.0 (trivial — same tools).
   (release-please → build → `npm publish --provenance`, gating on v4's path-prefixed
   `release_created` outputs)
 
+### Commits, merges and releases
+
+release-please files each commit on `main` under the packages whose files it changed
+(ADR 0008), so how a PR lands decides which changelogs its entries reach.
+
+- A PR that changes one package is **squash-merged**, titled as a Conventional Commit.
+- A PR that changes several packages is **rebase-merged** (`gh pr merge --rebase`), with
+  each commit a Conventional Commit scoped to one package (`feat(client): …`,
+  `feat(angular): …`). Fold fixups in before merging; the branch's history becomes
+  `main`'s. It needs no `BEGIN_COMMIT_OVERRIDE` block.
+- The pre-commit hook typechecks only the workspaces a commit touches, so the client half
+  of a change can be committed before the Angular half compiles against it. CI's full
+  `pnpm typecheck` gates the merge.
+
 ## Bundle-side enrichment required (running list)
 
 - **Typed `$pivot`** — the bundle must emit pivot field types (cleanest: type the
