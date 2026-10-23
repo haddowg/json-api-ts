@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.0.1...json-api-query-v1.1.0) (2026-10-23)
+
+
+### Features
+
+* **angular:** type nextPage() and prevPage() by the page that answered ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+* **client:** describe renamed page keys and strategy menus, and type $page ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+* **client:** type the page argument from the collection's paginator ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+* **codegen:** read the x-paginator stamp and support generator contract 3 ([99ff1e9](https://github.com/haddowg/json-api-ts/commit/99ff1e93e2889fbd7a8074ad8d86c297db92f67e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.2.0
+
 ## [1.0.1](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.0.0...json-api-query-v1.0.1) (2026-10-21)
 
 
