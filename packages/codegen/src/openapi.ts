@@ -52,6 +52,7 @@ export interface ParameterObject {
 }
 
 export interface OperationObject {
+  operationId?: string
   parameters?: readonly ParameterObject[]
   requestBody?: RequestBodyObject
   responses?: Record<string, ResponseObject>

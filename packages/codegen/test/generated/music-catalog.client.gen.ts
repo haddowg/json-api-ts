@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   e2c00824250d9c86
+ * Spec hash:   04b69b8383fae6b7
  */
 
 import {
@@ -733,10 +733,24 @@ export const resourceMap = {
           "tracks"
         ],
         pivot: true,
-        pivotFields: {
-          addedAt: "date-time",
-          position: "integer",
-          weight: "integer"
+        readPivot: {
+          fields: {
+            addedAt: "date-time",
+            position: "integer",
+            weight: "integer"
+          },
+          nullable: [
+            "weight"
+          ]
+        },
+        writePivot: {
+          fields: {
+            position: "integer",
+            weight: "integer"
+          },
+          required: [
+            "position"
+          ]
         },
         mutations: {
           add: true,

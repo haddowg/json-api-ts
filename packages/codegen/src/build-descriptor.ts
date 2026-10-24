@@ -10,6 +10,7 @@ import type {
   PaginatorKind,
   PaginatorRole,
   PaginatorStrategy,
+  PivotDescriptor,
   RelationDescriptor,
   RelationMutations,
   ResourceDescriptor,
@@ -44,6 +45,23 @@ function refName(ref: string): string | undefined {
 
 function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
+}
+
+/** The operationId prefixes of a relation's related read and its relationship endpoint. */
+const RELATED_OPERATION = 'fetchRelated'
+const RELATIONSHIP_OPERATIONS = [
+  'fetchRelationship',
+  'updateRelationship',
+  'addRelationship',
+  'removeRelationship',
+] as const
+
+/** Where a relation's endpoints live, read from their operationIds. */
+interface RelationEndpoints {
+  related?: string
+  relationship?: string
+  /** The `$ref` of a relationship mutation's request body (its request pivot shape). */
+  requestRef?: string
 }
 
 /** The set of `type` keys a JSON type node declares, with `"null"` removed. */
@@ -95,7 +113,7 @@ export class DescriptorBuilder {
       const actions = collection ? this.actions(collection) : {}
       const descriptor: ResourceDescriptor = {
         attributes: this.attributes(base),
-        relations: this.relations(schema, collection),
+        relations: this.relations(wireType, base, schema, collection),
         paths: this.operationPaths(base),
         paginator: this.paginator(base),
         clientId: this.clientId(base),
@@ -130,41 +148,9 @@ export class DescriptorBuilder {
       if (isTypeOnlyStub && Object.keys(descriptor.paths).length === 0) {
         continue
       }
-      this.warnWriteOnlyRelations(wireType, base, descriptor.relations)
       out[wireType] = descriptor
     }
     return sortRecord(out)
-  }
-
-  /**
-   * Warn about relations a create or update body accepts but the resource never renders. A
-   * write-only relation (generator contract 5) is left out of the response schema, and the
-   * descriptor has no way to mark a relation as writable but unreadable, so it is missing from
-   * the client entirely rather than typed onto reads that never carry it.
-   */
-  private warnWriteOnlyRelations(
-    wireType: string,
-    base: string,
-    readable: Readonly<Record<string, RelationDescriptor>>,
-  ): void {
-    const writeOnly = new Set<string>()
-    for (const request of [`${base}CreateRequest`, `${base}UpdateRequest`]) {
-      const data = this.schemas[request]?.properties?.['data']
-      const relationships = isSchema(data) ? data.properties?.['relationships'] : undefined
-      for (const name of Object.keys(
-        isSchema(relationships) ? (relationships.properties ?? {}) : {},
-      )) {
-        if (!(name in readable)) {
-          writeOnly.add(name)
-        }
-      }
-    }
-    for (const name of writeOnly) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `json-api codegen: relationship "${name}" on "${wireType}" is accepted on writes but never rendered (a write-only relation); the client has no slot for a relation it can't read, so it is left out.`,
-      )
-    }
   }
 
   /**
@@ -223,24 +209,28 @@ export class DescriptorBuilder {
     return sortRecord(out)
   }
 
+  /**
+   * The relations of a type: every relation its resource renders, plus each write-only relation
+   * the create and update bodies accept. A write-only relation is one whose body property carries
+   * `writeOnly: true` (generator contract 8) or, in an older document, one the resource doesn't
+   * render. A pivot relation reads its response pivot off the rendered relationship and its
+   * request pivot off the write bodies.
+   */
   private relations(
+    wireType: string,
+    base: string,
     resource: SchemaObject,
     collection: string | undefined,
   ): Record<string, RelationDescriptor> {
     const relProps = isSchema(resource.properties?.['relationships'])
-      ? resource.properties['relationships'].properties
-      : undefined
-    if (relProps === undefined) {
-      return {}
-    }
+      ? (resource.properties['relationships'].properties ?? {})
+      : {}
+    const writes = this.writeRelationships(base)
+    const endpoints = this.relationEndpoints(wireType)
     const out: Record<string, RelationDescriptor> = {}
-    for (const [name, prop] of Object.entries(relProps)) {
-      if (!isSchema(prop) || typeof prop.$ref !== 'string') {
-        continue
-      }
-      const component = this.schemas[refName(prop.$ref) ?? '']
-      const descriptor = component ? this.relationFromComponent(component) : undefined
-      if (descriptor === undefined) {
+    const add = (name: string, component: SchemaObject | undefined, writeOnly: boolean): void => {
+      const parsed = component ? this.relationFromComponent(component) : undefined
+      if (parsed === undefined) {
         // A relationship component the codegen can't parse (an unknown linkage shape) is
         // dropped silently otherwise — a drift class (the grammar has grown pivot/polymorphic/
         // nested forms), so warn rather than emit a client missing the relation (D28).
@@ -248,14 +238,105 @@ export class DescriptorBuilder {
         console.warn(
           `json-api codegen: relationship "${name}" has an unrecognized linkage shape; dropping it from the descriptor.`,
         )
-        continue
+        return
+      }
+      const descriptor: RelationDescriptor = { ...parsed }
+      if (writeOnly) {
+        delete descriptor.readPivot
+        descriptor.writeOnly = true
+      }
+      if (descriptor.pivot === true) {
+        const writePivot = this.writePivot(
+          writes.get(name)?.ref ?? endpoints.get(name)?.requestRef,
+          component!,
+        )
+        if (writePivot !== undefined) {
+          descriptor.writePivot = writePivot
+        }
       }
       out[name] =
         collection === undefined
           ? descriptor
-          : this.withRelationExposure(descriptor, collection, name)
+          : this.withRelationExposure(descriptor, collection, name, endpoints.get(name))
+    }
+
+    for (const [name, prop] of Object.entries(relProps)) {
+      if (!isSchema(prop) || typeof prop.$ref !== 'string' || writes.get(name)?.writeOnly) {
+        continue
+      }
+      add(name, this.schemas[refName(prop.$ref) ?? ''], false)
+    }
+    for (const [name, write] of writes) {
+      if (write.writeOnly || !(name in relProps)) {
+        add(name, this.schemas[refName(write.ref) ?? ''], true)
+      }
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The relationships the create and update bodies accept: each one's component `$ref` and
+   * whether the body marks it `writeOnly`.
+   */
+  private writeRelationships(base: string): Map<string, { ref: string; writeOnly: boolean }> {
+    const out = new Map<string, { ref: string; writeOnly: boolean }>()
+    for (const request of [`${base}CreateRequest`, `${base}UpdateRequest`]) {
+      const data = this.schemas[request]?.properties?.['data']
+      const relationships = isSchema(data) ? data.properties?.['relationships'] : undefined
+      const props = isSchema(relationships) ? (relationships.properties ?? {}) : {}
+      for (const [name, prop] of Object.entries(props)) {
+        if (!isSchema(prop) || typeof prop.$ref !== 'string') {
+          continue
+        }
+        const writeOnly = prop['writeOnly'] === true || out.get(name)?.writeOnly === true
+        out.set(name, { ref: out.get(name)?.ref ?? prop.$ref, writeOnly })
+      }
+    }
+    return out
+  }
+
+  /**
+   * Each relation's related and relationship paths, keyed by relation name, from the
+   * operationIds the projector stamps (`fetchRelated.<type>.<relation>`, …). A relation's path
+   * segment is its URI field name, which may differ from its name, so the paths are never
+   * derived from the name when an operationId names them.
+   */
+  private relationEndpoints(wireType: string): Map<string, RelationEndpoints> {
+    const out = new Map<string, RelationEndpoints>()
+    const entry = (rel: string): RelationEndpoints => {
+      let found = out.get(rel)
+      if (found === undefined) {
+        found = {}
+        out.set(rel, found)
+      }
+      return found
+    }
+    for (const [path, item] of Object.entries(this.paths)) {
+      for (const [method, op] of Object.entries(item) as [HttpMethod, OperationObject][]) {
+        const id = op?.operationId
+        if (typeof id !== 'string') {
+          continue
+        }
+        const dot = id.indexOf('.')
+        const prefix = id.slice(0, dot)
+        const rest = id.slice(dot + 1)
+        if (dot < 0 || !rest.startsWith(`${wireType}.`)) {
+          continue
+        }
+        const rel = rest.slice(wireType.length + 1)
+        if (prefix === RELATED_OPERATION) {
+          entry(rel).related = path
+        } else if ((RELATIONSHIP_OPERATIONS as readonly string[]).includes(prefix)) {
+          const found = entry(rel)
+          found.relationship = path
+          const ref = method === 'get' ? undefined : this.requestBodyRef(op)
+          if (ref !== undefined) {
+            found.requestRef = ref
+          }
+        }
+      }
+    }
+    return out
   }
 
   /**
@@ -266,11 +347,10 @@ export class DescriptorBuilder {
    * when the relation exposes no relationship endpoint at all.
    */
   private relationMutations(
-    collection: string,
-    rel: string,
+    path: string,
     cardinality: RelationDescriptor['cardinality'],
   ): RelationMutations | undefined {
-    const item = this.paths[`${collection}/{id}/relationships/${rel}`]
+    const item = this.paths[path]
     if (item === undefined) {
       return undefined
     }
@@ -305,13 +385,22 @@ export class DescriptorBuilder {
     descriptor: RelationDescriptor,
     collection: string,
     name: string,
+    endpoints: RelationEndpoints | undefined,
   ): RelationDescriptor {
     const out: RelationDescriptor = { ...descriptor }
-    const relatedGet = this.operation(`${collection}/{id}/${name}`, 'get')
+    const relatedPath = endpoints?.related ?? `${collection}/{id}/${name}`
+    const relationshipPath = endpoints?.relationship ?? `${collection}/{id}/relationships/${name}`
+    // The client fills `{rel}` with this segment, so a relation served under its URI field name
+    // (`/articles/{id}/published-by` for `publisher`) is reached at its real path.
+    const segment = (endpoints?.related ?? endpoints?.relationship)?.split('/').pop()
+    if (segment !== undefined && segment !== name) {
+      out.uriField = segment
+    }
+    const relatedGet = this.operation(relatedPath, 'get')
     if (relatedGet === undefined) {
       out.related = false
     }
-    const mutations = this.relationMutations(collection, name, descriptor.cardinality)
+    const mutations = this.relationMutations(relationshipPath, descriptor.cardinality)
     if (mutations === undefined) {
       out.relationship = false
       out.mutations = {}
@@ -322,8 +411,7 @@ export class DescriptorBuilder {
     // countable relations) with a negotiation profile — capture it so a typed `.related()`/`.get()`
     // can send `withCount` and negotiate the profile the endpoint requires (D3).
     const countable =
-      withCountParam(relatedGet) ??
-      withCountParam(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
+      withCountParam(relatedGet) ?? withCountParam(this.operation(relationshipPath, 'get'))
     if (countable !== undefined) {
       out.countable = countable
     }
@@ -334,7 +422,7 @@ export class DescriptorBuilder {
     if (descriptor.cardinality === 'many') {
       const relatedPaginator =
         this.paginatorOf(relatedGet) === 'none'
-          ? this.paginatorOf(this.operation(`${collection}/{id}/relationships/${name}`, 'get'))
+          ? this.paginatorOf(this.operation(relationshipPath, 'get'))
           : this.paginatorOf(relatedGet)
       const relatedType = descriptor.types[0]
       const typePaginator = relatedType !== undefined ? this.typePaginator(relatedType) : 'none'
@@ -497,9 +585,9 @@ export class DescriptorBuilder {
           return undefined
         }
         const relation: RelationDescriptor = { cardinality: 'many', types: [type], pivot: true }
-        const pivotFields = this.pivotFieldsFromAllOf(items.allOf)
-        if (pivotFields !== undefined) {
-          relation.pivotFields = pivotFields
+        const readPivot = this.pivotDescriptor(pivotNodeFromAllOf(items.allOf), 'read')
+        if (readPivot !== undefined) {
+          relation.readPivot = readPivot
         }
         return relation
       }
@@ -515,7 +603,7 @@ export class DescriptorBuilder {
     if (Array.isArray(data.anyOf)) {
       const types: string[] = []
       let pivot = false
-      let pivotFields: Record<string, string> | undefined
+      let readPivot: PivotDescriptor | undefined
       for (const entry of data.anyOf) {
         if (typeof entry.$ref === 'string') {
           const type = this.resolveConst(entry.$ref)
@@ -527,7 +615,7 @@ export class DescriptorBuilder {
           if (type !== undefined) {
             types.push(type)
             pivot = true
-            pivotFields = this.pivotFieldsFromAllOf(entry.allOf)
+            readPivot = this.pivotDescriptor(pivotNodeFromAllOf(entry.allOf), 'read')
           }
         } else if (Array.isArray(entry.anyOf)) {
           // polymorphic to-one: the non-null entry is itself an anyOf of $refs
@@ -538,8 +626,8 @@ export class DescriptorBuilder {
         return undefined
       }
       const relation: RelationDescriptor = { cardinality: 'one', types, pivot }
-      if (pivotFields !== undefined) {
-        relation.pivotFields = pivotFields
+      if (readPivot !== undefined) {
+        relation.readPivot = readPivot
       }
       return relation
     }
@@ -548,28 +636,61 @@ export class DescriptorBuilder {
   }
 
   /**
-   * Extract the pivot field-shape from a pivot `allOf` — the entry carrying
-   * `properties.meta.properties.pivot.properties` (a `belongsToMany` member's `meta.pivot`), as a
-   * field-name → wire-format-hint map (D33). Returns `undefined` when the allOf carries no pivot
-   * property block.
+   * The request pivot of a pivot relation: read off the component a write body (or a
+   * relationship mutation) refs, falling back to the rendered relationship's pivot minus its
+   * `readOnly` fields when no request shape is published (before generator contract 8).
    */
-  private pivotFieldsFromAllOf(allOf: readonly SchemaObject[]): Record<string, string> | undefined {
-    for (const entry of allOf) {
-      const meta = entry.properties?.['meta']
-      const pivot = isSchema(meta) ? meta.properties?.['pivot'] : undefined
-      const props = isSchema(pivot) ? pivot.properties : undefined
-      if (props === undefined) {
+  private writePivot(ref: string | undefined, fallback: SchemaObject): PivotDescriptor | undefined {
+    const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
+    return this.pivotDescriptor(
+      pivotNodeOf(component ?? fallback) ?? pivotNodeOf(fallback),
+      'write',
+    )
+  }
+
+  /**
+   * A {@link PivotDescriptor} from a member's `meta.pivot` schema: field hints, the required
+   * fields and the nullable ones. Generator contract 8 refs a `<Type><Rel>Pivot` (response) or
+   * `<Type><Rel>WritePivot` (request) component, each with its own `required`. An older document
+   * inlines one shared schema in the write context, so a read takes every field as rendered and a
+   * write drops the `readOnly` ones. `undefined` when the schema has no fields.
+   */
+  private pivotDescriptor(
+    node: SchemaObject | undefined,
+    side: 'read' | 'write',
+  ): PivotDescriptor | undefined {
+    if (node === undefined) {
+      return undefined
+    }
+    const shared = typeof node.$ref !== 'string'
+    const schema = shared ? node : this.schemas[refName(node.$ref as string) ?? '']
+    const fields: Record<string, string> = {}
+    const nullable: string[] = []
+    for (const [name, prop] of Object.entries(schema?.properties ?? {})) {
+      if (!isSchema(prop) || prop[side === 'read' ? 'writeOnly' : 'readOnly'] === true) {
         continue
       }
-      const out: Record<string, string> = {}
-      for (const [name, schema] of Object.entries(props)) {
-        if (isSchema(schema)) {
-          out[name] = formatHint(schema)
-        }
+      fields[name] = formatHint(prop)
+      if (isNullable(prop)) {
+        nullable.push(name)
       }
-      return Object.keys(out).length > 0 ? sortRecord(out) : undefined
     }
-    return undefined
+    const names = Object.keys(fields)
+    if (names.length === 0) {
+      return undefined
+    }
+    const required =
+      shared && side === 'read' ? names : names.filter((name) => schema?.required?.includes(name))
+    const out: PivotDescriptor = { fields: sortRecord(fields) }
+    if (required.length < names.length) {
+      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+      out.required = required.sort()
+    }
+    if (nullable.length > 0) {
+      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+      out.nullable = nullable.sort()
+    }
+    return out
   }
 
   /** Pull the related type from the `$ref` entry of an `allOf` (the pivot shape). */
@@ -857,6 +978,47 @@ export class DescriptorBuilder {
   private okResponseRef(op: OperationObject | undefined): string | undefined {
     return op?.responses?.['200']?.content?.['application/vnd.api+json']?.schema?.$ref
   }
+}
+
+/** The `meta.pivot` schema node of a pivot `allOf` entry list, if any. */
+function pivotNodeFromAllOf(allOf: readonly SchemaObject[]): SchemaObject | undefined {
+  for (const entry of allOf) {
+    const meta = entry.properties?.['meta']
+    const pivot = isSchema(meta) ? meta.properties?.['pivot'] : undefined
+    if (isSchema(pivot)) {
+      return pivot
+    }
+  }
+  return undefined
+}
+
+/**
+ * The `meta.pivot` schema node of a relationship component or document: its to-many `items`
+ * `allOf`, or a to-one `anyOf` entry's `allOf`.
+ */
+function pivotNodeOf(component: SchemaObject): SchemaObject | undefined {
+  const data = component.properties?.['data']
+  if (!isSchema(data)) {
+    return undefined
+  }
+  if (Array.isArray(data.items?.allOf)) {
+    return pivotNodeFromAllOf(data.items.allOf)
+  }
+  for (const entry of data.anyOf ?? []) {
+    if (Array.isArray(entry.allOf)) {
+      return pivotNodeFromAllOf(entry.allOf)
+    }
+  }
+  return undefined
+}
+
+/** Whether a schema admits `null`: a `null` type, or a `null` branch in `anyOf`/`oneOf`. */
+function isNullable(schema: SchemaObject): boolean {
+  const type = schema.type
+  if (type === 'null' || (Array.isArray(type) && type.includes('null'))) {
+    return true
+  }
+  return [...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].some((branch) => branch.type === 'null')
 }
 
 /** A schema's wire format hint: explicit `format`, else the JSON type, else a ref-enum is `string`. */

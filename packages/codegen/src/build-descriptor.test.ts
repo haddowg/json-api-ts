@@ -72,8 +72,16 @@ describe('buildDescriptor (music-catalog default server)', () => {
       cardinality: 'many',
       types: ['tracks'],
       pivot: true,
-      // the pivot field shape (meta.pivot) as a field-name -> format-hint map (D33).
-      pivotFields: { addedAt: 'date-time', position: 'integer', weight: 'integer' },
+      // the response pivot (PlaylistsOrderedTracksPivot): every field rendered, weight nullable.
+      readPivot: {
+        fields: { addedAt: 'date-time', position: 'integer', weight: 'integer' },
+        nullable: ['weight'],
+      },
+      // the request pivot (PlaylistsOrderedTracksWritePivot): no read-only addedAt.
+      writePivot: {
+        fields: { position: 'integer', weight: 'integer' },
+        required: ['position'],
+      },
       mutations: { add: true, remove: true, replace: true },
       paginator: 'page',
       // the related to-many GET advertises its own withCount + Countable profile (D3).
@@ -1164,12 +1172,13 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(5))).toBeUndefined()
     expect(checkContract(contractDoc(6))).toBeUndefined()
     expect(checkContract(contractDoc(7))).toBeUndefined()
-    expect(MAXIMUM_CONTRACT).toBe(7)
+    expect(checkContract(contractDoc(8))).toBeUndefined()
+    expect(MAXIMUM_CONTRACT).toBe(8)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(8))).toContain(
-      'declares contract 8 and this codegen reads up to 7',
+    expect(checkContract(contractDoc(9))).toContain(
+      'declares contract 9 and this codegen reads up to 8',
     )
     expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
@@ -1364,14 +1373,261 @@ describe('buildDescriptor — generator contract 5', () => {
     warn.mockRestore()
   })
 
-  it('leaves a write-only relation out of the descriptor and says so', () => {
+  it('marks a relation the write bodies accept but the resource never renders write-only', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const articles = buildDescriptor(doc)['articles']!
-    expect(Object.keys(articles.relations)).toEqual(['author'])
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0]![0]).toContain(
-      'relationship "reviewer" on "articles" is accepted on writes but never rendered',
-    )
+    expect(articles.relations['reviewer']).toEqual({
+      cardinality: 'one',
+      types: ['people'],
+      pivot: false,
+      writeOnly: true,
+      // this document publishes no relation endpoints at all
+      related: false,
+      relationship: false,
+      mutations: {},
+    })
+    expect(articles.relations['author']!.writeOnly).toBeUndefined()
+    expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+const ref = (name: string): SchemaObject => ({ $ref: `#/components/schemas/${name}` })
+
+const identifier = (type: string): SchemaObject => ({
+  type: 'object',
+  properties: { type: { type: 'string', const: type }, id: { type: 'string' } },
+})
+
+describe('buildDescriptor — generator contract 8', () => {
+  const body = (name: string) => ({
+    content: { 'application/vnd.api+json': { schema: ref(name) } },
+  })
+  const toOne = (target: string): SchemaObject => ({
+    type: 'object',
+    properties: { data: { anyOf: [ref(target), { type: 'null' }] } },
+  })
+  const pivotLinkage = (pivot: string): SchemaObject => ({
+    type: 'object',
+    properties: {
+      data: {
+        type: 'array',
+        items: {
+          allOf: [
+            ref('TagsResourceIdentifier'),
+            {
+              type: 'object',
+              properties: { meta: { type: 'object', properties: { pivot: ref(pivot) } } },
+            },
+          ],
+        },
+      },
+    },
+  })
+  const writeRelationships: SchemaObject = {
+    type: 'object',
+    properties: {
+      publisher: ref('ArticlesPublisherRelationship'),
+      reviewer: { $ref: '#/components/schemas/ArticlesReviewerRelationship', writeOnly: true },
+      tags: ref('ArticlesTagsWriteRelationship'),
+    },
+  }
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    info: { 'x-generator': { contract: 8 } },
+    paths: {
+      '/articles': {
+        post: { operationId: 'create.articles', requestBody: body('ArticlesCreateRequest') },
+      },
+      '/articles/{id}': {
+        get: { operationId: 'fetchOne.articles' },
+        patch: { operationId: 'update.articles', requestBody: body('ArticlesUpdateRequest') },
+      },
+      '/articles/{id}/published-by': { get: { operationId: 'fetchRelated.articles.publisher' } },
+      '/articles/{id}/relationships/published-by': {
+        get: { operationId: 'fetchRelationship.articles.publisher' },
+        patch: { operationId: 'updateRelationship.articles.publisher' },
+      },
+      '/articles/{id}/relationships/reviewer': {
+        patch: { operationId: 'updateRelationship.articles.reviewer' },
+      },
+      '/articles/{id}/tags': { get: { operationId: 'fetchRelated.articles.tags' } },
+      '/articles/{id}/relationships/tags': {
+        get: { operationId: 'fetchRelationship.articles.tags' },
+        post: {
+          operationId: 'addRelationship.articles.tags',
+          requestBody: body('ArticlesTagsRelationshipRequest'),
+        },
+      },
+    },
+    components: {
+      schemas: {
+        ArticlesResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'articles' },
+            id: { type: 'string' },
+            relationships: {
+              type: 'object',
+              properties: {
+                publisher: ref('ArticlesPublisherRelationship'),
+                tags: ref('ArticlesTagsRelationship'),
+              },
+            },
+          },
+        },
+        PeopleResourceIdentifier: identifier('people'),
+        TagsResourceIdentifier: identifier('tags'),
+        ArticlesPublisherRelationship: toOne('PeopleResourceIdentifier'),
+        ArticlesReviewerRelationship: toOne('PeopleResourceIdentifier'),
+        ArticlesTagsRelationship: pivotLinkage('ArticlesTagsPivot'),
+        ArticlesTagsWriteRelationship: pivotLinkage('ArticlesTagsWritePivot'),
+        ArticlesTagsRelationshipRequest: pivotLinkage('ArticlesTagsWritePivot'),
+        ArticlesTagsPivot: {
+          type: 'object',
+          properties: {
+            rank: { type: 'integer' },
+            note: { type: ['string', 'null'] },
+            taggedAt: { type: 'string', format: 'date-time' },
+          },
+          required: ['rank', 'note', 'taggedAt'],
+        },
+        ArticlesTagsWritePivot: {
+          type: 'object',
+          properties: { rank: { type: 'integer' }, note: { type: 'string' } },
+          required: ['rank'],
+        },
+        ArticlesCreateRequest: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', const: 'articles' },
+                relationships: writeRelationships,
+              },
+            },
+          },
+        },
+        ArticlesUpdateRequest: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', const: 'articles' },
+                id: { type: 'string' },
+                relationships: writeRelationships,
+              },
+            },
+          },
+        },
+      },
+    },
+  }
+  const articles = buildDescriptor(doc)['articles']!
+
+  it('reaches a renamed relation through the paths its operationIds name', () => {
+    expect(articles.relations['publisher']).toEqual({
+      cardinality: 'one',
+      types: ['people'],
+      pivot: false,
+      uriField: 'published-by',
+      mutations: { set: true },
+    })
+    expect(articles.paths['fetchRelated']).toBe('/articles/{id}/{rel}')
+  })
+
+  it('keeps a relation marked writeOnly in the write bodies, without reads', () => {
+    expect(articles.relations['reviewer']).toEqual({
+      cardinality: 'one',
+      types: ['people'],
+      pivot: false,
+      writeOnly: true,
+      related: false,
+      mutations: { set: true },
+    })
+  })
+
+  it('types the response pivot and the request pivot from their own components', () => {
+    const tags = articles.relations['tags']!
+    expect(tags.readPivot).toEqual({
+      fields: { note: 'string', rank: 'integer', taggedAt: 'date-time' },
+      nullable: ['note'],
+    })
+    expect(tags.writePivot).toEqual({
+      fields: { note: 'string', rank: 'integer' },
+      required: ['rank'],
+    })
+    expect(tags.mutations).toEqual({ add: true })
+  })
+
+  it('emits the renamed segment and the write-only flag into the resource map', () => {
+    const source = emit(doc, buildDescriptor(doc))
+    expect(source).toContain('uriField: "published-by"')
+    expect(source).toContain('writeOnly: true')
+  })
+})
+
+describe('buildDescriptor — a pivot before generator contract 8', () => {
+  const pivotLinkage: SchemaObject = {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'array',
+        items: {
+          allOf: [
+            { $ref: '#/components/schemas/TagsResourceIdentifier' },
+            {
+              type: 'object',
+              properties: {
+                meta: {
+                  type: 'object',
+                  properties: {
+                    pivot: {
+                      type: 'object',
+                      properties: {
+                        rank: { type: 'integer' },
+                        taggedAt: { type: 'string', format: 'date-time', readOnly: true },
+                      },
+                      required: ['rank'],
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+  }
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    components: {
+      schemas: {
+        ArticlesResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'articles' },
+            id: { type: 'string' },
+            relationships: {
+              type: 'object',
+              properties: { tags: { $ref: '#/components/schemas/ArticlesTagsRelationship' } },
+            },
+          },
+        },
+        TagsResourceIdentifier: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'tags' }, id: { type: 'string' } },
+        },
+        ArticlesTagsRelationship: pivotLinkage,
+      },
+    },
+  }
+
+  it('reads every shared field as rendered and drops read-only fields from writes', () => {
+    const tags = buildDescriptor(doc)['articles']!.relations['tags']!
+    expect(tags.readPivot).toEqual({ fields: { rank: 'integer', taggedAt: 'date-time' } })
+    expect(tags.writePivot).toEqual({ fields: { rank: 'integer' } })
   })
 })
