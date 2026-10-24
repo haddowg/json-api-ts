@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.2.0...json-api-codegen-v1.3.0) (2026-10-24)
+
+
+### Features
+
+* **codegen:** read generator contract 6 ([#54](https://github.com/haddowg/json-api-ts/issues/54)) ([de2dc1f](https://github.com/haddowg/json-api-ts/commit/de2dc1f68efded7f7e63ee19b788675a0553b07f))
+
 ## [1.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.1.0...json-api-codegen-v1.2.0) (2026-10-24)
 
 
