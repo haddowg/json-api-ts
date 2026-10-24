@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.4.0...json-api-codegen-v1.5.0) (2026-10-24)
+
+
+### Features
+
+* **codegen:** read generator contract 8 ([a2739fd](https://github.com/haddowg/json-api-ts/commit/a2739fd110de442f188e7ec2c0133b1ff946f9ec))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.3.0
+
 ## [1.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.3.0...json-api-codegen-v1.4.0) (2026-10-24)
 
 
