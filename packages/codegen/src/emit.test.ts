@@ -40,18 +40,36 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('title: string')
     expect(source).toContain('averageRating: number | null')
     expect(source).toContain('artwork: string | null')
-    expect(source).toContain('releasedAt: string')
-    expect(source).toContain('explicit: boolean')
-    expect(source).toContain('status: AlbumStatus')
+    expect(source).toContain('releasedAt: string | null')
+    expect(source).toContain('explicit: boolean | null')
+    // A nullable enum is `anyOf: [{ $ref }, { type: 'null' }]`.
+    expect(source).toContain('status: AlbumStatus | null')
     expect(source).toContain('availableFrom: string | null')
     // Nested object attribute with its own members (source order preserved), nullable.
-    expect(source).toContain('releaseInfo: { label?: string; catalogueNumber?: string } | null')
+    expect(source).toContain(
+      'releaseInfo: { label?: string | null; catalogueNumber?: string | null } | null',
+    )
   })
 
-  it('types an array attribute (tracks.genres)', () => {
+  it('types read and write members from their own schemas', () => {
+    const block = (name: string): string => {
+      const start = source.indexOf(`export interface ${name} {`)
+      return source.slice(start, source.indexOf('\n}', start))
+    }
+    // A response renders `null` for a value no create had to supply; a create body takes none.
+    expect(block('AlbumsAttributes')).toContain('  explicit: boolean | null')
+    expect(block('AlbumsCreateAttributes')).toContain('  explicit?: boolean\n')
+    expect(block('AlbumsCreateAttributes')).toContain(
+      'releaseInfo?: { label?: string; catalogueNumber?: string } | null',
+    )
+    // A required attribute stays non-null on reads.
+    expect(block('AlbumsAttributes')).toMatch(/\n  title: string$/)
+  })
+
+  it('types an array attribute with minItems as a non-empty tuple (tracks.genres)', () => {
     expect(source).toContain('export interface TracksAttributes {')
-    // The bundle now declares the list element type, so items are typed (not unknown[]).
-    expect(source).toContain('genres: string[]')
+    expect(source).toContain('  genres: [string, ...string[]] | null')
+    expect(source).toContain('  genres?: [string, ...string[]]')
   })
 
   it('emits an empty interface for an attribute-less type (libraries)', () => {
@@ -256,19 +274,45 @@ describe('emit (music-catalog admin server)', () => {
 describe('emit (descriptions -> JSDoc)', () => {
   it('documents an attribute from its own description', () => {
     expect(source).toContain(
-      '  /** Value must be before a dynamically-resolved date/time bound. */\n  releasedAt: string',
+      [
+        '  /**',
+        '   * Value must be before a dynamically-resolved date/time bound.',
+        '   *',
+        '   * @format date-time',
+        '   */',
+        '  releasedAt: string | null',
+      ].join('\n'),
     )
   })
 
   it('documents an attribute whose description rides the $ref wrapper (status)', () => {
     expect(source).toContain(
-      '  /** Where the album sits in its release lifecycle. */\n  status: AlbumStatus',
+      '  /** Where the album sits in its release lifecycle. */\n  status: AlbumStatus | null',
     )
   })
 
   it('leaves an attribute with no description undocumented', () => {
-    // `title` carries no description, so no comment precedes it.
-    expect(source).not.toMatch(/\/\*\*[^\n]*\*\/\n  title: string/)
+    // `artwork` carries no description or constraint, so no comment precedes it.
+    expect(source).toMatch(/\n  artwork: string \| null/)
+    expect(source).not.toMatch(/\*\/\n  artwork: string/)
+  })
+
+  it('documents the constraints each member declares as TSDoc tags', () => {
+    expect(source).toContain(
+      ['  /**', '   * @minLength 1', '   * @maxLength 200', '   */', '  title: string'].join('\n'),
+    )
+    expect(source).toContain(
+      [
+        '  /**',
+        '   * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`',
+        '   * @example example-slug',
+        '   */',
+        '  slug: string | null',
+      ].join('\n'),
+    )
+    expect(source).toContain(
+      ['  /**', '   * @minItems 1', '   * @uniqueItems', '   */', '  genres: [string'].join('\n'),
+    )
   })
 
   it('documents enum values as a per-value list above the union alias', () => {
@@ -318,5 +362,134 @@ describe('detectVerbCollisions', () => {
       { type: 'widgets', relation: 'rel' },
       { type: 'widgets', relation: 'then' },
     ])
+  })
+})
+
+describe('emit (generator contract 5)', () => {
+  const widgets: OpenApiDocument = {
+    openapi: '3.1.0',
+    info: { 'x-generator': { contract: 5 } },
+    paths: {
+      '/widgets': {
+        get: {
+          parameters: [
+            {
+              name: 'page',
+              in: 'query',
+              schema: {
+                type: 'object',
+                properties: {
+                  number: { type: 'integer', default: 1, minimum: 1 },
+                  size: { type: 'integer', default: 25, minimum: 1, maximum: 100 },
+                },
+                'x-paginator': { strategy: 'page', keys: { number: 'number', size: 'size' } },
+              },
+            },
+          ],
+          responses: {
+            '200': {
+              content: {
+                'application/vnd.api+json': {
+                  schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        WidgetsResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'widgets' },
+            id: { type: 'string' },
+            attributes: { $ref: '#/components/schemas/WidgetsAttributes' },
+          },
+        },
+        WidgetsAttributes: {
+          type: 'object',
+          properties: {
+            price: { type: 'number', exclusiveMinimum: 0, multipleOf: 0.01 },
+            tags: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 5,
+              items: { type: ['string', 'integer'] },
+            },
+            labels: { type: 'object', minProperties: 1, maxProperties: 3 },
+            colour: { type: 'string', default: 'red', deprecated: true },
+            parts: { type: 'array', minItems: 0, items: { type: 'string' } },
+          },
+          required: ['price', 'tags', 'labels', 'colour', 'parts'],
+        },
+      },
+    },
+  }
+  const out = emit(widgets, buildDescriptor(widgets))
+
+  it('tags every constraint keyword a member declares', () => {
+    expect(out).toContain(
+      [
+        '  /**',
+        '   * @exclusiveMinimum 0',
+        '   * @multipleOf 0.01',
+        '   */',
+        '  price: number',
+      ].join('\n'),
+    )
+    expect(out).toContain(
+      ['  /**', '   * @minProperties 1', '   * @maxProperties 3', '   */', '  labels:'].join('\n'),
+    )
+    expect(out).toContain(
+      ['  /**', '   * @defaultValue `"red"`', '   * @deprecated', '   */', '  colour: string'].join(
+        '\n',
+      ),
+    )
+  })
+
+  it('makes a list non-empty only when minItems is at least 1', () => {
+    expect(out).toContain('  tags: [string | number, ...(string | number)[]]')
+    expect(out).toContain('  parts: string[]')
+  })
+
+  it("emits each collection's page defaults and caps without touching the page type", () => {
+    expect(out).toContain(
+      [
+        'export const pageLimits = {',
+        '  widgets: {',
+        '    /**',
+        '     * @minimum 1',
+        '     * @defaultValue `1`',
+        '     */',
+        '    number: { default: 1, minimum: 1 },',
+        '    /**',
+        '     * @minimum 1',
+        '     * @maximum 100',
+        '     * @defaultValue `25`',
+        '     */',
+        '    size: { default: 25, minimum: 1, maximum: 100 },',
+        '  },',
+        '} as const',
+      ].join('\n'),
+    )
+  })
+
+  it('nests a strategy menu under each arm and leaves members with no bounds out', () => {
+    const start = source.indexOf('  tracks: {', source.indexOf('export const pageLimits'))
+    const tracks = source.slice(start, source.indexOf('\n  },', start))
+    expect(tracks).toContain('    page: {')
+    expect(tracks).toContain('      size: { default: 15, minimum: 1, maximum: 50 },')
+    expect(tracks).toContain('    cursor: {')
+    expect(tracks).not.toContain('after:')
+    expect(tracks).toContain('    offset: {')
+    expect(tracks).toContain('      offset: { default: 0, minimum: 0 },')
+  })
+
+  it('emits an empty pageLimits when no collection declares any', () => {
+    const bare = structuredClone(widgets)
+    bare.paths!['/widgets']!.get!.parameters = []
+    expect(emit(bare, buildDescriptor(bare))).toContain('export const pageLimits = {} as const')
   })
 })

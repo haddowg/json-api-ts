@@ -130,9 +130,41 @@ export class DescriptorBuilder {
       if (isTypeOnlyStub && Object.keys(descriptor.paths).length === 0) {
         continue
       }
+      this.warnWriteOnlyRelations(wireType, base, descriptor.relations)
       out[wireType] = descriptor
     }
     return sortRecord(out)
+  }
+
+  /**
+   * Warn about relations a create or update body accepts but the resource never renders. A
+   * write-only relation (generator contract 5) is left out of the response schema, and the
+   * descriptor has no way to mark a relation as writable but unreadable, so it is missing from
+   * the client entirely rather than typed onto reads that never carry it.
+   */
+  private warnWriteOnlyRelations(
+    wireType: string,
+    base: string,
+    readable: Readonly<Record<string, RelationDescriptor>>,
+  ): void {
+    const writeOnly = new Set<string>()
+    for (const request of [`${base}CreateRequest`, `${base}UpdateRequest`]) {
+      const data = this.schemas[request]?.properties?.['data']
+      const relationships = isSchema(data) ? data.properties?.['relationships'] : undefined
+      for (const name of Object.keys(
+        isSchema(relationships) ? (relationships.properties ?? {}) : {},
+      )) {
+        if (!(name in readable)) {
+          writeOnly.add(name)
+        }
+      }
+    }
+    for (const name of writeOnly) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `json-api codegen: relationship "${name}" on "${wireType}" is accepted on writes but never rendered (a write-only relation); the client has no slot for a relation it can't read, so it is left out.`,
+      )
+    }
   }
 
   /**
@@ -839,6 +871,13 @@ function formatHint(schema: SchemaObject): string {
   // A $ref (typically an enum component) renders as a string union.
   if (typeof schema.$ref === 'string') {
     return 'string'
+  }
+  // A nullable `$ref` is `anyOf: [{ $ref }, { type: 'null' }]`: hint the value branch.
+  const isNullOnly = (branch: SchemaObject): boolean =>
+    branch.type !== undefined && typeKeys(branch.type).length === 0
+  const branches = (schema.anyOf ?? schema.oneOf ?? []).filter((branch) => !isNullOnly(branch))
+  if (branches.length === 1) {
+    return formatHint(branches[0]!)
   }
   return 'unknown'
 }

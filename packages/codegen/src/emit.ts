@@ -105,6 +105,77 @@ function jsDoc(text: string | undefined, indent: string): string | undefined {
   ].join('\n')
 }
 
+/** The validation keywords a member's TSDoc states, each as a tag of the same name. */
+const CONSTRAINT_KEYWORDS = [
+  'format',
+  'pattern',
+  'minLength',
+  'maxLength',
+  'minimum',
+  'exclusiveMinimum',
+  'maximum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minItems',
+  'maxItems',
+  'uniqueItems',
+  'minProperties',
+  'maxProperties',
+] as const
+
+/** A tag value as TSDoc text: strings bare, a pattern or anything structured as code. */
+function tagValue(keyword: string, value: unknown): string {
+  if (keyword === 'pattern' || (typeof value !== 'string' && typeof value !== 'number')) {
+    return `\`${typeof value === 'string' ? value : JSON.stringify(value)}\``
+  }
+  return String(value)
+}
+
+/**
+ * The TSDoc for an attribute: its description, then a tag per constraint the schema declares
+ * (`@minLength 1`, `@pattern …`), its `@defaultValue`, any `@example` and `@deprecated`. Each
+ * schema states the constraints of the context it describes, so a read member and its create
+ * and update counterparts can document different bounds. The keywords are read off the member
+ * and any inline `anyOf`/`oneOf` branch; a `$ref`'d component documents itself.
+ */
+function memberDoc(schema: SchemaObject): string | undefined {
+  const layers = [
+    schema,
+    ...[...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].filter(
+      (branch) => branch.$ref === undefined,
+    ),
+  ]
+  const tags: string[] = []
+  for (const keyword of CONSTRAINT_KEYWORDS) {
+    for (const layer of layers) {
+      const value = layer[keyword]
+      if (value === undefined || value === false) {
+        continue
+      }
+      tags.push(value === true ? `@${keyword}` : `@${keyword} ${tagValue(keyword, value)}`)
+      break
+    }
+  }
+  if ('default' in schema) {
+    tags.push(`@defaultValue \`${JSON.stringify(schema['default'])}\``)
+  }
+  const examples = Array.isArray(schema['examples']) ? [...(schema['examples'] as unknown[])] : []
+  if ('example' in schema && !examples.includes(schema['example'])) {
+    examples.unshift(schema['example'])
+  }
+  for (const example of examples) {
+    tags.push(`@example ${typeof example === 'string' ? example : JSON.stringify(example)}`)
+  }
+  if (schema['deprecated'] === true) {
+    tags.push('@deprecated')
+  }
+  const description = schema.description?.trim()
+  if (tags.length === 0) {
+    return description
+  }
+  return description ? `${description}\n\n${tags.join('\n')}` : tags.join('\n')
+}
+
 export class Emitter {
   private readonly schemas: Record<string, SchemaObject>
   /** Wire type -> the schema `Base` (the `<Base>Resource` name minus `Resource`). */
@@ -182,6 +253,7 @@ export class Emitter {
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
       this.atomicConst(),
+      this.pageLimitsConst(),
       emitErrorCodes(readErrorCatalogue(this.doc)),
       this.boundFactory(),
     ]
@@ -373,6 +445,74 @@ export class Emitter {
   }
 
   /**
+   * The `pageLimits` const: per collection, the `default`, `minimum` and `maximum` each `page`
+   * member declares (generator contract 5 adds the paginator's default and page-size cap). A
+   * menu nests them under each arm's `kind`. Members declaring none, and collections with no
+   * such member, are left out. The client never clamps a `page` argument to these.
+   */
+  private pageLimitsConst(): string {
+    const typeLines: string[] = []
+    for (const type of Object.keys(this.descriptor)) {
+      const path = this.descriptor[type]!.paths['fetchMany']
+      const page = path === undefined ? undefined : this.doc.paths?.[path]?.get?.parameters
+      const schema = page?.find((param) => param.name === 'page')?.schema
+      if (schema === undefined) {
+        continue
+      }
+      let body: string[] = []
+      if (schema.oneOf !== undefined) {
+        for (const arm of schema.oneOf) {
+          const kind = isSchema(arm.properties?.['kind']) ? arm.properties['kind'].const : undefined
+          const members = this.pageMemberLimits(arm, '      ')
+          if (typeof kind === 'string' && members.length > 0) {
+            body.push(`    ${objectKey(kind)}: {\n${members.join('\n')}\n    },`)
+          }
+        }
+      } else {
+        body = this.pageMemberLimits(schema, '    ')
+      }
+      if (body.length > 0) {
+        typeLines.push(`  ${objectKey(type)}: {\n${body.join('\n')}\n  },`)
+      }
+    }
+    const doc = [
+      '/**',
+      " * The bounds each collection's `page` parameter declares, keyed by type, then by strategy for a",
+      ' * collection offering several, then by wire key. `default` is what the server uses when the key',
+      ' * is absent and `maximum` is the largest value it serves. The client sends the `page` you pass',
+      ' * unchanged, so read these to bound a page-size picker.',
+      ' */',
+    ].join('\n')
+    const body = typeLines.length === 0 ? '{}' : `{\n${typeLines.join('\n')}\n}`
+    return `${doc}\nexport const pageLimits = ${body} as const`
+  }
+
+  /** One page schema's members that declare a `default`, `minimum` or `maximum`, as literal lines. */
+  private pageMemberLimits(schema: SchemaObject, indent: string): string[] {
+    const lines: string[] = []
+    for (const [name, prop] of Object.entries(schema.properties ?? {})) {
+      if (!isSchema(prop) || name === 'kind') {
+        continue
+      }
+      const limits: string[] = []
+      for (const keyword of ['default', 'minimum', 'maximum'] as const) {
+        if (typeof prop[keyword] === 'number') {
+          limits.push(`${keyword}: ${String(prop[keyword])}`)
+        }
+      }
+      if (limits.length === 0) {
+        continue
+      }
+      const doc = jsDoc(memberDoc(prop), indent)
+      if (doc !== undefined) {
+        lines.push(doc)
+      }
+      lines.push(`${indent}${objectKey(name)}: { ${limits.join(', ')} },`)
+    }
+    return lines
+  }
+
+  /**
    * Render an attribute interface from a property map, a field order, and a `required`
    * predicate (true => no `?`). Shared by the read and write attribute interfaces so the
    * tsType/JSDoc logic stays in one place.
@@ -387,7 +527,7 @@ export class Emitter {
     for (const field of fields) {
       const schema = props?.[field]
       const tsType = isSchema(schema) ? this.tsType(schema) : 'unknown'
-      const doc = isSchema(schema) ? jsDoc(schema.description, '  ') : undefined
+      const doc = isSchema(schema) ? jsDoc(memberDoc(schema), '  ') : undefined
       if (doc) {
         lines.push(doc)
       }
@@ -427,7 +567,22 @@ export class Emitter {
       return expanded
     }
 
+    // A union of branches, as `anyOf: [{ $ref: Enum }, { type: 'null' }]` for a nullable enum.
+    const branches = schema.anyOf ?? schema.oneOf
+    if (schema.type === undefined && branches !== undefined && branches.length > 0) {
+      const members = branches.map((branch) => this.tsType(branch))
+      const nullable = members.includes('null')
+      const rest = [...new Set(members.filter((member) => member !== 'null'))]
+      if (rest.length === 0) {
+        return 'null'
+      }
+      return nullable ? `${rest.join(' | ')} | null` : rest.join(' | ')
+    }
+
     const types = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : []
+    if (types.length === 1 && types[0] === 'null') {
+      return 'null'
+    }
     const nullable = types.includes('null')
     const base = this.baseTsType(
       schema,
@@ -499,7 +654,10 @@ export class Emitter {
     const items = schema.items
     const element = isSchema(items) ? this.tsType(items) : 'unknown'
     // Wrap unions so `(A | B)[]` reads correctly.
-    return /[|&]/.test(element) ? `(${element})[]` : `${element}[]`
+    const list = /[|&]/.test(element) ? `(${element})[]` : `${element}[]`
+    // `minItems` of 1 or more: the server never sends, or accepts, an empty list.
+    const minItems = schema['minItems']
+    return typeof minItems === 'number' && minItems >= 1 ? `[${element}, ...${list}]` : list
   }
 
   /** Union aliases for every enum component an attribute referenced, sorted by name. */

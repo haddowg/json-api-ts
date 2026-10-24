@@ -42,6 +42,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       pivot: false,
       // to-many: POST/DELETE/PATCH advertised -> add/remove/replace.
       mutations: { add: true, remove: true, replace: true },
+      // the related endpoint pages by number while the tracks collection offers a menu (D6a).
+      paginator: 'page',
       // the related to-many GET advertises its own withCount (`_self_` + tracks' countable
       // relations) with the Countable profile (D3).
       countable: {
@@ -72,6 +74,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       // the pivot field shape (meta.pivot) as a field-name -> format-hint map (D33).
       pivotFields: { addedAt: 'date-time', position: 'integer', weight: 'integer' },
       mutations: { add: true, remove: true, replace: true },
+      paginator: 'page',
       // the related to-many GET advertises its own withCount + Countable profile (D3).
       countable: {
         tokens: ['playlists'],
@@ -984,7 +987,9 @@ describe('buildDescriptor — paginator detection in both wire forms', () => {
       for (const op of Object.values(item)) {
         const params = op?.parameters
         const page = params?.find((p) => p.name === 'page')
+        // The flattened form can't express a strategy menu, so `GET /tracks` keeps its object.
         if (op === undefined || params === undefined || page === undefined) continue
+        if (page.schema?.oneOf !== undefined) continue
         rewritten++
         op.parameters = [
           ...params.filter((p) => p !== page),
@@ -1155,12 +1160,13 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(MINIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(4))).toBeUndefined()
-    expect(MAXIMUM_CONTRACT).toBe(4)
+    expect(checkContract(contractDoc(5))).toBeUndefined()
+    expect(MAXIMUM_CONTRACT).toBe(5)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(5))).toContain(
-      'declares contract 5 and this codegen reads up to 4',
+    expect(checkContract(contractDoc(6))).toContain(
+      'declares contract 6 and this codegen reads up to 5',
     )
     expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
@@ -1265,5 +1271,98 @@ describe('buildDescriptor — per-relation paginator divergence (D6a)', () => {
     expect(built['parents']!.relations['mirror']?.paginator).toBeUndefined()
     // The related type itself is cursor.
     expect(built['widgets']!.paginator).toBe('cursor')
+  })
+})
+
+describe('buildDescriptor — generator contract 5', () => {
+  const relationship: SchemaObject = {
+    type: 'object',
+    properties: {
+      data: {
+        anyOf: [{ $ref: '#/components/schemas/PeopleResourceIdentifier' }, { type: 'null' }],
+      },
+    },
+  }
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    paths: {
+      '/articles': {
+        post: {
+          requestBody: {
+            content: {
+              'application/vnd.api+json': {
+                schema: { $ref: '#/components/schemas/ArticlesCreateRequest' },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        ArticleStatus: { type: 'string', enum: ['draft', 'live'] },
+        ArticlesResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'articles' },
+            id: { type: 'string' },
+            attributes: { $ref: '#/components/schemas/ArticlesAttributes' },
+            relationships: {
+              type: 'object',
+              properties: { author: { $ref: '#/components/schemas/ArticlesAuthorRelationship' } },
+            },
+          },
+        },
+        ArticlesAttributes: {
+          type: 'object',
+          properties: {
+            status: {
+              anyOf: [{ $ref: '#/components/schemas/ArticleStatus' }, { type: 'null' }],
+            },
+          },
+        },
+        PeopleResourceIdentifier: {
+          type: 'object',
+          properties: { type: { type: 'string', const: 'people' }, id: { type: 'string' } },
+        },
+        ArticlesAuthorRelationship: relationship,
+        ArticlesReviewerRelationship: relationship,
+        ArticlesCreateRequest: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', const: 'articles' },
+                relationships: {
+                  type: 'object',
+                  properties: {
+                    author: { $ref: '#/components/schemas/ArticlesAuthorRelationship' },
+                    reviewer: { $ref: '#/components/schemas/ArticlesReviewerRelationship' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }
+
+  it('hints a nullable enum by its value branch', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(buildDescriptor(doc)['articles']!.attributes).toEqual({ status: 'string' })
+    warn.mockRestore()
+  })
+
+  it('leaves a write-only relation out of the descriptor and says so', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const articles = buildDescriptor(doc)['articles']!
+    expect(Object.keys(articles.relations)).toEqual(['author'])
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain(
+      'relationship "reviewer" on "articles" is accepted on writes but never rendered',
+    )
+    warn.mockRestore()
   })
 })

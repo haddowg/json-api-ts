@@ -50,7 +50,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 4. An older document is an error, and a newer one
+codegen reads contracts 1 to 5. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 ### The validation schemas
@@ -98,9 +98,76 @@ runtime's needs, and all the real machinery lives in the generic
   input/output aliases.
 - **`ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode`** — the server's documented
   error codes and a type guard bound to them. See [below](#error-codes).
+- **`pageLimits`** — each collection's page defaults and caps. See
+  [below](#page-defaults-and-caps).
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema
 2020-12 map.
+
+### Attribute types
+
+Each attribute interface is generated from its own schema: `…Attributes` from the
+response schema, `…CreateAttributes` and `…UpdateAttributes` from the request
+bodies. The server can state different rules for each, so the three can differ.
+
+A read attribute is `| null` exactly when the response schema admits `null`. From
+generator contract 5 that is any attribute the server doesn't guarantee a value
+for, such as an optional field a create left out. Required fields, and fields the
+server marks as always filled, stay non-null:
+
+```ts
+export interface TracksAttributes {
+  /** @minLength 1 */
+  title: string
+  /** @minimum 1 */
+  trackNumber: number | null
+  /**
+   * @minItems 1
+   * @uniqueItems
+   */
+  genres: [string, ...string[]] | null
+}
+```
+
+A nullable enum (`anyOf` of the enum and `null`) becomes `AlbumStatus | null`.
+
+Every constraint the schema declares becomes a TSDoc tag on the member, so it shows
+on hover: `@format`, `@pattern`, `@minLength`/`@maxLength`,
+`@minimum`/`@maximum`, `@exclusiveMinimum`/`@exclusiveMaximum`, `@multipleOf`,
+`@minItems`/`@maxItems`, `@uniqueItems`, `@minProperties`/`@maxProperties`, plus
+`@defaultValue`, `@example` and `@deprecated`. The tags document the rule; the
+client doesn't enforce them (use [validation](validation.md) for that). One
+constraint changes the type: an array with `minItems` of 1 or more is a non-empty
+tuple, `[T, ...T[]]`, on reads and writes alike, so a create can't send an empty
+list the server would reject.
+
+A write-only relation (contract 5) is missing from the response schema, and the
+descriptor has no way to mark a relation as writable but unreadable. The codegen
+leaves it out of the client and logs a warning naming it.
+
+### Page defaults and caps
+
+From generator contract 5 each page member states its `default` and the page-size
+cap as a `maximum`. The codegen collects them per collection, keyed by wire key and,
+for a [strategy menu](pagination.md#choosing-a-strategy-multipaginator), by arm:
+
+```ts
+export const pageLimits = {
+  albums: {
+    number: { default: 1, minimum: 1 },
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  tracks: {
+    page: { number: { default: 1, minimum: 1 }, size: { default: 15, minimum: 1, maximum: 50 } },
+    cursor: { size: { default: 15, minimum: 1, maximum: 50 } },
+    offset: { offset: { default: 0, minimum: 0 }, limit: { default: 15, minimum: 1, maximum: 50 } },
+  },
+} as const
+```
+
+The client sends the `page` you pass as it is and never clamps it. Read
+`pageLimits` when you need the numbers, for example to bound a page-size picker. A
+collection whose page schema states none of them is left out.
 
 ### Error codes
 

@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   3753db87055e792d
+ * Spec hash:   78214b163a081f37
  */
 
 import {
@@ -24,31 +24,55 @@ export type AlbumStatus = "upcoming" | "released" | "withdrawn"
 
 export interface AlbumsAttributes {
   artwork: string | null
+  /** @format date */
   availableFrom: string | null
-  /** Value is compared against the `availableFrom` field (>). */
+  /**
+   * Value is compared against the `availableFrom` field (>).
+   *
+   * @format date
+   */
   availableUntil: string | null
   averageRating: number | null
-  explicit: boolean
-  releaseInfo: { label?: string; catalogueNumber?: string } | null
-  /** Value must be before a dynamically-resolved date/time bound. */
-  releasedAt: string
+  explicit: boolean | null
+  releaseInfo: { label?: string | null; catalogueNumber?: string | null } | null
+  /**
+   * Value must be before a dynamically-resolved date/time bound.
+   *
+   * @format date-time
+   */
+  releasedAt: string | null
   /** Where the album sits in its release lifecycle. */
-  status: AlbumStatus
+  status: AlbumStatus | null
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
   title: string
 }
 
 export interface ArtistsAttributes {
+  /** @maxLength 1000 */
   bio: string | null
-  createdAt: string
+  /** @format date-time */
+  createdAt: string | null
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
   name: string
-  slug: string
+  slug: string | null
   trackCount: number
+  /** @format uri */
   website: string | null
 }
 
 export interface CatalogExportsAttributes {
+  /**
+   * @minLength 1
+   * @maxLength 16
+   */
   format: string
-  status: string
+  status: string | null
 }
 
 export interface ChartsAttributes {}
@@ -56,121 +80,189 @@ export interface ChartsAttributes {}
 export interface CountriesAttributes {}
 
 export interface DevicesAttributes {
+  /** @minLength 1 */
   label: string
 }
 
 export interface ExportJobsAttributes {
-  state: string
+  state: string | null
 }
 
 export interface FavoritesAttributes {
-  favoritedAt: string
+  /** @format date-time */
+  favoritedAt: string | null
 }
 
 export interface GenresAttributes {
+  /** @minLength 1 */
   name: string
 }
 
 export interface LibrariesAttributes {}
 
 export interface PlaylistsAttributes {
+  /** @format uuid */
   externalId: string | null
-  public: boolean
-  slug: string
+  public: boolean | null
+  /**
+   * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`
+   * @example example-slug
+   */
+  slug: string | null
+  /** @minLength 1 */
   title: string
 }
 
 export interface ProductsAttributes {
+  /** @minLength 1 */
   name: string
 }
 
 export interface PublicProfilesAttributes {
-  displayName: string
+  displayName: string | null
 }
 
 export interface ReleasesAttributes {
   availability: Record<string, unknown> | null
+  /**
+   * @minLength 1
+   * @maxLength 40
+   */
   catalogNumber: string
   dimensions: Record<string, unknown> | null
-  format: unknown
-  packaging: { material?: string; gatefold?: boolean } | null
+  format: { rpm?: number; coloured?: boolean | null; medium?: string } | { discs?: number; medium?: string } | { codec?: string; bitrateKbps?: number | null; medium?: string } | null
+  packaging: { material?: string; gatefold?: boolean | null } | null
 }
 
 export interface TracksAttributes {
   displayTitle: string
-  durationSeconds: number
-  explicit: boolean
-  genres: string[]
+  durationSeconds: number | null
+  explicit: boolean | null
+  /**
+   * @minItems 1
+   * @uniqueItems
+   */
+  genres: [string, ...string[]] | null
   /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset: string | null
+  /** @minLength 1 */
   title: string
-  trackNumber: number
+  /** @minimum 1 */
+  trackNumber: number | null
 }
 
 export interface AlbumsCreateAttributes {
+  /** @format date */
   availableFrom?: string | null
-  /** Value is compared against the `availableFrom` field (>). */
+  /**
+   * Value is compared against the `availableFrom` field (>).
+   *
+   * @format date
+   */
   availableUntil?: string | null
   explicit?: boolean
   releaseInfo?: { label?: string; catalogueNumber?: string } | null
-  /** Value must be before a dynamically-resolved date/time bound. */
+  /**
+   * Value must be before a dynamically-resolved date/time bound.
+   *
+   * @format date-time
+   */
   releasedAt?: string
   /** Where the album sits in its release lifecycle. */
   status?: AlbumStatus
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
   title: string
 }
 
 export interface AlbumsUpdateAttributes {
+  /** @format date */
   availableFrom?: string | null
-  /** Value is compared against the `availableFrom` field (>). */
+  /**
+   * Value is compared against the `availableFrom` field (>).
+   *
+   * @format date
+   */
   availableUntil?: string | null
   explicit?: boolean
   releaseInfo?: { label?: string; catalogueNumber?: string } | null
-  /** Value must be before a dynamically-resolved date/time bound. */
+  /**
+   * Value must be before a dynamically-resolved date/time bound.
+   *
+   * @format date-time
+   */
   releasedAt?: string
   /** Where the album sits in its release lifecycle. */
   status?: AlbumStatus
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
   title?: string
 }
 
 export interface ArtistsCreateAttributes {
+  /** @maxLength 1000 */
   bio?: string | null
+  /** @format date-time */
   createdAt?: string
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
   name: string
   slug?: string
+  /** @format uri */
   website?: string | null
 }
 
 export interface ArtistsUpdateAttributes {
+  /** @maxLength 1000 */
   bio?: string | null
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
   name?: string
   slug?: string
+  /** @format uri */
   website?: string | null
 }
 
 export interface CatalogExportsCreateAttributes {
+  /**
+   * @minLength 1
+   * @maxLength 16
+   */
   format: string
 }
 
 export interface DevicesCreateAttributes {
+  /** @minLength 1 */
   label: string
 }
 
 export interface DevicesUpdateAttributes {
+  /** @minLength 1 */
   label?: string
 }
 
 export interface FavoritesCreateAttributes {
+  /** @format date-time */
   favoritedAt?: string
 }
 
 export interface FavoritesUpdateAttributes {}
 
 export interface GenresCreateAttributes {
+  /** @minLength 1 */
   name: string
 }
 
 export interface GenresUpdateAttributes {
+  /** @minLength 1 */
   name?: string
 }
 
@@ -179,58 +271,84 @@ export interface LibrariesCreateAttributes {}
 export interface LibrariesUpdateAttributes {}
 
 export interface PlaylistsCreateAttributes {
+  /** @format uuid */
   externalId?: string | null
   public?: boolean
+  /** @minLength 1 */
   title: string
 }
 
 export interface PlaylistsUpdateAttributes {
+  /** @format uuid */
   externalId?: string | null
   public?: boolean
+  /** @minLength 1 */
   title?: string
 }
 
 export interface ProductsCreateAttributes {
+  /** @minLength 1 */
   name: string
 }
 
 export interface ProductsUpdateAttributes {
+  /** @minLength 1 */
   name?: string
 }
 
 export interface ReleasesCreateAttributes {
   availability?: Record<string, unknown> | null
+  /**
+   * @minLength 1
+   * @maxLength 40
+   */
   catalogNumber: string
   dimensions?: Record<string, unknown> | null
-  format?: unknown
+  format?: { rpm: number; coloured?: boolean; medium: string } | { discs: number; medium: string } | { codec: string; bitrateKbps?: number; medium: string } | null
   packaging?: { material: string; gatefold?: boolean } | null
 }
 
 export interface ReleasesUpdateAttributes {
   availability?: Record<string, unknown> | null
+  /**
+   * @minLength 1
+   * @maxLength 40
+   */
   catalogNumber?: string
   dimensions?: Record<string, unknown> | null
-  format?: unknown
+  format?: { rpm?: number; coloured?: boolean; medium?: string } | { discs?: number; medium?: string } | { codec?: string; bitrateKbps?: number; medium?: string } | null
   packaging?: { material?: string; gatefold?: boolean } | null
 }
 
 export interface TracksCreateAttributes {
   durationSeconds?: number
   explicit?: boolean
-  genres?: string[]
+  /**
+   * @minItems 1
+   * @uniqueItems
+   */
+  genres?: [string, ...string[]]
   /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset?: string | null
+  /** @minLength 1 */
   title: string
+  /** @minimum 1 */
   trackNumber?: number
 }
 
 export interface TracksUpdateAttributes {
   durationSeconds?: number
   explicit?: boolean
-  genres?: string[]
+  /**
+   * @minItems 1
+   * @uniqueItems
+   */
+  genres?: [string, ...string[]]
   /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset?: string | null
+  /** @minLength 1 */
   title?: string
+  /** @minimum 1 */
   trackNumber?: number
 }
 
@@ -309,7 +427,8 @@ export const resourceMap = {
             "playlists"
           ],
           profile: "https://haddowg.github.io/json-api/profiles/countable/"
-        }
+        },
+        paginator: "page"
       }
     },
     paths: {
@@ -570,7 +689,8 @@ export const resourceMap = {
           add: true,
           remove: true,
           replace: true
-        }
+        },
+        paginator: "page"
       },
       owner: {
         cardinality: "one",
@@ -628,7 +748,8 @@ export const resourceMap = {
             "playlists"
           ],
           profile: "https://haddowg.github.io/json-api/profiles/countable/"
-        }
+        },
+        paginator: "page"
       },
       owner: {
         cardinality: "one",
@@ -668,7 +789,8 @@ export const resourceMap = {
             "playlists"
           ],
           profile: "https://haddowg.github.io/json-api/profiles/countable/"
-        }
+        },
+        paginator: "page"
       }
     },
     paths: {
@@ -835,7 +957,15 @@ export const resourceMap = {
       fetchRelationship: "/tracks/{id}/relationships/{rel}",
       update: "/tracks/{id}"
     },
-    paginator: "page",
+    paginator: {
+      strategy: "multi",
+      default: "page",
+      arms: {
+        page: "page",
+        cursor: "cursor",
+        offset: "offset"
+      }
+    },
     clientId: "forbidden",
     countable: {
       tokens: [
@@ -878,59 +1008,430 @@ export const atomic = {
 } as const
 
 /**
+ * The bounds each collection's `page` parameter declares, keyed by type, then by strategy for a
+ * collection offering several, then by wire key. `default` is what the server uses when the key
+ * is absent and `maximum` is the largest value it serves. The client sends the `page` you pass
+ * unchanged, so read these to bound a page-size picker.
+ */
+export const pageLimits = {
+  albums: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  artists: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  "catalog-exports": {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  devices: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  "export-jobs": {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  favorites: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  genres: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  libraries: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  playlists: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  products: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  "public-profiles": {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  releases: {
+    /**
+     * The page number to retrieve.
+     *
+     * @minimum 1
+     * @defaultValue `1`
+     */
+    number: { default: 1, minimum: 1 },
+    /**
+     * The number of resources per page.
+     *
+     * @minimum 1
+     * @maximum 50
+     * @defaultValue `15`
+     */
+    size: { default: 15, minimum: 1, maximum: 50 },
+  },
+  tracks: {
+    page: {
+      /**
+       * The page number to retrieve.
+       *
+       * @minimum 1
+       * @defaultValue `1`
+       */
+      number: { default: 1, minimum: 1 },
+      /**
+       * The number of resources per page.
+       *
+       * @minimum 1
+       * @maximum 50
+       * @defaultValue `15`
+       */
+      size: { default: 15, minimum: 1, maximum: 50 },
+    },
+    cursor: {
+      /**
+       * The number of resources per page.
+       *
+       * @minimum 1
+       * @maximum 50
+       * @defaultValue `15`
+       */
+      size: { default: 15, minimum: 1, maximum: 50 },
+    },
+    offset: {
+      /**
+       * The zero-based offset of the first resource.
+       *
+       * @minimum 0
+       * @defaultValue `0`
+       */
+      offset: { default: 0, minimum: 0 },
+      /**
+       * The maximum number of resources to return.
+       *
+       * @minimum 1
+       * @maximum 50
+       * @defaultValue `15`
+       */
+      limit: { default: 15, minimum: 1, maximum: 50 },
+    },
+  },
+} as const
+
+/**
  * Every error code this server documents, keyed by itself. Hover a key for what the code
  * means: `hasErrorCode(error, ErrorCodes.RESOURCE_NOT_FOUND)`.
  */
 export const ErrorCodes = {
+  /** The caller is authenticated but not permitted to do what the request asks. Retrying with the same credentials will fail the same way; act as a user who holds the permission, or don't make the request. */
+  ACCESS_DENIED: "ACCESS_DENIED",
+  /** This relationship does not let a client add members to it. Don't retry the request; the relationship changes only in the ways the API documents for it. */
   ADDITION_PROHIBITED: "ADDITION_PROHIBITED",
+  /** The server failed to handle the request because of a fault on its side, not because of anything in the request. Retrying won't help; report it to the API's maintainers. */
   APPLICATION_ERROR: "APPLICATION_ERROR",
+  /**
+   * An operation in the Atomic Operations request is malformed: a missing or unknown `op`, or a broken `ref`, `href` or `data`. The server applied none of the batch; fix the operation at `source.pointer` and send the whole batch again.
+   *
+   * @example Unknown atomic operation code 'upsert'.
+   */
   ATOMIC_OPERATIONS_INVALID: "ATOMIC_OPERATIONS_INVALID",
+  /**
+   * The server could not accept the value of the attribute at `source.pointer`, for example a date-time it cannot parse. Correct the value and send the request again.
+   *
+   * @example The value for attribute "publishedAt" is invalid: Failed to parse time string (next blursday) at position 0 (n): The timezone could not be found in the database
+   */
   ATTRIBUTE_VALUE_INVALID: "ATTRIBUTE_VALUE_INVALID",
+  /** The request carried no credentials, or credentials the server rejected, such as an expired token. Authenticate, then send the request again with valid credentials. */
+  AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
+  /** A resource of this type already has the `id` the create request supplied. Generate a new id and send the request again, or update the existing resource instead. */
   CLIENT_GENERATED_ID_ALREADY_EXISTS: "CLIENT_GENERATED_ID_ALREADY_EXISTS",
+  /** The create request supplied an `id`, but this resource type assigns its own ids. Leave `data.id` out and the server generates one. */
   CLIENT_GENERATED_ID_NOT_SUPPORTED: "CLIENT_GENERATED_ID_NOT_SUPPORTED",
+  /** This resource type expects the client to choose the id, and the create request supplied none. Add `data.id` in the format the API documents and send the request again. */
   CLIENT_GENERATED_ID_REQUIRED: "CLIENT_GENERATED_ID_REQUIRED",
+  /** The cursor in the named `page` parameter could not be decoded. Use cursors exactly as the server returned them in a previous page's `links`; never build or edit one. */
+  CURSOR_MALFORMED: "CURSOR_MALFORMED",
+  /** The cursor was issued for a different sort order than this request asks for, so it no longer marks a position in these results. Keep `sort` unchanged while paging, or start again from the first page. */
+  CURSOR_STALE: "CURSOR_STALE",
+  /** The request document has no top-level `data` member, which this request needs. Send the resource object or relationship linkage under `data`. */
   DATA_MEMBER_MISSING: "DATA_MEMBER_MISSING",
+  /**
+   * A `fields[TYPE]` parameter names a member that type does not have. Request only the attributes and relationships the type declares.
+   *
+   * @example Fields 'colour' requested for type 'articles' can't be recognized by the endpoint!
+   */
   FIELDSET_MEMBER_UNRECOGNIZED: "FIELDSET_MEMBER_UNRECOGNIZED",
+  /**
+   * The request filtered on a key this endpoint does not declare. Filter only on the keys the API documents for this resource type.
+   *
+   * @example Filtering parameter 'colour' can't be recognized by the endpoint!
+   */
   FILTERING_UNRECOGNIZED: "FILTERING_UNRECOGNIZED",
+  /** A `filter[...]` value fails the constraints that filter declares, for example text where a number is expected. Correct the value of the parameter named in `source.parameter`; each failed constraint is its own error. */
   FILTER_VALUE_INVALID: "FILTER_VALUE_INVALID",
+  /** This relationship cannot be replaced as a whole, for example by a `PATCH` to its relationship endpoint. Add or remove individual members instead, if the relationship allows that. */
   FULL_REPLACEMENT_PROHIBITED: "FULL_REPLACEMENT_PROHIBITED",
+  /**
+   * An `include` path nests more relationships than the server allows. Shorten the path and fetch the deeper resources with a separate request.
+   *
+   * @example Included paths 'author.publisher.country' exceed the maximum include depth of 2 permitted by the endpoint!
+   */
   INCLUSION_DEPTH_EXCEEDED: "INCLUSION_DEPTH_EXCEEDED",
+  /** An `include` path names a relationship that exists but may not be included from this request. Remove the path and fetch the related resources with a separate request. */
   INCLUSION_NOT_ALLOWED: "INCLUSION_NOT_ALLOWED",
+  /**
+   * An `include` path names a relationship the resource type does not have. Check each path against the relationships the type documents.
+   *
+   * @example Included paths 'auther' can't be recognized by the endpoint!
+   */
   INCLUSION_UNRECOGNIZED: "INCLUSION_UNRECOGNIZED",
+  /** This endpoint does not support the `include` parameter. Remove it and fetch related resources with separate requests. */
   INCLUSION_UNSUPPORTED: "INCLUSION_UNSUPPORTED",
+  /** Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`. */
   LOCAL_ID_CONFLICT: "LOCAL_ID_CONFLICT",
+  /** An operation refers to a `lid` that no earlier operation in the batch created. Create the resource under that `lid` in an earlier operation, or refer to an existing resource by `id`. */
   LOCAL_ID_NOT_FOUND: "LOCAL_ID_NOT_FOUND",
+  /** The request used a `lid`, which only means something inside an Atomic Operations request. Identify the resource by `id`, or send the dependent writes together as one atomic batch if the API offers the extension. */
   LOCAL_ID_NOT_SUPPORTED: "LOCAL_ID_NOT_SUPPORTED",
+  /**
+   * Every `application/vnd.api+json` entry in the `Accept` header carries a parameter other than `ext` or `profile`, or asks for an `ext` the server does not support. Accept `application/vnd.api+json` with no other parameters.
+   *
+   * @example The media type 'application/vnd.api+json; version=2' is unacceptable in the 'Accept' header!
+   */
   MEDIA_TYPE_UNACCEPTABLE: "MEDIA_TYPE_UNACCEPTABLE",
+  /**
+   * The `Content-Type` is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send `Content-Type: application/vnd.api+json` with only the parameters the server supports.
+   *
+   * @example The media type 'application/vnd.api+json; charset=utf-8' is unsupported in the 'Content-Type' header!
+   */
   MEDIA_TYPE_UNSUPPORTED: "MEDIA_TYPE_UNSUPPORTED",
+  /** The server tried to use a resource type it has nothing registered for, which is a configuration fault on its side. Retrying won't help; report it to the API's maintainers. */
   NO_RESOURCE_REGISTERED: "NO_RESOURCE_REGISTERED",
+  /**
+   * `page[kind]` names a pagination strategy this collection does not offer. Use one of the strategies the `detail` lists, or leave `page[kind]` out.
+   *
+   * @example The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor.
+   */
+  PAGINATION_KIND_UNKNOWN: "PAGINATION_KIND_UNKNOWN",
+  /** A query parameter has the wrong shape, such as `fields` sent without a type key or `include` sent as a list instead of a comma-separated string. Fix the parameter named in `source.parameter`. */
   QUERY_PARAM_MALFORMED: "QUERY_PARAM_MALFORMED",
+  /** The request used a query parameter this endpoint does not recognize. Remove it, or check its spelling against the parameters the API documents. */
   QUERY_PARAM_UNRECOGNIZED: "QUERY_PARAM_UNRECOGNIZED",
+  /**
+   * The request wrote an attribute the server stores on a related resource, and that related resource does not exist. Set the relationship first, or leave the attribute out.
+   *
+   * @example Cannot write attribute "city": its related "address" is not present.
+   */
   RELATED_ATTRIBUTE_OWNER_MISSING: "RELATED_ATTRIBUTE_OWNER_MISSING",
+  /** `withCount` names a relationship that is not a countable to-many relationship of this resource. Ask for counts only on the relationships the API marks as countable. */
   RELATIONSHIP_COUNT_NOT_ALLOWED: "RELATIONSHIP_COUNT_NOT_ALLOWED",
+  /** The request names a relationship this resource type does not have, or one whose endpoint the API does not expose. Check the relationship name against the ones the type documents. */
   RELATIONSHIP_NOT_EXISTS: "RELATIONSHIP_NOT_EXISTS",
+  /**
+   * The relationship data has the wrong cardinality: a list for a to-one relationship, a single identifier for a to-many one, or a `POST` or `DELETE` to a to-one relationship endpoint. Send linkage that matches the relationship.
+   *
+   * @example The provided relationship 'author' is of type of to-many, but to-one is expected!
+   */
   RELATIONSHIP_TYPE_INAPPROPRIATE: "RELATIONSHIP_TYPE_INAPPROPRIATE",
+  /** This relationship does not let a client remove members from it or clear it. Don't retry the request; the relationship changes only in the ways the API documents for it. */
   REMOVAL_PROHIBITED: "REMOVAL_PROHIBITED",
+  /** The request body is not well-formed JSON. Fix the syntax the `detail` reports and send the request again. */
   REQUEST_BODY_INVALID_JSON: "REQUEST_BODY_INVALID_JSON",
+  /** The request body is JSON but breaks the JSON:API document structure or the schema the server validates this resource against. Each violation is its own error, with `source.pointer` set where the server could locate it. */
   REQUEST_BODY_INVALID_JSON_API: "REQUEST_BODY_INVALID_JSON_API",
+  /** The request body is not a JSON object, or has none of the top-level members `data`, `errors` and `meta`. Send a JSON object with the resource under `data`. */
   REQUIRED_TOP_LEVEL_MEMBERS_MISSING: "REQUIRED_TOP_LEVEL_MEMBERS_MISSING",
+  /** A resource identifier in the request carries an `id` that is not a string, such as a number. Send every `id` as a JSON string. */
   RESOURCE_IDENTIFIER_ID_INVALID: "RESOURCE_IDENTIFIER_ID_INVALID",
+  /** A resource identifier in the request has neither an `id` nor a `lid`. Identify each related resource by its `id`, or by a `lid` inside an Atomic Operations request. */
   RESOURCE_IDENTIFIER_ID_MISSING: "RESOURCE_IDENTIFIER_ID_MISSING",
+  /** A resource identifier in the request carries a `lid` that is not a string. Send every `lid` as a JSON string. */
   RESOURCE_IDENTIFIER_LID_INVALID: "RESOURCE_IDENTIFIER_LID_INVALID",
+  /** A resource identifier in the request carries a `type` that is not a string. Send every `type` as a JSON string. */
   RESOURCE_IDENTIFIER_TYPE_INVALID: "RESOURCE_IDENTIFIER_TYPE_INVALID",
+  /** A resource identifier in the request has no `type`. Add the related resource's `type` to every identifier. */
   RESOURCE_IDENTIFIER_TYPE_MISSING: "RESOURCE_IDENTIFIER_TYPE_MISSING",
+  /**
+   * The `id` in the update body is not the `id` in the URL. Send the id of the resource the URL addresses as `data.id`.
+   *
+   * @example Resource id '12' does not match the endpoint id '7'!
+   */
   RESOURCE_ID_CONFLICT: "RESOURCE_ID_CONFLICT",
+  /** The resource object's `id` is not a string, such as a number. Send `data.id` as a JSON string. */
   RESOURCE_ID_INVALID: "RESOURCE_ID_INVALID",
+  /** The update request's resource object has no `id`. Include the id of the resource being updated as `data.id`. */
   RESOURCE_ID_MISSING: "RESOURCE_ID_MISSING",
+  /** The client-generated `id` is not in a format the server can decode into one of its own ids. Send an `id` in the format the API documents for this resource type. */
   RESOURCE_ID_UNDECODABLE: "RESOURCE_ID_UNDECODABLE",
+  /** The resource the request addresses does not exist. Check the type and id in the URL; a deleted resource stays not found. */
   RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",
+  /** The resource object in `data` has no `type`. Add the type of the resource the endpoint serves. */
   RESOURCE_TYPE_MISSING: "RESOURCE_TYPE_MISSING",
+  /** The `type` in the request is not one this endpoint or relationship accepts. Send the type the endpoint serves, or one the relationship documents for its related resources. */
   RESOURCE_TYPE_UNACCEPTABLE: "RESOURCE_TYPE_UNACCEPTABLE",
+  /** The server produced a response body that is not valid JSON, which is a fault on its side. Retrying won't help; report it to the API's maintainers. */
   RESPONSE_BODY_INVALID_JSON: "RESPONSE_BODY_INVALID_JSON",
+  /** The server produced a response that breaks the JSON:API document structure, which is a fault on its side. Retrying won't help; report it to the API's maintainers. */
   RESPONSE_BODY_INVALID_JSON_API: "RESPONSE_BODY_INVALID_JSON_API",
+  /**
+   * The `sort` parameter names a field this endpoint cannot sort by. Sort only on the fields the API documents for this resource type.
+   *
+   * @example Sorting parameter 'popularity' can't be recognized by the endpoint!
+   */
   SORTING_UNRECOGNIZED: "SORTING_UNRECOGNIZED",
+  /** This endpoint does not support sorting. Remove the `sort` parameter. */
   SORTING_UNSUPPORTED: "SORTING_UNSUPPORTED",
+  /** The request body has both `data` and `errors` at the top level, which JSON:API forbids. Send the resource under `data` alone. */
   TOP_LEVEL_MEMBERS_INCOMPATIBLE: "TOP_LEVEL_MEMBERS_INCOMPATIBLE",
+  /** The request body has a top-level `included` member but no `data`. Remove `included`, or send it alongside `data`. */
   TOP_LEVEL_MEMBER_NOT_ALLOWED: "TOP_LEVEL_MEMBER_NOT_ALLOWED",
 } as const
 
@@ -947,6 +1448,8 @@ export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
 export interface ErrorCodeByStatus {
   400:
     | "ATOMIC_OPERATIONS_INVALID"
+    | "CURSOR_MALFORMED"
+    | "CURSOR_STALE"
     | "DATA_MEMBER_MISSING"
     | "FIELDSET_MEMBER_UNRECOGNIZED"
     | "FILTERING_UNRECOGNIZED"
@@ -958,6 +1461,7 @@ export interface ErrorCodeByStatus {
     | "LOCAL_ID_CONFLICT"
     | "LOCAL_ID_NOT_FOUND"
     | "LOCAL_ID_NOT_SUPPORTED"
+    | "PAGINATION_KIND_UNKNOWN"
     | "QUERY_PARAM_MALFORMED"
     | "QUERY_PARAM_UNRECOGNIZED"
     | "RELATIONSHIP_COUNT_NOT_ALLOWED"
@@ -977,7 +1481,9 @@ export interface ErrorCodeByStatus {
     | "SORTING_UNSUPPORTED"
     | "TOP_LEVEL_MEMBERS_INCOMPATIBLE"
     | "TOP_LEVEL_MEMBER_NOT_ALLOWED"
+  401: "AUTHENTICATION_REQUIRED"
   403:
+    | "ACCESS_DENIED"
     | "ADDITION_PROHIBITED"
     | "CLIENT_GENERATED_ID_NOT_SUPPORTED"
     | "CLIENT_GENERATED_ID_REQUIRED"

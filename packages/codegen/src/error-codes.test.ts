@@ -198,7 +198,7 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
 
   it('emits the codes object, the per-status map and the bound guard', () => {
     expect(source).toContain(
-      'export const ErrorCodes = {\n  ADDITION_PROHIBITED: "ADDITION_PROHIBITED",',
+      'export const ErrorCodes = {\n  /** The caller is authenticated but not permitted',
     )
     expect(source).toContain('  RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",')
     expect(source).toContain(
@@ -210,10 +210,17 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
     )
   })
 
-  it('a contract-2 document has no descriptions, so the codes carry no TSDoc', () => {
-    const codes = source.slice(source.indexOf('export const ErrorCodes = {'))
-    const body = codes.slice(0, codes.indexOf('} as const'))
-    expect(body).not.toContain('/**')
+  it('documents each code from its description and example detail', () => {
+    expect(source).toContain(
+      [
+        '  /**',
+        '   * `page[kind]` names a pagination strategy this collection does not offer. Use one of the strategies the `detail` lists, or leave `page[kind]` out.',
+        '   *',
+        "   * @example The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor.",
+        '   */',
+        '  PAGINATION_KIND_UNKNOWN: "PAGINATION_KIND_UNKNOWN",',
+      ].join('\n'),
+    )
   })
 
   it('threads ErrorCode into the bound client factory', () => {

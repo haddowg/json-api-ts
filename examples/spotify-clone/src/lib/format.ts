@@ -1,7 +1,8 @@
 /** Small presentation helpers shared across views. */
 
-/** Format a track duration (seconds) as `m:ss`. */
-export function formatDuration(seconds: number): string {
+/** Format a track duration (seconds) as `m:ss`, or nothing when the track has none. */
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null) return ''
   const m = Math.floor(seconds / 60)
   const s = Math.floor(seconds % 60)
   return `${m}:${s.toString().padStart(2, '0')}`

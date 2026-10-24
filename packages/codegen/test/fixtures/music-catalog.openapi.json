@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 2
+            "contract": 5
         }
     },
     "servers": [
@@ -246,12 +246,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -261,7 +271,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `tracks`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request a relation name, e.g. `withCount=tracks`, to receive that relation's total on each resource in `relationships.tracks.meta.total`. Allowed tokens: `tracks`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -1397,12 +1407,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 2,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -1412,7 +1432,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `_self_`, `playlists`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated). Request a relation name, e.g. `withCount=playlists`, to receive that relation's total on each resource in `relationships.playlists.meta.total`. Allowed tokens: `_self_`, `playlists`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -1556,12 +1576,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 2,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -1571,7 +1601,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `_self_`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated). Allowed tokens: `_self_`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -2229,12 +2259,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -2990,12 +3030,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -3005,7 +3055,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `tracks`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request a relation name, e.g. `withCount=tracks`, to receive that relation's total on each resource in `relationships.tracks.meta.total`. Allowed tokens: `tracks`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -3171,12 +3221,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -3421,12 +3481,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -3681,12 +3751,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -4018,12 +4098,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -4210,12 +4300,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -5064,12 +5164,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -5507,12 +5617,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -6411,12 +6531,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -6808,12 +6938,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -6823,7 +6963,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `tracks`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request a relation name, e.g. `withCount=tracks`, to receive that relation's total on each resource in `relationships.tracks.meta.total`. Allowed tokens: `tracks`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -7951,12 +8091,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 2,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -7966,7 +8116,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `_self_`, `playlists`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated). Request a relation name, e.g. `withCount=playlists`, to receive that relation's total on each resource in `relationships.playlists.meta.total`. Allowed tokens: `_self_`, `playlists`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -8101,12 +8251,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 2,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -8116,7 +8276,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `_self_`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated). Allowed tokens: `_self_`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -8591,12 +8751,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 2,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -8606,7 +8776,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `playlists`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request a relation name, e.g. `withCount=playlists`, to receive that relation's total on each resource in `relationships.playlists.meta.total`. Allowed tokens: `playlists`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -8762,12 +8932,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 2,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -9045,12 +9225,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -9652,12 +9842,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -9910,12 +10110,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -11123,18 +11333,111 @@
                         "in": "query",
                         "description": "Pagination parameters, e.g. `page[number]=2&page[size]=10`.",
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "number": {
-                                    "type": "integer",
-                                    "description": "The page number to retrieve.",
-                                    "minimum": 1
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "number": {
+                                            "type": "integer",
+                                            "description": "The page number to retrieve.",
+                                            "default": 1,
+                                            "minimum": 1
+                                        },
+                                        "size": {
+                                            "type": "integer",
+                                            "description": "The number of resources per page.",
+                                            "default": 15,
+                                            "minimum": 1,
+                                            "maximum": 50
+                                        },
+                                        "kind": {
+                                            "type": "string",
+                                            "description": "Selects the pagination strategy.",
+                                            "const": "page"
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "x-paginator": {
+                                        "strategy": "page",
+                                        "keys": {
+                                            "number": "number",
+                                            "size": "size"
+                                        }
+                                    }
                                 },
-                                "size": {
-                                    "type": "integer",
-                                    "description": "The number of resources per page.",
-                                    "minimum": 1
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "after": {
+                                            "type": "string",
+                                            "description": "An opaque cursor; returns the page immediately AFTER this position."
+                                        },
+                                        "before": {
+                                            "type": "string",
+                                            "description": "An opaque cursor; returns the page immediately BEFORE this position."
+                                        },
+                                        "size": {
+                                            "type": "integer",
+                                            "description": "The number of resources per page.",
+                                            "default": 15,
+                                            "minimum": 1,
+                                            "maximum": 50
+                                        },
+                                        "kind": {
+                                            "type": "string",
+                                            "description": "Selects the pagination strategy.",
+                                            "const": "cursor"
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "x-profile": "https://jsonapi.org/profiles/ethanresnick/cursor-pagination/",
+                                    "x-paginator": {
+                                        "strategy": "cursor",
+                                        "keys": {
+                                            "after": "after",
+                                            "before": "before",
+                                            "size": "size"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "offset": {
+                                            "type": "integer",
+                                            "description": "The zero-based offset of the first resource.",
+                                            "default": 0,
+                                            "minimum": 0
+                                        },
+                                        "limit": {
+                                            "type": "integer",
+                                            "description": "The maximum number of resources to return.",
+                                            "default": 15,
+                                            "minimum": 1,
+                                            "maximum": 50
+                                        },
+                                        "kind": {
+                                            "type": "string",
+                                            "description": "Selects the pagination strategy.",
+                                            "const": "offset"
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "x-paginator": {
+                                        "strategy": "offset",
+                                        "keys": {
+                                            "offset": "offset",
+                                            "limit": "limit"
+                                        }
+                                    }
                                 }
+                            ],
+                            "discriminator": {
+                                "propertyName": "kind"
+                            },
+                            "x-paginator": {
+                                "strategy": "multi",
+                                "default": "page"
                             }
                         },
                         "style": "deepObject",
@@ -11143,7 +11446,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `playlists`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request a relation name, e.g. `withCount=playlists`, to receive that relation's total on each resource in `relationships.playlists.meta.total`. Allowed tokens: `playlists`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -12362,12 +12665,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -12377,7 +12690,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `_self_`, `tracks`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated). Request a relation name, e.g. `withCount=tracks`, to receive that relation's total on each resource in `relationships.tracks.meta.total`. Allowed tokens: `_self_`, `tracks`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -12455,12 +12768,22 @@
                                 "number": {
                                     "type": "integer",
                                     "description": "The page number to retrieve.",
+                                    "default": 1,
                                     "minimum": 1
                                 },
                                 "size": {
                                     "type": "integer",
                                     "description": "The number of resources per page.",
-                                    "minimum": 1
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 50
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
                                 }
                             }
                         },
@@ -12470,7 +12793,7 @@
                     {
                         "name": "withCount",
                         "in": "query",
-                        "description": "A comma-separated list of relationship-count tokens (the Countable profile). `_self_` counts this collection; a relation name counts that relation per item. Recognised only when the Countable profile is negotiated. Allowed tokens: `_self_`.",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated). Allowed tokens: `_self_`.",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -12876,8 +13199,35 @@
     },
     "components": {
         "schemas": {
+            "AccessDeniedError": {
+                "title": "Forbidden",
+                "description": "The caller is authenticated but not permitted to do what the request asks. Retrying with the same credentials will fail the same way; act as a user who holds the permission, or don't make the request.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "ACCESS_DENIED"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "403"
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status"
+                        ]
+                    }
+                ]
+            },
             "AdditionProhibitedError": {
                 "title": "Addition is prohibited",
+                "description": "This relationship does not let a client add members to it. Don't retry the request; the relationship changes only in the ways the API documents for it.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -13112,6 +13462,7 @@
                 "properties": {
                     "title": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 200
                     },
                     "averageRating": {
@@ -13127,16 +13478,29 @@
                         ]
                     },
                     "releasedAt": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "format": "date-time",
                         "description": "Value must be before a dynamically-resolved date/time bound."
                     },
                     "explicit": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "status": {
-                        "$ref": "#/components/schemas/AlbumStatus",
-                        "description": "Where the album sits in its release lifecycle."
+                        "description": "Where the album sits in its release lifecycle.",
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/AlbumStatus"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     },
                     "availableFrom": {
                         "type": [
@@ -13160,10 +13524,16 @@
                         ],
                         "properties": {
                             "label": {
-                                "type": "string"
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             },
                             "catalogueNumber": {
-                                "type": "string"
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             }
                         }
                     }
@@ -13226,6 +13596,7 @@
                 "properties": {
                     "title": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 200
                     },
                     "releasedAt": {
@@ -13448,6 +13819,7 @@
                 "properties": {
                     "title": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 200
                     },
                     "releasedAt": {
@@ -13533,6 +13905,7 @@
             },
             "ApplicationError": {
                 "title": "Application error",
+                "description": "The server failed to handle the request because of a fault on its side, not because of anything in the request. Retrying won't help; report it to the API's maintainers.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -13683,10 +14056,14 @@
                 "properties": {
                     "name": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 120
                     },
                     "slug": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "website": {
                         "type": [
@@ -13706,7 +14083,10 @@
                         "type": "integer"
                     },
                     "createdAt": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "format": "date-time"
                     }
                 },
@@ -13765,6 +14145,7 @@
                 "properties": {
                     "name": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 120
                     },
                     "slug": {
@@ -13921,6 +14302,7 @@
                 "properties": {
                     "name": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 120
                     },
                     "slug": {
@@ -14166,6 +14548,7 @@
             },
             "AtomicOperationsInvalidError": {
                 "title": "Atomic operations request is invalid",
+                "description": "An operation in the Atomic Operations request is malformed: a missing or unknown `op`, or a broken `ref`, `href` or `data`. The server applied none of the batch; fix the operation at `source.pointer` and send the whole batch again.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -14186,6 +14569,10 @@
                                 "required": [
                                     "pointer"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Unknown atomic operation code 'upsert'."
                             }
                         },
                         "required": [
@@ -14350,6 +14737,7 @@
             },
             "AttributeValueInvalidError": {
                 "title": "Attribute value is invalid",
+                "description": "The server could not accept the value of the attribute at `source.pointer`, for example a date-time it cannot parse. Correct the value and send the request again.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -14370,12 +14758,42 @@
                                 "required": [
                                     "pointer"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The value for attribute \"publishedAt\" is invalid: Failed to parse time string (next blursday) at position 0 (n): The timezone could not be found in the database"
                             }
                         },
                         "required": [
                             "code",
                             "status",
                             "source"
+                        ]
+                    }
+                ]
+            },
+            "AuthenticationRequiredError": {
+                "title": "Unauthorized",
+                "description": "The request carried no credentials, or credentials the server rejected, such as an expired token. Authenticate, then send the request again with valid credentials.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "AUTHENTICATION_REQUIRED"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "401"
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status"
                         ]
                     }
                 ]
@@ -14409,10 +14827,14 @@
                 "properties": {
                     "format": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 16
                     },
                     "status": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -14448,6 +14870,7 @@
                 "properties": {
                     "format": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 16
                     }
                 },
@@ -14637,6 +15060,7 @@
             },
             "ClientGeneratedIdAlreadyExistsError": {
                 "title": "Client generated ID already exists",
+                "description": "A resource of this type already has the `id` the create request supplied. Generate a new id and send the request again, or update the existing resource instead.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -14669,6 +15093,7 @@
             },
             "ClientGeneratedIdNotSupportedError": {
                 "title": "Client generated ID is not supported",
+                "description": "The create request supplied an `id`, but this resource type assigns its own ids. Leave `data.id` out and the server generates one.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -14701,6 +15126,7 @@
             },
             "ClientGeneratedIdRequiredError": {
                 "title": "Required client generated ID",
+                "description": "This resource type expects the client to choose the id, and the create request supplied none. Add `data.id` in the format the API documents and send the request again.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -14819,8 +15245,75 @@
                     "id"
                 ]
             },
+            "CursorMalformedError": {
+                "title": "Cursor is malformed",
+                "description": "The cursor in the named `page` parameter could not be decoded. Use cursors exactly as the server returned them in a previous page's `links`; never build or edit one.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "CURSOR_MALFORMED"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "400"
+                            },
+                            "source": {
+                                "type": "object",
+                                "required": [
+                                    "parameter"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status",
+                            "source"
+                        ]
+                    }
+                ]
+            },
+            "CursorStaleError": {
+                "title": "Cursor is stale",
+                "description": "The cursor was issued for a different sort order than this request asks for, so it no longer marks a position in these results. Keep `sort` unchanged while paging, or start again from the first page.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "CURSOR_STALE"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "400"
+                            },
+                            "source": {
+                                "type": "object",
+                                "required": [
+                                    "parameter"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status",
+                            "source"
+                        ]
+                    }
+                ]
+            },
             "DataMemberMissingError": {
                 "title": "Missing `data` member at the document's top level",
+                "description": "The request document has no top-level `data` member, which this request needs. Send the resource object or relationship linkage under `data`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -14920,7 +15413,8 @@
                 "type": "object",
                 "properties": {
                     "label": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -14954,7 +15448,8 @@
                 "type": "object",
                 "properties": {
                     "label": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -15058,7 +15553,8 @@
                 "type": "object",
                 "properties": {
                     "label": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 }
             },
@@ -15131,6 +15627,9 @@
                                     "$ref": "#/components/schemas/Error"
                                 },
                                 {
+                                    "$ref": "#/components/schemas/AccessDeniedError"
+                                },
+                                {
                                     "$ref": "#/components/schemas/AdditionProhibitedError"
                                 },
                                 {
@@ -15143,6 +15642,9 @@
                                     "$ref": "#/components/schemas/AttributeValueInvalidError"
                                 },
                                 {
+                                    "$ref": "#/components/schemas/AuthenticationRequiredError"
+                                },
+                                {
                                     "$ref": "#/components/schemas/ClientGeneratedIdAlreadyExistsError"
                                 },
                                 {
@@ -15150,6 +15652,12 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/ClientGeneratedIdRequiredError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CursorMalformedError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CursorStaleError"
                                 },
                                 {
                                     "$ref": "#/components/schemas/DataMemberMissingError"
@@ -15195,6 +15703,9 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/NoResourceRegisteredError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PaginationKindUnknownError"
                                 },
                                 {
                                     "$ref": "#/components/schemas/QueryParamMalformedError"
@@ -15313,6 +15824,12 @@
                                     "$ref": "#/components/schemas/AtomicOperationsInvalidError"
                                 },
                                 {
+                                    "$ref": "#/components/schemas/CursorMalformedError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CursorStaleError"
+                                },
+                                {
                                     "$ref": "#/components/schemas/DataMemberMissingError"
                                 },
                                 {
@@ -15344,6 +15861,9 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/LocalIdNotSupportedError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PaginationKindUnknownError"
                                 },
                                 {
                                     "$ref": "#/components/schemas/QueryParamMalformedError"
@@ -15419,6 +15939,38 @@
                     "errors"
                 ]
             },
+            "ErrorDocument401": {
+                "type": "object",
+                "properties": {
+                    "errors": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "description": "A JSON:API error object in a `401` document. The named branches catalogue the codes this server documents at that status; the leading generic `Error` keeps the list open, so an error carrying an undocumented `code` — or one whose own `status` differs, which happens when a document of mixed statuses takes the status class they round down to — is still a valid error object.",
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/Error"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AuthenticationRequiredError"
+                                }
+                            ]
+                        }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "errors"
+                ]
+            },
             "ErrorDocument403": {
                 "type": "object",
                 "properties": {
@@ -15430,6 +15982,9 @@
                             "anyOf": [
                                 {
                                     "$ref": "#/components/schemas/Error"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AccessDeniedError"
                                 },
                                 {
                                     "$ref": "#/components/schemas/AdditionProhibitedError"
@@ -15697,7 +16252,10 @@
                 "type": "object",
                 "properties": {
                     "state": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -15887,7 +16445,10 @@
                 "type": "object",
                 "properties": {
                     "favoritedAt": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "format": "date-time"
                     }
                 },
@@ -16297,6 +16858,7 @@
             },
             "FieldsetMemberUnrecognizedError": {
                 "title": "Fieldset member is unrecognized",
+                "description": "A `fields[TYPE]` parameter names a member that type does not have. Request only the attributes and relationships the type declares.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16317,6 +16879,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Fields 'colour' requested for type 'articles' can't be recognized by the endpoint!"
                             }
                         },
                         "required": [
@@ -16329,6 +16895,7 @@
             },
             "FilterValueInvalidError": {
                 "title": "Filter value is invalid",
+                "description": "A `filter[...]` value fails the constraints that filter declares, for example text where a number is expected. Correct the value of the parameter named in `source.parameter`; each failed constraint is its own error.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16361,6 +16928,7 @@
             },
             "FilteringUnrecognizedError": {
                 "title": "Filtering parameter is unrecognized",
+                "description": "The request filtered on a key this endpoint does not declare. Filter only on the keys the API documents for this resource type.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16381,6 +16949,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Filtering parameter 'colour' can't be recognized by the endpoint!"
                             }
                         },
                         "required": [
@@ -16393,6 +16965,7 @@
             },
             "FullReplacementProhibitedError": {
                 "title": "Full replacement is prohibited",
+                "description": "This relationship cannot be replaced as a whole, for example by a `PATCH` to its relationship endpoint. Add or remove individual members instead, if the relationship allows that.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16522,7 +17095,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -16556,7 +17130,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -16663,7 +17238,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 }
             },
@@ -16696,6 +17272,7 @@
             },
             "InclusionDepthExceededError": {
                 "title": "Inclusion depth exceeded",
+                "description": "An `include` path nests more relationships than the server allows. Shorten the path and fetch the deeper resources with a separate request.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16716,6 +17293,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Included paths 'author.publisher.country' exceed the maximum include depth of 2 permitted by the endpoint!"
                             }
                         },
                         "required": [
@@ -16728,6 +17309,7 @@
             },
             "InclusionNotAllowedError": {
                 "title": "Inclusion is not allowed",
+                "description": "An `include` path names a relationship that exists but may not be included from this request. Remove the path and fetch the related resources with a separate request.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16760,6 +17342,7 @@
             },
             "InclusionUnrecognizedError": {
                 "title": "Inclusion is unrecognized",
+                "description": "An `include` path names a relationship the resource type does not have. Check each path against the relationships the type documents.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -16780,6 +17363,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Included paths 'auther' can't be recognized by the endpoint!"
                             }
                         },
                         "required": [
@@ -16792,6 +17379,7 @@
             },
             "InclusionUnsupportedError": {
                 "title": "Inclusion is unsupported",
+                "description": "This endpoint does not support the `include` parameter. Remove it and fetch related resources with separate requests.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17382,6 +17970,7 @@
             },
             "LocalIdConflictError": {
                 "title": "Local id conflict",
+                "description": "Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17407,6 +17996,7 @@
             },
             "LocalIdNotFoundError": {
                 "title": "Local id not found",
+                "description": "An operation refers to a `lid` that no earlier operation in the batch created. Create the resource under that `lid` in an earlier operation, or refer to an existing resource by `id`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17432,6 +18022,7 @@
             },
             "LocalIdNotSupportedError": {
                 "title": "Local id is not supported",
+                "description": "The request used a `lid`, which only means something inside an Atomic Operations request. Identify the resource by `id`, or send the dependent writes together as one atomic batch if the API offers the extension.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17464,6 +18055,7 @@
             },
             "MediaTypeUnacceptableError": {
                 "title": "The provided media type is unacceptable",
+                "description": "Every `application/vnd.api+json` entry in the `Accept` header carries a parameter other than `ext` or `profile`, or asks for an `ext` the server does not support. Accept `application/vnd.api+json` with no other parameters.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17484,6 +18076,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The media type 'application/vnd.api+json; version=2' is unacceptable in the 'Accept' header!"
                             }
                         },
                         "required": [
@@ -17496,6 +18092,7 @@
             },
             "MediaTypeUnsupportedError": {
                 "title": "The provided media type is unsupported",
+                "description": "The `Content-Type` is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send `Content-Type: application/vnd.api+json` with only the parameters the server supports.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17516,6 +18113,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The media type 'application/vnd.api+json; charset=utf-8' is unsupported in the 'Content-Type' header!"
                             }
                         },
                         "required": [
@@ -17551,6 +18152,7 @@
             },
             "NoResourceRegisteredError": {
                 "title": "No resource registered",
+                "description": "The server tried to use a resource type it has nothing registered for, which is a configuration fault on its side. Retrying won't help; report it to the API's maintainers.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -17570,6 +18172,43 @@
                         "required": [
                             "code",
                             "status"
+                        ]
+                    }
+                ]
+            },
+            "PaginationKindUnknownError": {
+                "title": "Pagination kind is not supported",
+                "description": "`page[kind]` names a pagination strategy this collection does not offer. Use one of the strategies the `detail` lists, or leave `page[kind]` out.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "PAGINATION_KIND_UNKNOWN"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "400"
+                            },
+                            "source": {
+                                "type": "object",
+                                "required": [
+                                    "parameter"
+                                ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor."
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status",
+                            "source"
                         ]
                     }
                 ]
@@ -17698,15 +18337,22 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "slug": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                         "example": "example-slug"
                     },
                     "public": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "externalId": {
                         "type": [
@@ -17768,7 +18414,8 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "public": {
                         "type": "boolean"
@@ -18204,7 +18851,8 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "public": {
                         "type": "boolean"
@@ -18348,7 +18996,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -18400,7 +19049,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -18627,7 +19277,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 }
             },
@@ -18670,7 +19321,10 @@
                 "type": "object",
                 "properties": {
                     "displayName": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -18770,6 +19424,7 @@
             },
             "QueryParamMalformedError": {
                 "title": "Query parameter is malformed",
+                "description": "A query parameter has the wrong shape, such as `fields` sent without a type key or `include` sent as a list instead of a comma-separated string. Fix the parameter named in `source.parameter`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -18802,6 +19457,7 @@
             },
             "QueryParamUnrecognizedError": {
                 "title": "Query parameter is unrecognized",
+                "description": "The request used a query parameter this endpoint does not recognize. Remove it, or check its spelling against the parameters the API documents.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -18834,6 +19490,7 @@
             },
             "RelatedAttributeOwnerMissingError": {
                 "title": "Related attribute owner missing",
+                "description": "The request wrote an attribute the server stores on a related resource, and that related resource does not exist. Set the relationship first, or leave the attribute out.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -18854,6 +19511,10 @@
                                 "required": [
                                     "pointer"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Cannot write attribute \"city\": its related \"address\" is not present."
                             }
                         },
                         "required": [
@@ -18866,6 +19527,7 @@
             },
             "RelationshipCountNotAllowedError": {
                 "title": "Relationship count is not allowed",
+                "description": "`withCount` names a relationship that is not a countable to-many relationship of this resource. Ask for counts only on the relationships the API marks as countable.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -18898,6 +19560,7 @@
             },
             "RelationshipNotExistsError": {
                 "title": "The requested relationship does not exist!",
+                "description": "The request names a relationship this resource type does not have, or one whose endpoint the API does not expose. Check the relationship name against the ones the type documents.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -18923,6 +19586,7 @@
             },
             "RelationshipTypeInappropriateError": {
                 "title": "Relationship type is inappropriate",
+                "description": "The relationship data has the wrong cardinality: a list for a to-one relationship, a single identifier for a to-many one, or a `POST` or `DELETE` to a to-one relationship endpoint. Send linkage that matches the relationship.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -18943,6 +19607,10 @@
                                 "required": [
                                     "pointer"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The provided relationship 'author' is of type of to-many, but to-one is expected!"
                             }
                         },
                         "required": [
@@ -19133,6 +19801,7 @@
                 "properties": {
                     "catalogNumber": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 40
                     },
                     "format": {
@@ -19146,7 +19815,10 @@
                                         "maximum": 78
                                     },
                                     "coloured": {
-                                        "type": "boolean"
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
                                     },
                                     "medium": {
                                         "type": "string",
@@ -19172,10 +19844,14 @@
                                 "properties": {
                                     "codec": {
                                         "type": "string",
+                                        "minLength": 1,
                                         "maxLength": 16
                                     },
                                     "bitrateKbps": {
-                                        "type": "integer",
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
                                         "minimum": 32
                                     },
                                     "medium": {
@@ -19200,10 +19876,14 @@
                         "properties": {
                             "material": {
                                 "type": "string",
+                                "minLength": 1,
                                 "maxLength": 40
                             },
                             "gatefold": {
-                                "type": "boolean"
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
                             }
                         }
                     },
@@ -19340,6 +20020,7 @@
                 "properties": {
                     "catalogNumber": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 40
                     },
                     "format": {
@@ -19387,6 +20068,7 @@
                                 "properties": {
                                     "codec": {
                                         "type": "string",
+                                        "minLength": 1,
                                         "maxLength": 16
                                     },
                                     "bitrateKbps": {
@@ -19419,6 +20101,7 @@
                         "properties": {
                             "material": {
                                 "type": "string",
+                                "minLength": 1,
                                 "maxLength": 40
                             },
                             "gatefold": {
@@ -19640,6 +20323,7 @@
                 "properties": {
                     "catalogNumber": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 40
                     },
                     "format": {
@@ -19679,6 +20363,7 @@
                                 "properties": {
                                     "codec": {
                                         "type": "string",
+                                        "minLength": 1,
                                         "maxLength": 16
                                     },
                                     "bitrateKbps": {
@@ -19707,6 +20392,7 @@
                         "properties": {
                             "material": {
                                 "type": "string",
+                                "minLength": 1,
                                 "maxLength": 40
                             },
                             "gatefold": {
@@ -19831,6 +20517,7 @@
             },
             "RemovalProhibitedError": {
                 "title": "Removal is prohibited",
+                "description": "This relationship does not let a client remove members from it or clear it. Don't retry the request; the relationship changes only in the ways the API documents for it.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -19863,6 +20550,7 @@
             },
             "RequestBodyInvalidJsonApiError": {
                 "title": "Request body is an invalid JSON:API document",
+                "description": "The request body is JSON but breaks the JSON:API document structure or the schema the server validates this resource against. Each violation is its own error, with `source.pointer` set where the server could locate it.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -19888,6 +20576,7 @@
             },
             "RequestBodyInvalidJsonError": {
                 "title": "Request body is an invalid JSON document",
+                "description": "The request body is not well-formed JSON. Fix the syntax the `detail` reports and send the request again.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -19913,6 +20602,7 @@
             },
             "RequiredTopLevelMembersMissingError": {
                 "title": "Required top-level members are missing",
+                "description": "The request body is not a JSON object, or has none of the top-level members `data`, `errors` and `meta`. Send a JSON object with the resource under `data`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -19938,6 +20628,7 @@
             },
             "ResourceIdConflictError": {
                 "title": "Resource id conflict",
+                "description": "The `id` in the update body is not the `id` in the URL. Send the id of the resource the URL addresses as `data.id`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -19958,6 +20649,10 @@
                                 "required": [
                                     "pointer"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Resource id '12' does not match the endpoint id '7'!"
                             }
                         },
                         "required": [
@@ -19970,6 +20665,7 @@
             },
             "ResourceIdInvalidError": {
                 "title": "Resource ID is invalid",
+                "description": "The resource object's `id` is not a string, such as a number. Send `data.id` as a JSON string.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20002,6 +20698,7 @@
             },
             "ResourceIdMissingError": {
                 "title": "Resource ID is missing",
+                "description": "The update request's resource object has no `id`. Include the id of the resource being updated as `data.id`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20034,6 +20731,7 @@
             },
             "ResourceIdUndecodableError": {
                 "title": "Resource ID is undecodable",
+                "description": "The client-generated `id` is not in a format the server can decode into one of its own ids. Send an `id` in the format the API documents for this resource type.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20066,6 +20764,7 @@
             },
             "ResourceIdentifierIdInvalidError": {
                 "title": "Resource identifier ID is invalid",
+                "description": "A resource identifier in the request carries an `id` that is not a string, such as a number. Send every `id` as a JSON string.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20091,6 +20790,7 @@
             },
             "ResourceIdentifierIdMissingError": {
                 "title": "An ID for the resource identifier is missing",
+                "description": "A resource identifier in the request has neither an `id` nor a `lid`. Identify each related resource by its `id`, or by a `lid` inside an Atomic Operations request.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20116,6 +20816,7 @@
             },
             "ResourceIdentifierLidInvalidError": {
                 "title": "Resource identifier local ID is invalid",
+                "description": "A resource identifier in the request carries a `lid` that is not a string. Send every `lid` as a JSON string.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20141,6 +20842,7 @@
             },
             "ResourceIdentifierTypeInvalidError": {
                 "title": "Resource identifier type is invalid",
+                "description": "A resource identifier in the request carries a `type` that is not a string. Send every `type` as a JSON string.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20166,6 +20868,7 @@
             },
             "ResourceIdentifierTypeMissingError": {
                 "title": "A type for the resource identifier is missing",
+                "description": "A resource identifier in the request has no `type`. Add the related resource's `type` to every identifier.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20191,6 +20894,7 @@
             },
             "ResourceNotFoundError": {
                 "title": "Resource not found",
+                "description": "The resource the request addresses does not exist. Check the type and id in the URL; a deleted resource stays not found.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20216,6 +20920,7 @@
             },
             "ResourceTypeMissingError": {
                 "title": "Resource type is missing",
+                "description": "The resource object in `data` has no `type`. Add the type of the resource the endpoint serves.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20248,6 +20953,7 @@
             },
             "ResourceTypeUnacceptableError": {
                 "title": "Resource type is unacceptable",
+                "description": "The `type` in the request is not one this endpoint or relationship accepts. Send the type the endpoint serves, or one the relationship documents for its related resources.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20280,6 +20986,7 @@
             },
             "ResponseBodyInvalidJsonApiError": {
                 "title": "Response body is an invalid JSON:API document",
+                "description": "The server produced a response that breaks the JSON:API document structure, which is a fault on its side. Retrying won't help; report it to the API's maintainers.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20305,6 +21012,7 @@
             },
             "ResponseBodyInvalidJsonError": {
                 "title": "Response body is an invalid JSON document",
+                "description": "The server produced a response body that is not valid JSON, which is a fault on its side. Retrying won't help; report it to the API's maintainers.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20330,6 +21038,7 @@
             },
             "SortingUnrecognizedError": {
                 "title": "Sorting parameter is unrecognized",
+                "description": "The `sort` parameter names a field this endpoint cannot sort by. Sort only on the fields the API documents for this resource type.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20350,6 +21059,10 @@
                                 "required": [
                                     "parameter"
                                 ]
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Sorting parameter 'popularity' can't be recognized by the endpoint!"
                             }
                         },
                         "required": [
@@ -20362,6 +21075,7 @@
             },
             "SortingUnsupportedError": {
                 "title": "Sorting is unsupported",
+                "description": "This endpoint does not support sorting. Remove the `sort` parameter.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20394,6 +21108,7 @@
             },
             "TopLevelMemberNotAllowedError": {
                 "title": "Top-level member is not allowed",
+                "description": "The request body has a top-level `included` member but no `data`. Remove `included`, or send it alongside `data`.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20419,6 +21134,7 @@
             },
             "TopLevelMembersIncompatibleError": {
                 "title": "Top-level members are incompatible",
+                "description": "The request body has both `data` and `errors` at the top level, which JSON:API forbids. Send the resource under `data` alone.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"
@@ -20624,20 +21340,33 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "trackNumber": {
-                        "type": "integer",
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "minimum": 1
                     },
                     "durationSeconds": {
-                        "type": "integer"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "explicit": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "genres": {
-                        "type": "array",
+                        "type": [
+                            "array",
+                            "null"
+                        ],
                         "minItems": 1,
                         "uniqueItems": true,
                         "items": {
@@ -20711,7 +21440,8 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "trackNumber": {
                         "type": "integer",
@@ -20917,7 +21647,8 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "trackNumber": {
                         "type": "integer",
@@ -21018,7 +21749,7 @@
                 "content": {
                     "application/vnd.api+json": {
                         "schema": {
-                            "$ref": "#/components/schemas/ErrorDocument"
+                            "$ref": "#/components/schemas/ErrorDocument401"
                         }
                     }
                 }
