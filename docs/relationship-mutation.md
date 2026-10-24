@@ -146,7 +146,9 @@ A `belongsToMany` relation with a pivot (like `playlists.orderedTracks`) lets ea
 membership carry per-edge fields — here `position` and `weight`. You supply them by
 attaching a `$pivot` object to the ref; the runtime lifts it onto the wire identifier's
 `meta.pivot`, and (when the codegen knows the relation's pivot fields) `$pivot` is typed
-to exactly those fields:
+to the fields a request may send: `position` is required, `weight` is optional, and the
+read-only `addedAt` the server fills in isn't asked for. The same `$pivot` type applies
+when you set the relation inside a `create` or `update`:
 
 ```ts
 await client.playlists

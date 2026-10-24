@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 7
+            "contract": 8
         }
     },
     "servers": [
@@ -6909,7 +6909,7 @@
                     "content": {
                         "application/vnd.api+json": {
                             "schema": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipDocument"
+                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipRequest"
                             }
                         }
                     },
@@ -6971,7 +6971,7 @@
                     "content": {
                         "application/vnd.api+json": {
                             "schema": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipDocument"
+                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipRequest"
                             }
                         }
                     },
@@ -7033,7 +7033,7 @@
                     "content": {
                         "application/vnd.api+json": {
                             "schema": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipDocument"
+                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipRequest"
                             }
                         }
                     },
@@ -14643,7 +14643,7 @@
                                 "$ref": "#/components/schemas/PlaylistsTracksRelationship"
                             },
                             "orderedTracks": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationship"
+                                "$ref": "#/components/schemas/PlaylistsOrderedTracksWriteRelationship"
                             }
                         }
                     },
@@ -14684,7 +14684,7 @@
                                 "$ref": "#/components/schemas/PlaylistsTracksRelationship"
                             },
                             "orderedTracks": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationship"
+                                "$ref": "#/components/schemas/PlaylistsOrderedTracksWriteRelationship"
                             }
                         }
                     }
@@ -14891,7 +14891,7 @@
                                         "$ref": "#/components/schemas/PlaylistsTracksRelationship"
                                     },
                                     "orderedTracks": {
-                                        "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationship"
+                                        "$ref": "#/components/schemas/PlaylistsOrderedTracksWriteRelationship"
                                     }
                                 }
                             }
@@ -14967,6 +14967,31 @@
                     "$ref": "#/components/schemas/LinkObject"
                 }
             },
+            "PlaylistsOrderedTracksPivot": {
+                "type": "object",
+                "properties": {
+                    "position": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "weight": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Value is compared against the `position` field (>=)."
+                    },
+                    "addedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "position",
+                    "weight",
+                    "addedAt"
+                ]
+            },
             "PlaylistsOrderedTracksRelationship": {
                 "type": "object",
                 "properties": {
@@ -14987,25 +15012,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "pivot": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "position": {
-                                                            "type": "integer",
-                                                            "minimum": 1
-                                                        },
-                                                        "weight": {
-                                                            "type": "integer",
-                                                            "description": "Value is compared against the `position` field (>=)."
-                                                        },
-                                                        "addedAt": {
-                                                            "type": "string",
-                                                            "format": "date-time",
-                                                            "readOnly": true
-                                                        }
-                                                    },
-                                                    "required": [
-                                                        "position"
-                                                    ]
+                                                    "$ref": "#/components/schemas/PlaylistsOrderedTracksPivot"
                                                 }
                                             }
                                         }
@@ -15036,25 +15043,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "pivot": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "position": {
-                                                            "type": "integer",
-                                                            "minimum": 1
-                                                        },
-                                                        "weight": {
-                                                            "type": "integer",
-                                                            "description": "Value is compared against the `position` field (>=)."
-                                                        },
-                                                        "addedAt": {
-                                                            "type": "string",
-                                                            "format": "date-time",
-                                                            "readOnly": true
-                                                        }
-                                                    },
-                                                    "required": [
-                                                        "position"
-                                                    ]
+                                                    "$ref": "#/components/schemas/PlaylistsOrderedTracksPivot"
                                                 }
                                             }
                                         }
@@ -15133,6 +15122,93 @@
                 "additionalProperties": {
                     "$ref": "#/components/schemas/LinkObject"
                 }
+            },
+            "PlaylistsOrderedTracksRelationshipRequest": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/components/schemas/TracksResourceIdentifier"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "pivot": {
+                                                    "$ref": "#/components/schemas/PlaylistsOrderedTracksWritePivot"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "PlaylistsOrderedTracksWritePivot": {
+                "type": "object",
+                "properties": {
+                    "position": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "weight": {
+                        "type": "integer",
+                        "description": "Value is compared against the `position` field (>=)."
+                    }
+                },
+                "required": [
+                    "position"
+                ]
+            },
+            "PlaylistsOrderedTracksWriteRelationship": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/components/schemas/TracksResourceIdentifier"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "pivot": {
+                                                    "$ref": "#/components/schemas/PlaylistsOrderedTracksWritePivot"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
             },
             "PlaylistsOwnerRelationship": {
                 "type": "object",
@@ -15524,7 +15600,7 @@
                                         "$ref": "#/components/schemas/PlaylistsTracksRelationship"
                                     },
                                     "orderedTracks": {
-                                        "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationship"
+                                        "$ref": "#/components/schemas/PlaylistsOrderedTracksWriteRelationship"
                                     }
                                 }
                             }

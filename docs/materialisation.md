@@ -138,14 +138,16 @@ ordered[0]!.title            // 'Airbag'
 ordered[0]!.$pivot?.['position']  // 2
 ```
 
-`$pivot` is typed from the relation's declared pivot fields — for `orderedTracks` that
-is `{ addedAt: string; position: number; weight: number }` — so `member.$pivot?.position`
+`$pivot` is typed from the pivot fields the server renders: for `orderedTracks` that
+is `{ addedAt: string; position: number; weight: number | null }`, so `member.$pivot?.position`
 is a `number`, not `unknown`. It is **graceful**: present only when the endpoint actually rendered
 `meta.pivot` (the relationship / related endpoints do), `undefined` otherwise.
 
 The [spotify-clone](../examples/spotify-clone/src/api/playlist-tracks.ts) app shows the
-write side of the same shape: it sends the writable pivot fields back on a to-many
-membership ref (`{ ...track, $pivot: { position, weight } }`) to reorder a playlist. See
+write side: it sends the writable pivot fields back on a to-many membership ref
+(`{ ...track, $pivot: { position, weight } }`) to reorder a playlist. That `$pivot` is
+typed from the request shape, so it has no read-only `addedAt` and only `position` is
+required. See
 [Relationship mutation](relationship-mutation.md) for that path.
 
 ??? note "Going deeper: per-edge views and identity by type:id"

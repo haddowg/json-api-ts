@@ -50,7 +50,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 7. An older document is an error, and a newer one
+codegen reads contracts 1 to 8. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -58,6 +58,18 @@ with an example URL, and `describedby` points at the operation in the served spe
 The codegen doesn't type `links`: the client reads `href` from a link object and
 accepts a plain string too, so a server that still renders string links works the
 same.
+
+Contract 8 changes three things the codegen reads:
+
+- A pivot relation's `meta.pivot` gets one schema for responses and one for
+  requests. See [Pivot fields](#pivot-fields).
+- A relation's related and relationship paths use its URI field name, which can
+  differ from its name (`/articles/{id}/published-by` for `publisher`). The codegen
+  finds each relation's endpoints by operationId (`fetchRelated.articles.publisher`)
+  and records the segment as the relation's `uriField`, which the client puts in
+  the path. Older documents fall back to the relation's name.
+- A write-only relation's property in the create, update and atomic bodies carries
+  `writeOnly: true`. See [Write-only relations](#write-only-relations).
 
 ### The validation schemas
 
@@ -160,9 +172,61 @@ constraint changes the type: an array with `minItems` of 1 or more is a non-empt
 tuple, `[T, ...T[]]`, on reads and writes alike, so a create can't send an empty
 list the server would reject.
 
-A write-only relation (contract 5) is missing from the response schema, and the
-descriptor has no way to mark a relation as writable but unreadable. The codegen
-leaves it out of the client and logs a warning naming it.
+### Write-only relations
+
+A write-only relation is one the create and update bodies accept but no response
+renders. The codegen marks it `writeOnly: true` in the descriptor. It's found by the
+`writeOnly: true` keyword on its body property (contract 8) or, in an older
+document, by being in the write bodies and missing from the response schema.
+
+The client keeps it settable on `create`, `update` and atomic operations, and its
+relationship accessor keeps the mutation verbs the endpoint offers. It has no slot on
+the read view, isn't a `fields` member, and its accessor has no `.get()` or
+`.related()`:
+
+```ts
+await client.articles.create({ title: 'Draft', reviewer: { type: 'people', id: '3' } })
+await client.articles.id('1').reviewer.set({ type: 'people', id: '4' })
+
+const article = await client.articles.get('1')
+article.reviewer // type error: not on the read view
+```
+
+### Pivot fields
+
+A `belongsToMany` relation describes its `meta.pivot` twice in the descriptor:
+`readPivot` for what a response renders and `writePivot` for what a request sends.
+Each holds the field hints, the fields that are always there (`required`, absent
+when every field is) and the fields that may be `null`:
+
+```ts
+orderedTracks: {
+  cardinality: "many", types: ["tracks"], pivot: true,
+  readPivot: {
+    fields: { addedAt: "date-time", position: "integer", weight: "integer" },
+    nullable: ["weight"],
+  },
+  writePivot: {
+    fields: { position: "integer", weight: "integer" },
+    required: ["position"],
+  },
+  // …
+}
+```
+
+From contract 8 they come from the `<Type><Rel>Pivot` and `<Type><Rel>WritePivot`
+components, so a read-only field such as `addedAt` is on reads and never asked for
+on writes. That types `$pivot` like this:
+
+```ts
+// read: a member of .related(), .get() or an included relation
+$pivot?: { readonly addedAt: string; readonly position: number; readonly weight: number | null }
+// write: .add(), .replace(), create and update
+$pivot?: { readonly position: number; readonly weight?: number }
+```
+
+An older document has one shared pivot schema. The codegen treats every field as
+rendered on reads, and drops the fields marked `readOnly` from writes.
 
 ### Page defaults and caps
 
@@ -280,8 +344,10 @@ document's structure:
   *precise* per-type interface (e.g. `AlbumsAttributes`) is emitted alongside and
   wired onto the client through the `Attributes` map.
 - **`relations`** — per relation: `cardinality` (`one`/`many`), the related
-  `types` array, whether it is a `pivot` (`belongsToMany`) relation (with
-  `pivotFields` when present), the polymorphic type set (multiple entries in
+  `types` array, whether it is a `pivot` (`belongsToMany`) relation (with its
+  [`readPivot` and `writePivot`](#pivot-fields)), whether it is
+  [`writeOnly`](#write-only-relations), its `uriField` when its paths use a
+  segment other than its name, the polymorphic type set (multiple entries in
   `types`), and the derived `mutations` capability (`add`/`remove`/`replace` for
   a to-many, `set` for a to-one — read from the relationship endpoint's HTTP
   methods). A relation whose related or relationship endpoint is suppressed by the
