@@ -9,6 +9,7 @@ import { buildAtomic } from './build-descriptor'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
+import { commentLines, isTypeName, propertyKey, stringLiteral } from './source'
 import { unwrapRefs } from './unwrap-refs'
 
 const REF_PREFIX = '#/components/schemas/'
@@ -71,19 +72,26 @@ function pascalCase(value: string): string {
     .join('')
 }
 
-/** Emit a JSON-string literal (used for keys that aren't bare identifiers and enum members). */
-function quote(value: string): string {
-  return JSON.stringify(value)
+/** The identifier stem for a wire type's interfaces, `Type`-prefixed when it would start with a digit. */
+function typeStem(type: string): string {
+  const pascal = pascalCase(type)
+  return /^[A-Za-z]/.test(pascal) ? pascal : `Type${pascal}`
 }
 
-/** True when a string is a safe bare object-key identifier. */
-function isIdentifier(value: string): boolean {
-  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value)
-}
-
-function objectKey(value: string): string {
-  return isIdentifier(value) ? value : quote(value)
-}
+/** Names the generated module declares or relies on, which an enum alias must not take. */
+const MODULE_NAMES = [
+  'ActionTypes',
+  'ApiDescriptor',
+  'Attributes',
+  'ClientOptions',
+  'ErrorCode',
+  'ErrorCodeByStatus',
+  'ErrorCodeGuard',
+  'ErrorCodes',
+  'Record',
+  'ResourceMap',
+  'WriteAttributes',
+]
 
 /**
  * Render a description as a JSDoc comment at the given indent — single-line when it fits,
@@ -95,7 +103,7 @@ function jsDoc(text: string | undefined, indent: string): string | undefined {
   if (!trimmed) {
     return undefined
   }
-  const lines = trimmed.replace(/\*\//g, '* /').split('\n')
+  const lines = commentLines(trimmed)
   if (lines.length === 1) {
     return `${indent}/** ${lines[0]} */`
   }
@@ -190,6 +198,10 @@ export class Emitter {
    * already-named attribute type. Populated as interfaces are emitted.
    */
   private readonly emittedInterfaces = new Set<string>()
+  /** Enum component name -> the alias name it's emitted under. */
+  private readonly enumNames = new Map<string, string>()
+  /** Type names already spoken for: the module's own, the per-type interfaces and enum aliases. */
+  private readonly takenNames: Set<string>
   /** Component names mid-expansion in {@link tsType} — a cycle guard for self/mutually-referential `$ref`s. */
   private readonly expanding = new Set<string>()
   /**
@@ -216,6 +228,46 @@ export class Emitter {
     this.schemas = this.doc.components?.schemas ?? {}
     this.baseByType = this.indexBases()
     this.provenance = deriveProvenance(source)
+    this.takenNames = new Set(MODULE_NAMES)
+    for (const type of Object.keys(descriptor)) {
+      const stem = typeStem(type)
+      for (const suffix of ['Attributes', 'CreateAttributes', 'UpdateAttributes']) {
+        this.takenNames.add(`${stem}${suffix}`)
+      }
+      for (const action of Object.keys(descriptor[type]?.actions ?? {})) {
+        this.takenNames.add(`${stem}${pascalCase(action)}Input`)
+        this.takenNames.add(`${stem}${pascalCase(action)}Output`)
+      }
+    }
+  }
+
+  /**
+   * The alias an enum component is emitted under: its own name when that's a usable type name,
+   * else one derived from it (with a warning), kept clear of every other name in the module.
+   */
+  private enumName(component: string): string {
+    const known = this.enumNames.get(component)
+    if (known !== undefined) {
+      return known
+    }
+    let name = component
+    if (!isTypeName(component) || this.takenNames.has(component)) {
+      const pascal = pascalCase(component)
+      let stem = /^[A-Za-z]/.test(pascal) ? pascal : `Enum${pascal}`
+      if (!isTypeName(stem) || this.takenNames.has(stem)) {
+        stem = `${stem}Enum`
+      }
+      name = stem
+      for (let n = 2; this.takenNames.has(name); n++) {
+        name = `${stem}${n}`
+      }
+      console.warn(
+        `Enum component ${stringLiteral(component)} can't be used as a TypeScript type name; emitting it as ${name}.`,
+      )
+    }
+    this.takenNames.add(name)
+    this.enumNames.set(component, name)
+    return name
   }
 
   /** Map each declared wire type back to the `Base` of its resource schema. */
@@ -294,7 +346,7 @@ export class Emitter {
     // Drive field order off the (sorted) descriptor so output stays deterministic; read
     // attributes are always present (every member required, no optional marker).
     const fields = Object.keys(this.descriptor[type]!.attributes)
-    return this.renderInterface(`${pascalCase(type)}Attributes`, props, fields, () => true)
+    return this.renderInterface(`${typeStem(type)}Attributes`, props, fields, () => true)
   }
 
   /**
@@ -309,7 +361,7 @@ export class Emitter {
     if (base === undefined) {
       return []
     }
-    const pascal = pascalCase(type)
+    const pascal = typeStem(type)
     const out: string[] = []
 
     const create = this.schemas[`${base}CreateAttributes`]
@@ -351,7 +403,7 @@ export class Emitter {
       if (actions === undefined) {
         continue
       }
-      const pascal = pascalCase(type)
+      const pascal = typeStem(type)
       for (const [actionName, action] of Object.entries(actions)) {
         const member = `${pascal}${pascalCase(actionName)}`
         const names: { input?: string; output?: string } = {}
@@ -402,9 +454,9 @@ export class Emitter {
         if (names.output !== undefined) {
           members.push(`output: ${names.output}`)
         }
-        actionLines.push(`    ${objectKey(actionName)}: { ${members.join('; ')} }`)
+        actionLines.push(`    ${propertyKey(actionName)}: { ${members.join('; ')} }`)
       }
-      typeLines.push(`  ${objectKey(type)}: {\n${actionLines.join('\n')}\n  }`)
+      typeLines.push(`  ${propertyKey(type)}: {\n${actionLines.join('\n')}\n  }`)
     }
     if (typeLines.length === 0) {
       return 'export interface ActionTypes {}'
@@ -469,14 +521,14 @@ export class Emitter {
           const kind = isSchema(arm.properties?.['kind']) ? arm.properties['kind'].const : undefined
           const members = this.pageMemberLimits(arm, '      ')
           if (typeof kind === 'string' && members.length > 0) {
-            body.push(`    ${objectKey(kind)}: {\n${members.join('\n')}\n    },`)
+            body.push(`    ${propertyKey(kind)}: {\n${members.join('\n')}\n    },`)
           }
         }
       } else {
         body = this.pageMemberLimits(schema, '    ')
       }
       if (body.length > 0) {
-        typeLines.push(`  ${objectKey(type)}: {\n${body.join('\n')}\n  },`)
+        typeLines.push(`  ${propertyKey(type)}: {\n${body.join('\n')}\n  },`)
       }
     }
     const doc = [
@@ -511,7 +563,7 @@ export class Emitter {
       if (doc !== undefined) {
         lines.push(doc)
       }
-      lines.push(`${indent}${objectKey(name)}: { ${limits.join(', ')} },`)
+      lines.push(`${indent}${propertyKey(name)}: { ${limits.join(', ')} },`)
     }
     return lines
   }
@@ -536,7 +588,7 @@ export class Emitter {
         lines.push(doc)
       }
       const optional = required(field) ? '' : '?'
-      lines.push(`  ${objectKey(field)}${optional}: ${tsType}`)
+      lines.push(`  ${propertyKey(field)}${optional}: ${tsType}`)
     }
 
     this.emittedInterfaces.add(name)
@@ -557,7 +609,7 @@ export class Emitter {
       const resolved = target ? this.schemas[target] : undefined
       if (target && resolved && Array.isArray(resolved.enum)) {
         this.usedEnums.set(target, resolved)
-        return target
+        return this.enumName(target)
       }
       if (target && this.emittedInterfaces.has(target)) {
         return target
@@ -599,7 +651,7 @@ export class Emitter {
   private baseTsType(schema: SchemaObject, types: readonly string[]): string {
     // An inline enum (string literals without a $ref).
     if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-      return schema.enum.map((value) => quote(String(value))).join(' | ')
+      return schema.enum.map((value) => stringLiteral(String(value))).join(' | ')
     }
     if (types.length === 0) {
       return 'unknown'
@@ -646,7 +698,7 @@ export class Emitter {
         continue
       }
       const optional = required.has(name) ? '' : '?'
-      members.push(`${objectKey(name)}${optional}: ${this.tsType(prop)}`)
+      members.push(`${propertyKey(name)}${optional}: ${this.tsType(prop)}`)
     }
     if (members.length === 0) {
       return 'Record<string, unknown>'
@@ -675,8 +727,8 @@ export class Emitter {
       .map((name) => {
         const schema = this.usedEnums.get(name)!
         const values = schema.enum ?? []
-        const union = values.map((value) => quote(String(value))).join(' | ')
-        const alias = `export type ${name} = ${union}`
+        const union = values.map((value) => stringLiteral(String(value))).join(' | ')
+        const alias = `export type ${this.enumName(name)} = ${union}`
         const doc = jsDoc(this.enumDoc(schema), '')
         return doc ? `${doc}\n${alias}` : alias
       })
@@ -707,7 +759,7 @@ export class Emitter {
    */
   private attributesMap(): string {
     const lines = Object.keys(this.descriptor).map(
-      (type) => `  ${objectKey(type)}: ${pascalCase(type)}Attributes`,
+      (type) => `  ${propertyKey(type)}: ${typeStem(type)}Attributes`,
     )
     return `export interface Attributes {\n${lines.join('\n')}\n}`
   }
@@ -727,7 +779,7 @@ export class Emitter {
       if (!hasCreate && !hasUpdate) {
         continue
       }
-      const pascal = pascalCase(type)
+      const pascal = typeStem(type)
       const members: string[] = []
       if (hasCreate) {
         members.push(`create: ${pascal}CreateAttributes`)
@@ -735,7 +787,7 @@ export class Emitter {
       if (hasUpdate) {
         members.push(`update: ${pascal}UpdateAttributes`)
       }
-      lines.push(`  ${objectKey(type)}: { ${members.join('; ')} }`)
+      lines.push(`  ${propertyKey(type)}: { ${members.join('; ')} }`)
     }
     if (lines.length === 0) {
       return 'export interface WriteAttributes {}'
@@ -768,12 +820,12 @@ export class Emitter {
         return '{}'
       }
       const lines = entries.map(
-        ([key, v]) => `${inner}${objectKey(key)}: ${this.literal(v, depth + 1)}`,
+        ([key, v]) => `${inner}${propertyKey(key)}: ${this.literal(v, depth + 1)}`,
       )
       return `{\n${lines.join(',\n')}\n${indent}}`
     }
 
-    return JSON.stringify(value)
+    return typeof value === 'string' ? stringLiteral(value) : JSON.stringify(value)
   }
 
   private boundFactory(): string {

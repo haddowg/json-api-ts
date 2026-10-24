@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { OpenApiDocument } from './openapi'
+import { commentLine } from './source'
 
 /**
  * A deterministic provenance record identifying the spec a client was generated from.
@@ -61,13 +62,16 @@ export function deriveProvenance(doc: OpenApiDocument): Provenance {
 
 /**
  * Render the provenance record as the JSDoc header lines stamped into a generated artifact
- * (each already prefixed with ` * `). Deterministic: no timestamp, so re-generating from the
+ * (each already prefixed with ` * `), with the document's text kept to one comment line. Deterministic: no timestamp, so re-generating from the
  * same spec yields byte-identical output.
  */
 export function provenanceLines(provenance: Provenance): string[] {
-  const lines = [` * Source spec: ${provenance.source}`, ` * Spec hash:   ${provenance.hash}`]
+  const lines = [
+    ` * Source spec: ${commentLine(provenance.source)}`,
+    ` * Spec hash:   ${provenance.hash}`,
+  ]
   if (provenance.server !== undefined) {
-    lines.splice(1, 0, ` * Server:      ${provenance.server}`)
+    lines.splice(1, 0, ` * Server:      ${commentLine(provenance.server)}`)
   }
   return lines
 }

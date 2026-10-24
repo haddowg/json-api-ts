@@ -1,4 +1,5 @@
 import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
+import { commentLines, propertyKey, stringLiteral } from './source'
 
 const REF_PREFIX = '#/components/schemas/'
 const ERROR_DOCUMENT = /^ErrorDocument(\d{3})?$/
@@ -111,31 +112,26 @@ export function readErrorCatalogue(doc: OpenApiDocument): ErrorCatalogue {
 function codeDoc(entry: DocumentedErrorCode, indent: string): string | undefined {
   const lines: string[] = []
   if (entry.description !== undefined) {
-    lines.push(...entry.description.split('\n'))
+    lines.push(...commentLines(entry.description))
   }
   for (const example of entry.examples) {
     if (lines.length > 0) {
       lines.push('')
     }
     const text = typeof example === 'string' ? example : JSON.stringify(example)
-    lines.push(...`@example ${text}`.split('\n'))
+    lines.push(...commentLines(`@example ${text}`))
   }
   if (lines.length === 0) {
     return undefined
   }
   if (lines.length === 1) {
-    return `${indent}/** ${lines[0]!.replace(/\*\//g, '* /')} */`
+    return `${indent}/** ${lines[0]!} */`
   }
   return [
     `${indent}/**`,
-    ...lines.map((line) => `${indent} * ${line.replace(/\*\//g, '* /')}`.trimEnd()),
+    ...lines.map((line) => `${indent} * ${line}`.trimEnd()),
     `${indent} */`,
   ].join('\n')
-}
-
-/** A bare object key when the code is a valid identifier, else a quoted one. */
-function codeKey(code: string): string {
-  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(code) ? code : JSON.stringify(code)
 }
 
 /**
@@ -163,7 +159,7 @@ export function emitErrorCodes(catalogue: ErrorCatalogue): string {
           'export const ErrorCodes = {',
           ...catalogue.codes.flatMap((entry) => {
             const doc = codeDoc(entry, '  ')
-            const member = `  ${codeKey(entry.code)}: ${JSON.stringify(entry.code)},`
+            const member = `  ${propertyKey(entry.code)}: ${stringLiteral(entry.code)},`
             return doc === undefined ? [member] : [doc, member]
           }),
           '} as const',
@@ -176,7 +172,7 @@ export function emitErrorCodes(catalogue: ErrorCatalogue): string {
         ].join('\n')
 
   const statusLines = [...catalogue.byStatus].map(([status, codes]) => {
-    const members = codes.map((c) => JSON.stringify(c))
+    const members = codes.map((c) => stringLiteral(c))
     const line = `  ${status}: ${members.length === 0 ? 'never' : members.join(' | ')}`
     return line.length <= 100
       ? line
