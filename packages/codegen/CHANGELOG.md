@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.6.0...json-api-codegen-v1.6.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **codegen:** escape document text in generated names, literals and comments ([#64](https://github.com/haddowg/json-api-ts/issues/64)) ([5509c09](https://github.com/haddowg/json-api-ts/commit/5509c09bf62325e70b956d050039e7713449fe84))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.3.1
+
 ## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.5.0...json-api-codegen-v1.6.0) (2026-10-24)
 
 

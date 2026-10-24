@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.3.0...json-api-client-v1.3.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **client:** only follow same-origin links ([#63](https://github.com/haddowg/json-api-ts/issues/63)) ([4522de1](https://github.com/haddowg/json-api-ts/commit/4522de1657a6bc6aca85239acaddc3dd340207ce))
+
 ## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.2.0...json-api-client-v1.3.0) (2026-10-24)
 
 
