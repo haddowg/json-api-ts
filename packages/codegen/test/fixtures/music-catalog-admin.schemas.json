@@ -3,7 +3,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:albums",
         "type": "object",
-        "description": "An `albums` resource object.",
+        "description": "An album resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -129,7 +129,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:artists",
         "type": "object",
-        "description": "An `artists` resource object.",
+        "description": "An artist resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -147,7 +147,8 @@
                         "maxLength": 120
                     },
                     "slug": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "website": {
                         "type": [
@@ -202,7 +203,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:libraries",
         "type": "object",
-        "description": "An `libraries` resource object.",
+        "description": "A library resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -233,7 +234,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:playlists",
         "type": "object",
-        "description": "An `playlists` resource object.",
+        "description": "A playlist resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -292,7 +293,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:public-profiles",
         "type": "object",
-        "description": "An `public-profiles` resource object.",
+        "description": "A public profile resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -331,7 +332,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:tracks",
         "type": "object",
-        "description": "An `tracks` resource object.",
+        "description": "A track resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -406,7 +407,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:users",
         "type": "object",
-        "description": "An `users` resource object.",
+        "description": "A user resource object.",
         "properties": {
             "type": {
                 "type": "string",

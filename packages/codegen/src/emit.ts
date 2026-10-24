@@ -9,6 +9,7 @@ import { buildAtomic } from './build-descriptor'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
+import { unwrapRefs } from './unwrap-refs'
 
 const REF_PREFIX = '#/components/schemas/'
 const JSON_API_MEDIA_TYPE = 'application/vnd.api+json'
@@ -204,14 +205,17 @@ export class Emitter {
   /** Provenance of the source document, stamped into the generated header for drift tracking. */
   private readonly provenance: Provenance
 
+  private readonly doc: OpenApiDocument
+
   constructor(
-    private readonly doc: OpenApiDocument,
+    source: OpenApiDocument,
     private readonly descriptor: ApiDescriptor,
     private readonly atomic: AtomicDescriptor | null,
   ) {
-    this.schemas = doc.components?.schemas ?? {}
+    this.doc = unwrapRefs(source)
+    this.schemas = this.doc.components?.schemas ?? {}
     this.baseByType = this.indexBases()
-    this.provenance = deriveProvenance(doc)
+    this.provenance = deriveProvenance(source)
   }
 
   /** Map each declared wire type back to the `Base` of its resource schema. */
