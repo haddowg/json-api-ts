@@ -40,6 +40,12 @@ export interface ClientOptions {
   /** Per-request header provider (e.g. bearer auth); may be async. */
   headers?: () => HeadersInit | Promise<HeadersInit>
   /**
+   * Follow a server link (`$next()`, `$prev()`) that leaves `baseUrl`'s origin. Off by default, so
+   * such a link rejects without sending a request. When on, the request goes out without
+   * {@link headers}.
+   */
+  allowCrossOriginLinks?: boolean
+  /**
    * The server-level Atomic Operations capability (the codegen's `atomic` constant): `{ path }`
    * when the server exposes the atomic endpoint, else `null`/omitted. When present, the client
    * exposes `client.atomic(tx => …)`; otherwise calling it throws.
@@ -489,6 +495,9 @@ export function createClient<
     baseUrl: options.baseUrl,
     transport: options.transport ?? fetchTransport,
     ...(options.headers !== undefined ? { headers: options.headers } : {}),
+    ...(options.allowCrossOriginLinks !== undefined
+      ? { allowCrossOriginLinks: options.allowCrossOriginLinks }
+      : {}),
   }
 
   const validator = resolveValidator(options.validate)

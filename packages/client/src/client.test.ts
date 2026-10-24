@@ -693,6 +693,53 @@ describe('createClient — navigation seam', () => {
     // navigate executed the absolute next link verbatim.
     expect(transport.mock.calls[1]![0].url).toBe(`${BASE}/albums?page[number]=2`)
   })
+
+  it('$next() refuses a next link on another origin without sending it', async () => {
+    const page1: TransportResponse = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        data: [{ type: 'albums', id: '1', attributes: { title: 'OK Computer' } }],
+        links: { self: `${BASE}/albums`, next: '//other.example/albums?page[number]=2' },
+        jsonapi: { version: '1.1' },
+      }),
+    }
+    const transport = vi.fn(async (_req: TransportRequest) => page1)
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      headers: () => ({ Authorization: 'Bearer t' }),
+    })
+
+    const first = asArray(await client.albums.list())
+    await expect(first.$next()).rejects.toThrow(/leaves the base URL's origin/)
+    expect(transport).toHaveBeenCalledTimes(1)
+  })
+
+  it('$next() follows a cross-origin link without the headers when allowCrossOriginLinks is set', async () => {
+    const page1: TransportResponse = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        data: [{ type: 'albums', id: '1', attributes: { title: 'OK Computer' } }],
+        links: { self: `${BASE}/albums`, next: 'https://other.example/albums?page[number]=2' },
+        jsonapi: { version: '1.1' },
+      }),
+    }
+    const transport = vi.fn(async (_req: TransportRequest) => page1)
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      headers: () => ({ Authorization: 'Bearer t' }),
+      allowCrossOriginLinks: true,
+    })
+
+    const first = asArray(await client.albums.list())
+    await first.$next()
+    expect(transport.mock.calls[1]![0].url).toBe('https://other.example/albums?page[number]=2')
+    expect(transport.mock.calls[1]![0].headers['Authorization']).toBeUndefined()
+    expect(transport.mock.calls[0]![0].headers['Authorization']).toBe('Bearer t')
+  })
 })
 
 const linkedPage = (id: string, links: Record<string, string>): TransportResponse => ({
