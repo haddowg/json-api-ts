@@ -161,6 +161,11 @@ export interface TracksAttributes {
 
 A nullable enum (`anyOf` of the enum and `null`) becomes `AlbumStatus | null`.
 
+An enum alias takes its component's name. When that name isn't a usable TypeScript type
+name (it has spaces or punctuation, starts with a digit, is a reserved word, or clashes
+with another name in the module), the codegen derives one from it, such as `ReleaseState`
+for `release state`, and prints a warning naming both.
+
 A nested object follows the same rules member by member. From generator contract 6 a
 response schema lists every member the server always renders in the object's
 `required`, so on reads those members lose their `?` and only nullability is left
