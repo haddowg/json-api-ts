@@ -17,6 +17,7 @@
         "properties": {
           "title": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 200
           },
           "averageRating": {
@@ -26,7 +27,7 @@
             "type": ["string", "null"]
           },
           "releasedAt": {
-            "type": "string",
+            "type": ["string", "null"],
             "format": "date-time",
             "description": "Value must be before a dynamically-resolved date/time bound."
           },
@@ -57,14 +58,25 @@
             "type": ["object", "null"],
             "properties": {
               "label": {
-                "type": "string"
+                "type": ["string", "null"]
               },
               "catalogueNumber": {
-                "type": "string"
+                "type": ["string", "null"]
               }
             }
           }
-        }
+        },
+        "required": [
+          "title",
+          "averageRating",
+          "artwork",
+          "releasedAt",
+          "explicit",
+          "status",
+          "availableFrom",
+          "availableUntil",
+          "releaseInfo"
+        ]
       },
       "relationships": {
         "type": "object"
@@ -96,6 +108,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 120
           },
           "slug": {
@@ -113,10 +126,50 @@
             "type": "integer"
           },
           "createdAt": {
-            "type": "string",
+            "type": ["string", "null"],
             "format": "date-time"
           }
-        }
+        },
+        "required": ["name", "slug", "website", "bio", "trackCount", "createdAt"]
+      },
+      "relationships": {
+        "type": "object"
+      },
+      "links": {
+        "type": "object"
+      },
+      "meta": {
+        "type": "object"
+      }
+    },
+    "required": ["type", "id"]
+  },
+  "catalog-exports": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:jsonapi:schema:catalog-exports",
+    "type": "object",
+    "description": "An `catalog-exports` resource object.",
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "catalog-exports"
+      },
+      "id": {
+        "type": "string"
+      },
+      "attributes": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": ["format", "status"]
       },
       "relationships": {
         "type": "object"
@@ -148,9 +201,45 @@
         "type": "object",
         "properties": {
           "label": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["label"]
+      },
+      "relationships": {
+        "type": "object"
+      },
+      "links": {
+        "type": "object"
+      },
+      "meta": {
+        "type": "object"
+      }
+    },
+    "required": ["type", "id"]
+  },
+  "export-jobs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:jsonapi:schema:export-jobs",
+    "type": "object",
+    "description": "An `export-jobs` resource object.",
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "export-jobs"
+      },
+      "id": {
+        "type": "string"
+      },
+      "attributes": {
+        "type": "object",
+        "properties": {
+          "state": {
             "type": "string"
           }
-        }
+        },
+        "required": ["state"]
       },
       "relationships": {
         "type": "object"
@@ -181,10 +270,11 @@
         "type": "object",
         "properties": {
           "favoritedAt": {
-            "type": "string",
+            "type": ["string", "null"],
             "format": "date-time"
           }
-        }
+        },
+        "required": ["favoritedAt"]
       },
       "relationships": {
         "type": "object"
@@ -216,9 +306,11 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
-        }
+        },
+        "required": ["name"]
       },
       "relationships": {
         "type": "object"
@@ -278,7 +370,8 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "slug": {
             "type": "string",
@@ -292,7 +385,8 @@
             "type": ["string", "null"],
             "format": "uuid"
           }
-        }
+        },
+        "required": ["title", "slug", "public", "externalId"]
       },
       "relationships": {
         "type": "object"
@@ -323,9 +417,11 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
-        }
+        },
+        "required": ["name"]
       },
       "relationships": {
         "type": "object"
@@ -358,7 +454,184 @@
           "displayName": {
             "type": "string"
           }
-        }
+        },
+        "required": ["displayName"]
+      },
+      "relationships": {
+        "type": "object"
+      },
+      "links": {
+        "type": "object"
+      },
+      "meta": {
+        "type": "object"
+      }
+    },
+    "required": ["type", "id"]
+  },
+  "releases": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:jsonapi:schema:releases",
+    "type": "object",
+    "description": "An `releases` resource object.",
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "releases"
+      },
+      "id": {
+        "type": "string"
+      },
+      "attributes": {
+        "type": "object",
+        "properties": {
+          "catalogNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "format": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "rpm": {
+                    "type": "integer",
+                    "minimum": 16,
+                    "maximum": 78
+                  },
+                  "coloured": {
+                    "type": ["boolean", "null"]
+                  },
+                  "medium": {
+                    "type": "string",
+                    "const": "vinyl"
+                  }
+                },
+                "required": ["rpm", "coloured", "medium"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "discs": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "medium": {
+                    "type": "string",
+                    "const": "cd"
+                  }
+                },
+                "required": ["discs", "medium"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "codec": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "bitrateKbps": {
+                    "type": ["integer", "null"],
+                    "minimum": 32
+                  },
+                  "medium": {
+                    "type": "string",
+                    "const": "digital"
+                  }
+                },
+                "required": ["codec", "bitrateKbps", "medium"]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "medium"
+            }
+          },
+          "packaging": {
+            "type": ["object", "null"],
+            "properties": {
+              "material": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "gatefold": {
+                "type": ["boolean", "null"]
+              }
+            },
+            "required": ["material", "gatefold"]
+          },
+          "availability": {
+            "type": ["object", "null"],
+            "additionalProperties": {},
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "worldwide": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": ["worldwide"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "regions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["regions"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimensions": {
+            "type": ["object", "null"],
+            "additionalProperties": {},
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "widthMm": {
+                        "type": "number"
+                      },
+                      "heightMm": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["widthMm", "heightMm"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depthMm": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "required": ["catalogNumber", "format", "packaging", "availability", "dimensions"]
       },
       "relationships": {
         "type": "object"
@@ -389,7 +662,8 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "trackNumber": {
             "type": "integer",
@@ -406,17 +680,27 @@
             "minItems": 1,
             "uniqueItems": true,
             "items": {
+              "type": "string",
               "minLength": 1
             }
           },
           "previewOffset": {
             "type": ["string", "null"],
-            "format": "time"
+            "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
           },
           "displayTitle": {
             "type": "string"
           }
-        }
+        },
+        "required": [
+          "title",
+          "trackNumber",
+          "durationSeconds",
+          "explicit",
+          "genres",
+          "previewOffset",
+          "displayTitle"
+        ]
       },
       "relationships": {
         "type": "object"

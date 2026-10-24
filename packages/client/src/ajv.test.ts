@@ -43,6 +43,20 @@ const descriptor = {
   tracks: { attributes: {}, relations: {}, paths: {}, paginator: 'page', clientId: 'optional' },
 } as const satisfies ApiDescriptor
 
+// The schema marks every albums attribute as required (nullable ones included), so each test body
+// starts from a complete, valid set and breaks only the member it is about.
+const albumAttributes = {
+  title: 'OK Computer',
+  averageRating: null,
+  artwork: null,
+  releasedAt: null,
+  explicit: false,
+  status: 'released',
+  availableFrom: null,
+  availableUntil: null,
+  releaseInfo: null,
+}
+
 function transportFor(body: string): {
   transport: (req: TransportRequest) => Promise<TransportResponse>
 } {
@@ -55,7 +69,7 @@ describe('createAjvValidator — unit', () => {
     const album: WireResource = {
       type: 'albums',
       id: '1',
-      attributes: { title: 'OK Computer', explicit: false, status: 'released' },
+      attributes: albumAttributes,
     }
     // The adapter returns a bare `Validator` (`(resource, schema) => void`); it owns its own
     // compiled lookup, so the runtime — and these tests — call it with `schema = undefined`.
@@ -68,7 +82,7 @@ describe('createAjvValidator — unit', () => {
       type: 'albums',
       id: '7',
       // title must be a string; explicit must be a boolean — both wrong.
-      attributes: { title: 123, explicit: 'no' },
+      attributes: { ...albumAttributes, title: 123, explicit: 'no' },
     }
     let thrown: unknown
     try {
@@ -94,7 +108,7 @@ describe('createAjvValidator — unit', () => {
     const album: WireResource = {
       type: 'albums',
       id: '3',
-      attributes: { title: 'x', status: 'bogus' },
+      attributes: { ...albumAttributes, status: 'bogus' },
     }
     expect(() => validate(album, undefined)).toThrow(AjvValidationError)
   })
@@ -128,8 +142,8 @@ describe('createAjvValidator — wired into createClient.validate', () => {
     // A collection where the second album has a non-string title — the wire lied.
     const body = JSON.stringify({
       data: [
-        { type: 'albums', id: '1', attributes: { title: 'Real' } },
-        { type: 'albums', id: '2', attributes: { title: 999 } },
+        { type: 'albums', id: '1', attributes: albumAttributes },
+        { type: 'albums', id: '2', attributes: { ...albumAttributes, title: 999 } },
       ],
     })
     const { transport } = transportFor(body)
