@@ -17,6 +17,7 @@
                 "properties": {
                     "title": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 200
                     },
                     "averageRating": {
@@ -32,20 +33,30 @@
                         ]
                     },
                     "releasedAt": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "format": "date-time",
                         "description": "Value must be before a dynamically-resolved date/time bound."
                     },
                     "explicit": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "status": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Where the album sits in its release lifecycle.\n\n| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
                         "enum": [
                             "upcoming",
                             "released",
-                            "withdrawn"
+                            "withdrawn",
+                            null
                         ],
                         "x-enum-varnames": [
                             "Upcoming",
@@ -80,10 +91,16 @@
                         ],
                         "properties": {
                             "label": {
-                                "type": "string"
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             },
                             "catalogueNumber": {
-                                "type": "string"
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
                             }
                         }
                     }
@@ -133,10 +150,14 @@
                 "properties": {
                     "name": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 120
                     },
                     "slug": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "website": {
                         "type": [
@@ -156,7 +177,10 @@
                         "type": "integer"
                     },
                     "createdAt": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "format": "date-time"
                     }
                 },
@@ -202,10 +226,14 @@
                 "properties": {
                     "format": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 16
                     },
                     "status": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -246,7 +274,8 @@
                 "type": "object",
                 "properties": {
                     "label": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -285,7 +314,10 @@
                 "type": "object",
                 "properties": {
                     "state": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -324,7 +356,10 @@
                 "type": "object",
                 "properties": {
                     "favoritedAt": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "format": "date-time"
                     }
                 },
@@ -365,7 +400,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -436,15 +472,22 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "slug": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                         "example": "example-slug"
                     },
                     "public": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "externalId": {
                         "type": [
@@ -493,7 +536,8 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -532,7 +576,10 @@
                 "type": "object",
                 "properties": {
                     "displayName": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -572,6 +619,7 @@
                 "properties": {
                     "catalogNumber": {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 40
                     },
                     "format": {
@@ -585,7 +633,10 @@
                                         "maximum": 78
                                     },
                                     "coloured": {
-                                        "type": "boolean"
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
                                     },
                                     "medium": {
                                         "type": "string",
@@ -611,10 +662,14 @@
                                 "properties": {
                                     "codec": {
                                         "type": "string",
+                                        "minLength": 1,
                                         "maxLength": 16
                                     },
                                     "bitrateKbps": {
-                                        "type": "integer",
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
                                         "minimum": 32
                                     },
                                     "medium": {
@@ -639,10 +694,14 @@
                         "properties": {
                             "material": {
                                 "type": "string",
+                                "minLength": 1,
                                 "maxLength": 40
                             },
                             "gatefold": {
-                                "type": "boolean"
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
                             }
                         }
                     },
@@ -765,20 +824,33 @@
                 "type": "object",
                 "properties": {
                     "title": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "trackNumber": {
-                        "type": "integer",
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "minimum": 1
                     },
                     "durationSeconds": {
-                        "type": "integer"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "explicit": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "genres": {
-                        "type": "array",
+                        "type": [
+                            "array",
+                            "null"
+                        ],
                         "minItems": 1,
                         "uniqueItems": true,
                         "items": {
