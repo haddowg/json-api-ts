@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.2.0...json-api-client-v1.3.0) (2026-10-24)
+
+
+### Features
+
+* **client:** type write-only relations and per-side pivots ([b307292](https://github.com/haddowg/json-api-ts/commit/b307292cea14d0653280993ca6c1fa9282a475e2))
+
 ## [1.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.1.0...json-api-client-v1.2.0) (2026-10-23)
 
 
