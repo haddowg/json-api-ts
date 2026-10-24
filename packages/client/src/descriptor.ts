@@ -25,6 +25,22 @@ export interface RelationMutations {
   set?: boolean
 }
 
+/**
+ * The pivot fields one side of the wire carries on a member's `meta.pivot`: field name to
+ * wire-format hint (the vocabulary of {@link ResourceDescriptor.attributes}), the fields that
+ * are always present, and the fields that may be `null`.
+ */
+export interface PivotDescriptor {
+  fields: Readonly<Record<string, string>>
+  /**
+   * On a response, the fields every member renders; on a request, the fields every member must
+   * send. Absent means every field.
+   */
+  required?: readonly string[]
+  /** The fields whose value may be `null`. Absent means none. */
+  nullable?: readonly string[]
+}
+
 export interface RelationDescriptor {
   cardinality: Cardinality
   /** Related JSON:API type(s); more than one = polymorphic. */
@@ -32,12 +48,30 @@ export interface RelationDescriptor {
   /** Whether members carry pivot data (`meta.pivot`). */
   pivot?: boolean
   /**
-   * The pivot fields carried on each member's `meta.pivot` (a `belongsToMany` relation), as a
-   * field-name → wire-format-hint map (the same hint vocabulary as {@link ResourceDescriptor.attributes}).
-   * Types `$pivot` precisely (`{ position: number; weight: number; addedAt: string }`) instead of a
-   * loose `Record<string, unknown>` (D33). Absent when the relation carries no pivot.
+   * The pivot fields carried on each member's `meta.pivot`, as a field-name → wire-format-hint
+   * map, typed as always present and never `null` on both reads and writes (D33).
+   *
+   * @deprecated Describe each side with {@link readPivot} and {@link writePivot}. Read only when
+   * those are absent.
    */
   pivotFields?: Readonly<Record<string, string>>
+  /** The `meta.pivot` a response renders on each member (`<Type><Rel>Pivot`). */
+  readPivot?: PivotDescriptor
+  /**
+   * The `meta.pivot` a request may send on each member (`<Type><Rel>WritePivot`): a create,
+   * update or atomic body, or a relationship mutation.
+   */
+  writePivot?: PivotDescriptor
+  /**
+   * `true` for a relation create and update accept but no response renders. It stays settable
+   * on write inputs and is left out of the read view, `fields` and the relationship reads.
+   */
+  writeOnly?: boolean
+  /**
+   * The relation's segment in its related and relationship paths, when it differs from the
+   * relation's name (`/articles/{id}/published-by` for `publisher`). Absent means the name.
+   */
+  uriField?: string
   /**
    * `false` when the related endpoint (`GET /{type}/{id}/{rel}`) is suppressed for this relation
    * (the bundle's `withoutRelatedEndpoint()`, ADR 0027) — `.related()` is then a compile error /

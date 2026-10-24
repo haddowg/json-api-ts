@@ -75,6 +75,17 @@ export type RelationName<D extends ApiDescriptor, T extends TypeName<D>> = Extra
   string
 >
 
+/** The relations of type `T` a response never renders (the descriptor's `writeOnly: true`). */
+type WriteOnlyRelationName<D extends ApiDescriptor, T extends TypeName<D>> = {
+  [R in RelationName<D, T>]: D[T]['relations'][R] extends { writeOnly: true } ? R : never
+}[RelationName<D, T>]
+
+/** The relations of type `T` a response can render: every relation but the write-only ones. */
+export type ReadableRelationName<D extends ApiDescriptor, T extends TypeName<D>> = Exclude<
+  RelationName<D, T>,
+  WriteOnlyRelationName<D, T>
+>
+
 /** The attribute object for type `T`, from the generated attributes map `A` (falls back to `{}`). */
 type AttributesOf<A, T> = T extends keyof A ? A[T] : Record<string, never>
 
@@ -219,11 +230,11 @@ type RelationValue<
 /**
  * The relation slots of type `T`, each typed by cardinality and include-presence, then
  * narrowed to the fieldset selection for `T` (relations are sparse-fieldset members too — an
- * unrequested relation is statically absent).
+ * unrequested relation is statically absent). A write-only relation has no slot.
  */
 type Relations<D extends ApiDescriptor, A, T extends TypeName<D>, Inc, F = unknown> = PickSelected<
   {
-    [R in RelationName<D, T>]: RelationValue<D, A, T, R, Inc, F>
+    [R in ReadableRelationName<D, T>]: RelationValue<D, A, T, R, Inc, F>
   },
   SelectedFields<F, T>
 >
@@ -350,12 +361,12 @@ export type FieldsMap<D extends ApiDescriptor> = {
 
 /**
  * A selectable sparse-fieldset member of type `T`: an attribute name (the descriptor's
- * `attributes` keys) or a relation name. The descriptor carries the literal member names, so
- * `fields` entries are constrained to real members.
+ * `attributes` keys) or a relation a response renders. The descriptor carries the literal member
+ * names, so `fields` entries are constrained to real members.
  */
 export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
-  | RelationName<D, T>
+  | ReadableRelationName<D, T>
 
 /** The `page` argument a collection read of type `T` accepts (see {@link PageParams}). */
 export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = PageParams<
@@ -461,24 +472,80 @@ type FormatToTs<H> = H extends 'number' | 'integer'
           ? unknown
           : string
 
+/** The string members of a descriptor list, or `never` when it is absent. */
+type ListMember<L> = L extends readonly (infer M)[] ? M & string : never
+
+/** The fields of a {@link PivotDescriptor} every member carries (all of them when `required` is absent). */
+type RequiredPivotField<P> = P extends { fields: infer Fl }
+  ? P extends { required: infer Req }
+    ? Extract<keyof Fl, ListMember<Req>>
+    : keyof Fl
+  : never
+
+/** One pivot field's TS type: its format hint's type, plus `null` when the field is nullable. */
+type PivotValue<P, K> = P extends { fields: infer Fl }
+  ? K extends keyof Fl
+    ?
+        | FormatToTs<Fl[K]>
+        | (K extends ListMember<P extends { nullable: infer N } ? N : never> ? null : never)
+    : never
+  : never
+
+/** The fields of a {@link PivotDescriptor}. */
+type PivotFieldNames<P> = P extends { fields: infer Fl } ? keyof Fl : never
+
+/** The `meta.pivot` object a {@link PivotDescriptor} describes. */
+type PivotObject<P> = {
+  readonly [K in PivotFieldNames<P> as K extends RequiredPivotField<P> ? K : never]: PivotValue<
+    P,
+    K
+  >
+} & {
+  readonly [K in PivotFieldNames<P> as K extends RequiredPivotField<P> ? never : K]?: PivotValue<
+    P,
+    K
+  >
+}
+
+/** The legacy hint-only pivot shape: every field present and non-null. */
+type LegacyPivot<P> = { readonly [K in keyof P]: FormatToTs<P[K]> }
+
 /**
- * The typed `meta.pivot` shape of relation `R` — built from the descriptor's per-relation
- * `pivotFields` (field-name → format hint), e.g. `{ position: number; weight: number; addedAt:
- * string }`. Falls back to a loose record when the relation carries no pivot fields (D33).
+ * The typed `meta.pivot` a response renders on each member of relation `R`, from the descriptor's
+ * `readPivot`, e.g. `{ position: number; weight: number | null; addedAt: string }`. A descriptor
+ * with only `pivotFields` types every field present and non-null; one with neither falls back to
+ * a loose record (D33).
  */
 type PivotFieldsOf<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = D[T]['relations'][R] extends { pivotFields: infer P }
-  ? { readonly [K in keyof P]: FormatToTs<P[K]> }
-  : Record<string, unknown>
+> = D[T]['relations'][R] extends { readPivot: infer P }
+  ? PivotObject<P>
+  : D[T]['relations'][R] extends { pivotFields: infer P }
+    ? LegacyPivot<P>
+    : Record<string, unknown>
+
+/**
+ * The typed `meta.pivot` a request may send on each member of relation `R`, from the descriptor's
+ * `writePivot` (only writable fields, optional unless required). Falls back like
+ * {@link PivotFieldsOf} when the descriptor has no `writePivot`.
+ */
+type WritePivotOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { writePivot: infer P }
+  ? PivotObject<P>
+  : D[T]['relations'][R] extends { pivotFields: infer P }
+    ? LegacyPivot<P>
+    : PivotInput
 
 /**
  * A hydrated related VALUE for relation `R` of type `T`, resolved by cardinality over the
  * (possibly polymorphic) related type(s): a `Collection` of hydrated members for to-many,
  * the hydrated member (or `null`) for to-one. Each member's `$pivot` is typed from the
- * relation's `pivotFields` (D33).
+ * relation's `readPivot` (D33).
  */
 type RelatedValue<
   D extends ApiDescriptor,
@@ -497,7 +564,7 @@ type RelatedValue<
 /**
  * A linkage VALUE for relation `R` (the `/relationships/{rel}` endpoint, identifiers only):
  * a `Collection` of identifier members for to-many, a single identifier (or `null`) for to-one.
- * Each member's `$pivot` is typed from the relation's `pivotFields` (D33).
+ * Each member's `$pivot` is typed from the relation's `readPivot` (D33).
  */
 type LinkageValue<
   D extends ApiDescriptor,
@@ -534,7 +601,7 @@ export interface RelationshipAccessor<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
 > {
-  get: ExposesRelationship<D, T, R> extends true
+  get: ReadsRelationship<D, T, R> extends true
     ? <const Pg extends RelationPageParams<D, T, R> | undefined = undefined>(
         query?: RelationReadQuery<ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
       ) => Promise<LinkageValue<D, T, R, Pg>>
@@ -551,25 +618,26 @@ export interface RelationshipAccessor<
 }
 
 /**
- * A linkage ref for a to-many membership WRITE (`add`/`replace`) on relation `R`, with `$pivot`
- * typed from the relation's `pivotFields` — so a `belongsToMany` add carries the precise pivot
- * shape (`{ position, weight, … }`) instead of a loose record (D33).
+ * A linkage ref for a to-many membership WRITE on relation `R` (`add`/`replace`, or a create or
+ * update input), with `$pivot` typed from the relation's `writePivot` — so a `belongsToMany` add
+ * carries the precise pivot shape (`{ position, weight?, … }`) instead of a loose record (D33).
  */
 type WriteRef<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = LinkageRefOf<RelatedType<D, T, R>> & { $pivot?: PivotFieldsOf<D, T, R> }
+> = LinkageRefOf<RelatedType<D, T, R>> & { $pivot?: WritePivotOf<D, T, R> }
 
 /**
  * True unless relation `R`'s related endpoint is suppressed (`related: false`, the bundle's
- * `withoutRelatedEndpoint()`). Absent flag ⇒ exposed (the default / a hand-written descriptor).
+ * `withoutRelatedEndpoint()`) or the relation is write-only. Absent flag ⇒ exposed (the default /
+ * a hand-written descriptor).
  */
 type ExposesRelated<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = D[T]['relations'][R] extends { related: false } ? false : true
+> = D[T]['relations'][R] extends { related: false } | { writeOnly: true } ? false : true
 
 /**
  * True unless relation `R`'s relationship endpoint is suppressed (`relationship: false`, the
@@ -580,6 +648,13 @@ type ExposesRelationship<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
 > = D[T]['relations'][R] extends { relationship: false } ? false : true
+
+/** Whether relation `R`'s linkage can be read back: exposed, and not write-only. */
+type ReadsRelationship<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { writeOnly: true } ? false : ExposesRelationship<D, T, R>
 
 /** The mutation verb a relationship accessor method maps to (`add`/`remove`/`replace` to-many, `set` to-one). */
 type MutationVerb = 'add' | 'remove' | 'replace' | 'set'
@@ -636,9 +711,9 @@ type RelationshipAccessors<D extends ApiDescriptor, A, T extends TypeName<D>> = 
 // ── Write input types (CONTEXT.md "Write surface — flat input + fluent builder") ──────
 
 /**
- * Writable pivot data carried on a to-many member as `$pivot` (a belongsToMany relation
- * with `pivot: true`). Loose by design — the OpenAPI write attributes don't model per-edge
- * pivot fields, so the runtime passes the object through as `meta.pivot`.
+ * Writable pivot data carried on a to-many member as `$pivot` (a belongsToMany relation with
+ * `pivot: true`), passed through as `meta.pivot`. The loose fallback for a relation whose
+ * descriptor has no `writePivot`.
  */
 export type PivotInput = Record<string, unknown>
 
@@ -659,14 +734,18 @@ type LinkageRefOf<TType extends string> = TType extends string ? LinkageRef<TTyp
 
 /**
  * The relationship VALUE accepted in a create/update input slot, by cardinality:
- * to-one accepts a single ref or `null` (clear); to-many accepts an array of refs.
+ * to-one accepts a single ref or `null` (clear); to-many accepts an array of refs, each with an
+ * optional `$pivot` typed from the relation's `writePivot`.
  */
 type RelationInput<D extends ApiDescriptor, T extends TypeName<D>, R extends RelationName<D, T>> =
   IsMany<D, T, R> extends true
-    ? readonly LinkageRefOf<RelatedType<D, T, R>>[]
+    ? readonly WriteRef<D, T, R>[]
     : LinkageRefOf<RelatedType<D, T, R>> | null
 
-/** The relationship slots of type `T` as optional write input keys (one per declared relation). */
+/**
+ * The relationship slots of type `T` as optional write input keys (one per declared relation,
+ * write-only ones included).
+ */
 type RelationInputs<D extends ApiDescriptor, T extends TypeName<D>> = {
   [R in RelationName<D, T>]?: RelationInput<D, T, R>
 }
