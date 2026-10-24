@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 5
+            "contract": 6
         }
     },
     "servers": [
@@ -10978,21 +10978,11 @@
                         "description": "Value must be before a dynamically-resolved date/time bound."
                     },
                     "explicit": {
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
+                        "type": "boolean"
                     },
                     "status": {
-                        "description": "Where the album sits in its release lifecycle.",
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/AlbumStatus"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
+                        "$ref": "#/components/schemas/AlbumStatus",
+                        "description": "Where the album sits in its release lifecycle."
                     },
                     "availableFrom": {
                         "type": [
@@ -11552,10 +11542,7 @@
                         "maxLength": 120
                     },
                     "slug": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "website": {
                         "type": [
@@ -14184,18 +14171,12 @@
                         "minLength": 1
                     },
                     "slug": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
+                        "type": "string",
                         "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                         "example": "example-slug"
                     },
                     "public": {
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
+                        "type": "boolean"
                     },
                     "externalId": {
                         "type": [
@@ -14757,10 +14738,7 @@
                 "type": "object",
                 "properties": {
                     "displayName": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -15886,29 +15864,17 @@
                         "minLength": 1
                     },
                     "trackNumber": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ],
+                        "type": "integer",
                         "minimum": 1
                     },
                     "durationSeconds": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
+                        "type": "integer"
                     },
                     "explicit": {
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
+                        "type": "boolean"
                     },
                     "genres": {
-                        "type": [
-                            "array",
-                            "null"
-                        ],
+                        "type": "array",
                         "minItems": 1,
                         "uniqueItems": true,
                         "items": {
@@ -16363,10 +16329,7 @@
                         "format": "date"
                     },
                     "preferences": {
-                        "type": [
-                            "object",
-                            "null"
-                        ],
+                        "type": "object",
                         "minProperties": 0,
                         "maxProperties": 20,
                         "additionalProperties": {}

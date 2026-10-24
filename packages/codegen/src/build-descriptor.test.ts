@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
+import { emit } from './emit'
 import { checkContract, MAXIMUM_CONTRACT, MINIMUM_CONTRACT } from './contract'
 import type { PaginatorDescriptor, PaginatorKind } from '@haddowg/json-api-client'
 import type { OpenApiDocument, ParameterObject, SchemaObject } from './openapi'
@@ -1161,12 +1162,13 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(4))).toBeUndefined()
     expect(checkContract(contractDoc(5))).toBeUndefined()
-    expect(MAXIMUM_CONTRACT).toBe(5)
+    expect(checkContract(contractDoc(6))).toBeUndefined()
+    expect(MAXIMUM_CONTRACT).toBe(6)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(6))).toContain(
-      'declares contract 6 and this codegen reads up to 5',
+    expect(checkContract(contractDoc(7))).toContain(
+      'declares contract 7 and this codegen reads up to 6',
     )
     expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
@@ -1352,6 +1354,12 @@ describe('buildDescriptor — generator contract 5', () => {
   it('hints a nullable enum by its value branch', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(buildDescriptor(doc)['articles']!.attributes).toEqual({ status: 'string' })
+    warn.mockRestore()
+  })
+
+  it('types a nullable enum as the enum or null', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(emit(doc, buildDescriptor(doc))).toContain('  status: ArticleStatus | null\n')
     warn.mockRestore()
   })
 
