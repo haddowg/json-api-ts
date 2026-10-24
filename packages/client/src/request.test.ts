@@ -318,10 +318,10 @@ describe('execute', () => {
       'https://host.example/api/v5/advertisers?page%5Bnumber%5D=2',
     ],
     [
-      'an absolute link verbatim',
+      'a same-origin absolute link verbatim',
       'https://host.example/api/v5',
-      'https://other.example/advertisers?page[number]=2',
-      'https://other.example/advertisers?page[number]=2',
+      'https://host.example/advertisers?page[number]=2',
+      'https://host.example/advertisers?page[number]=2',
     ],
     [
       'a root-relative link against a relative base',
@@ -340,6 +340,88 @@ describe('execute', () => {
     await execute(ctx({ transport, baseUrl }), { method: 'GET', path: link, link: true })
 
     expect(sent().url).toBe(expected)
+  })
+
+  it.each([
+    ['an absolute link to another host', 'https://evil.example/x'],
+    ['a scheme-relative link', '//evil.example/x'],
+    ['a backslash scheme-relative link', '\\\\evil.example/x'],
+    ['a slash-backslash link', '/\\evil.example/x'],
+    ['a scheme-only link', 'https:evil.example'],
+    ['a link split by a tab', 'ht\ttps://evil.example/x'],
+    ['a link with a leading control character', '\u0001https:evil.example'],
+  ])('refuses to follow %s, sending nothing', async (_, link) => {
+    const transport = vi.fn<JsonApiTransport>()
+    await expect(
+      execute(
+        ctx({ transport, baseUrl: 'https://host.example/api', headers: () => ({ a: 'b' }) }),
+        {
+          method: 'GET',
+          path: link,
+          link: true,
+        },
+      ),
+    ).rejects.toThrow(/leaves the base URL's origin/)
+    expect(transport).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an absolute link', 'https://evil.example/x'],
+    ['a scheme-relative link', '//evil.example/x'],
+    ['a backslash scheme-relative link', '\\\\evil.example/x'],
+    ['a slash-backslash link', '/\\evil.example/x'],
+    ['a scheme-only link', 'https:evil.example'],
+  ])('refuses a host change from a relative base: %s', async (_, link) => {
+    const transport = vi.fn<JsonApiTransport>()
+    await expect(
+      execute(ctx({ transport, baseUrl: '/api' }), { method: 'GET', path: link, link: true }),
+    ).rejects.toThrow(/leaves the base URL's origin/)
+    expect(transport).not.toHaveBeenCalled()
+  })
+
+  it('follows a cross-origin link without the configured headers when allowed', async () => {
+    const { transport, sent } = recording(ok({ data: [] }))
+    await execute(
+      ctx({
+        transport,
+        baseUrl: 'https://host.example/api',
+        headers: () => ({ Authorization: 'Bearer t' }),
+        allowCrossOriginLinks: true,
+      }),
+      { method: 'GET', path: '//cdn.example/x?page[number]=2', link: true },
+    )
+
+    expect(sent().url).toBe('https://cdn.example/x?page[number]=2')
+    expect(sent().headers['Authorization']).toBeUndefined()
+  })
+
+  it.each([
+    ['a file link', 'file:///etc/passwd'],
+    ['a javascript link', 'javascript:alert(1)'],
+  ])('refuses %s even when cross-origin links are allowed', async (_, link) => {
+    const transport = vi.fn<JsonApiTransport>()
+    await expect(
+      execute(ctx({ transport, allowCrossOriginLinks: true }), {
+        method: 'GET',
+        path: link,
+        link: true,
+      }),
+    ).rejects.toThrow(/only http\(s\) links/)
+    expect(transport).not.toHaveBeenCalled()
+  })
+
+  it('keeps the configured headers on a same-origin link', async () => {
+    const { transport, sent } = recording(ok({ data: [] }))
+    await execute(
+      ctx({
+        transport,
+        baseUrl: 'https://host.example/api',
+        headers: () => ({ Authorization: 'Bearer t' }),
+      }),
+      { method: 'GET', path: 'https://host.example/api/albums?page[number]=2', link: true },
+    )
+
+    expect(sent().headers['Authorization']).toBe('Bearer t')
   })
 
   it('uses an absolute-URL path verbatim, bypassing baseUrl', async () => {

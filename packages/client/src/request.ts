@@ -33,6 +33,8 @@ export interface JsonApiContext {
   baseUrl: string
   transport: JsonApiTransport
   headers?: () => HeadersInit | Promise<HeadersInit>
+  /** Follow server links to another origin, without {@link headers}. Off by default. */
+  allowCrossOriginLinks?: boolean
 }
 
 /** A single read/write request, before serialisation. */
@@ -87,21 +89,49 @@ export interface JsonApiRequest {
 
 const isAbsolute = (path: string): boolean => /^https?:\/\//i.test(path)
 
-// Stands in for the origin when `baseUrl` is itself relative (e.g. `/api` in a browser app).
+// Stands in for the origin when `baseUrl` is relative and there's no page to resolve it against.
 const RELATIVE_ORIGIN = 'http://relative.invalid'
 
-/** Resolve a server link against `baseUrl` per RFC 3986. An absolute link is kept verbatim. */
-function resolveLink(link: string, baseUrl: string): string {
-  if (isAbsolute(link)) {
-    return link
+/** A server link resolved for following, and whether it stays on the base URL's origin. */
+interface ResolvedLink {
+  url: string
+  sameOrigin: boolean
+}
+
+/**
+ * Resolve a server link against `baseUrl` per RFC 3986 and check where it lands. A link on the
+ * base's origin is followed; a relative base (e.g. `/api`) takes the page's origin in a browser and
+ * otherwise only accepts a link that keeps the host. Anything that isn't plain http(s) is refused.
+ */
+function resolveLink(link: string, baseUrl: string): ResolvedLink {
+  // The URL parser drops tabs and newlines and trims control characters, so check what it sees.
+  let normalised = link.replace(/[\t\n\r]/g, '')
+  let start = 0
+  while (start < normalised.length && normalised.charCodeAt(start) <= 0x20) start++
+  normalised = normalised.slice(start)
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(normalised)?.[1]?.toLowerCase()
+  if (scheme !== undefined && scheme !== 'http' && scheme !== 'https') {
+    throw new Error(`Refusing to follow link "${link}": only http(s) links are followed`)
   }
-  if (isAbsolute(baseUrl)) {
-    return new URL(link, baseUrl).href
+
+  const relativeBase = !isAbsolute(baseUrl)
+  const page = (globalThis as { location?: { href?: unknown } }).location?.href
+  const base = new URL(
+    baseUrl,
+    relativeBase ? (typeof page === 'string' ? page : RELATIVE_ORIGIN) : undefined,
+  )
+  const resolved = new URL(link, base)
+  // `https:host` names a scheme without `//`, which the parser may read as a path or a host.
+  const sameOrigin =
+    resolved.origin === base.origin && (scheme === undefined || /^https?:\/\//i.test(normalised))
+
+  if (!sameOrigin) {
+    return { url: resolved.href, sameOrigin }
   }
-  const resolved = new URL(link, new URL(baseUrl, RELATIVE_ORIGIN))
-  return resolved.origin === RELATIVE_ORIGIN
-    ? resolved.pathname + resolved.search + resolved.hash
-    : resolved.href
+  return {
+    url: relativeBase ? resolved.pathname + resolved.search + resolved.hash : resolved.href,
+    sameOrigin,
+  }
 }
 
 const append = (parts: string[], key: string, value: unknown): void => {
@@ -178,8 +208,8 @@ export function serializeQuery(query: ReadQuery): string {
 }
 
 /**
- * Execute a request: build the URL (a server link resolved against `baseUrl`, an absolute path
- * verbatim, else `baseUrl + path`), apply content negotiation and any async per-request headers,
+ * Execute a request: build the URL (a server link resolved against `baseUrl` and held to its
+ * origin, an absolute path verbatim, else `baseUrl + path`), apply content negotiation and any async per-request headers,
  * then drive the transport. A 2xx with a body parses to a {@link Document}; an empty /
  * 204 body resolves to `undefined`. A non-2xx throws a {@link JsonApiError} carrying the
  * parsed error objects (tolerating a non-JSON error body with an empty list).
@@ -188,11 +218,20 @@ export async function execute(
   ctx: JsonApiContext,
   req: JsonApiRequest,
 ): Promise<Document | undefined> {
-  let url = req.link
-    ? resolveLink(req.path, ctx.baseUrl)
-    : isAbsolute(req.path)
-      ? req.path
-      : ctx.baseUrl + req.path
+  let url: string
+  let sendHeaders = true
+  if (req.link) {
+    const link = resolveLink(req.path, ctx.baseUrl)
+    if (!link.sameOrigin && ctx.allowCrossOriginLinks !== true) {
+      throw new Error(
+        `Refusing to follow link "${req.path}": it leaves the base URL's origin (set allowCrossOriginLinks to follow it without the configured headers)`,
+      )
+    }
+    url = link.url
+    sendHeaders = link.sameOrigin
+  } else {
+    url = isAbsolute(req.path) ? req.path : ctx.baseUrl + req.path
+  }
   if (req.query) {
     const qs = serializeQuery(req.query)
     if (qs) {
@@ -216,7 +255,7 @@ export async function execute(
       req.raw && typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
   }
 
-  if (ctx.headers) {
+  if (ctx.headers && sendHeaders) {
     mergeHeaders(headers, await ctx.headers())
   }
 

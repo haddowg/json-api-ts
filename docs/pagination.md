@@ -68,6 +68,12 @@ while (page) {
 !!! tip "No total required"
     `$next()` / `$prev()` are wired from `links.next` / `links.prev` alone. A server using a count-free paginator (no `meta.page.total`) still navigates correctly — that is the point of driving navigation off links rather than arithmetic over a total.
 
+### Links on another origin
+
+The client only follows a link that stays on the origin of `baseUrl`. A relative `baseUrl` such as `/api` uses the page's origin in a browser, and elsewhere accepts only a link with no host. A link to any other host, or one that isn't `http(s)`, makes `$next()` / `$prev()` reject before any request goes out, so your `headers` (an `Authorization` token, say) never reach another server.
+
+If your server really does hand out links to another host, set `allowCrossOriginLinks: true` on `createClient`. The client then follows those links but sends them without the configured `headers`.
+
 ## Paginator kind
 
 `$page.kind` reports which kind of paginator the endpoint uses. It is one of:
