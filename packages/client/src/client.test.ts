@@ -773,6 +773,84 @@ const resourceResponse = (type: string, id: string): TransportResponse => ({
   }),
 })
 
+describe('createClient — relation URI segments and write-only relations', () => {
+  const articles = {
+    articles: {
+      attributes: { title: 'string' },
+      relations: {
+        publisher: {
+          cardinality: 'one',
+          types: ['users'],
+          pivot: false,
+          uriField: 'published-by',
+          mutations: { set: true },
+        },
+        reviewer: {
+          cardinality: 'one',
+          types: ['users'],
+          pivot: false,
+          writeOnly: true,
+          related: false,
+          mutations: { set: true },
+        },
+      },
+      paths: {
+        create: '/articles',
+        fetchOne: '/articles/{id}',
+        fetchRelated: '/articles/{id}/{rel}',
+        fetchRelationship: '/articles/{id}/relationships/{rel}',
+      },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+    users: {
+      attributes: { name: 'string' },
+      relations: {},
+      paths: { fetchOne: '/users/{id}' },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+  } as const satisfies ApiDescriptor
+
+  it('reads and writes a renamed relation under its URI segment', async () => {
+    const { transport, requests } = writeTransport(() => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify({ data: { type: 'users', id: '7', attributes: { name: 'Ada' } } }),
+    }))
+    const client = createClient(articles, { baseUrl: BASE, transport })
+
+    await client.articles.id('1').publisher.related()
+    await client.articles.id('1').publisher.get()
+    await client.articles.id('1').publisher.set({ type: 'users', id: '7' })
+
+    expect(requests.map((req) => `${req.method} ${req.url}`)).toEqual([
+      `GET ${BASE}/articles/1/published-by`,
+      `GET ${BASE}/articles/1/relationships/published-by`,
+      `PATCH ${BASE}/articles/1/relationships/published-by`,
+    ])
+  })
+
+  it('sends a write-only relation on create and offers no read of it', async () => {
+    const { transport, requests } = writeTransport(() => resourceResponse('articles', '1'))
+    const client = createClient(articles, { baseUrl: BASE, transport })
+
+    await client.articles.create({ title: 'Draft', reviewer: { type: 'users', id: '3' } })
+    expect(bodyOf(requests[0]!)).toEqual({
+      data: {
+        type: 'articles',
+        attributes: { title: 'Draft' },
+        relationships: { reviewer: { data: { type: 'users', id: '3' } } },
+      },
+    })
+
+    const reviewer = asRecord(asRecord(client.articles.id('1'))['reviewer'])
+    expect(reviewer['get']).toBeUndefined()
+    expect(reviewer['related']).toBeUndefined()
+    expect(typeof reviewer['set']).toBe('function')
+  })
+})
+
 describe('createClient — create', () => {
   it('POSTs the flat input as a JSON:API envelope and materialises the response', async () => {
     const { transport, requests } = writeTransport(() => resourceResponse('albums', '10'))

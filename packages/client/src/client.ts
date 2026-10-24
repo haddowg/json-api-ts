@@ -69,6 +69,21 @@ const fill = (template: string, vars: Record<string, string>): string =>
   template.replace(/\{(\w+)\}/g, (_, key: string) => vars[key] ?? `{${key}}`)
 
 /**
+ * Fill a type's path template, putting a relation's URI segment (its `uriField`, else its name)
+ * in place of `{rel}`. `vars.rel` stays the relation's name everywhere else.
+ */
+function fillPath(
+  ctx: ClientContext,
+  type: string,
+  template: string,
+  vars: Record<string, string>,
+): string {
+  const rel = vars['rel']
+  const uriField = rel === undefined ? undefined : ctx.descriptor[type]?.relations[rel]?.uriField
+  return fill(template, uriField === undefined ? vars : { ...vars, rel: uriField })
+}
+
+/**
  * Run an operation: resolve the path template from the type's descriptor, fill its
  * placeholders, execute, and materialise the resulting document. A no-body / 204 response
  * materialises to `undefined`; an operation the type does not declare (no path template) throws
@@ -89,7 +104,7 @@ async function run(
   if (template === undefined) {
     throw new Error(`No "${operation}" path declared for type "${type}"`)
   }
-  const req: JsonApiRequest = { method: 'GET', path: fill(template, vars) }
+  const req: JsonApiRequest = { method: 'GET', path: fillPath(ctx, type, template, vars) }
   if (query !== undefined) {
     const { signal, ...params } = query
     req.query = params
@@ -201,7 +216,7 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
   }
   const req: JsonApiRequest = {
     method: spec.method,
-    path: fill(template, spec.vars),
+    path: fillPath(ctx, spec.type, template, spec.vars),
     body: spec.body,
   }
   if (spec.query !== undefined) {
@@ -343,12 +358,14 @@ function relationshipAccessor(
   // `relationship`/`related` flags, from the bundle's `withoutRelationshipEndpoint()` /
   // `withoutRelatedEndpoint()`). A suppressed read is omitted (a JS caller gets "not a function"
   // rather than a 404); the static types gate it to `never` for a typed caller (D24).
+  // A write-only relation is never rendered, so it has neither read.
   const accessor: Record<string, unknown> = {}
-  if (relation?.relationship !== false) {
+  const readable = relation?.writeOnly !== true
+  if (readable && relation?.relationship !== false) {
     accessor['get'] = (query?: RelationReadQuery) =>
       run(ctx, type, 'fetchRelationship', vars, query as ReadQuery | undefined, true, rel)
   }
-  if (relation?.related !== false) {
+  if (readable && relation?.related !== false) {
     accessor['related'] = (query?: RelationReadQuery) =>
       run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined, false, rel)
   }
