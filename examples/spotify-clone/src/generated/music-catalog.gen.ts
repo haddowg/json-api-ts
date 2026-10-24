@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   04b69b8383fae6b7
+ * Spec hash:   ae8d53c0df14db4c
  */
 
 import {
@@ -60,6 +60,7 @@ export interface ArtistsAttributes {
    * @maxLength 120
    */
   name: string
+  /** @minLength 1 */
   slug: string
   trackCount: number
   /** @format uri */
@@ -213,6 +214,7 @@ export interface ArtistsCreateAttributes {
    * @maxLength 120
    */
   name: string
+  /** @minLength 1 */
   slug?: string
   /** @format uri */
   website?: string | null
@@ -226,6 +228,7 @@ export interface ArtistsUpdateAttributes {
    * @maxLength 120
    */
   name?: string
+  /** @minLength 1 */
   slug?: string
   /** @format uri */
   website?: string | null
@@ -782,6 +785,7 @@ export const resourceMap = {
           "public-profiles"
         ],
         pivot: false,
+        uriField: "public-owner",
         mutations: {
           set: true
         }

@@ -50,7 +50,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 8. An older document is an error, and a newer one
+codegen reads contracts 1 to 9. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -70,6 +70,17 @@ Contract 8 changes three things the codegen reads:
   the path. Older documents fall back to the relation's name.
 - A write-only relation's property in the create, update and atomic bodies carries
   `writeOnly: true`. See [Write-only relations](#write-only-relations).
+
+Contract 9 wraps a `$ref` that carries an `example`, `examples` or `default` in a
+single-entry `allOf`, because OpenAPI 3.0 tools ignore keywords beside a `$ref`. An
+enum attribute with an example arrives as
+`{ "allOf": [{ "$ref": "#/components/schemas/ArticleStatus" }], "example": "draft" }`.
+The codegen reads that wrapper as the `$ref` it holds, so the attribute is still
+typed `status: ArticleStatus`, and the wrapper's description, example and default
+become TSDoc on the member. The same contract gives each relation its own links
+components and answers a to-many related endpoint with a
+`<Type><Rel>RelatedCollection` document. The codegen finds those endpoints by
+operationId, so neither changes the generated client.
 
 ### The validation schemas
 

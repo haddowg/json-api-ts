@@ -3,7 +3,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:albums",
         "type": "object",
-        "description": "An `albums` resource object.",
+        "description": "An album resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -129,7 +129,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:artists",
         "type": "object",
-        "description": "An `artists` resource object.",
+        "description": "An artist resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -147,7 +147,8 @@
                         "maxLength": 120
                     },
                     "slug": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1
                     },
                     "website": {
                         "type": [
@@ -202,7 +203,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:catalog-exports",
         "type": "object",
-        "description": "An `catalog-exports` resource object.",
+        "description": "A catalog export resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -247,7 +248,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:devices",
         "type": "object",
-        "description": "An `devices` resource object.",
+        "description": "A device resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -288,7 +289,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:export-jobs",
         "type": "object",
-        "description": "An `export-jobs` resource object.",
+        "description": "An export job resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -327,7 +328,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:favorites",
         "type": "object",
-        "description": "An `favorites` resource object.",
+        "description": "A favorite resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -370,7 +371,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:genres",
         "type": "object",
-        "description": "An `genres` resource object.",
+        "description": "A genre resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -411,7 +412,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:libraries",
         "type": "object",
-        "description": "An `libraries` resource object.",
+        "description": "A library resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -442,7 +443,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:playlists",
         "type": "object",
-        "description": "An `playlists` resource object.",
+        "description": "A playlist resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -501,7 +502,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:products",
         "type": "object",
-        "description": "An `products` resource object.",
+        "description": "A product resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -541,7 +542,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:public-profiles",
         "type": "object",
-        "description": "An `public-profiles` resource object.",
+        "description": "A public profile resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -580,7 +581,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:releases",
         "type": "object",
-        "description": "An `releases` resource object.",
+        "description": "A release resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -804,7 +805,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:tracks",
         "type": "object",
-        "description": "An `tracks` resource object.",
+        "description": "A track resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -879,7 +880,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:charts",
         "type": "object",
-        "description": "An `charts` resource object.",
+        "description": "A chart resource object.",
         "properties": {
             "type": {
                 "type": "string",
@@ -910,7 +911,7 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:jsonapi:schema:countries",
         "type": "object",
-        "description": "An `countries` resource object.",
+        "description": "A country resource object.",
         "properties": {
             "type": {
                 "type": "string",

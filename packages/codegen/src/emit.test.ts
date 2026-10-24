@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
 import { detectVerbCollisions, emit } from './emit'
 import type { ApiDescriptor } from '@haddowg/json-api-client'
-import type { OpenApiDocument } from './openapi'
+import type { OpenApiDocument, SchemaObject } from './openapi'
 
 function loadFixture(name: string): OpenApiDocument {
   const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
@@ -499,5 +499,289 @@ describe('emit (generator contract 5)', () => {
     const bare = structuredClone(widgets)
     bare.paths!['/widgets']!.get!.parameters = []
     expect(emit(bare, buildDescriptor(bare))).toContain('export const pageLimits = {} as const')
+  })
+})
+
+const ref = (name: string): SchemaObject => ({ $ref: `#/components/schemas/${name}` })
+// Contract 9 writes a `$ref` that carries an example or default as a single-entry `allOf`.
+const annotated = (wrap: boolean, name: string, annotations: SchemaObject): SchemaObject =>
+  wrap ? { allOf: [ref(name)], ...annotations } : { ...ref(name), ...annotations }
+const json = (schema: SchemaObject) => ({
+  content: { 'application/vnd.api+json': { schema } },
+})
+const page = (size: number) => ({
+  name: 'page',
+  in: 'query',
+  schema: {
+    type: 'object',
+    properties: { number: { type: 'integer' }, size: { type: 'integer', default: size } },
+    'x-paginator': { strategy: 'page', keys: { number: 'number', size: 'size' } },
+  },
+})
+const cursor = {
+  name: 'page',
+  in: 'query',
+  schema: {
+    type: 'object',
+    properties: { after: { type: 'string' }, size: { type: 'integer' } },
+    'x-paginator': { strategy: 'cursor', keys: { after: 'after', size: 'size' } },
+  },
+}
+const links = (wrap: boolean, members: string[]): SchemaObject => ({
+  type: 'object',
+  properties: Object.fromEntries(
+    members.map((member) => [
+      member,
+      annotated(wrap, member === 'describedby' ? 'LinkObject' : 'RenderedLink', {
+        description: `The ${member} link.`,
+        example: `https://api.example/${member}`,
+      }),
+    ]),
+  ),
+  additionalProperties: ref('Link'),
+})
+const resource = (type: string, wrap: boolean, relationships?: SchemaObject): SchemaObject => {
+  const base = type[0]!.toUpperCase() + type.slice(1)
+  return {
+    type: 'object',
+    properties: {
+      type: { type: 'string', const: type },
+      id: { type: 'string' },
+      attributes: ref(`${base}Attributes`),
+      ...(relationships === undefined ? {} : { relationships }),
+      links: annotated(wrap, `${base}ResourceLinks`, { example: { self: '/x' } }),
+    },
+  }
+}
+const identifier = (type: string): SchemaObject => ({
+  type: 'object',
+  properties: { type: { type: 'string', const: type }, id: { type: 'string' } },
+})
+
+// The provenance header hashes the document, so it differs between the two forms by design.
+const withoutHeader = (generated: string) => generated.slice(generated.indexOf(' */\n'))
+
+describe('emit (generator contract 9)', () => {
+  const articles = (wrap: boolean): OpenApiDocument => ({
+    openapi: '3.1.0',
+    info: { title: 'Articles', version: '1', 'x-generator': { contract: 9 } },
+    paths: {
+      '/articles': {
+        get: {
+          operationId: 'fetchCollection.articles',
+          parameters: [page(10)],
+          responses: { '200': json(ref('ArticlesCollection')) },
+        },
+        post: {
+          operationId: 'create.articles',
+          requestBody: json(ref('ArticlesCreateRequest')),
+          responses: { '201': json(ref('ArticlesDocument')) },
+        },
+      },
+      '/articles/{id}': {
+        get: { operationId: 'fetchOne.articles' },
+        patch: {
+          operationId: 'update.articles',
+          requestBody: json(ref('ArticlesUpdateRequest')),
+        },
+      },
+      '/articles/{id}/written-by': {
+        get: {
+          operationId: 'fetchRelated.articles.author',
+          responses: { '200': json(ref('ArticlesAuthorRelatedDocument')) },
+        },
+      },
+      '/articles/{id}/relationships/written-by': {
+        get: {
+          operationId: 'fetchRelationship.articles.author',
+          responses: { '200': json(ref('ArticlesAuthorRelationshipDocument')) },
+        },
+        patch: { operationId: 'updateRelationship.articles.author' },
+      },
+      '/articles/{id}/tags': {
+        get: {
+          operationId: 'fetchRelated.articles.tags',
+          parameters: [cursor],
+          responses: { '200': json(ref('ArticlesTagsRelatedCollection')) },
+        },
+      },
+      '/tags': {
+        get: {
+          operationId: 'fetchCollection.tags',
+          parameters: [page(25)],
+          responses: { '200': json(ref('TagsCollection')) },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        ArticleStatus: {
+          type: 'string',
+          enum: ['draft', 'published'],
+          'x-enum-descriptions': ['Not yet public.', 'Public.'],
+        },
+        ArticlesResource: resource('articles', wrap, {
+          type: 'object',
+          properties: {
+            author: annotated(wrap, 'ArticlesAuthorRelationship', {
+              example: { data: { type: 'people', id: '1' } },
+            }),
+            tags: ref('ArticlesTagsRelationship'),
+          },
+        }),
+        ArticlesAttributes: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            status: annotated(wrap, 'ArticleStatus', {
+              description: 'Where the article is in its lifecycle.',
+              example: 'draft',
+            }),
+          },
+          required: ['title', 'status'],
+        },
+        ArticlesCreateAttributes: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            status: annotated(wrap, 'ArticleStatus', { default: 'draft' }),
+          },
+          required: ['title'],
+        },
+        ArticlesUpdateAttributes: {
+          type: 'object',
+          properties: {
+            status: annotated(wrap, 'ArticleStatus', { example: 'published' }),
+          },
+        },
+        ArticlesCreateRequest: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', const: 'articles' },
+                id: false,
+                attributes: ref('ArticlesCreateAttributes'),
+                relationships: {
+                  type: 'object',
+                  properties: {
+                    author: annotated(wrap, 'ArticlesAuthorRelationship', {
+                      example: { data: { type: 'people', id: '1' } },
+                    }),
+                  },
+                },
+              },
+            },
+          },
+        },
+        ArticlesUpdateRequest: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: { attributes: ref('ArticlesUpdateAttributes') },
+            },
+          },
+        },
+        ArticlesResourceLinks: links(wrap, ['self', 'describedby']),
+        ArticlesAuthorRelationship: {
+          type: 'object',
+          properties: {
+            data: { anyOf: [ref('PeopleResourceIdentifier'), { type: 'null' }] },
+            links: annotated(wrap, 'ArticlesAuthorRelationshipLinks', { example: {} }),
+          },
+        },
+        ArticlesAuthorRelationshipLinks: links(wrap, ['self', 'related']),
+        ArticlesTagsRelationship: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: ref('TagsResourceIdentifier') },
+            links: ref('ArticlesTagsRelationshipLinks'),
+          },
+        },
+        ArticlesTagsRelationshipLinks: links(wrap, ['self', 'related']),
+        ArticlesTagsRelatedCollection: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: ref('TagsResource') },
+            links: annotated(wrap, 'ArticlesTagsRelatedDocumentLinks', {
+              example: { self: '/articles/1/tags' },
+            }),
+          },
+        },
+        ArticlesTagsRelatedDocumentLinks: links(wrap, ['self', 'first', 'next', 'describedby']),
+        ArticlesCollection: {
+          type: 'object',
+          properties: { data: { type: 'array', items: ref('ArticlesResource') } },
+        },
+        PeopleResource: resource('people', wrap),
+        PeopleAttributes: { type: 'object', properties: { name: { type: 'string' } } },
+        PeopleResourceLinks: links(wrap, ['self']),
+        PeopleResourceIdentifier: identifier('people'),
+        TagsResource: resource('tags', wrap),
+        TagsAttributes: { type: 'object', properties: { label: { type: 'string' } } },
+        TagsResourceLinks: links(wrap, ['self']),
+        TagsResourceIdentifier: identifier('tags'),
+        TagsCollection: {
+          type: 'object',
+          properties: { data: { type: 'array', items: ref('TagsResource') } },
+        },
+        RenderedLink: { anyOf: [{ type: 'string' }, ref('LinkObject')] },
+        LinkObject: { type: 'object', properties: { href: { type: 'string' } } },
+        Link: { anyOf: [{ type: 'string' }, ref('LinkObject'), { type: 'null' }] },
+      },
+    },
+  })
+
+  const bare = articles(false)
+  const wrapped = articles(true)
+  const wrappedSource = emit(wrapped, buildDescriptor(wrapped))
+
+  it('builds the same descriptor from a wrapped $ref as from a bare one', () => {
+    const built = buildDescriptor(wrapped)
+    expect(built).toEqual(buildDescriptor(bare))
+    expect(built['articles']!.relations['author']).toMatchObject({
+      cardinality: 'one',
+      types: ['people'],
+      uriField: 'written-by',
+      mutations: { set: true },
+    })
+    // the to-many related endpoint answers with its own RelatedCollection and pages by cursor
+    expect(built['articles']!.relations['tags']!.paginator).toBe('cursor')
+    expect(built['articles']!.paths['fetchMany']).toBe('/articles')
+    expect(built['articles']!.attributes['status']).toBe('string')
+  })
+
+  it('emits the same types from a wrapped $ref as from a bare one', () => {
+    expect(withoutHeader(wrappedSource)).toBe(withoutHeader(emit(bare, buildDescriptor(bare))))
+  })
+
+  it('types a wrapped enum attribute as its alias and keeps the wrapper annotations', () => {
+    expect(wrappedSource).toContain('export type ArticleStatus = "draft" | "published"')
+    expect(wrappedSource).toContain(
+      [
+        '  /**',
+        '   * Where the article is in its lifecycle.',
+        '   *',
+        '   * @example draft',
+        '   */',
+        '  status: ArticleStatus',
+      ].join('\n'),
+    )
+    expect(wrappedSource).toContain(
+      ['  /** @defaultValue `"draft"` */', '  status?: ArticleStatus'].join('\n'),
+    )
+    expect(wrappedSource).toContain(
+      ['  /** @example published */', '  status?: ArticleStatus'].join('\n'),
+    )
+  })
+
+  it('leaves the source document untouched', () => {
+    expect(wrapped.components!.schemas!['ArticlesAttributes']!.properties!['status']).toEqual({
+      allOf: [ref('ArticleStatus')],
+      description: 'Where the article is in its lifecycle.',
+      example: 'draft',
+    })
   })
 })

@@ -24,6 +24,7 @@ import type {
   SchemaObject,
   SchemaOrBool,
 } from './openapi'
+import { unwrapRefs } from './unwrap-refs'
 
 const REF_PREFIX = '#/components/schemas/'
 const JSON_API_MEDIA_TYPE = 'application/vnd.api+json'
@@ -78,7 +79,8 @@ export class DescriptorBuilder {
   /** Lazily-built wire-type -> collection-level paginator kind (for per-relation divergence, D6a). */
   private typePaginators?: Map<string, PaginatorDescriptor>
 
-  constructor(private readonly doc: OpenApiDocument) {
+  constructor(source: OpenApiDocument) {
+    const doc = unwrapRefs(source)
     this.schemas = doc.components?.schemas ?? {}
     this.paths = doc.paths ?? {}
   }
