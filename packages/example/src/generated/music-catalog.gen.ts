@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   8b524de0c0b3ba42
+ * Spec hash:   e2c00824250d9c86
  */
 
 import {
@@ -327,13 +327,13 @@ export interface TracksCreateAttributes {
    * @minItems 1
    * @uniqueItems
    */
-  genres?: [string, ...string[]]
+  genres: [string, ...string[]]
   /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset?: string | null
   /** @minLength 1 */
   title: string
   /** @minimum 1 */
-  trackNumber?: number
+  trackNumber: number
 }
 
 export interface TracksUpdateAttributes {
