@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 6
+            "contract": 7
         }
     },
     "servers": [
@@ -10817,7 +10817,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/AlbumsArtistRelationshipLinks"
                     },
                     "data": {
                         "anyOf": [
@@ -10860,6 +10860,31 @@
                 "required": [
                     "data"
                 ]
+            },
+            "AlbumsArtistRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `artist` relationship object of a resource of type `albums`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/relationships/artist",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1relationships~1artist/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/artist",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1artist/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "AlbumsAtomicAdd": {
                 "type": "object",
@@ -11060,7 +11085,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/AlbumsCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -11072,6 +11097,62 @@
                 "required": [
                     "data"
                 ]
+            },
+            "AlbumsCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `albums`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums",
+                            "describedby": "/admin/docs.json#/paths/~1albums/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1albums/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums",
+                            "describedby": "/admin/docs.json#/paths/~1albums/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums",
+                            "describedby": "/admin/docs.json#/paths/~1albums/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums",
+                            "describedby": "/admin/docs.json#/paths/~1albums/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums",
+                            "describedby": "/admin/docs.json#/paths/~1albums/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "AlbumsCreateAttributes": {
                 "type": "object",
@@ -11187,7 +11268,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/AlbumsDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -11199,6 +11280,30 @@
                 "required": [
                     "data"
                 ]
+            },
+            "AlbumsDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `albums`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "AlbumsResource": {
                 "type": "object",
@@ -11226,7 +11331,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/AlbumsResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -11256,11 +11361,28 @@
                     "id"
                 ]
             },
+            "AlbumsResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `albums`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "AlbumsTracksRelationship": {
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/AlbumsTracksRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -11295,6 +11417,63 @@
                 "required": [
                     "data"
                 ]
+            },
+            "AlbumsTracksRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `tracks` relationship object of a resource of type `albums`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1tracks/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/albums/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "AlbumsUpdateAttributes": {
                 "type": "object",
@@ -11415,7 +11594,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/ArtistsAlbumsRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -11450,6 +11629,63 @@
                 "required": [
                     "data"
                 ]
+            },
+            "ArtistsAlbumsRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `albums` relationship object of a resource of type `artists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1/relationships/albums",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D~1relationships~1albums/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1/albums",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D~1albums/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1/relationships/albums",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D~1relationships~1albums/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1/relationships/albums",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D~1relationships~1albums/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1/relationships/albums",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D~1relationships~1albums/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1/relationships/albums",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D~1relationships~1albums/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "ArtistsAtomicAdd": {
                 "type": "object",
@@ -11606,7 +11842,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/ArtistsCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -11618,6 +11854,62 @@
                 "required": [
                     "data"
                 ]
+            },
+            "ArtistsCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `artists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists",
+                            "describedby": "/admin/docs.json#/paths/~1artists/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1artists/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists",
+                            "describedby": "/admin/docs.json#/paths/~1artists/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists",
+                            "describedby": "/admin/docs.json#/paths/~1artists/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists",
+                            "describedby": "/admin/docs.json#/paths/~1artists/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists",
+                            "describedby": "/admin/docs.json#/paths/~1artists/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "ArtistsCreateAttributes": {
                 "type": "object",
@@ -11710,7 +12002,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/ArtistsDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -11722,6 +12014,30 @@
                 "required": [
                     "data"
                 ]
+            },
+            "ArtistsDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `artists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1artists~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "ArtistsResource": {
                 "type": "object",
@@ -11746,7 +12062,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/ArtistsResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -11775,6 +12091,23 @@
                     "type",
                     "id"
                 ]
+            },
+            "ArtistsResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `artists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/artists/1",
+                            "describedby": "/admin/docs.json#/paths/~1artists~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "ArtistsUpdateAttributes": {
                 "type": "object",
@@ -13412,7 +13745,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/LibrariesCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -13424,6 +13757,62 @@
                 "required": [
                     "data"
                 ]
+            },
+            "LibrariesCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `libraries`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries",
+                            "describedby": "/admin/docs.json#/paths/~1libraries/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1libraries/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries",
+                            "describedby": "/admin/docs.json#/paths/~1libraries/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries",
+                            "describedby": "/admin/docs.json#/paths/~1libraries/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries",
+                            "describedby": "/admin/docs.json#/paths/~1libraries/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries",
+                            "describedby": "/admin/docs.json#/paths/~1libraries/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "LibrariesCreateAttributes": {
                 "type": "object"
@@ -13488,7 +13877,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/LibrariesDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -13500,6 +13889,30 @@
                 "required": [
                     "data"
                 ]
+            },
+            "LibrariesDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `libraries`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "LibrariesItemsRelatedCollection": {
                 "type": "object",
@@ -13538,7 +13951,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/LibrariesItemsRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -13594,6 +14007,63 @@
                     "data"
                 ]
             },
+            "LibrariesItemsRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `items` relationship object of a resource of type `libraries`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/relationships/items",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1relationships~1items/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/items",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1items/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/relationships/items",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1relationships~1items/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/relationships/items",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1relationships~1items/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/relationships/items",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1relationships~1items/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/relationships/items",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1relationships~1items/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "LibrariesOwnerRelatedDocument": {
                 "type": "object",
                 "properties": {
@@ -13625,7 +14095,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/LibrariesOwnerRelationshipLinks"
                     },
                     "data": {
                         "anyOf": [
@@ -13669,6 +14139,31 @@
                     "data"
                 ]
             },
+            "LibrariesOwnerRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `owner` relationship object of a resource of type `libraries`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/relationships/owner",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1relationships~1owner/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1/owner",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D~1owner/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "LibrariesResource": {
                 "type": "object",
                 "description": "An `libraries` resource object.",
@@ -13695,7 +14190,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/LibrariesResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -13724,6 +14219,23 @@
                     "type",
                     "id"
                 ]
+            },
+            "LibrariesResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `libraries`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/libraries/1",
+                            "describedby": "/admin/docs.json#/paths/~1libraries~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "LibrariesUpdateAttributes": {
                 "type": "object"
@@ -13783,11 +14295,45 @@
                             "rel": {
                                 "type": "string"
                             },
+                            "describedby": {
+                                "description": "A link to a description document for the link's target: a URI-reference, or a link object.",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "format": "uri-reference"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "href": {
+                                                "type": "string",
+                                                "format": "uri-reference"
+                                            }
+                                        },
+                                        "required": [
+                                            "href"
+                                        ]
+                                    }
+                                ]
+                            },
                             "title": {
                                 "type": "string"
                             },
                             "type": {
                                 "type": "string"
+                            },
+                            "hreflang": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                ]
                             },
                             "meta": {
                                 "type": "object"
@@ -13809,6 +14355,9 @@
                         "$ref": "#/components/schemas/LinkObject"
                     },
                     "related": {
+                        "$ref": "#/components/schemas/LinkObject"
+                    },
+                    "describedby": {
                         "$ref": "#/components/schemas/LinkObject"
                     }
                 },
@@ -14047,19 +14596,22 @@
                 "type": "object",
                 "properties": {
                     "self": {
-                        "$ref": "#/components/schemas/LinkObject"
+                        "$ref": "#/components/schemas/RenderedLink"
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink"
                     },
                     "first": {
-                        "$ref": "#/components/schemas/LinkObject"
+                        "$ref": "#/components/schemas/RenderedLink"
                     },
                     "prev": {
-                        "$ref": "#/components/schemas/LinkObject"
+                        "$ref": "#/components/schemas/RenderedLink"
                     },
                     "next": {
-                        "$ref": "#/components/schemas/LinkObject"
+                        "$ref": "#/components/schemas/RenderedLink"
                     },
                     "last": {
-                        "$ref": "#/components/schemas/LinkObject"
+                        "$ref": "#/components/schemas/RenderedLink"
                     }
                 }
             },
@@ -14221,7 +14773,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/PlaylistsCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -14233,6 +14785,62 @@
                 "required": [
                     "data"
                 ]
+            },
+            "PlaylistsCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1playlists/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1playlists/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1playlists/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1playlists/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1playlists/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1playlists/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "PlaylistsCreateAttributes": {
                 "type": "object",
@@ -14322,7 +14930,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PlaylistsDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -14335,11 +14943,35 @@
                     "data"
                 ]
             },
+            "PlaylistsDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "PlaylistsOrderedTracksRelationship": {
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PlaylistsOrderedTracksRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -14445,11 +15077,68 @@
                     "data"
                 ]
             },
+            "PlaylistsOrderedTracksRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `orderedTracks` relationship object of a resource of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/orderedTracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1orderedTracks/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/orderedTracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1orderedTracks/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/orderedTracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1orderedTracks/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/orderedTracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1orderedTracks/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/orderedTracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1orderedTracks/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/orderedTracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1orderedTracks/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "PlaylistsOwnerRelationship": {
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PlaylistsOwnerRelationshipLinks"
                     },
                     "data": {
                         "anyOf": [
@@ -14493,6 +15182,23 @@
                     "data"
                 ]
             },
+            "PlaylistsOwnerRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `owner` relationship object of a resource of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/owner",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "PlaylistsPublicOwnerRelatedDocument": {
                 "type": "object",
                 "properties": {
@@ -14524,7 +15230,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PlaylistsPublicOwnerRelationshipLinks"
                     },
                     "data": {
                         "anyOf": [
@@ -14568,6 +15274,31 @@
                     "data"
                 ]
             },
+            "PlaylistsPublicOwnerRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `publicOwner` relationship object of a resource of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/publicOwner",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1publicOwner/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/publicOwner",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1publicOwner/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "PlaylistsResource": {
                 "type": "object",
                 "description": "An `playlists` resource object.",
@@ -14601,7 +15332,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PlaylistsResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -14631,11 +15362,28 @@
                     "id"
                 ]
             },
+            "PlaylistsResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "PlaylistsTracksRelationship": {
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PlaylistsTracksRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -14670,6 +15418,63 @@
                 "required": [
                     "data"
                 ]
+            },
+            "PlaylistsTracksRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `tracks` relationship object of a resource of type `playlists`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1tracks/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/playlists/1/relationships/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1tracks/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "PlaylistsUpdateAttributes": {
                 "type": "object",
@@ -14755,7 +15560,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/PublicProfilesCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -14768,6 +15573,62 @@
                     "data"
                 ]
             },
+            "PublicProfilesCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `public-profiles`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1public-profiles/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "PublicProfilesDocument": {
                 "type": "object",
                 "properties": {
@@ -14775,7 +15636,7 @@
                         "$ref": "#/components/schemas/PublicProfilesResource"
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PublicProfilesDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -14787,6 +15648,30 @@
                 "required": [
                     "data"
                 ]
+            },
+            "PublicProfilesDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `public-profiles`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles/1",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1public-profiles~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "PublicProfilesResource": {
                 "type": "object",
@@ -14806,7 +15691,7 @@
                         "type": "object"
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/PublicProfilesResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -14835,6 +15720,23 @@
                     "type",
                     "id"
                 ]
+            },
+            "PublicProfilesResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `public-profiles`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/public-profiles/1",
+                            "describedby": "/admin/docs.json#/paths/~1public-profiles~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "QueryParamMalformedError": {
                 "title": "Query parameter is malformed",
@@ -15066,6 +15968,26 @@
                             "source"
                         ]
                     }
+                ]
+            },
+            "RenderedLink": {
+                "type": "object",
+                "description": "A link the server builds, rendered as a JSON:API link object. `describedby` is a URI-reference to the OpenAPI operation that describes the link's target, present when the server describes its links.",
+                "properties": {
+                    "href": {
+                        "type": "string",
+                        "format": "uri-reference"
+                    },
+                    "describedby": {
+                        "type": "string",
+                        "format": "uri-reference"
+                    },
+                    "meta": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "href"
                 ]
             },
             "RequestBodyInvalidJsonApiError": {
@@ -15727,7 +16649,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/TracksAlbumRelationshipLinks"
                     },
                     "data": {
                         "anyOf": [
@@ -15770,6 +16692,31 @@
                 "required": [
                     "data"
                 ]
+            },
+            "TracksAlbumRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `album` relationship object of a resource of type `tracks`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/relationships/album",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1relationships~1album/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/album",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1album/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "TracksAtomicAdd": {
                 "type": "object",
@@ -15931,7 +16878,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/TracksCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -15943,6 +16890,62 @@
                 "required": [
                     "data"
                 ]
+            },
+            "TracksCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `tracks`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1tracks/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1tracks/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1tracks/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1tracks/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1tracks/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks",
+                            "describedby": "/admin/docs.json#/paths/~1tracks/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "TracksCreateAttributes": {
                 "type": "object",
@@ -15979,7 +16982,9 @@
                     }
                 },
                 "required": [
-                    "title"
+                    "title",
+                    "trackNumber",
+                    "genres"
                 ]
             },
             "TracksCreateRequest": {
@@ -16042,7 +17047,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/TracksDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -16055,11 +17060,35 @@
                     "data"
                 ]
             },
+            "TracksDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `tracks`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "TracksPlaylistsRelationship": {
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/TracksPlaylistsRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -16095,6 +17124,63 @@
                     "data"
                 ]
             },
+            "TracksPlaylistsRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `playlists` relationship object of a resource of type `tracks`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1playlists/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "TracksResource": {
                 "type": "object",
                 "description": "An `tracks` resource object.",
@@ -16121,7 +17207,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/TracksResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -16150,6 +17236,23 @@
                     "type",
                     "id"
                 ]
+            },
+            "TracksResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `tracks`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/tracks/1",
+                            "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "TracksUpdateAttributes": {
                 "type": "object",
@@ -16377,7 +17480,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/PaginationLinks"
+                        "$ref": "#/components/schemas/UsersCollectionLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -16389,6 +17492,62 @@
                 "required": [
                     "data"
                 ]
+            },
+            "UsersCollectionLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is a collection of type `users`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users",
+                            "describedby": "/admin/docs.json#/paths/~1users/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1users/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users",
+                            "describedby": "/admin/docs.json#/paths/~1users/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users",
+                            "describedby": "/admin/docs.json#/paths/~1users/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users",
+                            "describedby": "/admin/docs.json#/paths/~1users/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the collection, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users",
+                            "describedby": "/admin/docs.json#/paths/~1users/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "UsersCreateAttributes": {
                 "type": "object",
@@ -16504,7 +17663,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/UsersDocumentLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -16516,6 +17675,30 @@
                 "required": [
                     "data"
                 ]
+            },
+            "UsersDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of a document whose primary data is one resource of type `users`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D/get"
+                        }
+                    },
+                    "describedby": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The OpenAPI operation that describes the document.",
+                        "example": {
+                            "href": "/admin/docs.json#/paths/~1users~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "UsersLibraryRelatedDocument": {
                 "type": "object",
@@ -16566,7 +17749,7 @@
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/UsersLibraryRelationshipLinks"
                     },
                     "data": {
                         "anyOf": [
@@ -16610,11 +17793,36 @@
                     "data"
                 ]
             },
+            "UsersLibraryRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `library` relationship object of a resource of type `users`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/relationships/library",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1relationships~1library/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/library",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1library/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "UsersPlaylistsRelationship": {
                 "type": "object",
                 "properties": {
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/UsersPlaylistsRelationshipLinks"
                     },
                     "data": {
                         "type": "array",
@@ -16650,6 +17858,63 @@
                     "data"
                 ]
             },
+            "UsersPlaylistsRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `playlists` relationship object of a resource of type `users`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "related": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1playlists/get"
+                        }
+                    },
+                    "first": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `first` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "prev": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `prev` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `next` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    },
+                    "last": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The `last` page of the relationship's linkage, when there is one. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1/relationships/playlists",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D~1relationships~1playlists/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
+            },
             "UsersResource": {
                 "type": "object",
                 "description": "An `users` resource object.",
@@ -16676,7 +17941,7 @@
                         }
                     },
                     "links": {
-                        "$ref": "#/components/schemas/Links"
+                        "$ref": "#/components/schemas/UsersResourceLinks"
                     },
                     "meta": {
                         "$ref": "#/components/schemas/Meta"
@@ -16705,6 +17970,23 @@
                     "type",
                     "id"
                 ]
+            },
+            "UsersResourceLinks": {
+                "type": "object",
+                "description": "The `links` of a resource object of type `users`.",
+                "properties": {
+                    "self": {
+                        "$ref": "#/components/schemas/RenderedLink",
+                        "description": "The resource's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "example": {
+                            "href": "https://admin.music.example/admin/users/1",
+                            "describedby": "/admin/docs.json#/paths/~1users~1%7Bid%7D/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                }
             },
             "UsersUpdateAttributes": {
                 "type": "object",

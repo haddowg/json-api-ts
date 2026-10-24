@@ -50,8 +50,14 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 6. An older document is an error, and a newer one
+codegen reads contracts 1 to 7. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
+
+Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
+with an example URL, and `describedby` points at the operation in the served spec.
+The codegen doesn't type `links`: the client reads `href` from a link object and
+accepts a plain string too, so a server that still renders string links works the
+same.
 
 ### The validation schemas
 
