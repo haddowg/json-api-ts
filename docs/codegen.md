@@ -50,7 +50,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 5. An older document is an error, and a newer one
+codegen reads contracts 1 to 6. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 ### The validation schemas
@@ -120,16 +120,29 @@ export interface TracksAttributes {
   /** @minLength 1 */
   title: string
   /** @minimum 1 */
-  trackNumber: number | null
+  trackNumber: number
   /**
    * @minItems 1
    * @uniqueItems
    */
-  genres: [string, ...string[]] | null
+  genres: [string, ...string[]]
+  previewOffset: string | null
 }
 ```
 
 A nullable enum (`anyOf` of the enum and `null`) becomes `AlbumStatus | null`.
+
+A nested object follows the same rules member by member. From generator contract 6 a
+response schema lists every member the server always renders in the object's
+`required`, so on reads those members lose their `?` and only nullability is left
+to decide. Write interfaces keep the request body's own `required`:
+
+```ts
+// read
+packaging: { material: string; gatefold: boolean | null } | null
+// create
+packaging?: { material: string; gatefold?: boolean } | null
+```
 
 Every constraint the schema declares becomes a TSDoc tag on the member, so it shows
 on hover: `@format`, `@pattern`, `@minLength`/`@maxLength`,

@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   78214b163a081f37
+ * Spec hash:   8b524de0c0b3ba42
  */
 
 import {
@@ -33,7 +33,7 @@ export interface AlbumsAttributes {
    */
   availableUntil: string | null
   averageRating: number | null
-  explicit: boolean | null
+  explicit: boolean
   releaseInfo: { label?: string | null; catalogueNumber?: string | null } | null
   /**
    * Value must be before a dynamically-resolved date/time bound.
@@ -42,7 +42,7 @@ export interface AlbumsAttributes {
    */
   releasedAt: string | null
   /** Where the album sits in its release lifecycle. */
-  status: AlbumStatus | null
+  status: AlbumStatus
   /**
    * @minLength 1
    * @maxLength 200
@@ -60,7 +60,7 @@ export interface ArtistsAttributes {
    * @maxLength 120
    */
   name: string
-  slug: string | null
+  slug: string
   trackCount: number
   /** @format uri */
   website: string | null
@@ -72,7 +72,7 @@ export interface CatalogExportsAttributes {
    * @maxLength 16
    */
   format: string
-  status: string | null
+  status: string
 }
 
 export interface ChartsAttributes {}
@@ -85,7 +85,7 @@ export interface DevicesAttributes {
 }
 
 export interface ExportJobsAttributes {
-  state: string | null
+  state: string
 }
 
 export interface FavoritesAttributes {
@@ -103,12 +103,12 @@ export interface LibrariesAttributes {}
 export interface PlaylistsAttributes {
   /** @format uuid */
   externalId: string | null
-  public: boolean | null
+  public: boolean
   /**
    * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`
    * @example example-slug
    */
-  slug: string | null
+  slug: string
   /** @minLength 1 */
   title: string
 }
@@ -119,7 +119,7 @@ export interface ProductsAttributes {
 }
 
 export interface PublicProfilesAttributes {
-  displayName: string | null
+  displayName: string
 }
 
 export interface ReleasesAttributes {
@@ -130,25 +130,25 @@ export interface ReleasesAttributes {
    */
   catalogNumber: string
   dimensions: Record<string, unknown> | null
-  format: { rpm?: number; coloured?: boolean | null; medium?: string } | { discs?: number; medium?: string } | { codec?: string; bitrateKbps?: number | null; medium?: string } | null
-  packaging: { material?: string; gatefold?: boolean | null } | null
+  format: { rpm: number; coloured: boolean | null; medium: string } | { discs: number; medium: string } | { codec: string; bitrateKbps: number | null; medium: string } | null
+  packaging: { material: string; gatefold: boolean | null } | null
 }
 
 export interface TracksAttributes {
   displayTitle: string
-  durationSeconds: number | null
-  explicit: boolean | null
+  durationSeconds: number
+  explicit: boolean
   /**
    * @minItems 1
    * @uniqueItems
    */
-  genres: [string, ...string[]] | null
+  genres: [string, ...string[]]
   /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   previewOffset: string | null
   /** @minLength 1 */
   title: string
   /** @minimum 1 */
-  trackNumber: number | null
+  trackNumber: number
 }
 
 export interface AlbumsCreateAttributes {

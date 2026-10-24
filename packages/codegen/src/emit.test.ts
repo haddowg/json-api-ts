@@ -41,11 +41,12 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('averageRating: number | null')
     expect(source).toContain('artwork: string | null')
     expect(source).toContain('releasedAt: string | null')
-    expect(source).toContain('explicit: boolean | null')
-    // A nullable enum is `anyOf: [{ $ref }, { type: 'null' }]`.
-    expect(source).toContain('status: AlbumStatus | null')
+    // The server marks these always filled (`guaranteed()`), so reads keep them non-null.
+    expect(source).toContain('explicit: boolean\n')
+    expect(source).toContain('status: AlbumStatus\n')
     expect(source).toContain('availableFrom: string | null')
     // Nested object attribute with its own members (source order preserved), nullable.
+    // It renders through a hook, so the server lists no child as always present.
     expect(source).toContain(
       'releaseInfo: { label?: string | null; catalogueNumber?: string | null } | null',
     )
@@ -57,7 +58,8 @@ describe('emit (music-catalog default server)', () => {
       return source.slice(start, source.indexOf('\n}', start))
     }
     // A response renders `null` for a value no create had to supply; a create body takes none.
-    expect(block('AlbumsAttributes')).toContain('  explicit: boolean | null')
+    expect(block('AlbumsAttributes')).toContain('  releasedAt: string | null')
+    expect(block('AlbumsCreateAttributes')).toContain('  releasedAt?: string\n')
     expect(block('AlbumsCreateAttributes')).toContain('  explicit?: boolean\n')
     expect(block('AlbumsCreateAttributes')).toContain(
       'releaseInfo?: { label?: string; catalogueNumber?: string } | null',
@@ -68,8 +70,14 @@ describe('emit (music-catalog default server)', () => {
 
   it('types an array attribute with minItems as a non-empty tuple (tracks.genres)', () => {
     expect(source).toContain('export interface TracksAttributes {')
-    expect(source).toContain('  genres: [string, ...string[]] | null')
+    expect(source).toContain('  genres: [string, ...string[]]\n')
     expect(source).toContain('  genres?: [string, ...string[]]')
+  })
+
+  it('requires the members a nested object always renders on reads, not on writes', () => {
+    // A read lists every child the server renders; a create still needs only its required ones.
+    expect(source).toContain('  packaging: { material: string; gatefold: boolean | null } | null')
+    expect(source).toContain('  packaging?: { material: string; gatefold?: boolean } | null')
   })
 
   it('emits an empty interface for an attribute-less type (libraries)', () => {
@@ -287,7 +295,7 @@ describe('emit (descriptions -> JSDoc)', () => {
 
   it('documents an attribute whose description rides the $ref wrapper (status)', () => {
     expect(source).toContain(
-      '  /** Where the album sits in its release lifecycle. */\n  status: AlbumStatus | null',
+      '  /** Where the album sits in its release lifecycle. */\n  status: AlbumStatus\n',
     )
   })
 
@@ -307,7 +315,7 @@ describe('emit (descriptions -> JSDoc)', () => {
         '   * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`',
         '   * @example example-slug',
         '   */',
-        '  slug: string | null',
+        '  slug: string',
       ].join('\n'),
     )
     expect(source).toContain(

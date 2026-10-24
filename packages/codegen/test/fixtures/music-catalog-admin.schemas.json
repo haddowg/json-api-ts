@@ -41,22 +41,15 @@
                         "description": "Value must be before a dynamically-resolved date/time bound."
                     },
                     "explicit": {
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
+                        "type": "boolean"
                     },
                     "status": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
+                        "type": "string",
                         "description": "Where the album sits in its release lifecycle.\n\n| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
                         "enum": [
                             "upcoming",
                             "released",
-                            "withdrawn",
-                            null
+                            "withdrawn"
                         ],
                         "x-enum-varnames": [
                             "Upcoming",
@@ -154,10 +147,7 @@
                         "maxLength": 120
                     },
                     "slug": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "website": {
                         "type": [
@@ -261,18 +251,12 @@
                         "minLength": 1
                     },
                     "slug": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
+                        "type": "string",
                         "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                         "example": "example-slug"
                     },
                     "public": {
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
+                        "type": "boolean"
                     },
                     "externalId": {
                         "type": [
@@ -321,10 +305,7 @@
                 "type": "object",
                 "properties": {
                     "displayName": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -367,29 +348,17 @@
                         "minLength": 1
                     },
                     "trackNumber": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ],
+                        "type": "integer",
                         "minimum": 1
                     },
                     "durationSeconds": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
+                        "type": "integer"
                     },
                     "explicit": {
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
+                        "type": "boolean"
                     },
                     "genres": {
-                        "type": [
-                            "array",
-                            "null"
-                        ],
+                        "type": "array",
                         "minItems": 1,
                         "uniqueItems": true,
                         "items": {
@@ -466,10 +435,7 @@
                         "format": "date"
                     },
                     "preferences": {
-                        "type": [
-                            "object",
-                            "null"
-                        ],
+                        "type": "object",
                         "minProperties": 0,
                         "maxProperties": 20,
                         "additionalProperties": {}
