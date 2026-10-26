@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   ae8d53c0df14db4c
+ * Spec hash:   34799d3e0f3713eb
  */
 
 import {
@@ -355,6 +355,10 @@ export interface TracksUpdateAttributes {
   trackNumber?: number
 }
 
+export type AlbumCatalogueStats = { published: number; unpublished: number }
+
+export type AlbumImportRows = { title: string; releasedOn?: string }[]
+
 export interface Attributes {
   albums: AlbumsAttributes
   artists: ArtistsAttributes
@@ -387,7 +391,12 @@ export interface WriteAttributes {
   tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
-export interface ActionTypes {}
+export interface ActionTypes {
+  albums: {
+    export: { responses: { "application/json": AlbumCatalogueStats } }
+    import: { requests: { "application/json": AlbumImportRows } }
+  }
+}
 
 export const resourceMap = {
   albums: {
@@ -480,7 +489,73 @@ export const resourceMap = {
         path: "/albums/{id}/-actions/artwork",
         input: "raw",
         output: "none",
-        contentType: "application/octet-stream"
+        contentType: "multipart/form-data",
+        inputMedia: [
+          {
+            mediaType: "multipart/form-data",
+            kind: "multipart"
+          },
+          {
+            mediaType: "image/*",
+            kind: "binary"
+          }
+        ]
+      },
+      /**
+       * Export the album catalogue
+       *
+       * Exports every album in the format the Accept header asks for: a JSON:API meta document with counts, a CSV of ids and titles, a PDF report, or the counts as plain JSON.
+       */
+      export: {
+        scope: "collection",
+        path: "/albums/-actions/export",
+        input: "none",
+        output: "meta",
+        method: "GET",
+        rawOutput: [
+          {
+            mediaType: "text/csv",
+            kind: "text"
+          },
+          {
+            mediaType: "application/pdf",
+            kind: "binary"
+          },
+          {
+            mediaType: "application/json",
+            kind: "json"
+          }
+        ]
+      },
+      /**
+       * Import albums from a file
+       *
+       * Creates albums from a CSV export, a scanned sleeve image, a multipart form upload or a JSON list of rows. The response reports the media type the server read.
+       */
+      import: {
+        scope: "collection",
+        path: "/albums/-actions/import",
+        input: "raw",
+        output: "meta",
+        contentType: "text/csv",
+        inputMedia: [
+          {
+            mediaType: "text/csv",
+            kind: "binary"
+          },
+          {
+            mediaType: "image/*",
+            kind: "binary"
+          },
+          {
+            mediaType: "multipart/form-data",
+            kind: "multipart"
+          },
+          {
+            mediaType: "application/json",
+            kind: "json"
+          }
+        ]
       },
       reissue: {
         scope: "resource",
@@ -1366,7 +1441,7 @@ export const ErrorCodes = {
    */
   MEDIA_TYPE_UNACCEPTABLE: "MEDIA_TYPE_UNACCEPTABLE",
   /**
-   * The `Content-Type` is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send `Content-Type: application/vnd.api+json` with only the parameters the server supports.
+   * The `Content-Type` is missing or names a media type the endpoint does not accept, or is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send a JSON:API document as `Content-Type: application/vnd.api+json` with only the parameters the server supports.
    *
    * @example The media type 'application/vnd.api+json; charset=utf-8' is unsupported in the 'Content-Type' header!
    */

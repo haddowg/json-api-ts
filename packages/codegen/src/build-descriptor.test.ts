@@ -176,16 +176,19 @@ describe('buildDescriptor — custom actions', () => {
     })
   })
 
-  it('classifies a non-JSON:API body as a raw input, carrying its declared media type (albums.artwork)', () => {
+  it('classifies a non-JSON:API body as a raw input, carrying its accepted media types (albums.artwork)', () => {
     expect(descriptor['albums']!.actions?.['artwork']).toEqual({
       scope: 'resource',
       path: '/albums/{id}/-actions/artwork',
       input: 'raw',
       // The handler returns a 204 (no JSON:API body), so the output is `none`.
       output: 'none',
-      // The declared media type (application/octet-stream) rides the descriptor so the client
-      // sends the right Content-Type rather than a wildcard.
-      contentType: 'application/octet-stream',
+      // The first accepted media type is the default Content-Type; the rest are the caller's to pick.
+      contentType: 'multipart/form-data',
+      inputMedia: [
+        { mediaType: 'multipart/form-data', kind: 'multipart' },
+        { mediaType: 'image/*', kind: 'binary' },
+      ],
     })
   })
 
