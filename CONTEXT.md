@@ -131,7 +131,11 @@ handles do not (serialize the data, not the handle).
   result is typed per media type: `string` for text, `Blob` for binary (`ArrayBuffer` with
   `responseType: 'arrayBuffer'`), the schema's generated type for JSON. An action listing several
   request media types (generator contract 11) carries `inputMedia` and takes `{ contentType }`,
-  with the body typed by the picked type; a declared wildcard such as `image/*` takes any `image/…`. Errors stay
+  with the body typed by the picked type; a declared wildcard such as `image/*` takes any `image/…`.
+  A multipart or URL-encoded body whose schema lists `properties` is also typed as a plain field
+  object, which the client encodes into `FormData` or `URLSearchParams`. Array items go out as
+  repeated `name[]` entries, the form PHP servers read as a list, matching the PHP client. A
+  ready `FormData` or `URLSearchParams` is still taken as is. Errors stay
   `JsonApiError` whatever was asked for. An author's summary and description become the action's
   JSDoc; the projector's stand-in prose for an undescribed action is left out.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11

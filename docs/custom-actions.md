@@ -121,6 +121,20 @@ await client.articles.actions.import({ total: 3 }, { contentType: 'application/j
 
 A wildcard such as `image/*` takes any concrete `image/…` type. Without `contentType` the client sends JSON:API when the action lists it, building the document from flat input as usual, else the first listed type. A multipart body goes out without a `Content-Type` of its own, so the transport can write the boundary. A custom transport has to send `rawBody` as is for binary, multipart and URL-encoded bodies.
 
+### Form fields
+
+When a multipart or URL-encoded body's schema lists `properties`, the codegen types its fields and you can pass a plain object. The client builds the `FormData` or `URLSearchParams` for you. A ready `FormData` or `URLSearchParams` is still accepted.
+
+```ts
+// multipart/form-data with properties title (required), cover (format: binary) and tags (array).
+await client.articles.actions.import(
+  { title: 'Spring list', cover: pngFile, tags: ['new', 'featured'] },
+  { contentType: 'multipart/form-data' },
+)
+```
+
+Required fields follow the schema's `required`, and the rest are optional. A `format: binary` field takes a `Blob` or `File`. A `File` keeps its name, and a bare `Blob` is named after its field. Numbers are sent as text and booleans as `true` or `false`. Each item of an array goes out as its own `name[]` entry, the bracketed form PHP servers read as a list, and a `null` or `undefined` field is left out. A schema with `additionalProperties` adds an index signature for the extra fields. A schema with no `properties` keeps the body a plain `FormData`. The same rules apply to an action whose only request body is multipart or URL-encoded. The PHP client takes the same fields as an array and encodes them the same way.
+
 ## See it in the example app
 
 The tested reference lives in [`example.test.ts`](../packages/example/src/example.test.ts) under `describe('custom actions', …)`: the resource-scoped `reissue` (document in, document out) and the collection-scoped `summary` (no input, meta out) are both real typed calls run under `pnpm test`. The rationale for deriving the whole surface from the descriptor — including why a regenerated old client can be a breaking change to its actions — is in [ADR 0005](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0005-derive-the-custom-action-surface-from-the-descriptor.md).

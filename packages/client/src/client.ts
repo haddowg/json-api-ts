@@ -289,9 +289,9 @@ async function runAction(
   let remap: ((error: JsonApiError) => JsonApiError) | undefined
   const media = requestMedia(action, options.contentType)
   if (media !== undefined && media.kind !== 'document') {
-    req.body = input
+    req.body = encodeFields(media.mediaType, media.kind, input)
     req.raw = true
-    req.contentType = sentContentType(media.mediaType, media.kind, input)
+    req.contentType = sentContentType(media.mediaType, media.kind, req.body)
   } else if (action.input === 'document') {
     if (action.inputType !== undefined) {
       // Flat input: build the envelope like create, and remap 422 pointers to the flat paths.
@@ -303,10 +303,10 @@ async function runAction(
       req.body = input
     }
   } else if (action.input === 'raw') {
-    req.body = input
+    req.body = encodeFields(action.contentType ?? '*/*', undefined, input)
     // Send the action's declared media type (e.g. application/octet-stream); fall back to a
     // wildcard only when the spec declared none.
-    req.contentType = sentContentType(action.contentType ?? '*/*', undefined, input)
+    req.contentType = sentContentType(action.contentType ?? '*/*', undefined, req.body)
     req.raw = true
   }
 
@@ -371,6 +371,80 @@ function requestMedia(
     )
   }
   return { mediaType: picked, kind: match.kind }
+}
+
+/**
+ * A multipart or URL-encoded body given as a plain object of fields, encoded into a `FormData` or
+ * `URLSearchParams`. Any other body, a ready `FormData` included, is sent as it is.
+ */
+function encodeFields(mediaType: string, kind: InputMediaKind | undefined, body: unknown): unknown {
+  const multipart = kind === 'multipart' || mediaType.startsWith('multipart/')
+  const form = kind === 'form' || mediaType === 'application/x-www-form-urlencoded'
+  if ((!multipart && !form) || !isPlainObject(body)) {
+    return body
+  }
+  return multipart ? toFormData(body) : toSearchParams(body)
+}
+
+/** Whether a body is a plain object of fields rather than a ready payload. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const proto = Object.getPrototypeOf(value) as unknown
+  return proto === Object.prototype || proto === null
+}
+
+/**
+ * The entries a field contributes: nothing for `null` or `undefined`, one `name[]` entry per item
+ * for an array (the bracket suffix is how PHP servers read a repeated field as a list), else one
+ * `name` entry.
+ */
+function fieldEntries(name: string, value: unknown): [string, unknown][] {
+  if (value === null || value === undefined) {
+    return []
+  }
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => item !== null && item !== undefined)
+      .map((item): [string, unknown] => [`${name}[]`, item])
+  }
+  return [[name, value]]
+}
+
+/** A field's text value: booleans as `true` or `false`, everything else through `String`. */
+function fieldText(value: unknown): string {
+  return typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value)
+}
+
+/** A multipart body from fields. A `File` keeps its name; a bare `Blob` is named after its field. */
+function toFormData(fields: Record<string, unknown>): FormData {
+  const data = new FormData()
+  for (const [field, value] of Object.entries(fields)) {
+    for (const [name, item] of fieldEntries(field, value)) {
+      if (typeof Blob !== 'undefined' && item instanceof Blob) {
+        const fileName =
+          typeof File !== 'undefined' && item instanceof File && item.name !== ''
+            ? item.name
+            : field
+        data.append(name, item, fileName)
+      } else {
+        data.append(name, fieldText(item))
+      }
+    }
+  }
+  return data
+}
+
+/** A URL-encoded body from fields. */
+function toSearchParams(fields: Record<string, unknown>): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [field, value] of Object.entries(fields)) {
+    for (const [name, item] of fieldEntries(field, value)) {
+      params.append(name, fieldText(item))
+    }
+  }
+  return params
 }
 
 /**
