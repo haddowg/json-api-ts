@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   34799d3e0f3713eb
+ * Spec hash:   721f78d316c4707e
  */
 
 import {
@@ -541,7 +541,7 @@ export const resourceMap = {
         inputMedia: [
           {
             mediaType: "text/csv",
-            kind: "binary"
+            kind: "text"
           },
           {
             mediaType: "image/*",

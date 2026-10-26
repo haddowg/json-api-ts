@@ -1903,8 +1903,7 @@
                     "content": {
                         "text/csv": {
                             "schema": {
-                                "type": "string",
-                                "format": "binary"
+                                "type": "string"
                             }
                         },
                         "image/*": {
