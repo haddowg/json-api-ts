@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   685b92170ff32b40
+ * Spec hash:   b797f2a5291c4640
  */
 
 import {
@@ -97,24 +97,37 @@ export interface ArticlesAttributes {
 export interface HealthcheckAttributes {}
 
 export interface ImagesAttributes {
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://cdn.example.com/cover.png
+   */
   url: string | null
 }
 
 export interface PeopleAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Ada Lovelace
+   */
   name: string
   role: Status | null
 }
 
 export interface TagsAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example php
+   */
   label: string
 }
 
 export interface VideosAttributes {
+  /** @example 90 */
   seconds: number | null
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://cdn.example.com/intro.mp4
+   */
   url: string | null
 }
 
@@ -250,36 +263,56 @@ export interface ArticlesUpdateAttributes {
 }
 
 export interface PeopleCreateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Ada Lovelace
+   */
   name: string
   role?: Status
 }
 
 export interface PeopleUpdateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Ada Lovelace
+   */
   name?: string
   role?: Status
 }
 
 export interface TagsCreateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example php
+   */
   label: string
 }
 
 export interface TagsUpdateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example php
+   */
   label?: string
 }
 
 export interface VideosCreateAttributes {
+  /** @example 90 */
   seconds?: number
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://cdn.example.com/intro.mp4
+   */
   url?: string
 }
 
 export interface VideosUpdateAttributes {
+  /** @example 90 */
   seconds?: number
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://cdn.example.com/intro.mp4
+   */
   url?: string
 }
 
@@ -581,6 +614,13 @@ export const resourceMap = {
         outputType: "articles",
         outputCardinality: "one"
       },
+      /**
+       * @example Response `200` as `text/csv`
+       * ```
+       * id,title
+       * 1,Hello
+       * ```
+       */
       report: {
         scope: "collection",
         path: "/articles/-actions/report",
@@ -602,6 +642,16 @@ export const resourceMap = {
           }
         ]
       },
+      /**
+       * @example Response `200`
+       * ```json
+       * {
+       *   "meta": {
+       *     "published": 12
+       *   }
+       * }
+       * ```
+       */
       stats: {
         scope: "collection",
         path: "/articles/-actions/stats",

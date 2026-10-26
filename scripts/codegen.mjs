@@ -3,8 +3,9 @@
 // (`pnpm codegen`); run with `--check` (`pnpm codegen:check`, the CI gate) to fail if any
 // committed client differs from what the current codegen would produce for its spec.
 // The test snapshot and the example clients share the music-catalog fixture, which keeps
-// them honest against the same wire contract. The contract witness is core's own
-// contract-10 document, kept verbatim, for the structures the example app doesn't use.
+// them honest against the same wire contract. Only the test snapshot writes the examples
+// module. The contract witness is core's own document, kept verbatim, for the structures the
+// example app doesn't use.
 import { spawnSync } from 'node:child_process'
 
 const CLI = 'packages/codegen/dist/cli.mjs'
@@ -14,7 +15,11 @@ const MUSIC_CATALOG = {
 }
 
 const TARGETS = [
-  { ...MUSIC_CATALOG, output: 'packages/codegen/test/generated/music-catalog.client.gen.ts' },
+  {
+    ...MUSIC_CATALOG,
+    output: 'packages/codegen/test/generated/music-catalog.client.gen.ts',
+    examples: true,
+  },
   { ...MUSIC_CATALOG, output: 'packages/example/src/generated/music-catalog.gen.ts' },
   { ...MUSIC_CATALOG, output: 'examples/spotify-clone/src/generated/music-catalog.gen.ts' },
   { ...MUSIC_CATALOG, output: 'examples/angular-catalog/src/generated/music-catalog.gen.ts' },
@@ -27,10 +32,13 @@ const TARGETS = [
 const check = process.argv.includes('--check')
 
 let failed = false
-for (const { input, schemas, output } of TARGETS) {
+for (const { input, schemas, output, examples } of TARGETS) {
   const args = [CLI, '--input', input, '--output', output]
   if (schemas !== undefined) {
     args.push('--schemas', schemas)
+  }
+  if (examples) {
+    args.push('--examples')
   }
   if (check) {
     args.push('--check')
