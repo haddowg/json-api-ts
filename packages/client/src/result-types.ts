@@ -56,10 +56,14 @@ export interface EdgeMembers<Pivot = Record<string, unknown>> {
   readonly $pivot: Pivot | undefined
 }
 
-/** The resource-level `$`-accessors on a materialised resource object. */
-export interface ResourceAccessors {
+/**
+ * The resource-level `$`-accessors on a materialised resource object. `Links` types `$links`: the
+ * type's generated links interface when its resources declare links, else the loose
+ * {@link ResourceLinks}.
+ */
+export interface ResourceAccessors<Links = ResourceLinks> {
   readonly $meta: Record<string, unknown> | undefined
-  readonly $links: ResourceLinks | undefined
+  readonly $links: Links | undefined
   readonly $self: string | undefined
   readonly $document: DocumentEnvelope
   readonly $raw: Record<string, unknown>
@@ -88,6 +92,23 @@ export type ReadableRelationName<D extends ApiDescriptor, T extends TypeName<D>>
 
 /** The attribute object for type `T`, from the generated attributes map `A` (falls back to `{}`). */
 type AttributesOf<A, T> = T extends keyof A ? A[T] : Record<string, never>
+
+// Type-only key, like `errorCodes`: never assigned, so it costs nothing at runtime.
+declare const declaredLinks: unique symbol
+
+/**
+ * The read-types map a client threads to its results: the attribute map `A`, carrying the
+ * per-type declared links map `L` under a type-only key so every type that takes `A` reaches
+ * them without another parameter. An empty `L` leaves `A` as it is.
+ */
+export type WithLinks<A, L> = [keyof L] extends [never] ? A : A & { readonly [declaredLinks]: L }
+
+/** The links of type `T`: its declared links interface from `A`, or the loose {@link ResourceLinks}. */
+type LinksOf<A, T> = A extends { readonly [declaredLinks]: infer L }
+  ? T extends keyof L
+    ? L[T]
+    : ResourceLinks
+  : ResourceLinks
 
 /**
  * A sparse-fieldset selection map: wire type -> the member names (`fields[type]`) a read
@@ -258,7 +279,7 @@ export type ResourceObjectView<
   id: string
 } & PickSelected<AttributesOf<A, T>, SelectedFields<F, T>> &
   Relations<D, A, T, Inc, F> &
-  ResourceAccessors
+  ResourceAccessors<LinksOf<A, T>>
 
 /**
  * The element type of the `include` array for type `T`: a path from the descriptor's
@@ -1205,8 +1226,9 @@ export type Client<
   W = DefaultWriteAttributes<D>,
   Act = DefaultActionTypes,
   E extends string = string,
+  L = Record<never, never>,
 > = {
-  [T in TypeName<D>]: TypeAccessor<D, A, W, T, Act>
+  [T in TypeName<D>]: TypeAccessor<D, WithLinks<A, L>, W, T, Act>
 } & {
   /**
    * Run an Atomic Operations batch (CONTEXT.md "Atomic — typed transaction builder"): the
@@ -1226,7 +1248,9 @@ export type Client<
    */
   atomic<const Ops>(
     build: (tx: AtomicRecorder<D, W>) => Ops,
-  ): Promise<Ops extends readonly AtomicHandle[] ? AtomicResults<D, A, Ops> : AtomicResult[]>
+  ): Promise<
+    Ops extends readonly AtomicHandle[] ? AtomicResults<D, WithLinks<A, L>, Ops> : AtomicResult[]
+  >
   // Here rather than in its own intersection member, which stops json-api-query inferring `D`.
   readonly [errorCodes]?: E
 }
