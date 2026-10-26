@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.8.0...json-api-codegen-v1.8.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **codegen:** read generator contract 13 ([#76](https://github.com/haddowg/json-api-ts/issues/76)) ([89591e0](https://github.com/haddowg/json-api-ts/commit/89591e0a1810be280b8a4e734825ace1030bd740))
+
 ## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.7.1...json-api-codegen-v1.8.0) (2026-10-26)
 
 

@@ -1,6 +1,6 @@
 {
   "packages/angular": "1.2.2",
   "packages/client": "1.5.0",
-  "packages/codegen": "1.8.0",
+  "packages/codegen": "1.8.1",
   "packages/query": "1.1.5"
 }
