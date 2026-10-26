@@ -7,6 +7,7 @@
     "packages/angular": {},
     "packages/client": {},
     "packages/codegen": {},
+    "packages/mcp": {},
     "packages/query": {}
   }
 }

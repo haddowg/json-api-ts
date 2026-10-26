@@ -30,6 +30,7 @@ The core idea is a single split: a **build-time reader** that turns your spec in
 | [`@haddowg/json-api-codegen`](../packages/codegen) | The build-time CLI. |
 | [`@haddowg/json-api-query`](../packages/query) | TanStack Query bindings. |
 | [`@haddowg/json-api-angular`](../packages/angular) | Signal-based Angular bindings. |
+| [`@haddowg/json-api-mcp`](../packages/mcp) | MCP tools built from the OpenAPI document. |
 
 ### `@haddowg/json-api-client` — the runtime
 
@@ -66,6 +67,10 @@ An optional layer on top of the runtime. It exposes query/mutation **option fact
 ### `@haddowg/json-api-angular`
 
 Another optional layer. `httpClientTransport` sends the client's requests through Angular's `HttpClient`, so the app's interceptors run. `provideJsonApiClient` puts a generated client in dependency injection, `jsonApiResource` wraps a read in Angular's `resource()`, and `jsonApiMutation` wraps a write in signals. It peer-depends on `@angular/core` and `@angular/common`, and has no cache of its own. See [angular](angular.md).
+
+### `@haddowg/json-api-mcp`
+
+Builds MCP tool definitions at runtime from the OpenAPI document and its descriptor, one per collection, resource, related and custom action operation, and runs calls through the client. It returns tools and a call handler rather than owning an MCP server, and leaves scopes, feature gates and auth to the host's hooks. It depends only on the client. See [MCP tools](mcp.md).
 
 ## The descriptor: the seam between codegen and runtime
 

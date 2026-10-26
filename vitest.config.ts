@@ -15,6 +15,9 @@ const alias = {
   '@haddowg/json-api-client': fileURLToPath(
     new URL('./packages/client/src/index.ts', import.meta.url),
   ),
+  '@haddowg/json-api-codegen': fileURLToPath(
+    new URL('./packages/codegen/src/index.ts', import.meta.url),
+  ),
   '@haddowg/json-api-query': fileURLToPath(
     new URL('./packages/query/src/index.ts', import.meta.url),
   ),

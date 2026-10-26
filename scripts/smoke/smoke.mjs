@@ -14,6 +14,7 @@ import {
   loadAll,
   provideJsonApiClient,
 } from '@haddowg/json-api-angular'
+import { createJsonApiMcp, readActionSafety } from '@haddowg/json-api-mcp'
 import { createQueryApi, keyFor, listQueryOptions } from '@haddowg/json-api-query'
 
 for (const [name, fn] of [
@@ -29,8 +30,10 @@ for (const [name, fn] of [
   ['jsonApiResource', jsonApiResource],
   ['jsonApiMutation', jsonApiMutation],
   ['loadAll', loadAll],
+  ['createJsonApiMcp', createJsonApiMcp],
+  ['readActionSafety', readActionSafety],
 ]) {
   assert.equal(typeof fn, 'function', `[esm] expected ${name} to be a function`)
 }
 
-console.log('[esm] @haddowg/json-api-client, /ajv, -query and -angular resolved from dist OK')
+console.log('[esm] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK')

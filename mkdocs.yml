@@ -92,5 +92,7 @@ nav:
       - tanstack-query.md
   - Angular:
       - angular.md
+  - MCP tools:
+      - mcp.md
   - Examples:
       - example-app.md
