@@ -38,7 +38,7 @@ function withMultiTypeImport(): OpenApiDocument {
 describe('generator contract 10 (raw action responses)', () => {
   it('reads the witness without a warning', () => {
     // Core's witness carries every scoped structure, so it is stamped with the highest contract.
-    expect(witness.info?.['x-generator']?.contract).toBe(12)
+    expect(witness.info?.['x-generator']?.contract).toBe(13)
     expect(checkContract(witness)).toBeUndefined()
   })
 

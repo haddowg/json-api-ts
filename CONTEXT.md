@@ -145,6 +145,9 @@ handles do not (serialize the data, not the handle).
   keyed type → `operations` (the `operationId` without the type) or `actions` (by name) →
   `request` / `responses[status]` → media type. They stay out of `resourceMap`, which every app
   ships to the browser.
+- **Error detail examples** (generator contract 13): every core error code's component carries a
+  `detail` example, which becomes an `@example` on its `ErrorCodes` key. Contract 13 is on every
+  document, since the error components are shared by all of them.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 

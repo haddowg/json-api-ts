@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   d0deb8f7e66b6917
+ * Spec hash:   995bd25f76a63a09
  */
 
 import {
@@ -1605,11 +1605,23 @@ export const pageLimits = {
  * means: `hasErrorCode(error, ErrorCodes.RESOURCE_NOT_FOUND)`.
  */
 export const ErrorCodes = {
-  /** The caller is authenticated but not permitted to do what the request asks. Retrying with the same credentials will fail the same way; act as a user who holds the permission, or don't make the request. */
+  /**
+   * The caller is authenticated but not permitted to do what the request asks. Retrying with the same credentials will fail the same way; act as a user who holds the permission, or don't make the request.
+   *
+   * @example Access is denied!
+   */
   ACCESS_DENIED: "ACCESS_DENIED",
-  /** This relationship does not let a client add members to it. Don't retry the request; the relationship changes only in the ways the API documents for it. */
+  /**
+   * This relationship does not let a client add members to it. Don't retry the request; the relationship changes only in the ways the API documents for it.
+   *
+   * @example Addition to relationship 'tags' is prohibited!
+   */
   ADDITION_PROHIBITED: "ADDITION_PROHIBITED",
-  /** The server failed to handle the request because of a fault on its side, not because of anything in the request. Retrying won't help; report it to the API's maintainers. */
+  /**
+   * The server failed to handle the request because of a fault on its side, not because of anything in the request. Retrying won't help; report it to the API's maintainers.
+   *
+   * @example An application error has occurred!
+   */
   APPLICATION_ERROR: "APPLICATION_ERROR",
   /**
    * An operation in the Atomic Operations request is malformed: a missing or unknown `op`, or a broken `ref`, `href` or `data`. The server applied none of the batch; fix the operation at `source.pointer` and send the whole batch again.
@@ -1623,19 +1635,47 @@ export const ErrorCodes = {
    * @example The value for attribute "publishedAt" is invalid: Failed to parse time string (next blursday) at position 0 (n): The timezone could not be found in the database
    */
   ATTRIBUTE_VALUE_INVALID: "ATTRIBUTE_VALUE_INVALID",
-  /** The request carried no credentials, or credentials the server rejected, such as an expired token. Authenticate, then send the request again with valid credentials. */
+  /**
+   * The request carried no credentials, or credentials the server rejected, such as an expired token. Authenticate, then send the request again with valid credentials.
+   *
+   * @example Authentication is required!
+   */
   AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
-  /** A resource of this type already has the `id` the create request supplied. Generate a new id and send the request again, or update the existing resource instead. */
+  /**
+   * A resource of this type already has the `id` the create request supplied. Generate a new id and send the request again, or update the existing resource instead.
+   *
+   * @example Client generated ID '1' already exists!
+   */
   CLIENT_GENERATED_ID_ALREADY_EXISTS: "CLIENT_GENERATED_ID_ALREADY_EXISTS",
-  /** The create request supplied an `id`, but this resource type assigns its own ids. Leave `data.id` out and the server generates one. */
+  /**
+   * The create request supplied an `id`, but this resource type assigns its own ids. Leave `data.id` out and the server generates one.
+   *
+   * @example Client generated ID '1' is not supported!
+   */
   CLIENT_GENERATED_ID_NOT_SUPPORTED: "CLIENT_GENERATED_ID_NOT_SUPPORTED",
-  /** This resource type expects the client to choose the id, and the create request supplied none. Add `data.id` in the format the API documents and send the request again. */
+  /**
+   * This resource type expects the client to choose the id, and the create request supplied none. Add `data.id` in the format the API documents and send the request again.
+   *
+   * @example A client generated ID must be used!
+   */
   CLIENT_GENERATED_ID_REQUIRED: "CLIENT_GENERATED_ID_REQUIRED",
-  /** The cursor in the named `page` parameter could not be decoded. Use cursors exactly as the server returned them in a previous page's `links`; never build or edit one. */
+  /**
+   * The cursor in the named `page` parameter could not be decoded. Use cursors exactly as the server returned them in a previous page's `links`; never build or edit one.
+   *
+   * @example The cursor supplied in 'page[after]' could not be decoded.
+   */
   CURSOR_MALFORMED: "CURSOR_MALFORMED",
-  /** The cursor was issued for a different sort order than this request asks for, so it no longer marks a position in these results. Keep `sort` unchanged while paging, or start again from the first page. */
+  /**
+   * The cursor was issued for a different sort order than this request asks for, so it no longer marks a position in these results. Keep `sort` unchanged while paging, or start again from the first page.
+   *
+   * @example The cursor supplied in 'page[after]' was built for a different sort order and can no longer be used.
+   */
   CURSOR_STALE: "CURSOR_STALE",
-  /** The request document has no top-level `data` member, which this request needs. Send the resource object or relationship linkage under `data`. */
+  /**
+   * The request document has no top-level `data` member, which this request needs. Send the resource object or relationship linkage under `data`.
+   *
+   * @example Missing `data` member at the document's top level!
+   */
   DATA_MEMBER_MISSING: "DATA_MEMBER_MISSING",
   /**
    * A `fields[TYPE]` parameter names a member that type does not have. Request only the attributes and relationships the type declares.
@@ -1649,9 +1689,17 @@ export const ErrorCodes = {
    * @example Filtering parameter 'colour' can't be recognized by the endpoint!
    */
   FILTERING_UNRECOGNIZED: "FILTERING_UNRECOGNIZED",
-  /** A `filter[...]` value fails the constraints that filter declares, for example text where a number is expected. Correct the value of the parameter named in `source.parameter`; each failed constraint is its own error. */
+  /**
+   * A `filter[...]` value fails the constraints that filter declares, for example text where a number is expected. Correct the value of the parameter named in `source.parameter`; each failed constraint is its own error.
+   *
+   * @example The value supplied for 'filter[rating]' is invalid.
+   */
   FILTER_VALUE_INVALID: "FILTER_VALUE_INVALID",
-  /** This relationship cannot be replaced as a whole, for example by a `PATCH` to its relationship endpoint. Add or remove individual members instead, if the relationship allows that. */
+  /**
+   * This relationship cannot be replaced as a whole, for example by a `PATCH` to its relationship endpoint. Add or remove individual members instead, if the relationship allows that.
+   *
+   * @example Full replacement of relationship 'tags' is prohibited!
+   */
   FULL_REPLACEMENT_PROHIBITED: "FULL_REPLACEMENT_PROHIBITED",
   /**
    * An `include` path nests more relationships than the server allows. Shorten the path and fetch the deeper resources with a separate request.
@@ -1659,7 +1707,11 @@ export const ErrorCodes = {
    * @example Included paths 'author.publisher.country' exceed the maximum include depth of 2 permitted by the endpoint!
    */
   INCLUSION_DEPTH_EXCEEDED: "INCLUSION_DEPTH_EXCEEDED",
-  /** An `include` path names a relationship that exists but may not be included from this request. Remove the path and fetch the related resources with a separate request. */
+  /**
+   * An `include` path names a relationship that exists but may not be included from this request. Remove the path and fetch the related resources with a separate request.
+   *
+   * @example Included paths 'author.company' are not allowed by the endpoint!
+   */
   INCLUSION_NOT_ALLOWED: "INCLUSION_NOT_ALLOWED",
   /**
    * An `include` path names a relationship the resource type does not have. Check each path against the relationships the type documents.
@@ -1667,13 +1719,29 @@ export const ErrorCodes = {
    * @example Included paths 'auther' can't be recognized by the endpoint!
    */
   INCLUSION_UNRECOGNIZED: "INCLUSION_UNRECOGNIZED",
-  /** This endpoint does not support the `include` parameter. Remove it and fetch related resources with separate requests. */
+  /**
+   * This endpoint does not support the `include` parameter. Remove it and fetch related resources with separate requests.
+   *
+   * @example Inclusion is not supported by the endpoint!
+   */
   INCLUSION_UNSUPPORTED: "INCLUSION_UNSUPPORTED",
-  /** Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`. */
+  /**
+   * Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`.
+   *
+   * @example Local id 'new-article' is already registered for type 'articles'!
+   */
   LOCAL_ID_CONFLICT: "LOCAL_ID_CONFLICT",
-  /** An operation refers to a `lid` that no earlier operation in the batch created. Create the resource under that `lid` in an earlier operation, or refer to an existing resource by `id`. */
+  /**
+   * An operation refers to a `lid` that no earlier operation in the batch created. Create the resource under that `lid` in an earlier operation, or refer to an existing resource by `id`.
+   *
+   * @example No resource is registered for local id 'new-article' of type 'articles'!
+   */
   LOCAL_ID_NOT_FOUND: "LOCAL_ID_NOT_FOUND",
-  /** The request used a `lid`, which only means something inside an Atomic Operations request. Identify the resource by `id`, or send the dependent writes together as one atomic batch if the API offers the extension. */
+  /**
+   * The request used a `lid`, which only means something inside an Atomic Operations request. Identify the resource by `id`, or send the dependent writes together as one atomic batch if the API offers the extension.
+   *
+   * @example A local id (lid) is only supported within an Atomic Operations request; a standalone request must identify a resource by id.
+   */
   LOCAL_ID_NOT_SUPPORTED: "LOCAL_ID_NOT_SUPPORTED",
   /**
    * Every `application/vnd.api+json` entry in the `Accept` header carries a parameter other than `ext` or `profile`, or asks for an `ext` the server does not support. Accept `application/vnd.api+json` with no other parameters.
@@ -1687,7 +1755,11 @@ export const ErrorCodes = {
    * @example The media type 'application/vnd.api+json; charset=utf-8' is unsupported in the 'Content-Type' header!
    */
   MEDIA_TYPE_UNSUPPORTED: "MEDIA_TYPE_UNSUPPORTED",
-  /** The server tried to use a resource type it has nothing registered for, which is a configuration fault on its side. Retrying won't help; report it to the API's maintainers. */
+  /**
+   * The server tried to use a resource type it has nothing registered for, which is a configuration fault on its side. Retrying won't help; report it to the API's maintainers.
+   *
+   * @example No resource is registered for type "articles".
+   */
   NO_RESOURCE_REGISTERED: "NO_RESOURCE_REGISTERED",
   /**
    * `page[kind]` names a pagination strategy this collection does not offer. Use one of the strategies the `detail` lists, or leave `page[kind]` out.
@@ -1695,9 +1767,17 @@ export const ErrorCodes = {
    * @example The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor.
    */
   PAGINATION_KIND_UNKNOWN: "PAGINATION_KIND_UNKNOWN",
-  /** A query parameter has the wrong shape, such as `fields` sent without a type key or `include` sent as a list instead of a comma-separated string. Fix the parameter named in `source.parameter`. */
+  /**
+   * A query parameter has the wrong shape, such as `fields` sent without a type key or `include` sent as a list instead of a comma-separated string. Fix the parameter named in `source.parameter`.
+   *
+   * @example Query parameter 'include' is malformed!
+   */
   QUERY_PARAM_MALFORMED: "QUERY_PARAM_MALFORMED",
-  /** The request used a query parameter this endpoint does not recognize. Remove it, or check its spelling against the parameters the API documents. */
+  /**
+   * The request used a query parameter this endpoint does not recognize. Remove it, or check its spelling against the parameters the API documents.
+   *
+   * @example Query parameter 'colour' can't be recognized by the endpoint!
+   */
   QUERY_PARAM_UNRECOGNIZED: "QUERY_PARAM_UNRECOGNIZED",
   /**
    * The request wrote an attribute the server stores on a related resource, and that related resource does not exist. Set the relationship first, or leave the attribute out.
@@ -1705,9 +1785,17 @@ export const ErrorCodes = {
    * @example Cannot write attribute "city": its related "address" is not present.
    */
   RELATED_ATTRIBUTE_OWNER_MISSING: "RELATED_ATTRIBUTE_OWNER_MISSING",
-  /** `withCount` names a relationship that is not a countable to-many relationship of this resource. Ask for counts only on the relationships the API marks as countable. */
+  /**
+   * `withCount` names a relationship that is not a countable to-many relationship of this resource. Ask for counts only on the relationships the API marks as countable.
+   *
+   * @example Counted relationships 'author' are not countable to-many relationships of this resource!
+   */
   RELATIONSHIP_COUNT_NOT_ALLOWED: "RELATIONSHIP_COUNT_NOT_ALLOWED",
-  /** The request names a relationship this resource type does not have, or one whose endpoint the API does not expose. Check the relationship name against the ones the type documents. */
+  /**
+   * The request names a relationship this resource type does not have, or one whose endpoint the API does not expose. Check the relationship name against the ones the type documents.
+   *
+   * @example The requested relationship 'reviewers' does not exist!
+   */
   RELATIONSHIP_NOT_EXISTS: "RELATIONSHIP_NOT_EXISTS",
   /**
    * The relationship data has the wrong cardinality: a list for a to-one relationship, a single identifier for a to-many one, or a `POST` or `DELETE` to a to-one relationship endpoint. Send linkage that matches the relationship.
@@ -1715,23 +1803,59 @@ export const ErrorCodes = {
    * @example The provided relationship 'author' is of type of to-many, but to-one is expected!
    */
   RELATIONSHIP_TYPE_INAPPROPRIATE: "RELATIONSHIP_TYPE_INAPPROPRIATE",
-  /** This relationship does not let a client remove members from it or clear it. Don't retry the request; the relationship changes only in the ways the API documents for it. */
+  /**
+   * This relationship does not let a client remove members from it or clear it. Don't retry the request; the relationship changes only in the ways the API documents for it.
+   *
+   * @example Removal of relationship 'tags' is prohibited!
+   */
   REMOVAL_PROHIBITED: "REMOVAL_PROHIBITED",
-  /** The request body is not well-formed JSON. Fix the syntax the `detail` reports and send the request again. */
+  /**
+   * The request body is not well-formed JSON. Fix the syntax the `detail` reports and send the request again.
+   *
+   * @example Request body is an invalid JSON document: 'Syntax error'!
+   */
   REQUEST_BODY_INVALID_JSON: "REQUEST_BODY_INVALID_JSON",
-  /** The request body is JSON but breaks the JSON:API document structure or the schema the server validates this resource against. Each violation is its own error, with `source.pointer` set where the server could locate it. */
+  /**
+   * The request body is JSON but breaks the JSON:API document structure or the schema the server validates this resource against. Each violation is its own error, with `source.pointer` set where the server could locate it.
+   *
+   * @example The data must match the type: object
+   */
   REQUEST_BODY_INVALID_JSON_API: "REQUEST_BODY_INVALID_JSON_API",
-  /** The request body is not a JSON object, or has none of the top-level members `data`, `errors` and `meta`. Send a JSON object with the resource under `data`. */
+  /**
+   * The request body is not a JSON object, or has none of the top-level members `data`, `errors` and `meta`. Send a JSON object with the resource under `data`.
+   *
+   * @example A document must contain at least one of the following top-level members: "data", "errors", "meta"
+   */
   REQUIRED_TOP_LEVEL_MEMBERS_MISSING: "REQUIRED_TOP_LEVEL_MEMBERS_MISSING",
-  /** A resource identifier in the request carries an `id` that is not a string, such as a number. Send every `id` as a JSON string. */
+  /**
+   * A resource identifier in the request carries an `id` that is not a string, such as a number. Send every `id` as a JSON string.
+   *
+   * @example The resource ID must be a string instead of integer!
+   */
   RESOURCE_IDENTIFIER_ID_INVALID: "RESOURCE_IDENTIFIER_ID_INVALID",
-  /** A resource identifier in the request has neither an `id` nor a `lid`. Identify each related resource by its `id`, or by a `lid` inside an Atomic Operations request. */
+  /**
+   * A resource identifier in the request has neither an `id` nor a `lid`. Identify each related resource by its `id`, or by a `lid` inside an Atomic Operations request.
+   *
+   * @example An ID or local ID (lid) for the resource identifier must be included!
+   */
   RESOURCE_IDENTIFIER_ID_MISSING: "RESOURCE_IDENTIFIER_ID_MISSING",
-  /** A resource identifier in the request carries a `lid` that is not a string. Send every `lid` as a JSON string. */
+  /**
+   * A resource identifier in the request carries a `lid` that is not a string. Send every `lid` as a JSON string.
+   *
+   * @example The resource local ID (lid) must be a string instead of integer!
+   */
   RESOURCE_IDENTIFIER_LID_INVALID: "RESOURCE_IDENTIFIER_LID_INVALID",
-  /** A resource identifier in the request carries a `type` that is not a string. Send every `type` as a JSON string. */
+  /**
+   * A resource identifier in the request carries a `type` that is not a string. Send every `type` as a JSON string.
+   *
+   * @example The resource type must be a string instead of integer!
+   */
   RESOURCE_IDENTIFIER_TYPE_INVALID: "RESOURCE_IDENTIFIER_TYPE_INVALID",
-  /** A resource identifier in the request has no `type`. Add the related resource's `type` to every identifier. */
+  /**
+   * A resource identifier in the request has no `type`. Add the related resource's `type` to every identifier.
+   *
+   * @example A type for the resource identifier must be included!
+   */
   RESOURCE_IDENTIFIER_TYPE_MISSING: "RESOURCE_IDENTIFIER_TYPE_MISSING",
   /**
    * The `id` in the update body is not the `id` in the URL. Send the id of the resource the URL addresses as `data.id`.
@@ -1739,21 +1863,53 @@ export const ErrorCodes = {
    * @example Resource id '12' does not match the endpoint id '7'!
    */
   RESOURCE_ID_CONFLICT: "RESOURCE_ID_CONFLICT",
-  /** The resource object's `id` is not a string, such as a number. Send `data.id` as a JSON string. */
+  /**
+   * The resource object's `id` is not a string, such as a number. Send `data.id` as a JSON string.
+   *
+   * @example The resource ID must be a string instead of integer!
+   */
   RESOURCE_ID_INVALID: "RESOURCE_ID_INVALID",
-  /** The update request's resource object has no `id`. Include the id of the resource being updated as `data.id`. */
+  /**
+   * The update request's resource object has no `id`. Include the id of the resource being updated as `data.id`.
+   *
+   * @example A resource ID must be included in the document!
+   */
   RESOURCE_ID_MISSING: "RESOURCE_ID_MISSING",
-  /** The client-generated `id` is not in a format the server can decode into one of its own ids. Send an `id` in the format the API documents for this resource type. */
+  /**
+   * The client-generated `id` is not in a format the server can decode into one of its own ids. Send an `id` in the format the API documents for this resource type.
+   *
+   * @example The resource ID 'not-an-id' could not be decoded!
+   */
   RESOURCE_ID_UNDECODABLE: "RESOURCE_ID_UNDECODABLE",
-  /** The resource the request addresses does not exist. Check the type and id in the URL; a deleted resource stays not found. */
+  /**
+   * The resource the request addresses does not exist. Check the type and id in the URL; a deleted resource stays not found.
+   *
+   * @example The requested resource is not found!
+   */
   RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",
-  /** The resource object in `data` has no `type`. Add the type of the resource the endpoint serves. */
+  /**
+   * The resource object in `data` has no `type`. Add the type of the resource the endpoint serves.
+   *
+   * @example A resource type must be included in the document!
+   */
   RESOURCE_TYPE_MISSING: "RESOURCE_TYPE_MISSING",
-  /** The `type` in the request is not one this endpoint or relationship accepts. Send the type the endpoint serves, or one the relationship documents for its related resources. */
+  /**
+   * The `type` in the request is not one this endpoint or relationship accepts. Send the type the endpoint serves, or one the relationship documents for its related resources.
+   *
+   * @example Resource type 'people' is unacceptable!
+   */
   RESOURCE_TYPE_UNACCEPTABLE: "RESOURCE_TYPE_UNACCEPTABLE",
-  /** The server produced a response body that is not valid JSON, which is a fault on its side. Retrying won't help; report it to the API's maintainers. */
+  /**
+   * The server produced a response body that is not valid JSON, which is a fault on its side. Retrying won't help; report it to the API's maintainers.
+   *
+   * @example Response body is an invalid JSON document: 'Syntax error'!
+   */
   RESPONSE_BODY_INVALID_JSON: "RESPONSE_BODY_INVALID_JSON",
-  /** The server produced a response that breaks the JSON:API document structure, which is a fault on its side. Retrying won't help; report it to the API's maintainers. */
+  /**
+   * The server produced a response that breaks the JSON:API document structure, which is a fault on its side. Retrying won't help; report it to the API's maintainers.
+   *
+   * @example The data must match the type: object
+   */
   RESPONSE_BODY_INVALID_JSON_API: "RESPONSE_BODY_INVALID_JSON_API",
   /**
    * The `sort` parameter names a field this endpoint cannot sort by. Sort only on the fields the API documents for this resource type.
@@ -1761,11 +1917,23 @@ export const ErrorCodes = {
    * @example Sorting parameter 'popularity' can't be recognized by the endpoint!
    */
   SORTING_UNRECOGNIZED: "SORTING_UNRECOGNIZED",
-  /** This endpoint does not support sorting. Remove the `sort` parameter. */
+  /**
+   * This endpoint does not support sorting. Remove the `sort` parameter.
+   *
+   * @example Sorting is not supported by the endpoint!
+   */
   SORTING_UNSUPPORTED: "SORTING_UNSUPPORTED",
-  /** The request body has both `data` and `errors` at the top level, which JSON:API forbids. Send the resource under `data` alone. */
+  /**
+   * The request body has both `data` and `errors` at the top level, which JSON:API forbids. Send the resource under `data` alone.
+   *
+   * @example The members "data" and "errors" cannot coexist in the same document
+   */
   TOP_LEVEL_MEMBERS_INCOMPATIBLE: "TOP_LEVEL_MEMBERS_INCOMPATIBLE",
-  /** The request body has a top-level `included` member but no `data`. Remove `included`, or send it alongside `data`. */
+  /**
+   * The request body has a top-level `included` member but no `data`. Remove `included`, or send it alongside `data`.
+   *
+   * @example If a document does not contain a top-level "data" key, the "included" member must not be present either.
+   */
   TOP_LEVEL_MEMBER_NOT_ALLOWED: "TOP_LEVEL_MEMBER_NOT_ALLOWED",
 } as const
 
