@@ -51,7 +51,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 12. An older document is an error, and a newer one
+codegen reads contracts 1 to 13. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -111,6 +111,11 @@ still has it. A `*/` in the example is broken up and the code fence is made long
 than any run of backticks inside it, so a value can't end the comment or the block.
 The CRUD and relationship methods come from the generic runtime, so their examples
 are only in the examples module.
+
+Contract 13 is on every document from core 1.13.1. Each core error code's component
+now gives its `detail` property an example, so every `ErrorCodes` key gets an
+`@example` with the message the server sends, as described under
+[error codes](#error-codes). Nothing else in the document changed.
 
 ### The validation schemas
 

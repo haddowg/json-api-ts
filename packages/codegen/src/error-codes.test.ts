@@ -198,7 +198,7 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
 
   it('emits the codes object, the per-status map and the bound guard', () => {
     expect(source).toContain(
-      'export const ErrorCodes = {\n  /** The caller is authenticated but not permitted',
+      'export const ErrorCodes = {\n  /**\n   * The caller is authenticated but not permitted',
     )
     expect(source).toContain('  RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",')
     expect(source).toContain(
@@ -220,6 +220,12 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
         '   */',
         '  PAGINATION_KIND_UNKNOWN: "PAGINATION_KIND_UNKNOWN",',
       ].join('\n'),
+    )
+  })
+
+  it('documents the detail example every core code carries from contract 13', () => {
+    expect(source).toContain(
+      ['   * @example Access is denied!', '   */', '  ACCESS_DENIED: "ACCESS_DENIED",'].join('\n'),
     )
   })
 

@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 12
+            "contract": 13
         }
     },
     "servers": [
@@ -19089,6 +19089,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "403"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Access is denied!"
                             }
                         },
                         "required": [
@@ -19124,6 +19128,10 @@
                                 "example": {
                                     "pointer": "/data/relationships/tags"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Addition to relationship 'tags' is prohibited!"
                             }
                         },
                         "required": [
@@ -20576,6 +20584,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "500"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "An application error has occurred!"
                             }
                         },
                         "required": [
@@ -22014,6 +22026,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "401"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Authentication is required!"
                             }
                         },
                         "required": [
@@ -22640,6 +22656,10 @@
                                 "example": {
                                     "pointer": "/data/id"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Client generated ID '1' already exists!"
                             }
                         },
                         "required": [
@@ -22676,6 +22696,10 @@
                                 "example": {
                                     "pointer": "/data/id"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Client generated ID '1' is not supported!"
                             }
                         },
                         "required": [
@@ -22712,6 +22736,10 @@
                                 "example": {
                                     "pointer": "/data/id"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "A client generated ID must be used!"
                             }
                         },
                         "required": [
@@ -22993,6 +23021,10 @@
                                 "example": {
                                     "parameter": "page[after]"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The cursor supplied in 'page[after]' could not be decoded."
                             }
                         },
                         "required": [
@@ -23029,6 +23061,10 @@
                                 "example": {
                                     "parameter": "page[after]"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The cursor supplied in 'page[after]' was built for a different sort order and can no longer be used."
                             }
                         },
                         "required": [
@@ -23056,6 +23092,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Missing `data` member at the document's top level!"
                             }
                         },
                         "required": [
@@ -25457,6 +25497,10 @@
                                 "example": {
                                     "parameter": "filter[rating]"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The value supplied for 'filter[rating]' is invalid."
                             }
                         },
                         "required": [
@@ -25533,6 +25577,10 @@
                                 "example": {
                                     "pointer": "/data/relationships/tags"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Full replacement of relationship 'tags' is prohibited!"
                             }
                         },
                         "required": [
@@ -26060,6 +26108,10 @@
                                 "example": {
                                     "parameter": "include"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Included paths 'author.company' are not allowed by the endpoint!"
                             }
                         },
                         "required": [
@@ -26136,6 +26188,10 @@
                                 "example": {
                                     "parameter": "include"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Inclusion is not supported by the endpoint!"
                             }
                         },
                         "required": [
@@ -27415,6 +27471,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Local id 'new-article' is already registered for type 'articles'!"
                             }
                         },
                         "required": [
@@ -27441,6 +27501,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "No resource is registered for local id 'new-article' of type 'articles'!"
                             }
                         },
                         "required": [
@@ -27476,6 +27540,10 @@
                                 "example": {
                                     "pointer": "/data/lid"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "A local id (lid) is only supported within an Atomic Operations request; a standalone request must identify a resource by id."
                             }
                         },
                         "required": [
@@ -27607,6 +27675,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "500"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "No resource is registered for type \"articles\"."
                             }
                         },
                         "required": [
@@ -30576,6 +30648,10 @@
                                 "example": {
                                     "parameter": "include"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Query parameter 'include' is malformed!"
                             }
                         },
                         "required": [
@@ -30612,6 +30688,10 @@
                                 "example": {
                                     "parameter": "colour"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Query parameter 'colour' can't be recognized by the endpoint!"
                             }
                         },
                         "required": [
@@ -30688,6 +30768,10 @@
                                 "example": {
                                     "parameter": "withCount"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Counted relationships 'author' are not countable to-many relationships of this resource!"
                             }
                         },
                         "required": [
@@ -30715,6 +30799,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "404"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The requested relationship 'reviewers' does not exist!"
                             }
                         },
                         "required": [
@@ -32056,6 +32144,10 @@
                                 "example": {
                                     "pointer": "/data/relationships/tags"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Removal of relationship 'tags' is prohibited!"
                             }
                         },
                         "required": [
@@ -32103,6 +32195,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The data must match the type: object"
                             }
                         },
                         "required": [
@@ -32129,6 +32225,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Request body is an invalid JSON document: 'Syntax error'!"
                             }
                         },
                         "required": [
@@ -32155,6 +32255,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "A document must contain at least one of the following top-level members: \"data\", \"errors\", \"meta\""
                             }
                         },
                         "required": [
@@ -32230,6 +32334,10 @@
                                 "example": {
                                     "pointer": "/data/id"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The resource ID must be a string instead of integer!"
                             }
                         },
                         "required": [
@@ -32266,6 +32374,10 @@
                                 "example": {
                                     "pointer": "/data"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "A resource ID must be included in the document!"
                             }
                         },
                         "required": [
@@ -32302,6 +32414,10 @@
                                 "example": {
                                     "pointer": "/data/id"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The resource ID 'not-an-id' could not be decoded!"
                             }
                         },
                         "required": [
@@ -32329,6 +32445,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The resource ID must be a string instead of integer!"
                             }
                         },
                         "required": [
@@ -32355,6 +32475,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "An ID or local ID (lid) for the resource identifier must be included!"
                             }
                         },
                         "required": [
@@ -32381,6 +32505,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The resource local ID (lid) must be a string instead of integer!"
                             }
                         },
                         "required": [
@@ -32407,6 +32535,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The resource type must be a string instead of integer!"
                             }
                         },
                         "required": [
@@ -32433,6 +32565,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "A type for the resource identifier must be included!"
                             }
                         },
                         "required": [
@@ -32459,6 +32595,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "404"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The requested resource is not found!"
                             }
                         },
                         "required": [
@@ -32494,6 +32634,10 @@
                                 "example": {
                                     "pointer": "/data"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "A resource type must be included in the document!"
                             }
                         },
                         "required": [
@@ -32530,6 +32674,10 @@
                                 "example": {
                                     "pointer": "/data/type"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Resource type 'people' is unacceptable!"
                             }
                         },
                         "required": [
@@ -32557,6 +32705,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "500"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The data must match the type: object"
                             }
                         },
                         "required": [
@@ -32583,6 +32735,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "500"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Response body is an invalid JSON document: 'Syntax error'!"
                             }
                         },
                         "required": [
@@ -32658,6 +32814,10 @@
                                 "example": {
                                     "parameter": "sort"
                                 }
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "Sorting is not supported by the endpoint!"
                             }
                         },
                         "required": [
@@ -32685,6 +32845,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "If a document does not contain a top-level \"data\" key, the \"included\" member must not be present either."
                             }
                         },
                         "required": [
@@ -32711,6 +32875,10 @@
                             "status": {
                                 "type": "string",
                                 "const": "400"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The members \"data\" and \"errors\" cannot coexist in the same document"
                             }
                         },
                         "required": [
@@ -34013,6 +34181,7 @@
                                     "status": "400",
                                     "code": "QUERY_PARAM_MALFORMED",
                                     "title": "Query parameter is malformed",
+                                    "detail": "Query parameter 'include' is malformed!",
                                     "source": {
                                         "parameter": "include"
                                     }
@@ -34037,7 +34206,8 @@
                                 {
                                     "status": "401",
                                     "code": "AUTHENTICATION_REQUIRED",
-                                    "title": "Unauthorized"
+                                    "title": "Unauthorized",
+                                    "detail": "Authentication is required!"
                                 }
                             ],
                             "jsonapi": {
@@ -34059,7 +34229,8 @@
                                 {
                                     "status": "403",
                                     "code": "ACCESS_DENIED",
-                                    "title": "Forbidden"
+                                    "title": "Forbidden",
+                                    "detail": "Access is denied!"
                                 }
                             ],
                             "jsonapi": {
@@ -34081,7 +34252,8 @@
                                 {
                                     "status": "404",
                                     "code": "RESOURCE_NOT_FOUND",
-                                    "title": "Resource not found"
+                                    "title": "Resource not found",
+                                    "detail": "The requested resource is not found!"
                                 }
                             ],
                             "jsonapi": {
@@ -34130,6 +34302,7 @@
                                     "status": "409",
                                     "code": "RESOURCE_TYPE_UNACCEPTABLE",
                                     "title": "Resource type is unacceptable",
+                                    "detail": "Resource type 'people' is unacceptable!",
                                     "source": {
                                         "pointer": "/data/type"
                                     }
@@ -34206,7 +34379,8 @@
                                 {
                                     "status": "500",
                                     "code": "APPLICATION_ERROR",
-                                    "title": "Application error"
+                                    "title": "Application error",
+                                    "detail": "An application error has occurred!"
                                 }
                             ],
                             "jsonapi": {
