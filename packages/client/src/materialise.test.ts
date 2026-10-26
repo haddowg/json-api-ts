@@ -127,11 +127,27 @@ describe('materialise — single resource (album-compound)', () => {
     expect(tracks[0]!['durationSeconds']).toBe(284)
   })
 
-  it('exposes $raw / $meta / $links / $self', () => {
+  it('exposes $raw / $meta / $links / $self, reading a bare string self as is', () => {
     expect(album.$self).toBe('https://music.example/albums/1')
     expect(album.$links).toEqual({ self: 'https://music.example/albums/1' })
     expect(album.$meta).toBeUndefined()
     expect((album.$raw as { type: string }).type).toBe('albums')
+  })
+
+  it('reads $self as the href when self is a link object with describedby', () => {
+    const self = {
+      href: 'https://music.example/albums/1',
+      describedby: '/docs.json#/paths/~1albums~1%7Bid%7D/get',
+    }
+    const doc = { data: { type: 'albums', id: '1', attributes: {}, links: { self } } }
+    const linked = asResource(materialise(doc as Document, context()))
+    expect(linked.$self).toBe('https://music.example/albums/1')
+    expect(linked.$links?.self).toEqual(self)
+  })
+
+  it('reads $self as undefined when the resource has no self link', () => {
+    const doc = { data: { type: 'albums', id: '1', attributes: {} } }
+    expect(asResource(materialise(doc as Document, context())).$self).toBeUndefined()
   })
 
   it('$rel returns { data, links, meta } for a relation', () => {

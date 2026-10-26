@@ -64,6 +64,7 @@ export interface EdgeMembers<Pivot = Record<string, unknown>> {
 export interface ResourceAccessors<Links = ResourceLinks> {
   readonly $meta: Record<string, unknown> | undefined
   readonly $links: Links | undefined
+  /** The `self` link's href, whether the wire carried a bare URL or a link object. */
   readonly $self: string | undefined
   readonly $document: DocumentEnvelope
   readonly $raw: Record<string, unknown>

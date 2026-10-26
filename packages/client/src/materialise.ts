@@ -15,9 +15,26 @@ export interface DocumentEnvelope {
   links?: Record<string, unknown>
 }
 
+/** A JSON:API link object. */
+export interface LinkObject {
+  href: string
+  rel?: string
+  describedby?: string | LinkObject
+  title?: string
+  type?: string
+  hreflang?: string | string[]
+  meta?: Record<string, unknown>
+}
+
+/**
+ * A link as the wire carries it. A server renders the links it builds as link objects unless it
+ * opts out to bare strings, and an author-supplied link keeps whichever shape it was given.
+ */
+export type Link = string | LinkObject
+
 /** Resource-level links (`self` is the common one; the wire may carry more). */
 export interface ResourceLinks {
-  self?: string
+  self?: Link
   [key: string]: unknown
 }
 
@@ -38,6 +55,7 @@ export interface RelationView {
 export interface ResourceEnvelope {
   readonly $meta: Record<string, unknown> | undefined
   readonly $links: ResourceLinks | undefined
+  /** The `self` link's href, whether the wire carried a bare URL or a link object. */
   readonly $self: string | undefined
   readonly $document: DocumentEnvelope
   readonly $raw: RawResource
@@ -335,7 +353,7 @@ function attachResourceEnvelope(
 ): void {
   defineGetter(node, '$meta', () => raw.meta)
   defineGetter(node, '$links', () => raw.links)
-  defineGetter(node, '$self', () => raw.links?.self)
+  defineGetter(node, '$self', () => linkHref(raw.links?.self))
   defineGetter(node, '$document', () => env)
   defineGetter(node, '$raw', () => raw)
   define(node, '$rel', (name: string): RelationView | undefined => {

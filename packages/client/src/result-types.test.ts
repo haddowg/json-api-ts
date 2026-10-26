@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type { AtomicCreateHandle, AtomicDeleteHandle, AtomicUpdateHandle } from './atomic'
 import type { ApiDescriptor } from './descriptor'
-import type { ResourceLinks } from './materialise'
+import type { Link, ResourceLinks } from './materialise'
 import type {
   AtomicResultOf,
   Client,
@@ -108,6 +108,7 @@ describe('attribute typing', () => {
   it('exposes the resource-level $-accessors', () => {
     type Album = ResourceObjectView<Map, Attributes, 'albums'>
     expectTypeOf<Album['$self']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<NonNullable<Album['$links']>['self']>().toEqualTypeOf<Link | undefined>()
     expectTypeOf<Album>().toHaveProperty('$meta')
     expectTypeOf<Album>().toHaveProperty('$document')
     expectTypeOf<Album>().toHaveProperty('$rel')
