@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import ts from 'typescript'
+import { afterAll, describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient } from '../test/generated/contract-witness.client.gen'
 import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
@@ -160,5 +163,136 @@ describe('generator contract 11 (accepted request bodies)', () => {
       // @ts-expect-error -- the action takes no PDF.
       void client.articles.actions['bulk-import'](new Blob([]), { contentType: 'application/pdf' })
     }
+  })
+})
+
+const scratch = mkdtempSync(join(tmpdir(), 'json-api-form-fields-'))
+afterAll(() => rmSync(scratch, { recursive: true, force: true }))
+
+/** Type-check a generated module against the client's source, returning the error messages. */
+function typecheck(code: string): string[] {
+  const file = join(scratch, `client-${Math.random().toString(36).slice(2)}.gen.ts`)
+  writeFileSync(file, code)
+  const program = ts.createProgram([file], {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'],
+    types: [],
+    strict: true,
+    noEmit: true,
+    skipLibCheck: true,
+    exactOptionalPropertyTypes: true,
+    noUncheckedIndexedAccess: true,
+    paths: {
+      '@haddowg/json-api-client': [
+        fileURLToPath(new URL('../../client/src/index.ts', import.meta.url)),
+      ],
+    },
+  })
+  return ts
+    .getPreEmitDiagnostics(program)
+    .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'))
+}
+
+describe('typed form fields', () => {
+  // The witness's multipart body lists no properties, so this copy gives it some, and a URL-encoded
+  // sibling, the way an adapter projects a form whose fields it knows.
+  function withFormFields(additional?: unknown): OpenApiDocument {
+    const doc = loadWitness()
+    const op = doc.paths!['/articles/-actions/bulk-import']!.post!
+    const content = op.requestBody!.content!
+    content['multipart/form-data'] = {
+      schema: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          cover: { type: 'string', format: 'binary' },
+          tags: { type: 'array', items: { type: 'string' } },
+          count: { type: 'integer' },
+          status: { type: 'string', enum: ['draft', 'live'] },
+        },
+        required: ['title'],
+        ...(additional === undefined ? {} : { additionalProperties: additional }),
+      },
+    }
+    content['application/x-www-form-urlencoded'] = {
+      schema: {
+        type: 'object',
+        properties: { title: { type: 'string' }, draft: { type: 'boolean' } },
+        required: ['title'],
+      },
+    }
+    return doc
+  }
+
+  function source(doc: OpenApiDocument): string {
+    return emit(doc, buildDescriptor(doc))
+  }
+
+  it('types a multipart body from its properties, binary parts as files', () => {
+    expect(source(withFormFields())).toContain(
+      'export type ArticlesBulkImportMultipartFormDataInput = { title: string; cover?: Blob | File; tags?: string[]; count?: number; status?: "draft" | "live" }',
+    )
+  })
+
+  it('types a URL-encoded body from its properties', () => {
+    expect(source(withFormFields())).toContain(
+      'export type ArticlesBulkImportApplicationXWwwFormUrlencodedInput = { title: string; draft?: boolean }',
+    )
+  })
+
+  it('maps both onto the action', () => {
+    expect(source(withFormFields())).toContain(
+      '"bulk-import": { requests: { "multipart/form-data": ArticlesBulkImportMultipartFormDataInput; "application/json": ArticleImportRow; "application/x-www-form-urlencoded": ArticlesBulkImportApplicationXWwwFormUrlencodedInput } }',
+    )
+  })
+
+  it('adds an index signature for additional fields', () => {
+    expect(source(withFormFields(true))).toContain(
+      '; [field: string]: string | Blob | File | string[] | number | "draft" | "live" | boolean | undefined }',
+    )
+    expect(source(withFormFields({ type: 'string' }))).toContain(
+      '; [field: string]: string | Blob | File | string[] | number | "draft" | "live" | undefined }',
+    )
+    expect(source(withFormFields(false))).not.toContain('[field: string]')
+  })
+
+  it('compiles against the client, the fields checked and FormData still taken', () => {
+    const probes = [
+      "const api = createClient({ baseUrl: 'https://api.example' })",
+      "const multipart = { contentType: 'multipart/form-data' } as const",
+      "const form = { contentType: 'application/x-www-form-urlencoded' } as const",
+      "void api.articles.actions['bulk-import']({ title: 'x', cover: new Blob([]), tags: ['a'] }, multipart)",
+      "void api.articles.actions['bulk-import'](new FormData(), multipart)",
+      "void api.articles.actions['bulk-import']({ title: 'x', draft: true }, form)",
+      '// @ts-expect-error -- `title` is required.',
+      "void api.articles.actions['bulk-import']({ cover: new Blob([]) }, multipart)",
+      '// @ts-expect-error -- `count` is a number.',
+      "void api.articles.actions['bulk-import']({ title: 'x', count: 'many' }, multipart)",
+    ]
+    expect(typecheck(`${source(withFormFields())}\n${probes.join('\n')}\n`)).toEqual([])
+  })
+
+  it('keeps a body with no properties a plain FormData', () => {
+    expect(source(witness)).not.toContain('MultipartFormDataInput =')
+  })
+
+  it('types a multipart body that is the only one an action takes', () => {
+    const doc = loadWitness()
+    doc.paths!['/articles/-actions/import']!.post!.requestBody = {
+      content: {
+        'multipart/form-data': {
+          schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+        },
+      },
+    }
+    const out = source(doc)
+    expect(out).toContain(
+      'export type ArticlesImportMultipartFormDataInput = { file?: Blob | File }',
+    )
+    expect(out).toContain(
+      'import: { requests: { "multipart/form-data": ArticlesImportMultipartFormDataInput } }',
+    )
   })
 })
