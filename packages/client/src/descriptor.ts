@@ -161,6 +161,31 @@ export type ActionInput = 'document' | 'none' | 'raw'
 export type ActionOutput = 'document' | 'meta' | 'none'
 
 /**
+ * How the client reads or sends a body that is not JSON:API: `binary` as a `Blob` or
+ * `ArrayBuffer`, `text` as a `string`, `json` as parsed JSON typed from the media type's schema.
+ */
+export type RawMediaKind = 'binary' | 'text' | 'json'
+
+/**
+ * How the client sends one of an action's request media types: a JSON:API `document` (the
+ * action's usual document input), a `multipart` `FormData`, a `form` of URL-encoded fields, or a
+ * {@link RawMediaKind}.
+ */
+export type InputMediaKind = RawMediaKind | 'document' | 'form' | 'multipart'
+
+/** A media type an action answers with besides JSON:API, and how its body is read. */
+export interface RawOutputMedia {
+  mediaType: string
+  kind: RawMediaKind
+}
+
+/** A media type an action accepts as its request body, and how the client sends it. */
+export interface InputMedia {
+  mediaType: string
+  kind: InputMediaKind
+}
+
+/**
  * A custom action declared on a type (`#[AsJsonApiAction]`). The runtime reaches it via
  * `client.<type>.actions.<name>(...)` (collection scope) or
  * `client.<type>.id(id).actions.<name>(...)` (resource scope); `input`/`output` drive how the body
@@ -200,6 +225,20 @@ export interface ActionDescriptor {
    * `document` (the JSON:API media type) and `none` (no body) inputs.
    */
   contentType?: string
+  /**
+   * The media types the action can answer with besides JSON:API (generator contract 10), in the
+   * document's order. The caller picks one with the `accept` option; without it the client asks
+   * for JSON:API when {@link output} is a document or meta, else for the first of these. Absent
+   * when the action answers only in JSON:API.
+   */
+  rawOutput?: readonly RawOutputMedia[]
+  /**
+   * The media types the action's request body may use, in the document's order, when it lists
+   * more than one. The caller picks one with the `contentType` option; without it the client
+   * sends JSON:API when listed, else the first of these. Absent for a single media type, which
+   * {@link input} and {@link contentType} already describe.
+   */
+  inputMedia?: readonly InputMedia[]
 }
 
 /**

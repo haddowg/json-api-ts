@@ -124,6 +124,18 @@ handles do not (serialize the data, not the handle).
   (writable pivot fields only; readOnly excluded).
 - Create/update **return** the resource (hydrated per an optional `include`/`fields` on
   the write); delete → `void`.
+- **Action media types** (generator contract 10, ADR 0010): an action answering in raw media
+  types beside or instead of JSON:API carries `rawOutput` in the descriptor, and its method takes
+  `{ accept }`, typed as the media types it declares. JSON:API stays the default whenever the
+  action declares it; an action answering only in raw media types defaults to the first. The
+  result is typed per media type: `string` for text, `Blob` for binary (`ArrayBuffer` with
+  `responseType: 'arrayBuffer'`), the schema's generated type for JSON. An action listing several
+  request media types carries `inputMedia` and takes `{ contentType }`, with the body typed by the
+  picked type; a declared wildcard such as `image/*` takes any `image/…`. Errors stay
+  `JsonApiError` whatever was asked for. An author's summary and description become the action's
+  JSDoc; the projector's stand-in prose for an undescribed action is left out.
+- **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
+  answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 
 ### Atomic — typed transaction builder, type-in-object
 
@@ -235,8 +247,9 @@ The codegen reads from **a URL or a local file** for both inputs:
 ### Transport seam & error model
 
 - **Transport** is a tiny `fetch`-shaped function (not a class):
-  `(req:{method,url,headers,body?,signal?}) => Promise<{status,headers,body}>`; default is a
-  `fetch` adapter. `createClient({ baseUrl, transport?, headers?: ()=>HeadersInit|Promise,
+  `(req:{method,url,headers,body?,rawBody?,responseType?,signal?}) => Promise<{status,headers,body,binary?}>`;
+  default is a `fetch` adapter. `body` stays a string; only a custom action's non-JSON:API
+  traffic uses `rawBody` and `responseType`/`binary` (ADR 0010). `createClient({ baseUrl, transport?, headers?: ()=>HeadersInit|Promise,
 onError?, onResponse? })` — async `headers` provider for per-request bearer auth; a
   _small_ hook pair, not a full interceptor stack. Runtime owns content negotiation
   (`application/vnd.api+json`, atomic `ext` media type). **Retries are out of core** (the

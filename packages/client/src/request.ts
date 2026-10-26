@@ -1,6 +1,11 @@
 import type { HeadersInit } from './client'
 import { JsonApiError, type JsonApiErrorObject } from './errors'
-import type { JsonApiTransport, TransportRequest } from './transport'
+import type {
+  JsonApiTransport,
+  TransportRawBody,
+  TransportRequest,
+  TransportResponse,
+} from './transport'
 import { mediaType } from './types'
 
 /**
@@ -54,11 +59,12 @@ export interface JsonApiRequest {
   query?: ReadQuery
   body?: unknown
   /**
-   * Override the request `Content-Type` (defaults to the negotiated JSON:API media type on every
-   * `POST` and on any other request with a body). Set for a custom action's `raw` input, where the payload is not a JSON:API
-   * document. When set it wins over {@link ext}/{@link profiles} for `Content-Type`.
+   * Override the request `Content-Type`, which defaults to the negotiated JSON:API media type on
+   * every `POST` and on any other request with a body. Set for a custom action's non-JSON:API
+   * input. When set it wins over {@link ext}/{@link profiles} for `Content-Type`; `null` sends
+   * none, so the transport can write a multipart body's boundary itself.
    */
-  contentType?: string
+  contentType?: string | null
   /**
    * Override the request `Accept` header (defaults to the negotiated JSON:API media type). Set
    * for a `raw`-input action that still expects a document response; when set it wins over
@@ -78,9 +84,9 @@ export interface JsonApiRequest {
    */
   profiles?: readonly string[]
   /**
-   * Send the body verbatim (a `string`) instead of JSON-stringifying it. Used for a `raw`
-   * action body that's already serialised; a non-string body still falls back to
-   * `JSON.stringify`.
+   * Send the body verbatim instead of JSON-stringifying it: a string, or a binary, `FormData` or
+   * `URLSearchParams` body. Used for a custom action's non-JSON:API input; any other value still
+   * falls back to `JSON.stringify`.
    */
   raw?: boolean
   /** Passed through to the transport so the caller can cancel the request. */
@@ -218,6 +224,61 @@ export async function execute(
   ctx: JsonApiContext,
   req: JsonApiRequest,
 ): Promise<Document | undefined> {
+  const res = await send(ctx, req)
+  return parseDocument(res.body)
+}
+
+/** How {@link executeRaw} reads a successful response body. */
+export type RawResponseType = 'text' | 'blob' | 'arraybuffer'
+
+/**
+ * Execute a request whose successful response is not JSON:API, such as a custom action's CSV
+ * export or image, and return its body as text or binary. Everything else matches
+ * {@link execute}: the same URL, headers and negotiation, and a non-2xx still throws a
+ * {@link JsonApiError} parsed from the JSON:API error document. A `204` or empty text body
+ * resolves to `undefined`.
+ */
+export async function executeRaw(
+  ctx: JsonApiContext,
+  req: JsonApiRequest,
+  as: 'blob' | 'arraybuffer',
+): Promise<Blob | ArrayBuffer | undefined>
+export async function executeRaw(
+  ctx: JsonApiContext,
+  req: JsonApiRequest,
+  as: 'text',
+): Promise<string | undefined>
+export async function executeRaw(
+  ctx: JsonApiContext,
+  req: JsonApiRequest,
+  as: RawResponseType,
+): Promise<string | Blob | ArrayBuffer | undefined> {
+  const res = await send(ctx, req, as === 'text' ? undefined : as)
+  if (as === 'text') {
+    return res.body === '' ? undefined : res.body
+  }
+  if (res.status === 204) {
+    return undefined
+  }
+  if (res.binary === undefined) {
+    throw new Error(
+      'The transport returned no binary body for a request that asked for one; a custom transport must read the response as binary when the request sets responseType.',
+    )
+  }
+  return res.binary
+}
+
+/**
+ * Build the URL (a server link resolved against `baseUrl` and held to its origin, an absolute
+ * path verbatim, else `baseUrl + path`), apply content negotiation and any async per-request
+ * headers, then drive the transport. A non-2xx throws a {@link JsonApiError} carrying the parsed
+ * error objects (tolerating a non-JSON error body with an empty list).
+ */
+async function send(
+  ctx: JsonApiContext,
+  req: JsonApiRequest,
+  responseType?: 'blob' | 'arraybuffer',
+): Promise<TransportResponse> {
   let url: string
   let sendHeaders = true
   if (req.link) {
@@ -249,13 +310,22 @@ export async function execute(
   if (req.signal !== undefined) {
     transportReq.signal = req.signal
   }
+  if (responseType !== undefined) {
+    transportReq.responseType = responseType
+  }
   // A JSON:API server answers 415 to a POST without the JSON:API Content-Type, even with no body.
   if (req.body !== undefined || req.method.toUpperCase() === 'POST') {
-    headers['Content-Type'] = req.contentType ?? negotiated
+    const contentType = req.contentType === undefined ? negotiated : req.contentType
+    if (contentType !== null) {
+      headers['Content-Type'] = contentType
+    }
   }
-  if (req.body !== undefined) {
-    transportReq.body =
-      req.raw && typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
+  if (typeof req.body === 'string' && req.raw) {
+    transportReq.body = req.body
+  } else if (req.raw && isRawBody(req.body)) {
+    transportReq.rawBody = req.body
+  } else if (req.body !== undefined) {
+    transportReq.body = JSON.stringify(req.body)
   }
 
   if (ctx.headers && sendHeaders) {
@@ -265,10 +335,21 @@ export async function execute(
   const res = await ctx.transport(transportReq)
 
   if (res.status >= 200 && res.status < 300) {
-    return parseDocument(res.body)
+    return res
   }
 
   throw new JsonApiError(res.status, parseErrors(res.body))
+}
+
+/** Whether a raw body goes to the transport as is rather than through `JSON.stringify`. */
+function isRawBody(body: unknown): body is TransportRawBody {
+  return (
+    (typeof Blob !== 'undefined' && body instanceof Blob) ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body) ||
+    (typeof FormData !== 'undefined' && body instanceof FormData) ||
+    (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams)
+  )
 }
 
 /**

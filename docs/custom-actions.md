@@ -68,7 +68,12 @@ Most actions are one of the shapes above. The remaining modes and edge cases are
     await client.albums.id('1').actions.artwork(pngBytes)
     ```
 
+    A string is sent as text, a `Blob`, `ArrayBuffer`, typed array, `FormData` or `URLSearchParams` as is, and anything else as JSON.
+
     Raw input is *not* wrapped in an envelope and *not* pointer-remapped — it's a pass-through, so a `422` from a raw action surfaces unremapped.
+
+??? note "Going deeper: the Content-Type of a bodyless POST"
+    A JSON:API server answers `415` to a `POST` that doesn't send `Content-Type: application/vnd.api+json`, even when it has no body. So an action without input still sends it when it's a `POST`. `PATCH`, `PUT` and `DELETE` send it only with a body.
 
 ??? note "Going deeper: a bespoke command document"
     A `document`-input action whose `inputType` isn't a registered resource type has no envelope to build for you. In that case you pass the JSON:API document verbatim and the client sends it through unchanged (no flat-input convenience, no pointer remap). This is the escape hatch for command-style bodies that don't map onto a resource's attributes.
@@ -78,6 +83,43 @@ Most actions are one of the shapes above. The remaining modes and edge cases are
 
 ??? note "Going deeper: non-POST methods"
     Actions default to `POST`. An action declaring a single non-POST method (e.g. `#[AsJsonApiAction(methods: ['PATCH'])]`) records that `method` in the descriptor and the client dispatches over it — so a `PATCH`-only action stays reachable rather than being silently dropped. You still call it the same way; the verb is handled for you.
+
+## Raw responses
+
+An action can answer in media types other than JSON:API, such as a CSV export, a PDF or an image, beside its JSON:API response or instead of it. Pick one with `accept`. The client sends it as the `Accept` header and types the result by the media type:
+
+```ts
+// GET /articles/-actions/report answers in JSON:API, text/csv, application/pdf or application/json.
+const meta = await client.articles.actions.report() // JSON:API: the document's meta
+const csv = await client.articles.actions.report({ accept: 'text/csv' }) // string
+const pdf = await client.articles.actions.report({ accept: 'application/pdf' }) // Blob
+const bytes = await client.articles.actions.report({
+  accept: 'application/pdf',
+  responseType: 'arrayBuffer',
+}) // ArrayBuffer
+const summary = await client.articles.actions.report({ accept: 'application/json' }) // ArticleSummary
+
+// GET /articles/{id}/-actions/cover answers only in image/png, so that's the default.
+const cover = await client.articles.id('art-1').actions.cover() // Blob
+```
+
+`accept` takes only the media types the action declares. Without it the client asks for JSON:API whenever the action declares a JSON:API response, so an action that gains a raw response keeps its existing calls. A text media type resolves to a `string`, a binary one to a `Blob` (or an `ArrayBuffer` with `responseType: 'arrayBuffer'`), and a JSON one to the parsed value, typed from its schema. An error is still a JSON:API document and still throws a [`JsonApiError`](errors.md), whatever you asked for.
+
+A custom [transport](getting-started.md) has to honour `responseType` for binary media types: read a successful response into `binary` instead of `body`. The `fetch` transport and the Angular `httpClientTransport` do.
+
+## Request media types
+
+An action can accept several request media types. Pick one with `contentType`, and the body is typed by it:
+
+```ts
+// POST /articles/-actions/import accepts text/csv, image/*, multipart/form-data and application/json.
+await client.articles.actions.import('id,title\n1,Hello\n') // the first listed: text/csv
+await client.articles.actions.import(pngBlob, { contentType: 'image/png' }) // Blob, ArrayBuffer or Uint8Array
+await client.articles.actions.import(form, { contentType: 'multipart/form-data' }) // FormData
+await client.articles.actions.import({ total: 3 }, { contentType: 'application/json' }) // typed from its schema
+```
+
+A wildcard such as `image/*` takes any concrete `image/…` type. Without `contentType` the client sends JSON:API when the action lists it, building the document from flat input as usual, else the first listed type. A multipart body goes out without a `Content-Type` of its own, so the transport can write the boundary. A custom transport has to send `rawBody` as is for binary, multipart and URL-encoded bodies.
 
 ## See it in the example app
 
