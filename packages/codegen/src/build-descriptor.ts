@@ -5,12 +5,15 @@ import type {
   Cardinality,
   ClientIdPolicy,
   CountableDescriptor,
+  InputMediaKind,
   MenuDescriptor,
   PaginatorDescriptor,
   PaginatorKind,
   PaginatorRole,
   PaginatorStrategy,
   PivotDescriptor,
+  RawMediaKind,
+  RawOutputMedia,
   RelationDescriptor,
   RelationMutations,
   ResourceDescriptor,
@@ -509,9 +512,84 @@ export class DescriptorBuilder {
           action.contentType = contentType
         }
       }
+      // Generator contract 10: media types other than JSON:API under a 2xx, picked by `Accept`.
+      const rawOutput = this.rawOutput(op)
+      if (rawOutput.length > 0) {
+        action.rawOutput = rawOutput
+      }
+      // Several request media types, picked by `Content-Type`. One is already `input`/`contentType`.
+      const requestContent = Object.entries(op.requestBody?.content ?? {})
+      if (requestContent.length > 1) {
+        action.inputMedia = requestContent.map(([mediaType, media]) => ({
+          mediaType,
+          kind: this.inputMediaKind(mediaType, media.schema),
+        }))
+      }
       out[name] = action
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The non-JSON:API media types an action answers with under its 2xx responses, each once, in
+   * the document's order, with how the client reads its body.
+   */
+  private rawOutput(op: OperationObject): RawOutputMedia[] {
+    const out: RawOutputMedia[] = []
+    for (const [code, response] of Object.entries(op.responses ?? {})) {
+      if (!code.startsWith('2')) {
+        continue
+      }
+      for (const [mediaType, media] of Object.entries(response.content ?? {})) {
+        if (isJsonApiMediaType(mediaType) || out.some((entry) => entry.mediaType === mediaType)) {
+          continue
+        }
+        out.push({ mediaType, kind: this.rawMediaKind(mediaType, media.schema) })
+      }
+    }
+    return out
+  }
+
+  /**
+   * How the client reads or sends a non-JSON:API body: `binary` for `format: binary` (or no schema
+   * on a type that isn't text or JSON), `text` for any other string schema (or no schema on a
+   * `text/*` type), `json` for any other schema (or no schema on a JSON type).
+   */
+  private rawMediaKind(mediaType: string, schema: SchemaObject | undefined): RawMediaKind {
+    const resolved = this.resolveSchema(schema)
+    if (resolved === undefined) {
+      if (mediaType.startsWith('text/')) {
+        return 'text'
+      }
+      return isJsonMediaType(mediaType) ? 'json' : 'binary'
+    }
+    if (resolved.type === 'string') {
+      return resolved.format === 'binary' ? 'binary' : 'text'
+    }
+    return 'json'
+  }
+
+  /** How the client sends one of an action's several request media types. */
+  private inputMediaKind(mediaType: string, schema: SchemaObject | undefined): InputMediaKind {
+    if (isJsonApiMediaType(mediaType)) {
+      return 'document'
+    }
+    if (mediaType.startsWith('multipart/')) {
+      return 'multipart'
+    }
+    if (mediaType === 'application/x-www-form-urlencoded') {
+      return 'form'
+    }
+    return this.rawMediaKind(mediaType, schema)
+  }
+
+  /** A schema with a component `$ref` followed, else the schema as is. */
+  private resolveSchema(schema: SchemaObject | undefined): SchemaObject | undefined {
+    if (schema === undefined || typeof schema.$ref !== 'string') {
+      return schema
+    }
+    const name = refName(schema.$ref)
+    return name === undefined ? schema : (this.schemas[name] ?? schema)
   }
 
   /**
@@ -1103,6 +1181,17 @@ function paramItemsEnum(
  */
 function isAtomicMediaType(mediaType: string): boolean {
   return mediaType.startsWith(JSON_API_MEDIA_TYPE) && mediaType.includes(ATOMIC_EXT)
+}
+
+/** Whether a media type is JSON:API, with or without `ext` / `profile` parameters. */
+function isJsonApiMediaType(mediaType: string): boolean {
+  return mediaType.split(';')[0]!.trim().toLowerCase() === JSON_API_MEDIA_TYPE
+}
+
+/** Whether a non-JSON:API media type carries JSON: `application/json` or a `+json` suffix. */
+function isJsonMediaType(mediaType: string): boolean {
+  const essence = mediaType.split(';')[0]!.trim().toLowerCase()
+  return essence === 'application/json' || essence.endsWith('+json')
 }
 
 /** The HTTP methods an action operation may be advertised under, in resolution preference order. */

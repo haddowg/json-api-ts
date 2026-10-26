@@ -7,7 +7,13 @@ import {
 } from '@haddowg/json-api-client'
 import { buildAtomic } from './build-descriptor'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
-import type { OpenApiDocument, SchemaObject, SchemaOrBool } from './openapi'
+import type {
+  HttpMethod,
+  OpenApiDocument,
+  OperationObject,
+  SchemaObject,
+  SchemaOrBool,
+} from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
 import { commentLines, isTypeName, propertyKey, stringLiteral } from './source'
 import { unwrapRefs } from './unwrap-refs'
@@ -17,6 +23,16 @@ const JSON_API_MEDIA_TYPE = 'application/vnd.api+json'
 
 /** A loose JSON:API document shape — the fallback an action body/result types as when its component can't be resolved. */
 const LOOSE_DOCUMENT = 'Record<string, unknown>'
+
+/** The per-action alias names wired into `ActionTypes`. */
+interface ActionAliasNames {
+  input?: string
+  output?: string
+  /** JSON-like raw response media type -> its alias. */
+  responses?: Map<string, string>
+  /** JSON-like request media type -> its alias. */
+  requests?: Map<string, string>
+}
 
 /** A relation name that will later collide with a fluent-surface verb. */
 export interface VerbCollision {
@@ -185,6 +201,49 @@ function memberDoc(schema: SchemaObject): string | undefined {
   return description ? `${description}\n\n${tags.join('\n')}` : tags.join('\n')
 }
 
+/** An `ActionTypes` media map: `{ 'text/csv': Alias; … }`. */
+function mediaMap(aliases: Map<string, string>): string {
+  const entries = [...aliases].map(([mediaType, alias]) => `${stringLiteral(mediaType)}: ${alias}`)
+  return `{ ${entries.join('; ')} }`
+}
+
+/** The schema of `mediaType` under an operation's first 2xx response that lists it. */
+function firstSuccessSchema(
+  op: OperationObject | undefined,
+  mediaType: string,
+): SchemaObject | undefined {
+  for (const [code, response] of Object.entries(op?.responses ?? {})) {
+    const media = code.startsWith('2') ? response.content?.[mediaType] : undefined
+    if (media !== undefined) {
+      return media.schema
+    }
+  }
+  return undefined
+}
+
+/**
+ * An action's summary and description as JSDoc, leaving out the prose the projector writes for an
+ * action whose author gave none ("Invoke the `name` action", "Invokes the `name` custom action on
+ * …"), which says nothing the name doesn't.
+ */
+function actionDoc(name: string, op: OperationObject | undefined): string | undefined {
+  const summary = op?.summary?.trim()
+  const description = op?.description?.trim()
+  const parts: string[] = []
+  if (summary && summary !== `Invoke the \`${name}\` action`) {
+    parts.push(summary)
+  }
+  const generated = new RegExp(`^Invokes the \`${escapeRegExp(name)}\` custom action on [^.]*\\.$`)
+  if (description && !generated.test(description)) {
+    parts.push(description)
+  }
+  return parts.length === 0 ? undefined : parts.join('\n\n')
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export class Emitter {
   private readonly schemas: Record<string, SchemaObject>
   /** Wire type -> the schema `Base` (the `<Base>Resource` name minus `Resource`). */
@@ -209,10 +268,11 @@ export class Emitter {
    * Populated by {@link actionTypeAliases}; consumed by {@link actionTypesMap} so the action
    * type-map only references aliases that exist (a `none` input/output contributes neither).
    */
-  private readonly actionAliasNames = new Map<
-    string,
-    Map<string, { input?: string; output?: string }>
-  >()
+  private readonly actionAliasNames = new Map<string, Map<string, ActionAliasNames>>()
+  /** Raw body components already emitted as a named alias, by component name. */
+  private readonly rawBodyAliases = new Map<string, string>()
+  /** JSDoc for entries of the `resourceMap` literal, keyed by their path joined with `/`. */
+  private readonly literalDocs = new Map<string, string>()
 
   /** Provenance of the source document, stamped into the generated header for drift tracking. */
   private readonly provenance: Provenance
@@ -234,11 +294,27 @@ export class Emitter {
       for (const suffix of ['Attributes', 'CreateAttributes', 'UpdateAttributes']) {
         this.takenNames.add(`${stem}${suffix}`)
       }
-      for (const action of Object.keys(descriptor[type]?.actions ?? {})) {
-        this.takenNames.add(`${stem}${pascalCase(action)}Input`)
-        this.takenNames.add(`${stem}${pascalCase(action)}Output`)
+      for (const [name, action] of Object.entries(descriptor[type]?.actions ?? {})) {
+        this.takenNames.add(`${stem}${pascalCase(name)}Input`)
+        this.takenNames.add(`${stem}${pascalCase(name)}Output`)
+        for (const { mediaType } of action.rawOutput ?? []) {
+          this.takenNames.add(`${stem}${pascalCase(name)}${pascalCase(mediaType)}Output`)
+        }
+        for (const { mediaType } of action.inputMedia ?? []) {
+          this.takenNames.add(`${stem}${pascalCase(name)}${pascalCase(mediaType)}Input`)
+        }
+        const doc = actionDoc(name, this.actionOperation(action))
+        if (doc !== undefined) {
+          this.literalDocs.set(`${type}/actions/${name}`, doc)
+        }
       }
     }
+  }
+
+  /** The operation an action is invoked over: its declared method, else `POST`. */
+  private actionOperation(action: ActionDescriptor): OperationObject | undefined {
+    const method = (action.method ?? 'POST').toLowerCase() as HttpMethod
+    return this.doc.paths?.[action.path]?.[method]
   }
 
   /**
@@ -406,7 +482,7 @@ export class Emitter {
       const pascal = typeStem(type)
       for (const [actionName, action] of Object.entries(actions)) {
         const member = `${pascal}${pascalCase(actionName)}`
-        const names: { input?: string; output?: string } = {}
+        const names: ActionAliasNames = {}
         const inputType = this.actionBodyType(action, 'input')
         if (inputType !== undefined) {
           out.push(`export type ${member}Input = ${inputType}`)
@@ -417,7 +493,33 @@ export class Emitter {
           out.push(`export type ${member}Output = ${outputType}`)
           names.output = `${member}Output`
         }
-        if (names.input !== undefined || names.output !== undefined) {
+        const op = this.actionOperation(action)
+        for (const { mediaType, kind } of action.rawOutput ?? []) {
+          if (kind === 'json') {
+            const schema = firstSuccessSchema(op, mediaType)
+            names.responses ??= new Map()
+            names.responses.set(
+              mediaType,
+              this.rawBodyAlias(schema, `${member}${pascalCase(mediaType)}Output`, out),
+            )
+          }
+        }
+        for (const { mediaType, kind } of action.inputMedia ?? []) {
+          if (kind === 'json') {
+            const schema = op?.requestBody?.content?.[mediaType]?.schema
+            names.requests ??= new Map()
+            names.requests.set(
+              mediaType,
+              this.rawBodyAlias(schema, `${member}${pascalCase(mediaType)}Input`, out),
+            )
+          }
+        }
+        if (
+          names.input !== undefined ||
+          names.output !== undefined ||
+          names.responses !== undefined ||
+          names.requests !== undefined
+        ) {
           let byAction = this.actionAliasNames.get(type)
           if (byAction === undefined) {
             byAction = new Map()
@@ -428,6 +530,39 @@ export class Emitter {
       }
     }
     return out
+  }
+
+  /**
+   * The alias a JSON-like raw body is typed by. A `$ref` to a component is emitted once under the
+   * component's own name when that name is free; anything else gets `fallback`. The alias source
+   * is pushed onto `out` the first time.
+   */
+  private rawBodyAlias(schema: SchemaObject | undefined, fallback: string, out: string[]): string {
+    const target = typeof schema?.$ref === 'string' ? refName(schema.$ref) : undefined
+    const resolved = target === undefined ? undefined : this.schemas[target]
+    if (target !== undefined && resolved !== undefined) {
+      const known = this.rawBodyAliases.get(target)
+      if (known !== undefined) {
+        return known
+      }
+      if (isTypeName(target) && !this.takenNames.has(target) && !Array.isArray(resolved.enum)) {
+        this.takenNames.add(target)
+        this.rawBodyAliases.set(target, target)
+        out.push(this.rawBodyDeclaration(target, resolved))
+        this.emittedInterfaces.add(target)
+        return target
+      }
+    }
+    out.push(this.rawBodyDeclaration(fallback, schema))
+    return fallback
+  }
+
+  /** `export type Name = …` for a raw body schema, with its description as JSDoc. */
+  private rawBodyDeclaration(name: string, schema: SchemaObject | undefined): string {
+    const type = schema === undefined ? 'unknown' : this.tsType(schema)
+    const doc = schema === undefined ? undefined : jsDoc(schema.description, '')
+    const declaration = `export type ${name} = ${type}`
+    return doc === undefined ? declaration : `${doc}\n${declaration}`
   }
 
   /**
@@ -453,6 +588,12 @@ export class Emitter {
         }
         if (names.output !== undefined) {
           members.push(`output: ${names.output}`)
+        }
+        if (names.responses !== undefined) {
+          members.push(`responses: ${mediaMap(names.responses)}`)
+        }
+        if (names.requests !== undefined) {
+          members.push(`requests: ${mediaMap(names.requests)}`)
         }
         actionLines.push(`    ${propertyKey(actionName)}: { ${members.join('; ')} }`)
       }
@@ -797,12 +938,12 @@ export class Emitter {
 
   /** Emit the descriptor as a literal `as const satisfies ApiDescriptor`. */
   private resourceMap(): string {
-    const body = this.literal(this.descriptor as Record<string, unknown>, 0)
+    const body = this.literal(this.descriptor as Record<string, unknown>, 0, '')
     return `export const resourceMap = ${body} as const satisfies ApiDescriptor`
   }
 
   /** Render a JSON-serialisable descriptor value as deterministic TS object-literal source. */
-  private literal(value: unknown, depth: number): string {
+  private literal(value: unknown, depth: number, path?: string): string {
     const indent = '  '.repeat(depth)
     const inner = '  '.repeat(depth + 1)
 
@@ -819,9 +960,12 @@ export class Emitter {
       if (entries.length === 0) {
         return '{}'
       }
-      const lines = entries.map(
-        ([key, v]) => `${inner}${propertyKey(key)}: ${this.literal(v, depth + 1)}`,
-      )
+      const lines = entries.map(([key, v]) => {
+        const childPath = path === undefined ? undefined : path === '' ? key : `${path}/${key}`
+        const line = `${inner}${propertyKey(key)}: ${this.literal(v, depth + 1, childPath)}`
+        const doc = childPath === undefined ? undefined : this.literalDocs.get(childPath)
+        return doc === undefined ? line : `${jsDoc(doc, inner)}\n${line}`
+      })
       return `{\n${lines.join(',\n')}\n${indent}}`
     }
 
