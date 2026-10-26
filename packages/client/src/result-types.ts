@@ -1014,7 +1014,7 @@ type InputBodyFor<D extends ApiDescriptor, W, Act, E, C> =
       : I extends { kind: 'binary' }
         ? BinaryBody
         : I extends { kind: 'text' }
-          ? string
+          ? string | Blob
           : I extends { kind: 'multipart'; mediaType: infer K }
             ? GeneratedFields<E, K> | FormData
             : I extends { kind: 'form'; mediaType: infer K }
