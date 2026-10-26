@@ -50,6 +50,41 @@ describe('httpClientTransport', () => {
     })
   })
 
+  it('sends a raw body as is and reads a binary response when asked', async () => {
+    const bytes = new Uint8Array([1, 2])
+    const pending = transport({
+      method: 'POST',
+      url: URL,
+      headers: { Accept: 'image/png', 'Content-Type': 'application/octet-stream' },
+      rawBody: bytes,
+      responseType: 'blob',
+    })
+
+    const req = backend.expectOne(URL)
+    expect(req.request.body).toBe(bytes)
+    expect(req.request.responseType).toBe('blob')
+    const png = new Blob(['png'], { type: 'image/png' })
+    req.flush(png, { status: 200, statusText: 'OK' })
+
+    await expect(pending).resolves.toEqual({ status: 200, headers: {}, body: '', binary: png })
+  })
+
+  it('decodes the error body of a binary request as text', async () => {
+    const pending = transport({ method: 'GET', url: URL, headers: {}, responseType: 'arraybuffer' })
+
+    const req = backend.expectOne(URL)
+    expect(req.request.responseType).toBe('arraybuffer')
+    const text = '{"errors":[]}'
+    const buffer = new ArrayBuffer(text.length)
+    new Uint8Array(buffer).set(Array.from(text, (char) => char.charCodeAt(0)))
+    req.flush(buffer, {
+      status: 406,
+      statusText: 'Not Acceptable',
+    })
+
+    await expect(pending).resolves.toEqual({ status: 406, headers: {}, body: '{"errors":[]}' })
+  })
+
   it('resolves an empty body for a 204', async () => {
     const pending = transport({ method: 'DELETE', url: `${URL}/1`, headers: {} })
 
