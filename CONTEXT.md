@@ -154,6 +154,13 @@ handles do not (serialize the data, not the handle).
   attributes, a bare link is a `string`. The generated `Links` map is `createClient`'s sixth type
   argument, folded into the attributes argument under a `$declaredLinks` key (`WithLinks<A, L>`) so
   `$links` is typed and the query and Angular bindings need no change.
+- **Multi-method actions and action safety** (generator contract 15, ADR 0013): an action
+  answering to several methods has one operation id per method. The preferred method (`POST`,
+  else the first advertised) keeps the action's name, and each other method is keyed
+  `<name><Method>`, or `<name>-<method>` when the name uses dashes (underscores likewise). A
+  document whose methods share one id still gives only the preferred one. An action's `x-safety`
+  becomes optional `readOnly`, `destructive` and `idempotent` on its `ActionDescriptor`, absent
+  when undeclared, and a sentence in its JSDoc.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 

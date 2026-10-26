@@ -43,8 +43,8 @@ describe('generator contract 12 (operation examples)', () => {
   const witness = load('contract-witness.openapi.json')
   const examples = buildExamples(witness, buildDescriptor(witness))
 
-  it('reads the witness, now at contract 14, without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(14)
+  it('reads the witness, now at contract 15, without a warning', () => {
+    expect(witness.info?.['x-generator']?.contract).toBe(15)
     expect(checkContract(witness)).toBeUndefined()
   })
 

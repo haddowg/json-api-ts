@@ -84,6 +84,34 @@ Most actions are one of the shapes above. The remaining modes and edge cases are
 ??? note "Going deeper: non-POST methods"
     Actions default to `POST`. An action declaring a single non-POST method (e.g. `#[AsJsonApiAction(methods: ['PATCH'])]`) records that `method` in the descriptor and the client dispatches over it — so a `PATCH`-only action stays reachable rather than being silently dropped. You still call it the same way; the verb is handled for you.
 
+## An action with several methods
+
+An action can answer to more than one method, say `export` over `GET` and `POST`. The server gives each method its own operation id from generator contract 15, and the client gets one method per HTTP method. The preferred one keeps the action's name. That's `POST` when the action allows it, otherwise the first of `GET`, `PUT`, `PATCH` and `DELETE`. Each other method is named after the action and the method, joined the way the action's name joins its words:
+
+```ts
+await client.articles.actions.export() // POST /articles/-actions/export
+await client.articles.actions.exportGet() // GET /articles/-actions/export
+
+// A kebab-case name keeps its dashes: `bulk-import` over POST and PUT.
+await client.articles.actions['bulk-import'](rows)
+await client.articles.actions['bulk-import-put'](rows)
+```
+
+A client generated before contract 15 had only the preferred method, under the same name, so regenerating adds methods and removes none. The server refuses action names that differ only in case or punctuation, so `exportGet` can't clash with another action.
+
+## Safety
+
+An action's method doesn't say whether it changes anything: a search sent as `POST` reads like a write. From generator contract 15 an action can declare it, and the descriptor carries each declared flag as `readOnly`, `destructive` or `idempotent`. A flag the server doesn't declare is absent, so `undefined` means unknown, not `false`. The action's JSDoc repeats them, so an editor hover on `client.articles.id(id).actions.purge` reads "The server declares this action destructive."
+
+```ts
+import { resourceMap } from './api/music.gen'
+
+const purge = resourceMap.articles.actions.purge
+if (purge.destructive === true) {
+  // ask before sending it
+}
+```
+
 ## Raw responses
 
 An action can answer in media types other than JSON:API, such as a CSV export, a PDF or an image, beside its JSON:API response or instead of it. Pick one with `accept`. The client sends it as the `Accept` header and types the result by the media type:

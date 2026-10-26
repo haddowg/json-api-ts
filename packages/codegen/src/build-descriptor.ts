@@ -446,7 +446,8 @@ export class DescriptorBuilder {
    * `{collection}/{id}/-actions/{name}` paths. The action name is the last segment; scope
    * is `resource` when the path carries `/{id}/`, else `collection`. `input` is `document`
    * (a JSON:API requestBody), `none` (no requestBody) or `raw` (a non-JSON:API body);
-   * `output` is `document` (a 2xx returns a JSON:API document) or `none` (only `204`).
+   * `output` is `document` (a 2xx returns a JSON:API document) or `none` (only `204`). An action
+   * answering to several methods gives one entry per method (see {@link pickOperations}).
    */
   private actions(collection: string): Record<string, ActionDescriptor> {
     const out: Record<string, ActionDescriptor> = {}
@@ -468,66 +469,92 @@ export class DescriptorBuilder {
       if (name.length === 0 || name.includes('/')) {
         continue
       }
-      // An action is invoked over one HTTP method; the bundle lets an author declare a
-      // non-POST method, so read the advertised operation (POST-preferred) rather than only
-      // `post` — else a GET/PATCH/DELETE-only action would silently vanish from the client.
-      const picked = pickOperation(item)
-      if (picked === undefined) {
+      // A path item may advertise several methods. The preferred one (POST, else the first) keeps
+      // the bare name, so a client generated before contract 15 keeps compiling.
+      const picked = pickOperations(item)
+      if (picked.length === 0) {
         // eslint-disable-next-line no-console
         console.warn(
           `json-api codegen: custom action path "${path}" advertises no usable operation; skipping.`,
         )
         continue
       }
-      const { method, op } = picked
-      const input = actionInput(op)
-      const output = actionOutput(op)
-      const action: ActionDescriptor = { scope, path, input, output }
-      // Only carried when non-POST (POST is the runtime default), keeping the common descriptor tiny.
-      if (method !== 'post') {
-        action.method = method.toUpperCase()
-      }
-      // A document input names its resource type so the client can accept FLAT input and build the
-      // envelope (+ remap 422 pointers), matching `create`/`update` ergonomics.
-      if (input === 'document') {
-        const inputType = this.documentPrimary(actionRequestRef(op))?.type
-        if (inputType !== undefined) {
-          action.inputType = inputType
+      for (const [index, { method, op }] of picked.entries()) {
+        const key = index === 0 ? name : methodActionName(name, method)
+        if (key in out) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `json-api codegen: the ${method.toUpperCase()} operation of custom action path "${path}" would be named "${key}", which another action already uses; skipping.`,
+          )
+          continue
         }
+        out[key] = this.action(scope, path, method, op)
       }
-      // A document output names its primary resource type + cardinality so the client materialises
-      // the response into that resource view (matching reads), not the raw wire envelope.
-      if (output === 'document') {
-        const primary = this.documentPrimary(this.firstOkJsonApiRef(op))
-        if (primary !== undefined) {
-          action.outputType = primary.type
-          action.outputCardinality = primary.cardinality
-        }
-      }
-      // A raw-input action carries its declared (non-JSON:API) media type so the client sends
-      // the right `Content-Type` rather than a wildcard the server may reject.
-      if (input === 'raw') {
-        const contentType = rawContentType(op)
-        if (contentType !== undefined) {
-          action.contentType = contentType
-        }
-      }
-      // Generator contract 10: media types other than JSON:API under a 2xx, picked by `Accept`.
-      const rawOutput = this.rawOutput(op)
-      if (rawOutput.length > 0) {
-        action.rawOutput = rawOutput
-      }
-      // Several request media types, picked by `Content-Type`. One is already `input`/`contentType`.
-      const requestContent = Object.entries(op.requestBody?.content ?? {})
-      if (requestContent.length > 1) {
-        action.inputMedia = requestContent.map(([mediaType, media]) => ({
-          mediaType,
-          kind: this.inputMediaKind(mediaType, media.schema),
-        }))
-      }
-      out[name] = action
     }
     return sortRecord(out)
+  }
+
+  /** The descriptor for one operation of a custom action. */
+  private action(
+    scope: ActionDescriptor['scope'],
+    path: string,
+    method: HttpMethod,
+    op: OperationObject,
+  ): ActionDescriptor {
+    const input = actionInput(op)
+    const output = actionOutput(op)
+    const action: ActionDescriptor = { scope, path, input, output }
+    // Only carried when non-POST (POST is the runtime default), keeping the common descriptor tiny.
+    if (method !== 'post') {
+      action.method = method.toUpperCase()
+    }
+    // A document input names its resource type so the client can accept FLAT input and build the
+    // envelope (+ remap 422 pointers), matching `create`/`update` ergonomics.
+    if (input === 'document') {
+      const inputType = this.documentPrimary(actionRequestRef(op))?.type
+      if (inputType !== undefined) {
+        action.inputType = inputType
+      }
+    }
+    // A document output names its primary resource type + cardinality so the client materialises
+    // the response into that resource view (matching reads), not the raw wire envelope.
+    if (output === 'document') {
+      const primary = this.documentPrimary(this.firstOkJsonApiRef(op))
+      if (primary !== undefined) {
+        action.outputType = primary.type
+        action.outputCardinality = primary.cardinality
+      }
+    }
+    // A raw-input action carries its declared (non-JSON:API) media type so the client sends
+    // the right `Content-Type` rather than a wildcard the server may reject.
+    if (input === 'raw') {
+      const contentType = rawContentType(op)
+      if (contentType !== undefined) {
+        action.contentType = contentType
+      }
+    }
+    // Generator contract 10: media types other than JSON:API under a 2xx, picked by `Accept`.
+    const rawOutput = this.rawOutput(op)
+    if (rawOutput.length > 0) {
+      action.rawOutput = rawOutput
+    }
+    // Several request media types, picked by `Content-Type`. One is already `input`/`contentType`.
+    const requestContent = Object.entries(op.requestBody?.content ?? {})
+    if (requestContent.length > 1) {
+      action.inputMedia = requestContent.map(([mediaType, media]) => ({
+        mediaType,
+        kind: this.inputMediaKind(mediaType, media.schema),
+      }))
+    }
+    // Generator contract 15: the flags the action declares, each only when declared.
+    const safety = op['x-safety']
+    for (const flag of ['readOnly', 'destructive', 'idempotent'] as const) {
+      const value = safety?.[flag]
+      if (typeof value === 'boolean') {
+        action[flag] = value
+      }
+    }
+    return action
   }
 
   /**
@@ -1198,19 +1225,40 @@ function isJsonMediaType(mediaType: string): boolean {
 const ACTION_METHODS: readonly HttpMethod[] = ['post', 'get', 'put', 'patch', 'delete']
 
 /**
- * The single operation an action is invoked over: POST when advertised (the common default), else
- * the first advertised method. `undefined` when the path item carries no operation at all.
+ * The operations an action is invoked over, the preferred one first: POST when advertised (the
+ * common default), else the first advertised method. The other methods follow only when their
+ * `operationId` differs from the preferred one's, as contract 15 makes it for an action answering
+ * to several methods. An older document gave every method one id, and its client exposed only the
+ * preferred one. Empty when the path item carries no operation at all.
  */
-function pickOperation(
-  item: PathItemObject,
-): { method: HttpMethod; op: OperationObject } | undefined {
+function pickOperations(item: PathItemObject): { method: HttpMethod; op: OperationObject }[] {
   const available = ACTION_METHODS.filter((method) => item[method] !== undefined)
-  const method = available.includes('post') ? 'post' : available[0]
-  if (method === undefined) {
-    return undefined
+  const preferred = available.includes('post') ? 'post' : available[0]
+  if (preferred === undefined) {
+    return []
   }
-  const op = item[method]
-  return op === undefined ? undefined : { method, op }
+  const first = item[preferred]!
+  const out = [{ method: preferred, op: first }]
+  for (const method of available) {
+    const op = item[method]!
+    if (method !== preferred && op.operationId !== first.operationId) {
+      out.push({ method, op })
+    }
+  }
+  return out
+}
+
+/**
+ * The name a multi-method action's other methods go under: the action's name and the method,
+ * joined the way the name joins its words. So `export` gives `exportGet` and `bulk-import` gives
+ * `bulk-import-get`. Core refuses action ids that differ only in case or punctuation, so the
+ * name can't clash with another action's.
+ */
+function methodActionName(name: string, method: HttpMethod): string {
+  const separator = /[-_.]/.exec(name)?.[0]
+  return separator === undefined
+    ? `${name}${method[0]!.toUpperCase()}${method.slice(1)}`
+    : `${name}${separator}${method}`
 }
 
 /** The body shape a custom action accepts: a JSON:API document, none, or a raw payload. */

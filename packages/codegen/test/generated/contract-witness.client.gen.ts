@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   c512746b1b0ae05f
+ * Spec hash:   76cc26c59c597b07
  */
 
 import {
@@ -640,12 +640,38 @@ export const resourceMap = {
         output: "none",
         inputType: "articles"
       },
+      export: {
+        scope: "collection",
+        path: "/articles/-actions/export",
+        input: "none",
+        output: "meta"
+      },
+      exportGet: {
+        scope: "collection",
+        path: "/articles/-actions/export",
+        input: "none",
+        output: "meta",
+        method: "GET"
+      },
       import: {
         scope: "collection",
         path: "/articles/-actions/import",
         input: "raw",
         output: "none",
         contentType: "application/octet-stream"
+      },
+      /** The server declares this action read-only, not destructive and idempotent. */
+      preview: {
+        scope: "resource",
+        path: "/articles/{id}/-actions/preview",
+        input: "none",
+        output: "document",
+        method: "GET",
+        outputType: "articles",
+        outputCardinality: "one",
+        readOnly: true,
+        destructive: false,
+        idempotent: true
       },
       /** Publish the article */
       publish: {
@@ -655,6 +681,14 @@ export const resourceMap = {
         output: "document",
         outputType: "articles",
         outputCardinality: "one"
+      },
+      /** The server declares this action destructive. */
+      purge: {
+        scope: "resource",
+        path: "/articles/{id}/-actions/purge",
+        input: "none",
+        output: "none",
+        destructive: true
       },
       /**
        * @example Response `200` as `text/csv`

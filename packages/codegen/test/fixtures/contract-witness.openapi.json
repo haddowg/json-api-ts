@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 14
+            "contract": 15
         }
     },
     "servers": [
@@ -4037,6 +4037,322 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
+                }
+            }
+        },
+        "/articles/-actions/export": {
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `export` action",
+                "description": "Invokes the `export` custom action on the articles collection.",
+                "operationId": "action.articles.export.get",
+                "responses": {
+                    "200": {
+                        "description": "The action result: a meta-only document.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaDocument"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `export` action",
+                "description": "Invokes the `export` custom action on the articles collection.",
+                "operationId": "action.articles.export.post",
+                "responses": {
+                    "200": {
+                        "description": "The action result: a meta-only document.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaDocument"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/articles/{id}/-actions/preview": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `preview` action",
+                "description": "Invokes the `preview` custom action on an article.",
+                "operationId": "action.articles.preview",
+                "parameters": [
+                    {
+                        "name": "include",
+                        "in": "query",
+                        "description": "A comma-separated list of relationship paths to include in a compound document.",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "author",
+                                    "tags",
+                                    "author.company"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[articles]",
+                        "in": "query",
+                        "description": "A comma-separated list of `articles` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "title",
+                                    "slug",
+                                    "status",
+                                    "priority",
+                                    "wordCount",
+                                    "rating",
+                                    "featured",
+                                    "releasedOn",
+                                    "publishedAt",
+                                    "syncedAt",
+                                    "archivedAt",
+                                    "embargoLifts",
+                                    "editorEmail",
+                                    "canonicalUrl",
+                                    "excerpt",
+                                    "revision",
+                                    "reviewNote",
+                                    "originIp",
+                                    "keywords",
+                                    "analytics",
+                                    "address",
+                                    "block",
+                                    "contact",
+                                    "createdAt",
+                                    "legacyRef",
+                                    "commentCount",
+                                    "authorName",
+                                    "score",
+                                    "author",
+                                    "tags",
+                                    "publisher",
+                                    "cover",
+                                    "locked",
+                                    "attachments",
+                                    "editor"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[people]",
+                        "in": "query",
+                        "description": "A comma-separated list of `people` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "name",
+                                    "role",
+                                    "company"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[tags]",
+                        "in": "query",
+                        "description": "A comma-separated list of `tags` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "label",
+                                    "articles"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The action result.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesDocument"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "x-safety": {
+                    "readOnly": true,
+                    "destructive": false,
+                    "idempotent": true
+                }
+            }
+        },
+        "/articles/{id}/-actions/purge": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "post": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `purge` action",
+                "description": "Invokes the `purge` custom action on an article.",
+                "operationId": "action.articles.purge",
+                "responses": {
+                    "204": {
+                        "description": "The action completed with no content."
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "x-workflows": {
+                    "source": "workflows.arazzo.yaml",
+                    "workflowId": "purgeArticle"
+                },
+                "x-safety": {
+                    "destructive": true
                 }
             }
         },
