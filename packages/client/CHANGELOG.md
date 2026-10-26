@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.5.0...json-api-client-v1.6.0) (2026-10-26)
+
+
+### Features
+
+* **client:** type a resource's declared links on $links ([9b71969](https://github.com/haddowg/json-api-ts/commit/9b71969a62f1811dee3a5afe649c7e95b44d77a6))
+
+
+### Bug Fixes
+
+* **client:** key declared links by a string so apps can export bound APIs ([916b115](https://github.com/haddowg/json-api-ts/commit/916b11550312d34126fade77298f02b915f2ab89))
+* **client:** read $self as the href of a link object self link ([#80](https://github.com/haddowg/json-api-ts/issues/80)) ([9900e2a](https://github.com/haddowg/json-api-ts/commit/9900e2a11108db3ccba76a413a4bd6cab5fb9c8e))
+
 ## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.4.1...json-api-client-v1.5.0) (2026-10-26)
 
 
