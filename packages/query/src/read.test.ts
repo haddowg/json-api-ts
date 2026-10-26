@@ -1,6 +1,10 @@
 import {
   type ApiDescriptor,
   createClient,
+  type DefaultActionTypes,
+  type DefaultAttributes,
+  type DefaultWriteAttributes,
+  type ResourceLinks,
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
@@ -186,6 +190,37 @@ describe('getQueryOptions', () => {
       getQueryOptions(client, 'albums', '1', { include: ['artist'] }),
     )
     expect(result.artist?.name).toBe('Nina')
+  })
+})
+
+describe('declared links', () => {
+  interface AlbumsLinks extends ResourceLinks {
+    store?: { href: string; meta: { currency: 'GBP' } }
+  }
+
+  it('carries a client typed with a links map through to the read result', async () => {
+    const album = {
+      ...resource('albums', '1'),
+      links: { store: { href: 's', meta: { currency: 'GBP' } } },
+    }
+    const { transport } = mockTransport({ 'GET /albums/1': { data: album } })
+    const client = createClient<
+      typeof descriptor,
+      DefaultAttributes<typeof descriptor>,
+      DefaultWriteAttributes<typeof descriptor>,
+      DefaultActionTypes,
+      string,
+      { albums: AlbumsLinks }
+    >(descriptor, { baseUrl: BASE, transport })
+    const options = getQueryOptions(client, 'albums', '1')
+    const result = await new QueryClient().fetchQuery(options)
+
+    expectTypeOf(result.$links).toEqualTypeOf<AlbumsLinks | undefined>()
+    expect(result.$links?.store?.meta.currency).toBe('GBP')
+    const listed = createQueryApi(client).albums.list()
+    expectTypeOf<Awaited<ReturnType<typeof listed.queryFn>>[number]['$links']>().toEqualTypeOf<
+      AlbumsLinks | undefined
+    >()
   })
 })
 
