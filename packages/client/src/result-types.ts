@@ -989,6 +989,16 @@ type GeneratedMediaType<E, Key extends string, M> = E extends { [K in Key]: infe
     : unknown
   : unknown
 
+/**
+ * The typed fields generated for a multipart or URL-encoded request media type `M`, which the
+ * client encodes itself; `never` when its schema lists no properties, leaving only the raw body.
+ */
+type GeneratedFields<E, M> = E extends { requests: infer Map }
+  ? M extends keyof Map
+    ? Map[M]
+    : never
+  : never
+
 /** The JSON:API document body an action takes: flat input for its `inputType`, else the generated or loose document. */
 type DocumentInput<D extends ApiDescriptor, W, Act, E> = Act extends {
   inputType: infer IT extends TypeName<D>
@@ -1005,10 +1015,10 @@ type InputBodyFor<D extends ApiDescriptor, W, Act, E, C> =
         ? BinaryBody
         : I extends { kind: 'text' }
           ? string
-          : I extends { kind: 'multipart' }
-            ? FormData
-            : I extends { kind: 'form' }
-              ? URLSearchParams | string
+          : I extends { kind: 'multipart'; mediaType: infer K }
+            ? GeneratedFields<E, K> | FormData
+            : I extends { kind: 'form'; mediaType: infer K }
+              ? GeneratedFields<E, K> | URLSearchParams | string
               : I extends { kind: 'json'; mediaType: infer K }
                 ? GeneratedMediaType<E, 'requests', K>
                 : unknown
@@ -1048,7 +1058,13 @@ type ResponseOptions<Act, M, RT> = Act extends { rawOutput: readonly RawOutputMe
 /** The body argument of an action with input, the options last. */
 type WithInput<D extends ApiDescriptor, W, Act, E> = Act extends { input: 'document' }
   ? DocumentInput<D, W, Act, E>
-  : unknown
+  : Act extends { input: 'raw'; contentType: infer K extends string }
+    ? [GeneratedFields<E, K>] extends [never]
+      ? unknown
+      : K extends `multipart/${string}`
+        ? GeneratedFields<E, K> | FormData
+        : GeneratedFields<E, K> | URLSearchParams | string
+    : unknown
 
 /**
  * A single custom-action method, typed by its declared `input` mode:
