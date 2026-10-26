@@ -296,3 +296,34 @@ describe('typed form fields', () => {
     )
   })
 })
+
+describe('text and any-JSON request bodies', () => {
+  // Core projects a schemaless text entry as a plain string and a schemaless JSON entry as `{}`.
+  function withDefaultBodies(): OpenApiDocument {
+    const doc = loadWitness()
+    const content = doc.paths!['/articles/-actions/bulk-import']!.post!.requestBody!.content!
+    content['text/csv'] = { schema: { type: 'string' } }
+    content['application/json'] = { schema: {} }
+    return doc
+  }
+
+  it('types an any-JSON body as unknown', () => {
+    const doc = withDefaultBodies()
+    expect(emit(doc, buildDescriptor(doc))).toContain(
+      'export type ArticlesBulkImportApplicationJsonInput = unknown',
+    )
+  })
+
+  it('takes a string or a Blob for a text body', () => {
+    const doc = withDefaultBodies()
+    const probes = [
+      "const api = createClient({ baseUrl: 'https://api.example' })",
+      "void api.articles.actions['bulk-import']('id,title\\n')",
+      "void api.articles.actions['bulk-import'](new Blob(['id,title\\n']))",
+      "void api.articles.actions['bulk-import']({ any: ['json'] }, { contentType: 'application/json' })",
+      '// @ts-expect-error -- a text body is not a number.',
+      "void api.articles.actions['bulk-import'](42)",
+    ]
+    expect(typecheck(`${emit(doc, buildDescriptor(doc))}\n${probes.join('\n')}\n`)).toEqual([])
+  })
+})
