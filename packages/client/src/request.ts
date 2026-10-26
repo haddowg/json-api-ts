@@ -54,8 +54,8 @@ export interface JsonApiRequest {
   query?: ReadQuery
   body?: unknown
   /**
-   * Override the request `Content-Type` (defaults to the negotiated JSON:API media type when a
-   * body is present). Set for a custom action's `raw` input, where the payload is not a JSON:API
+   * Override the request `Content-Type` (defaults to the negotiated JSON:API media type on every
+   * `POST` and on any other request with a body). Set for a custom action's `raw` input, where the payload is not a JSON:API
    * document. When set it wins over {@link ext}/{@link profiles} for `Content-Type`.
    */
   contentType?: string
@@ -249,8 +249,11 @@ export async function execute(
   if (req.signal !== undefined) {
     transportReq.signal = req.signal
   }
-  if (req.body !== undefined) {
+  // A JSON:API server answers 415 to a POST without the JSON:API Content-Type, even with no body.
+  if (req.body !== undefined || req.method.toUpperCase() === 'POST') {
     headers['Content-Type'] = req.contentType ?? negotiated
+  }
+  if (req.body !== undefined) {
     transportReq.body =
       req.raw && typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
   }
