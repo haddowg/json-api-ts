@@ -11,6 +11,7 @@ on:
       - examples/spotify-clone/**
       - packages/angular/**
       - packages/client/**
+      - packages/mcp/**
       - packages/query/**
   workflow_dispatch:
 

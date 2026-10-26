@@ -200,7 +200,8 @@ resourceMap>; export const createClient = …`. The descriptor carries what the 
   normalized index) · `@haddowg/json-api-codegen` (CLI: OpenAPI + schemas → descriptor +
   types + bound `createClient`) · `@haddowg/json-api-query` (TanStack option/key
   factories + normalization glue) · `@haddowg/json-api-angular` (signal-based Angular
-  bindings over an `HttpClient` transport; see below).
+  bindings over an `HttpClient` transport; see below) · `@haddowg/json-api-mcp` (MCP tools
+  built at runtime from the document and descriptor; see below).
 
 ### Cache & normalization (TanStack layer)
 
@@ -246,6 +247,33 @@ ADR 0006. `@haddowg/json-api-angular` is signal-based. RxJS stays at the edges
 - **Writes:** `jsonApiMutation()` → `{ mutate, isPending, error, value, reset }`.
 - **No shared cache:** callers `reload()` what a write affects. A later cache would be
   TanStack's Angular adapter or a small signal store keyed by `type:id`.
+
+### MCP tools (definitions and a handler, not a server)
+
+ADR 0014. `@haddowg/json-api-mcp` builds one MCP tool per collection, resource, related and
+custom action operation from the OpenAPI document and its descriptor, at runtime. It returns
+tool definitions and a call handler; the host owns the MCP server. It's generic: scopes are
+opaque, and vendor extensions such as `x-feature` reach the host's hooks untouched.
+
+- **Names** come from the `operationId`: `<type>_list`, `_get`, `_create`, `_update`,
+  `_delete`, `<type>_<relation>_list|get`, `<type>_<action>`, plus `_<method>` for an action
+  with several methods. Kebab-case types become snake*case. A name over 64 characters, outside
+  `[a-zA-Z0-9*-]` or shared fails the build (`ToolNameError`).
+- **Inputs are portable:** valid under OpenAI's strict function calling and Anthropic's strict
+  tool use. Every property is required and the API's optional ones are nullable, so `null`
+  means "not given"; an update's `clear` names the fields to null. No `oneOf`/`if`/`then`.
+- **Outputs** flatten resources to `{ id, type, ...attributes, relation: id | ids }`, the
+  related resource in place of the id when included; collections are `{ items, links, meta }`
+  with only the pagination links. `pageLink` is followed only on the tool's own base URL and
+  path.
+- **Per caller:** `forRequest({ grantedScopes, context })` filters by the operation's
+  `security` through `scopeMatcher`, then `capabilities`, then `includeOperation`;
+  `decorateTool`, `requestInit` and `mapError` are the other hooks. They're public API.
+- **Safety:** an action's declared `readOnly`, `destructive` and `idempotent` become its
+  annotations, read from its descriptor entry and its `x-safety`, the latter winning. Every
+  method of a multi-method action is its own tool, suffixed with the method, and calls the
+  descriptor entry at its path and method. CRUD hints come from the kind.
+- **Contract:** reads 13 to 15 and throws outside it.
 
 ### Dependency policy (supersedes "zero runtime deps")
 

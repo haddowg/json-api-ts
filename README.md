@@ -25,6 +25,7 @@ signal-based bindings that send through `HttpClient`.
 | [`@haddowg/json-api-codegen`](./packages/codegen) | CLI: OpenAPI (+ JSON Schemas) → descriptor + types + bound `createClient`.    |
 | [`@haddowg/json-api-query`](./packages/query)     | TanStack Query option/key factories + `type:id` normalization.                |
 | [`@haddowg/json-api-angular`](./packages/angular) | Angular bindings: `HttpClient` transport, DI providers, signal-based reads.   |
+| [`@haddowg/json-api-mcp`](./packages/mcp)         | MCP tool definitions and a call handler, built at runtime from the document.  |
 
 ## Install
 

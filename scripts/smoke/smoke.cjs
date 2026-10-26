@@ -7,6 +7,7 @@ require('@angular/compiler')
 
 const { createClient, materialise, serializeQuery } = require('@haddowg/json-api-client')
 const { createAjvValidator } = require('@haddowg/json-api-client/ajv')
+const { createJsonApiMcp, readActionSafety } = require('@haddowg/json-api-mcp')
 const { createQueryApi, keyFor, listQueryOptions } = require('@haddowg/json-api-query')
 const {
   httpClientTransport,
@@ -29,8 +30,10 @@ for (const [name, fn] of [
   ['jsonApiResource', jsonApiResource],
   ['jsonApiMutation', jsonApiMutation],
   ['loadAll', loadAll],
+  ['createJsonApiMcp', createJsonApiMcp],
+  ['readActionSafety', readActionSafety],
 ]) {
   assert.equal(typeof fn, 'function', `[cjs] expected ${name} to be a function`)
 }
 
-console.log('[cjs] @haddowg/json-api-client, /ajv, -query and -angular resolved from dist OK')
+console.log('[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK')

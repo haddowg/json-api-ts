@@ -1,8 +1,9 @@
 # CLAUDE.md — json-api-ts
 
 TypeScript client suite for `haddowg/json-api` servers: a pnpm/Turborepo monorepo with
-`packages/client`, `packages/codegen`, `packages/query` and `packages/angular`, released to npm
-by release-please. `CONTEXT.md` holds the design decisions and glossary, `docs/adr/` the ADRs
+`packages/client`, `packages/codegen`, `packages/query`, `packages/angular` and `packages/mcp`,
+released to npm by release-please. `packages/mcp` stays `"private": true` until its first npm
+publish has been done by hand; remove the flag to let `release.yml` publish it. `CONTEXT.md` holds the design decisions and glossary, `docs/adr/` the ADRs
 (format in `docs/adr/ADR-FORMAT.md`).
 
 ## Gates
