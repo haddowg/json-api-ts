@@ -51,7 +51,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 13. An older document is an error, and a newer one
+codegen reads contracts 1 to 14. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -116,6 +116,10 @@ Contract 13 is on every document from core 1.13.1. Each core error code's compon
 now gives its `detail` property an example, so every `ErrorCodes` key gets an
 `@example` with the message the server sends, as described under
 [error codes](#error-codes). Nothing else in the document changed.
+
+Contract 14 is carried only by a document whose types declare named links. Each declared
+link is a named property of the type's `<Type>ResourceLinks`, and the codegen types it, as
+described under [declared links](#declared-links).
 
 ### The validation schemas
 
@@ -192,6 +196,8 @@ runtime's needs, and all the real machinery lives in the generic
   create/update), plus the per-type `…Attributes` / `…CreateAttributes` /
   `…UpdateAttributes` interfaces, enum unions (e.g. `AlbumStatus`), and per-action
   input/output aliases.
+- **`Links`** — each type that declares links, mapped to its `…Links` interface. See
+  [below](#declared-links).
 - **`ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode`** — the server's documented
   error codes and a type guard bound to them. See [below](#error-codes).
 - **`pageLimits`** — each collection's page defaults and caps. See
@@ -311,6 +317,63 @@ $pivot?: { readonly position: number; readonly weight?: number }
 
 An older document has one shared pivot schema. The codegen treats every field as
 rendered on reads, and drops the fields marked `readOnly` from writes.
+
+### Declared links
+
+A server can declare named links on a type, such as a signed upload URL with the
+method, headers and expiry to use. The document lists each one under the type's
+`<Type>ResourceLinks` (generator contract 14), and the codegen emits a `…Links`
+interface for every type that declares any:
+
+```ts
+export interface ImagesLinks extends ResourceLinks {
+  /** Where to fetch the original file. */
+  download?: {
+    href: string
+    title: "Original"
+    type: "image/png"
+    meta: {
+      /** The HTTP method to use. */
+      method: "GET"
+      /** When the URL stops working. */
+      expiresAt: string
+      headers?: Record<string, unknown> | null
+    }
+  }
+  /** The `thumbnail` link, absent when it does not apply to the resource. */
+  thumbnail?: string
+}
+
+export interface Links {
+  images: ImagesLinks
+}
+```
+
+Every declared link is optional, because the server leaves a link out when it doesn't
+apply. A link with meta or static members is a link object: `href`, each static member
+as its literal, and `meta` typed member by member the way attributes are, with each
+member's description and example as TSDoc. `meta` is optional unless one of its members
+is always rendered, and a member that can be hidden is optional inside it. A link with
+neither is a bare URL string. Meta values pass through as the wire sends them, so a
+`date-time` member is an ISO `string`.
+
+`createClient` passes `Links` to the runtime, so `$links` on a resource of that type is
+typed without a cast:
+
+```ts
+const image = await client.images.get('img-1')
+
+image.$links?.download?.href           // string
+image.$links?.download?.meta.expiresAt // string
+image.$links?.thumbnail                // string | undefined
+image.$links?.['other']                // unknown: undeclared links stay reachable
+```
+
+`self` and any link the type doesn't declare keep the loose `ResourceLinks` types, and
+a type that declares no links isn't in `Links` and keeps `ResourceLinks` as it was. If
+you spell out a result type by hand, pass `WithLinks<Attributes, Links>` where you would
+pass `Attributes`, or `$links` falls back to `ResourceLinks`
+([ADR 0012](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0012-declared-links-ride-the-attributes-type-argument.md)).
 
 ### Page defaults and caps
 

@@ -6,6 +6,7 @@ import {
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
 import { buildAtomic } from './build-descriptor'
+import { type DeclaredLink, readDeclaredLinks } from './declared-links'
 import { actionOperation, operationExamples } from './build-examples'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
@@ -99,7 +100,9 @@ const MODULE_NAMES = [
   'ErrorCodeByStatus',
   'ErrorCodeGuard',
   'ErrorCodes',
+  'Links',
   'Record',
+  'ResourceLinks',
   'ResourceMap',
   'WriteAttributes',
 ]
@@ -327,6 +330,9 @@ export class Emitter {
   /** JSDoc for entries of the `resourceMap` literal, keyed by their path joined with `/`. */
   private readonly literalDocs = new Map<string, string>()
 
+  /** Wire type -> the links it declares, for the types that declare any. */
+  private readonly declaredLinks = new Map<string, DeclaredLink[]>()
+
   /** Provenance of the source document, stamped into the generated header for drift tracking. */
   private readonly provenance: Provenance
 
@@ -343,8 +349,16 @@ export class Emitter {
     this.provenance = deriveProvenance(source)
     this.takenNames = new Set(MODULE_NAMES)
     for (const type of Object.keys(descriptor)) {
+      const base = this.baseByType.get(type)
+      const links =
+        base === undefined ? [] : readDeclaredLinks(this.schemas[`${base}ResourceLinks`])
+      if (links.length > 0) {
+        this.declaredLinks.set(type, links)
+      }
+    }
+    for (const type of Object.keys(descriptor)) {
       const stem = typeStem(type)
-      for (const suffix of ['Attributes', 'CreateAttributes', 'UpdateAttributes']) {
+      for (const suffix of ['Attributes', 'CreateAttributes', 'UpdateAttributes', 'Links']) {
         this.takenNames.add(`${stem}${suffix}`)
       }
       for (const [name, action] of Object.entries(descriptor[type]?.actions ?? {})) {
@@ -423,6 +437,9 @@ export class Emitter {
     const writeInterfaces = Object.keys(this.descriptor).flatMap((type) =>
       this.writeAttributeInterfaces(type),
     )
+    const linkInterfaces = [...this.declaredLinks].map(([type, links]) =>
+      this.linksInterface(type, links),
+    )
     // Action input/output aliases reference component schemas; resolve them (this also
     // records any enums they reach) before the enum block is emitted.
     const actionAliases = this.actionTypeAliases()
@@ -434,9 +451,11 @@ export class Emitter {
       ...(enums ? [enums] : []),
       ...interfaces,
       ...writeInterfaces,
+      ...linkInterfaces,
       ...actionAliases,
       this.attributesMap(),
       this.writeAttributesMap(),
+      this.linksMap(),
       this.actionTypesMap(),
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
@@ -467,8 +486,70 @@ export class Emitter {
       '  createClient as createClientRuntime,',
       '  type ErrorCodeGuard,',
       '  hasErrorCode as hasErrorCodeRuntime,',
+      ...(this.declaredLinks.size > 0 ? ['  type ResourceLinks,'] : []),
       "} from '@haddowg/json-api-client'",
     ].join('\n')
+  }
+
+  /**
+   * The links interface of a type that declares links, e.g. `ImagesLinks`: each declared link an
+   * optional member, since the server leaves a link out when its href resolves to `null`. It
+   * extends the loose `ResourceLinks`, so `self` and any link the type doesn't declare stay
+   * reachable as before.
+   */
+  private linksInterface(type: string, links: readonly DeclaredLink[]): string {
+    const lines: string[] = []
+    for (const link of links) {
+      const doc = jsDoc(memberDoc(link.schema), '  ')
+      if (doc !== undefined) {
+        lines.push(doc)
+      }
+      const value = link.kind === 'bare' ? 'string' : this.linkObjectType(link.schema, '  ')
+      lines.push(`  ${propertyKey(link.name)}?: ${value}`)
+    }
+    return `export interface ${typeStem(type)}Links extends ResourceLinks {\n${lines.join('\n')}\n}`
+  }
+
+  /**
+   * A declared link object as a multi-line type: `href`, each static member as its `const`, and a
+   * `meta` object whose members are typed as attributes are, each with its own TSDoc.
+   */
+  private linkObjectType(schema: SchemaObject, indent: string): string {
+    return this.documentedObject(schema, indent, (name, member) =>
+      name === 'meta'
+        ? this.documentedObject(member, `${indent}  `, (_, field) => this.tsType(field))
+        : this.constOrType(member),
+    )
+  }
+
+  /** An object type with one line, and its TSDoc, per property. */
+  private documentedObject(
+    schema: SchemaObject,
+    indent: string,
+    type: (name: string, member: SchemaObject) => string,
+  ): string {
+    const required = new Set(schema.required ?? [])
+    const inner = `${indent}  `
+    const lines: string[] = []
+    for (const [name, member] of Object.entries(schema.properties ?? {})) {
+      if (!isSchema(member)) {
+        continue
+      }
+      const doc = jsDoc(memberDoc(member), inner)
+      if (doc !== undefined) {
+        lines.push(doc)
+      }
+      lines.push(
+        `${inner}${propertyKey(name)}${required.has(name) ? '' : '?'}: ${type(name, member)}`,
+      )
+    }
+    return lines.length === 0 ? 'Record<string, unknown>' : `{\n${lines.join('\n')}\n${indent}}`
+  }
+
+  /** A static link member's `const` as a literal type, else its schema's type. */
+  private constOrType(schema: SchemaObject): string {
+    const value = schema['const']
+    return typeof value === 'string' ? stringLiteral(value) : this.tsType(schema)
   }
 
   /** Per-type attribute interface, e.g. `export interface AlbumsAttributes { ... }`. */
@@ -1054,6 +1135,22 @@ export class Emitter {
   }
 
   /**
+   * Emit the `Links` interface mapping each type that declares links to its links interface. The
+   * runtime threads it beside the `Attributes` map, so a read result's `$links` carries the
+   * declared links. A type absent from it keeps the loose `ResourceLinks`. Passed as the sixth
+   * type argument to the runtime factory.
+   */
+  private linksMap(): string {
+    const lines = [...this.declaredLinks.keys()].map(
+      (type) => `  ${propertyKey(type)}: ${typeStem(type)}Links`,
+    )
+    if (lines.length === 0) {
+      return 'export interface Links {}'
+    }
+    return `export interface Links {\n${lines.join('\n')}\n}`
+  }
+
+  /**
    * Emit the `WriteAttributes` interface mapping each writable wire type to its
    * `{ create; update }` attribute pair. A read-only type (no create/update component)
    * contributes no entry, so the bound client only exposes writes where the API allows
@@ -1129,7 +1226,7 @@ export class Emitter {
       ' * so bindings that only see the client (the Angular refs) type its errors.',
       ' */',
       'export const createClient = (options: ClientOptions) =>',
-      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(',
+      '  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>(',
       '    resourceMap,',
       '    {',
       '      atomic,',

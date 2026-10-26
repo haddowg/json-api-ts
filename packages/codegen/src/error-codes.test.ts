@@ -231,7 +231,7 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
 
   it('threads ErrorCode into the bound client factory', () => {
     expect(source).toContain(
-      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(',
+      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>(',
     )
   })
 })
