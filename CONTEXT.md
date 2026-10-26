@@ -130,8 +130,8 @@ handles do not (serialize the data, not the handle).
   action declares it; an action answering only in raw media types defaults to the first. The
   result is typed per media type: `string` for text, `Blob` for binary (`ArrayBuffer` with
   `responseType: 'arrayBuffer'`), the schema's generated type for JSON. An action listing several
-  request media types carries `inputMedia` and takes `{ contentType }`, with the body typed by the
-  picked type; a declared wildcard such as `image/*` takes any `image/…`. Errors stay
+  request media types (generator contract 11) carries `inputMedia` and takes `{ contentType }`,
+  with the body typed by the picked type; a declared wildcard such as `image/*` takes any `image/…`. Errors stay
   `JsonApiError` whatever was asked for. An author's summary and description become the action's
   JSDoc; the projector's stand-in prose for an undescribed action is left out.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11

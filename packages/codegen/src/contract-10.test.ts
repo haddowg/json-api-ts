@@ -33,8 +33,9 @@ function withMultiTypeImport(): OpenApiDocument {
 }
 
 describe('generator contract 10 (raw action responses)', () => {
-  it('reads a contract 10 document without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(10)
+  it('reads the witness without a warning', () => {
+    // Core's witness carries every scoped structure, so it is stamped with the highest contract.
+    expect(witness.info?.['x-generator']?.contract).toBe(11)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -124,5 +125,40 @@ describe('several request media types', () => {
       { mediaType: 'application/vnd.api+json', kind: 'document' },
       { mediaType: 'text/plain', kind: 'text' },
     ])
+  })
+})
+
+describe('generator contract 11 (accepted request bodies)', () => {
+  it("records each body core's witness accepts, in document order", () => {
+    const action = buildDescriptor(witness)['articles']!.actions!['bulk-import']!
+    expect(action.input).toBe('raw')
+    expect(action.contentType).toBe('text/csv')
+    expect(action.inputMedia).toEqual([
+      { mediaType: 'text/csv', kind: 'text' },
+      { mediaType: 'image/*', kind: 'binary' },
+      { mediaType: 'multipart/form-data', kind: 'multipart' },
+      { mediaType: 'application/json', kind: 'json' },
+    ])
+  })
+
+  it('types the generated method per request media type', () => {
+    const client = createClient({ baseUrl: 'https://api.example' })
+    // oxlint-disable-next-line no-constant-condition -- type-level probes only, never run
+    if (false as boolean) {
+      void client.articles.actions['bulk-import']('id,title\n')
+      void client.articles.actions['bulk-import'](new Blob([]), { contentType: 'image/png' })
+      void client.articles.actions['bulk-import'](new FormData(), {
+        contentType: 'multipart/form-data',
+      })
+      void client.articles.actions['bulk-import']([{ title: 'Hello' }], {
+        contentType: 'application/json',
+      })
+      // @ts-expect-error -- a JSON body follows the ArticleImportRow schema.
+      void client.articles.actions['bulk-import']([{ name: 'Hello' }], {
+        contentType: 'application/json',
+      })
+      // @ts-expect-error -- the action takes no PDF.
+      void client.articles.actions['bulk-import'](new Blob([]), { contentType: 'application/pdf' })
+    }
   })
 })
