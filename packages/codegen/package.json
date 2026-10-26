@@ -1,6 +1,6 @@
 {
   "name": "@haddowg/json-api-codegen",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "CLI that reads the json-api-symfony OpenAPI spec (+ JSON Schemas) and emits a typed client descriptor.",
   "license": "MIT",
   "author": "Gregory Haddow (https://github.com/haddowg)",

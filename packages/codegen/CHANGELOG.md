@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.8.1...json-api-codegen-v1.9.0) (2026-10-26)
+
+
+### Features
+
+* **codegen:** read generator contract 14 and type declared links ([2e14bca](https://github.com/haddowg/json-api-ts/commit/2e14bca189985b66996b834feed48757824ffc5d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.6.0
+
 ## [1.8.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.8.0...json-api-codegen-v1.8.1) (2026-10-26)
 
 
