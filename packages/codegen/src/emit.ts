@@ -303,6 +303,13 @@ export class Emitter {
         for (const { mediaType } of action.inputMedia ?? []) {
           this.takenNames.add(`${stem}${pascalCase(name)}${pascalCase(mediaType)}Input`)
         }
+        const single = action.contentType
+        if (
+          single !== undefined &&
+          (single.startsWith('multipart/') || single === 'application/x-www-form-urlencoded')
+        ) {
+          this.takenNames.add(`${stem}${pascalCase(name)}${pascalCase(single)}Input`)
+        }
         const doc = actionDoc(name, this.actionOperation(action))
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}`, doc)
@@ -504,14 +511,37 @@ export class Emitter {
             )
           }
         }
-        for (const { mediaType, kind } of action.inputMedia ?? []) {
+        const single = action.input === 'raw' && action.inputMedia === undefined
+        const singleKind = !single
+          ? undefined
+          : action.contentType?.startsWith('multipart/') === true
+            ? 'multipart'
+            : action.contentType === 'application/x-www-form-urlencoded'
+              ? 'form'
+              : undefined
+        const listed =
+          action.inputMedia ??
+          (singleKind === undefined || action.contentType === undefined
+            ? []
+            : [{ mediaType: action.contentType, kind: singleKind }])
+        for (const { mediaType, kind } of listed) {
+          const schema = op?.requestBody?.content?.[mediaType]?.schema
           if (kind === 'json') {
-            const schema = op?.requestBody?.content?.[mediaType]?.schema
             names.requests ??= new Map()
             names.requests.set(
               mediaType,
               this.rawBodyAlias(schema, `${member}${pascalCase(mediaType)}Input`, out),
             )
+          } else if (kind === 'multipart' || kind === 'form') {
+            const fields = this.formFieldsType(schema, kind)
+            if (fields !== undefined) {
+              const alias = `${member}${pascalCase(mediaType)}Input`
+              const doc = schema === undefined ? undefined : jsDoc(schema.description, '')
+              const declaration = `export type ${alias} = ${fields}`
+              out.push(doc === undefined ? declaration : `${doc}\n${declaration}`)
+              names.requests ??= new Map()
+              names.requests.set(mediaType, alias)
+            }
           }
         }
         if (
@@ -555,6 +585,75 @@ export class Emitter {
     }
     out.push(this.rawBodyDeclaration(fallback, schema))
     return fallback
+  }
+
+  /**
+   * The typed fields of a multipart or URL-encoded request body whose object schema lists
+   * `properties`, which the client encodes into a `FormData` or `URLSearchParams`. `undefined`
+   * when the schema lists none, so the body stays a raw `FormData` or `URLSearchParams`.
+   */
+  private formFieldsType(
+    schema: SchemaObject | undefined,
+    kind: 'multipart' | 'form',
+  ): string | undefined {
+    let target = schema
+    if (typeof target?.$ref === 'string') {
+      target = this.schemas[refName(target.$ref) ?? '']
+    }
+    const props = target?.properties
+    if (target === undefined || props === undefined) {
+      return undefined
+    }
+    const required = new Set(target.required ?? [])
+    const members: string[] = []
+    const valueTypes: string[] = []
+    for (const [name, prop] of Object.entries(props)) {
+      if (!isSchema(prop)) {
+        continue
+      }
+      const type = this.formFieldType(prop, kind)
+      valueTypes.push(type)
+      members.push(`${propertyKey(name)}${required.has(name) ? '' : '?'}: ${type}`)
+    }
+    if (members.length === 0) {
+      return undefined
+    }
+    const extra = target['additionalProperties']
+    if (extra === true || isSchema(extra as SchemaOrBool | undefined)) {
+      // An index signature must admit every declared member's type too.
+      const additional = isSchema(extra as SchemaOrBool | undefined)
+        ? this.formFieldType(extra as SchemaObject, kind)
+        : this.formFieldType({}, kind)
+      const all = [...new Set([...valueTypes, additional].flatMap((type) => type.split(' | ')))]
+      members.push(`[field: string]: ${all.join(' | ')} | undefined`)
+    }
+    return `{ ${members.join('; ')} }`
+  }
+
+  /**
+   * One form field's type: `Blob | File` for a binary part of a multipart body, an array of
+   * its item type for an array, else the scalar's own type. A field with no usable type takes
+   * any scalar a form can carry.
+   */
+  private formFieldType(schema: SchemaObject, kind: 'multipart' | 'form'): string {
+    const any =
+      kind === 'multipart' ? 'string | number | boolean | Blob' : 'string | number | boolean'
+    let target = schema
+    if (typeof target.$ref === 'string') {
+      const resolved = this.schemas[refName(target.$ref) ?? '']
+      if (resolved !== undefined && !Array.isArray(resolved.enum)) {
+        target = resolved
+      }
+    }
+    if (kind === 'multipart' && target.format === 'binary') {
+      return 'Blob | File'
+    }
+    if (target.type === 'array') {
+      const item = target.items === undefined ? any : this.formFieldType(target.items, kind)
+      return item.includes(' ') ? `(${item})[]` : `${item}[]`
+    }
+    const type = this.tsType(target)
+    return type === 'unknown' || type.includes('{') || type.startsWith('Record<') ? any : type
   }
 
   /** `export type Name = …` for a raw body schema, with its description as JSDoc. */
