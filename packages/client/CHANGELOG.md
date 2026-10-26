@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.3.1...json-api-client-v1.4.0) (2026-10-26)
+
+
+### Features
+
+* **client:** choose an action's response and request media types ([26e7217](https://github.com/haddowg/json-api-ts/commit/26e72171f0a1d1bff3e4b104ecc030bd16850a91))
+* **client:** take a multipart or form body as typed fields ([9fdd967](https://github.com/haddowg/json-api-ts/commit/9fdd967ee02e09e7ac0c24b1d99dfcff76cf0666))
+
+
+### Bug Fixes
+
+* **client:** send the JSON:API content type on every POST ([8c231e0](https://github.com/haddowg/json-api-ts/commit/8c231e06a12d8da65612f6e6670bd01b7fefd6da))
+
 ## [1.3.1](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.3.0...json-api-client-v1.3.1) (2026-10-24)
 
 
