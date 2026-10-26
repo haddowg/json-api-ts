@@ -184,7 +184,7 @@ ok.$rel('tags') // { data, links, meta } for any relationship, incl. links-only
 ??? note "The full accessor set"
     | Accessor | On | What it returns |
     | --- | --- | --- |
-    | `$self` | every resource | the resource `self` link (`$links.self` shorthand) |
+    | `$self` | every resource | the href of the resource's `self` link, whether the server sent a bare URL or a link object; `$links.self` keeps the wire shape |
     | `$links` | every resource | the resource-level links object; a type's [declared links](codegen.md#declared-links) are typed |
     | `$meta` | every resource / every array | resource- or relationship-level meta |
     | `$document` | every resource | the shared, by-reference `{ jsonapi, meta, links }` top-level envelope — identical identity for every resource from one response |
