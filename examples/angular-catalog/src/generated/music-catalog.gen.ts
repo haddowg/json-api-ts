@@ -574,6 +574,8 @@ export interface WriteAttributes {
   tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
+export interface Links {}
+
 export interface ActionTypes {
   albums: {
     export: { responses: { "application/json": AlbumCatalogueStats } }
@@ -2017,7 +2019,7 @@ export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
  * so bindings that only see the client (the Angular refs) type its errors.
  */
 export const createClient = (options: ClientOptions) =>
-  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(
+  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>(
     resourceMap,
     {
       atomic,

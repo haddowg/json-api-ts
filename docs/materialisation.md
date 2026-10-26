@@ -174,7 +174,7 @@ forbidden in JSON:API member names), and being non-enumerable keeps spreads and
 const ok = await client.albums.get('1')
 
 ok.$self        // 'https://music.example/albums/1' — the resource self link
-ok.$links       // the full resource-level links object
+ok.$links       // the full resource-level links object, typed per type when it declares links
 ok.$meta        // resource-level meta (or undefined)
 ok.$document    // the shared top-level { jsonapi, meta, links } envelope
 ok.$raw         // the original wire resource object (escape hatch)
@@ -185,7 +185,7 @@ ok.$rel('tags') // { data, links, meta } for any relationship, incl. links-only
     | Accessor | On | What it returns |
     | --- | --- | --- |
     | `$self` | every resource | the resource `self` link (`$links.self` shorthand) |
-    | `$links` | every resource | the resource-level links object |
+    | `$links` | every resource | the resource-level links object; a type's [declared links](codegen.md#declared-links) are typed |
     | `$meta` | every resource / every array | resource- or relationship-level meta |
     | `$document` | every resource | the shared, by-reference `{ jsonapi, meta, links }` top-level envelope — identical identity for every resource from one response |
     | `$raw` | every resource | the original JSON:API resource object |

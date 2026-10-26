@@ -148,6 +148,12 @@ handles do not (serialize the data, not the handle).
 - **Error detail examples** (generator contract 13): every core error code's component carries a
   `detail` example, which becomes an `@example` on its `ErrorCodes` key. Contract 13 is on every
   document, since the error components are shared by all of them.
+- **Declared links** (generator contract 14, ADR 0012): a type's named links in its
+  `<Type>ResourceLinks` become a `<Type>Links` interface extending the loose `ResourceLinks`, each
+  link optional; a link object types `href`, its static members as literals and its `meta` like
+  attributes, a bare link is a `string`. The generated `Links` map is `createClient`'s sixth type
+  argument, folded into the attributes argument under a type-only key (`WithLinks<A, L>`) so
+  `$links` is typed and the query and Angular bindings need no change.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 

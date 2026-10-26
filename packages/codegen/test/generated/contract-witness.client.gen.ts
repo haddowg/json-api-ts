@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   2d07bcc3762d4928
+ * Spec hash:   c512746b1b0ae05f
  */
 
 import {
@@ -13,6 +13,7 @@ import {
   createClient as createClientRuntime,
   type ErrorCodeGuard,
   hasErrorCode as hasErrorCodeRuntime,
+  type ResourceLinks,
 } from '@haddowg/json-api-client'
 
 export type Priority = "1" | "2"
@@ -316,6 +317,43 @@ export interface VideosUpdateAttributes {
   url?: string
 }
 
+export interface ImagesLinks extends ResourceLinks {
+  /**
+   * Where to fetch the original file.
+   *
+   * @example {"href":"https://cdn.example.com/originals/img-1.png","title":"Original","type":"image/png","meta":{"method":"GET","expiresAt":"2026-10-26T12:00:00+00:00","headers":{"Range":"bytes=0-"}}}
+   */
+  download?: {
+    /** @format uri-reference */
+    href: string
+    title: "Original"
+    type: "image/png"
+    meta: {
+      /**
+       * The HTTP method to use.
+       *
+       * @example GET
+       */
+      method: "GET"
+      /**
+       * When the URL stops working.
+       *
+       * @format date-time
+       * @example 2026-10-26T12:00:00+00:00
+       */
+      expiresAt: string
+      /** @example {"Range":"bytes=0-"} */
+      headers?: Record<string, unknown> | null
+    }
+  }
+  /**
+   * The `thumbnail` link, absent when it does not apply to the resource.
+   *
+   * @example https://cdn.example.com/thumbs/img-1.png
+   */
+  thumbnail?: string
+}
+
 export type ArticleImportRow = { title: string }[]
 
 export type ArticleSummary = { total: number; byStatus?: Record<string, unknown> }
@@ -334,6 +372,10 @@ export interface WriteAttributes {
   people: { create: PeopleCreateAttributes; update: PeopleUpdateAttributes }
   tags: { create: TagsCreateAttributes; update: TagsUpdateAttributes }
   videos: { create: VideosCreateAttributes; update: VideosUpdateAttributes }
+}
+
+export interface Links {
+  images: ImagesLinks
 }
 
 export interface ActionTypes {
@@ -1324,7 +1366,7 @@ export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
  * so bindings that only see the client (the Angular refs) type its errors.
  */
 export const createClient = (options: ClientOptions) =>
-  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(
+  createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>(
     resourceMap,
     {
       atomic,

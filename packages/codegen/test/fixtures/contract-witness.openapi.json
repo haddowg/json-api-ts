@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 13
+            "contract": 14
         }
     },
     "servers": [
@@ -2537,7 +2537,20 @@
                                                 "self": {
                                                     "href": "https://api.example.com/images/img-1",
                                                     "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D/get"
-                                                }
+                                                },
+                                                "download": {
+                                                    "href": "https://cdn.example.com/originals/img-1.png",
+                                                    "title": "Original",
+                                                    "type": "image/png",
+                                                    "meta": {
+                                                        "method": "GET",
+                                                        "expiresAt": "2026-10-26T12:00:00+00:00",
+                                                        "headers": {
+                                                            "Range": "bytes=0-"
+                                                        }
+                                                    }
+                                                },
+                                                "thumbnail": "https://cdn.example.com/thumbs/img-1.png"
                                             },
                                             "attributes": {
                                                 "url": "https://cdn.example.com/cover.png"
@@ -6011,7 +6024,20 @@
                                                 "self": {
                                                     "href": "https://api.example.com/images/img-1",
                                                     "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D/get"
-                                                }
+                                                },
+                                                "download": {
+                                                    "href": "https://cdn.example.com/originals/img-1.png",
+                                                    "title": "Original",
+                                                    "type": "image/png",
+                                                    "meta": {
+                                                        "method": "GET",
+                                                        "expiresAt": "2026-10-26T12:00:00+00:00",
+                                                        "headers": {
+                                                            "Range": "bytes=0-"
+                                                        }
+                                                    }
+                                                },
+                                                "thumbnail": "https://cdn.example.com/thumbs/img-1.png"
                                             },
                                             "attributes": {
                                                 "url": "https://cdn.example.com/cover.png"
@@ -6149,7 +6175,20 @@
                                             "self": {
                                                 "href": "https://api.example.com/images/img-1",
                                                 "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D/get"
-                                            }
+                                            },
+                                            "download": {
+                                                "href": "https://cdn.example.com/originals/img-1.png",
+                                                "title": "Original",
+                                                "type": "image/png",
+                                                "meta": {
+                                                    "method": "GET",
+                                                    "expiresAt": "2026-10-26T12:00:00+00:00",
+                                                    "headers": {
+                                                        "Range": "bytes=0-"
+                                                    }
+                                                }
+                                            },
+                                            "thumbnail": "https://cdn.example.com/thumbs/img-1.png"
                                         },
                                         "attributes": {
                                             "url": "https://cdn.example.com/cover.png"
@@ -12473,6 +12512,84 @@
                             "href": "https://api.example.com/images/img-1",
                             "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D/get"
                         }
+                    },
+                    "download": {
+                        "type": "object",
+                        "description": "Where to fetch the original file.",
+                        "properties": {
+                            "href": {
+                                "type": "string",
+                                "format": "uri-reference"
+                            },
+                            "title": {
+                                "type": "string",
+                                "const": "Original"
+                            },
+                            "type": {
+                                "type": "string",
+                                "const": "image/png"
+                            },
+                            "meta": {
+                                "type": "object",
+                                "properties": {
+                                    "method": {
+                                        "type": "string",
+                                        "description": "The HTTP method to use.",
+                                        "enum": [
+                                            "GET"
+                                        ],
+                                        "example": "GET"
+                                    },
+                                    "expiresAt": {
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "description": "When the URL stops working.",
+                                        "example": "2026-10-26T12:00:00+00:00"
+                                    },
+                                    "headers": {
+                                        "type": [
+                                            "object",
+                                            "null"
+                                        ],
+                                        "additionalProperties": {},
+                                        "example": {
+                                            "Range": "bytes=0-"
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "method",
+                                    "expiresAt"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "href",
+                            "title",
+                            "type",
+                            "meta"
+                        ],
+                        "example": {
+                            "href": "https://cdn.example.com/originals/img-1.png",
+                            "title": "Original",
+                            "type": "image/png",
+                            "meta": {
+                                "method": "GET",
+                                "expiresAt": "2026-10-26T12:00:00+00:00",
+                                "headers": {
+                                    "Range": "bytes=0-"
+                                }
+                            }
+                        }
+                    },
+                    "thumbnail": {
+                        "description": "The `thumbnail` link, absent when it does not apply to the resource.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/LinkObject"
+                            }
+                        ],
+                        "example": "https://cdn.example.com/thumbs/img-1.png"
                     }
                 },
                 "additionalProperties": {
@@ -12482,7 +12599,20 @@
                     "self": {
                         "href": "https://api.example.com/images/img-1",
                         "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D/get"
-                    }
+                    },
+                    "download": {
+                        "href": "https://cdn.example.com/originals/img-1.png",
+                        "title": "Original",
+                        "type": "image/png",
+                        "meta": {
+                            "method": "GET",
+                            "expiresAt": "2026-10-26T12:00:00+00:00",
+                            "headers": {
+                                "Range": "bytes=0-"
+                            }
+                        }
+                    },
+                    "thumbnail": "https://cdn.example.com/thumbs/img-1.png"
                 }
             },
             "InclusionDepthExceededError": {
