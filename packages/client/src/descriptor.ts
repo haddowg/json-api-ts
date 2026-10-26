@@ -239,6 +239,18 @@ export interface ActionDescriptor {
    * {@link input} and {@link contentType} already describe.
    */
   inputMedia?: readonly InputMedia[]
+  /**
+   * Whether the action leaves the server's state unchanged, as its operation's `x-safety`
+   * declares (generator contract 15). Absent when the server doesn't say.
+   */
+  readOnly?: boolean
+  /** Whether the action may destroy data, as its `x-safety` declares. Absent when not declared. */
+  destructive?: boolean
+  /**
+   * Whether sending the action twice has the same effect as sending it once, as its `x-safety`
+   * declares. Absent when the server doesn't say.
+   */
+  idempotent?: boolean
 }
 
 /**
