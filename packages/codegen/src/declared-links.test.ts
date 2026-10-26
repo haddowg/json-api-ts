@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import type { ResourceLinks } from '@haddowg/json-api-client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient, type ImagesLinks } from '../test/generated/contract-witness.client.gen'
+import type { AlbumsLinks, TracksLinks } from '../test/generated/music-catalog.client.gen'
 import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { readDeclaredLinks } from './declared-links'
@@ -142,5 +143,19 @@ describe('generator contract 14 (declared links)', () => {
     const fetched = await clientAnswering({ data: video }).videos.get('vid-1')
     expectTypeOf(fetched.$links).toEqualTypeOf<ResourceLinks | undefined>()
     expect(fetched.$links?.self).toBe('s')
+  })
+})
+
+describe('declared links in the music catalog', () => {
+  it('types the tracks preview link object with its format and expiry meta', () => {
+    type Preview = NonNullable<TracksLinks['preview']>
+    expectTypeOf<Preview['href']>().toEqualTypeOf<string>()
+    expectTypeOf<Preview['type']>().toEqualTypeOf<'audio/mpeg'>()
+    expectTypeOf<Preview['meta']['format']>().toEqualTypeOf<string | null>()
+    expectTypeOf<Preview['meta']['expiresAt']>().toEqualTypeOf<string | null>()
+  })
+
+  it('types the albums store link as a bare URL', () => {
+    expectTypeOf<AlbumsLinks['store']>().toEqualTypeOf<string | undefined>()
   })
 })
