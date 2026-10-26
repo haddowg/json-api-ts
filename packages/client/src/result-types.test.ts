@@ -1,6 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type { AtomicCreateHandle, AtomicDeleteHandle, AtomicUpdateHandle } from './atomic'
 import type { ApiDescriptor } from './descriptor'
+import type { ResourceLinks } from './materialise'
 import type {
   AtomicResultOf,
   Client,
@@ -12,6 +13,7 @@ import type {
   ReadResult,
   ResourceObjectView,
   UpdateInput,
+  WithLinks,
 } from './result-types'
 
 // A representative descriptor mirroring the generated music-catalog `resourceMap` shape
@@ -110,6 +112,39 @@ describe('attribute typing', () => {
     expectTypeOf<Album>().toHaveProperty('$document')
     expectTypeOf<Album>().toHaveProperty('$rel')
     expectTypeOf<Album['$rel']>().toBeFunction()
+  })
+})
+
+describe('declared links typing', () => {
+  interface AlbumsLinks extends ResourceLinks {
+    store?: { href: string; meta: { currency: 'GBP' | 'EUR' } }
+    preview?: string
+  }
+  interface Links {
+    albums: AlbumsLinks
+  }
+
+  it('types $links from the links map for a type that declares links', () => {
+    type Album = ResourceObjectView<Map, WithLinks<Attributes, Links>, 'albums'>
+    expectTypeOf<Album['$links']>().toEqualTypeOf<AlbumsLinks | undefined>()
+    expectTypeOf<NonNullable<Album['$links']>['preview']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<
+      NonNullable<NonNullable<Album['$links']>['store']>['meta']['currency']
+    >().toEqualTypeOf<'GBP' | 'EUR'>()
+    // Attributes still read through the folded map.
+    expectTypeOf<Album['status']>().toEqualTypeOf<AlbumStatus>()
+  })
+
+  it('keeps the loose links for a type the map leaves out, and for an empty map', () => {
+    type Artist = ResourceObjectView<Map, WithLinks<Attributes, Links>, 'artists'>
+    expectTypeOf<Artist['$links']>().toEqualTypeOf<ResourceLinks | undefined>()
+    expectTypeOf<WithLinks<Attributes, {}>>().toEqualTypeOf<Attributes>()
+  })
+
+  it('threads the links map from the client type argument to its reads', () => {
+    type C = Client<Map, Attributes, unknown, Record<never, never>, string, Links>
+    type Album = Awaited<ReturnType<C['albums']['get']>>
+    expectTypeOf<Album['$links']>().toEqualTypeOf<AlbumsLinks | undefined>()
   })
 })
 

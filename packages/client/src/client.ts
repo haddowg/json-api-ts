@@ -689,7 +689,8 @@ export function createClient<
   W = DefaultWriteAttributes<D>,
   Act = DefaultActionTypes,
   E extends string = string,
->(descriptor: D, options: ClientOptions): Client<D, A, W, Act, E> {
+  L = Record<never, never>,
+>(descriptor: D, options: ClientOptions): Client<D, A, W, Act, E, L> {
   const request: JsonApiContext = {
     baseUrl: options.baseUrl,
     transport: options.transport ?? fetchTransport,
@@ -757,5 +758,5 @@ export function createClient<
     has(_target, prop) {
       return prop === 'atomic' || (typeof prop === 'string' && prop in descriptor)
     },
-  }) as Client<D, A, W, Act, E>
+  }) as Client<D, A, W, Act, E, L>
 }
