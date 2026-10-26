@@ -50,7 +50,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 9. An older document is an error, and a newer one
+codegen reads contracts 1 to 10. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -81,6 +81,19 @@ become TSDoc on the member. The same contract gives each relation its own links
 components and answers a to-many related endpoint with a
 `<Type><Rel>RelatedCollection` document. The codegen finds those endpoints by
 operationId, so neither changes the generated client.
+
+Contract 10 is carried only by a document whose custom actions answer in media types
+other than JSON:API; every other document stays at 9. The codegen records each such
+media type on the action as `rawOutput`, with how the client reads it: `binary` for a
+`format: binary` schema, `text` for any other string schema, `json` for any other
+schema. A JSON schema is typed under its component's name (`ArticleSummary`) or, when
+inline, under `<Type><Action><MediaType>Output`. An action whose request body lists
+several media types gets `inputMedia` the same way. See
+[raw responses and request media types](custom-actions.md#raw-responses).
+
+An action's summary and description become the JSDoc of its method. The projector's
+stand-in text for an action its author didn't describe ("Invoke the `report` action")
+is left out.
 
 ### The validation schemas
 
