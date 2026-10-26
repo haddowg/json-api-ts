@@ -94,18 +94,17 @@ export type ReadableRelationName<D extends ApiDescriptor, T extends TypeName<D>>
 /** The attribute object for type `T`, from the generated attributes map `A` (falls back to `{}`). */
 type AttributesOf<A, T> = T extends keyof A ? A[T] : Record<string, never>
 
-// Type-only key, like `errorCodes`: never assigned, so it costs nothing at runtime.
-declare const declaredLinks: unique symbol
-
 /**
  * The read-types map a client threads to its results: the attribute map `A`, carrying the
- * per-type declared links map `L` under a type-only key so every type that takes `A` reaches
- * them without another parameter. An empty `L` leaves `A` as it is.
+ * per-type declared links map `L` so every type that takes `A` reaches them without another
+ * parameter. An empty `L` leaves `A` as it is. The key is a string a wire type can't be, since `$`
+ * is not allowed in a JSON:API member name. A symbol key would leave a consumer's declaration
+ * emit unable to name the bound query API's type.
  */
-export type WithLinks<A, L> = [keyof L] extends [never] ? A : A & { readonly [declaredLinks]: L }
+export type WithLinks<A, L> = [keyof L] extends [never] ? A : A & { readonly $declaredLinks: L }
 
 /** The links of type `T`: its declared links interface from `A`, or the loose {@link ResourceLinks}. */
-type LinksOf<A, T> = A extends { readonly [declaredLinks]: infer L }
+type LinksOf<A, T> = A extends { readonly $declaredLinks: infer L }
   ? T extends keyof L
     ? L[T]
     : ResourceLinks
