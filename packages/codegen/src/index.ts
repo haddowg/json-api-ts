@@ -14,17 +14,21 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { buildDescriptor } from './build-descriptor'
+import { buildExamples } from './build-examples'
 import { checkContract } from './contract'
 import { detectVerbCollisions, emit } from './emit'
+import { emitExamples } from './emit-examples'
 import { emitSchemas } from './emit-schemas'
 import { readDocument, readSchemas } from './reader'
 
 export { buildAtomic, buildDescriptor, DescriptorBuilder } from './build-descriptor'
+export { buildExamples, operationExamples } from './build-examples'
 export { checkContract, MAXIMUM_CONTRACT, MINIMUM_CONTRACT } from './contract'
 export { detectVerbCollisions, emit, Emitter } from './emit'
 export { emitErrorCodes, readErrorCatalogue } from './error-codes'
 export type { DocumentedErrorCode, ErrorCatalogue } from './error-codes'
 export type { VerbCollision } from './emit'
+export { emitExamples } from './emit-examples'
 export { emitSchemas } from './emit-schemas'
 export type * from './openapi'
 export { deriveProvenance, hashJson, provenanceLines } from './provenance'
@@ -41,6 +45,11 @@ export interface CodegenConfig {
   server?: string
   /** JSON Schema source for the validation seam (URL or path). Off when omitted. */
   schemas?: string
+  /**
+   * Also write the operation examples the document declares (generator contract 12) to a sibling
+   * module, `<output>.examples.gen.ts`. Nothing is written when the document has none.
+   */
+  examples?: boolean
   /**
    * Drift-check mode: regenerate in-memory and compare against the committed `output`
    * (and its schema artifact when `schemas` is set) instead of writing. Nothing is
@@ -77,6 +86,17 @@ export function schemasOutputPath(output: string): string {
   return `${output}.schemas`
 }
 
+/** The examples-artifact path beside a client output path, named as {@link schemasOutputPath} names its. */
+export function examplesOutputPath(output: string): string {
+  if (output.endsWith('.gen.ts')) {
+    return `${output.slice(0, -'.gen.ts'.length)}.examples.gen.ts`
+  }
+  if (output.endsWith('.ts')) {
+    return `${output.slice(0, -'.ts'.length)}.examples.ts`
+  }
+  return `${output}.examples`
+}
+
 /** One rendered artifact: its target path and the freshly generated content. */
 interface RenderedArtifact {
   path: string
@@ -85,7 +105,8 @@ interface RenderedArtifact {
 
 /**
  * Read the source spec(s), build the descriptor and render every generated artifact in
- * memory (the client source first, then the schema artifact when `config.schemas` is set)
+ * memory (the client source first, then the schema artifact when `config.schemas` is set and
+ * the examples artifact when `config.examples` is)
  * — the shared core of {@link generate} (which writes them) and {@link check} (which
  * compares them). Verb-collision warnings are emitted here so both paths surface them.
  */
@@ -118,6 +139,20 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
     artifacts.push({ path: schemasOutputPath(config.output), content: emitSchemas(bundle) })
   }
 
+  if (config.examples === true) {
+    const examples = buildExamples(doc, descriptor)
+    if (Object.keys(examples).length > 0) {
+      artifacts.push({
+        path: examplesOutputPath(config.output),
+        content: emitExamples(doc, examples),
+      })
+    } else {
+      console.warn(
+        `[json-api-codegen] ${config.input} declares no operation examples; no examples module was written.`,
+      )
+    }
+  }
+
   return artifacts
 }
 
@@ -128,6 +163,7 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
  * When `config.schemas` is set, also read the bundle's JSON Schema bundle and write a
  * separate per-type schema artifact (`<output>.schemas.gen.ts`) beside the client, wiring
  * the opt-in validation seam (ADR 0004). The main client output is unchanged either way.
+ * `config.examples` writes the operation examples the same way (ADR 0011).
  *
  * `config.server` is metadata-only for now: the served document is already per-server,
  * so the caller selects the server by pointing `input` at the right document.
@@ -136,13 +172,22 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
  * call {@link check} instead for the drift-gate result.
  */
 export async function generate(config: CodegenConfig): Promise<string> {
+  // The first artifact is always the client source.
+  return (await write(config))[0]!.content
+}
+
+/** {@link generate}, returning the path of every artifact written, the client's first. */
+export async function generateFiles(config: CodegenConfig): Promise<string[]> {
+  return (await write(config)).map(({ path }) => path)
+}
+
+async function write(config: CodegenConfig): Promise<RenderedArtifact[]> {
   const artifacts = await render(config)
   await mkdir(dirname(config.output), { recursive: true })
   for (const { path, content } of artifacts) {
     await writeFile(path, content, 'utf8')
   }
-  // The first artifact is always the client source.
-  return artifacts[0]!.content
+  return artifacts
 }
 
 /**

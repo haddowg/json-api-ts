@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   721f78d316c4707e
+ * Spec hash:   d0deb8f7e66b6917
  */
 
 import {
@@ -23,47 +23,75 @@ import {
 export type AlbumStatus = "upcoming" | "released" | "withdrawn"
 
 export interface AlbumsAttributes {
+  /** @example /uploads/artwork/1.png */
   artwork: string | null
-  /** @format date */
+  /**
+   * @format date
+   * @example 2024-01-01
+   */
   availableFrom: string | null
   /**
    * Value is compared against the `availableFrom` field (>).
    *
    * @format date
+   * @example 2026-12-31
    */
   availableUntil: string | null
+  /** @example 4.5 */
   averageRating: number | null
+  /** @example false */
   explicit: boolean
+  /** @example {"label":"Apple Records","catalogueNumber":"PCS 7088"} */
   releaseInfo: { label?: string | null; catalogueNumber?: string | null } | null
   /**
    * Value must be before a dynamically-resolved date/time bound.
    *
    * @format date-time
+   * @example 1969-09-26T00:00:00+00:00
    */
   releasedAt: string | null
-  /** Where the album sits in its release lifecycle. */
+  /**
+   * Where the album sits in its release lifecycle.
+   *
+   * @example released
+   */
   status: AlbumStatus
   /**
    * @minLength 1
    * @maxLength 200
+   * @example Abbey Road
    */
   title: string
 }
 
 export interface ArtistsAttributes {
-  /** @maxLength 1000 */
+  /**
+   * @maxLength 1000
+   * @example Rock band formed in Liverpool in 1960.
+   */
   bio: string | null
-  /** @format date-time */
+  /**
+   * @format date-time
+   * @example 2024-03-01T12:00:00+00:00
+   */
   createdAt: string | null
   /**
    * @minLength 1
    * @maxLength 120
+   * @example The Beatles
    */
   name: string
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example the-beatles
+   */
   slug: string
+  /** @example 17 */
   trackCount: number
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://www.thebeatles.com
+   */
   website: string | null
 }
 
@@ -71,8 +99,10 @@ export interface CatalogExportsAttributes {
   /**
    * @minLength 1
    * @maxLength 16
+   * @example csv
    */
   format: string
+  /** @example ready */
   status: string
 }
 
@@ -81,156 +111,241 @@ export interface ChartsAttributes {}
 export interface CountriesAttributes {}
 
 export interface DevicesAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Living room speaker
+   */
   label: string
 }
 
 export interface ExportJobsAttributes {
+  /** @example processing */
   state: string
 }
 
 export interface FavoritesAttributes {
-  /** @format date-time */
+  /**
+   * @format date-time
+   * @example 2024-06-01T09:30:00+00:00
+   */
   favoritedAt: string | null
 }
 
 export interface GenresAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Rock
+   */
   name: string
 }
 
 export interface LibrariesAttributes {}
 
 export interface PlaylistsAttributes {
-  /** @format uuid */
+  /**
+   * @format uuid
+   * @example 5f1d7c2e-8a4b-4e6f-9c3d-2b1a0e9f8d7c
+   */
   externalId: string | null
+  /** @example true */
   public: boolean
   /**
    * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`
    * @example example-slug
    */
   slug: string
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Road trip
+   */
   title: string
 }
 
 export interface ProductsAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Turntable
+   */
   name: string
 }
 
 export interface PublicProfilesAttributes {
+  /** @example Ada */
   displayName: string
 }
 
 export interface ReleasesAttributes {
+  /** @example {"worldwide":true} */
   availability: Record<string, unknown> | null
   /**
    * @minLength 1
    * @maxLength 40
+   * @example PCS 7088
    */
   catalogNumber: string
+  /** @example {"widthMm":315,"heightMm":315,"depthMm":4} */
   dimensions: Record<string, unknown> | null
   format: { rpm: number; coloured: boolean | null; medium: string } | { discs: number; medium: string } | { codec: string; bitrateKbps: number | null; medium: string } | null
   packaging: { material: string; gatefold: boolean | null } | null
 }
 
 export interface TracksAttributes {
+  /** @example 1. Come Together */
   displayTitle: string
+  /** @example 259 */
   durationSeconds: number
+  /** @example false */
   explicit: boolean
   /**
    * @minItems 1
    * @uniqueItems
+   * @example ["rock"]
    */
   genres: [string, ...string[]]
-  /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
+  /**
+   * A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time.
+   *
+   * @example 00:00:30
+   */
   previewOffset: string | null
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Come Together
+   */
   title: string
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @example 1
+   */
   trackNumber: number
 }
 
 export interface AlbumsCreateAttributes {
-  /** @format date */
+  /**
+   * @format date
+   * @example 2024-01-01
+   */
   availableFrom?: string | null
   /**
    * Value is compared against the `availableFrom` field (>).
    *
    * @format date
+   * @example 2026-12-31
    */
   availableUntil?: string | null
+  /** @example false */
   explicit?: boolean
+  /** @example {"label":"Apple Records","catalogueNumber":"PCS 7088"} */
   releaseInfo?: { label?: string; catalogueNumber?: string } | null
   /**
    * Value must be before a dynamically-resolved date/time bound.
    *
    * @format date-time
+   * @example 1969-09-26T00:00:00+00:00
    */
   releasedAt?: string
-  /** Where the album sits in its release lifecycle. */
+  /**
+   * Where the album sits in its release lifecycle.
+   *
+   * @example released
+   */
   status?: AlbumStatus
   /**
    * @minLength 1
    * @maxLength 200
+   * @example Abbey Road
    */
   title: string
 }
 
 export interface AlbumsUpdateAttributes {
-  /** @format date */
+  /**
+   * @format date
+   * @example 2024-01-01
+   */
   availableFrom?: string | null
   /**
    * Value is compared against the `availableFrom` field (>).
    *
    * @format date
+   * @example 2026-12-31
    */
   availableUntil?: string | null
+  /** @example false */
   explicit?: boolean
+  /** @example {"label":"Apple Records","catalogueNumber":"PCS 7088"} */
   releaseInfo?: { label?: string; catalogueNumber?: string } | null
   /**
    * Value must be before a dynamically-resolved date/time bound.
    *
    * @format date-time
+   * @example 1969-09-26T00:00:00+00:00
    */
   releasedAt?: string
-  /** Where the album sits in its release lifecycle. */
+  /**
+   * Where the album sits in its release lifecycle.
+   *
+   * @example released
+   */
   status?: AlbumStatus
   /**
    * @minLength 1
    * @maxLength 200
+   * @example Abbey Road
    */
   title?: string
 }
 
 export interface ArtistsCreateAttributes {
-  /** @maxLength 1000 */
+  /**
+   * @maxLength 1000
+   * @example Rock band formed in Liverpool in 1960.
+   */
   bio?: string | null
-  /** @format date-time */
+  /**
+   * @format date-time
+   * @example 2024-03-01T12:00:00+00:00
+   */
   createdAt?: string
   /**
    * @minLength 1
    * @maxLength 120
+   * @example The Beatles
    */
   name: string
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example the-beatles
+   */
   slug?: string
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://www.thebeatles.com
+   */
   website?: string | null
 }
 
 export interface ArtistsUpdateAttributes {
-  /** @maxLength 1000 */
+  /**
+   * @maxLength 1000
+   * @example Rock band formed in Liverpool in 1960.
+   */
   bio?: string | null
   /**
    * @minLength 1
    * @maxLength 120
+   * @example The Beatles
    */
   name?: string
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example the-beatles
+   */
   slug?: string
-  /** @format uri */
+  /**
+   * @format uri
+   * @example https://www.thebeatles.com
+   */
   website?: string | null
 }
 
@@ -238,34 +353,50 @@ export interface CatalogExportsCreateAttributes {
   /**
    * @minLength 1
    * @maxLength 16
+   * @example csv
    */
   format: string
 }
 
 export interface DevicesCreateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Living room speaker
+   */
   label: string
 }
 
 export interface DevicesUpdateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Living room speaker
+   */
   label?: string
 }
 
 export interface FavoritesCreateAttributes {
-  /** @format date-time */
+  /**
+   * @format date-time
+   * @example 2024-06-01T09:30:00+00:00
+   */
   favoritedAt?: string
 }
 
 export interface FavoritesUpdateAttributes {}
 
 export interface GenresCreateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Rock
+   */
   name: string
 }
 
 export interface GenresUpdateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Rock
+   */
   name?: string
 }
 
@@ -274,84 +405,136 @@ export interface LibrariesCreateAttributes {}
 export interface LibrariesUpdateAttributes {}
 
 export interface PlaylistsCreateAttributes {
-  /** @format uuid */
+  /**
+   * @format uuid
+   * @example 5f1d7c2e-8a4b-4e6f-9c3d-2b1a0e9f8d7c
+   */
   externalId?: string | null
+  /** @example true */
   public?: boolean
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Road trip
+   */
   title: string
 }
 
 export interface PlaylistsUpdateAttributes {
-  /** @format uuid */
+  /**
+   * @format uuid
+   * @example 5f1d7c2e-8a4b-4e6f-9c3d-2b1a0e9f8d7c
+   */
   externalId?: string | null
+  /** @example true */
   public?: boolean
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Road trip
+   */
   title?: string
 }
 
 export interface ProductsCreateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Turntable
+   */
   name: string
 }
 
 export interface ProductsUpdateAttributes {
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Turntable
+   */
   name?: string
 }
 
 export interface ReleasesCreateAttributes {
+  /** @example {"worldwide":true} */
   availability?: Record<string, unknown> | null
   /**
    * @minLength 1
    * @maxLength 40
+   * @example PCS 7088
    */
   catalogNumber: string
+  /** @example {"widthMm":315,"heightMm":315,"depthMm":4} */
   dimensions?: Record<string, unknown> | null
   format?: { rpm: number; coloured?: boolean; medium: string } | { discs: number; medium: string } | { codec: string; bitrateKbps?: number; medium: string } | null
   packaging?: { material: string; gatefold?: boolean } | null
 }
 
 export interface ReleasesUpdateAttributes {
+  /** @example {"worldwide":true} */
   availability?: Record<string, unknown> | null
   /**
    * @minLength 1
    * @maxLength 40
+   * @example PCS 7088
    */
   catalogNumber?: string
+  /** @example {"widthMm":315,"heightMm":315,"depthMm":4} */
   dimensions?: Record<string, unknown> | null
   format?: { rpm?: number; coloured?: boolean; medium?: string } | { discs?: number; medium?: string } | { codec?: string; bitrateKbps?: number; medium?: string } | null
   packaging?: { material?: string; gatefold?: boolean } | null
 }
 
 export interface TracksCreateAttributes {
+  /** @example 259 */
   durationSeconds?: number
+  /** @example false */
   explicit?: boolean
   /**
    * @minItems 1
    * @uniqueItems
+   * @example ["rock"]
    */
   genres: [string, ...string[]]
-  /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
+  /**
+   * A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time.
+   *
+   * @example 00:00:30
+   */
   previewOffset?: string | null
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Come Together
+   */
   title: string
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @example 1
+   */
   trackNumber: number
 }
 
 export interface TracksUpdateAttributes {
+  /** @example 259 */
   durationSeconds?: number
+  /** @example false */
   explicit?: boolean
   /**
    * @minItems 1
    * @uniqueItems
+   * @example ["rock"]
    */
   genres?: [string, ...string[]]
-  /** A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
+  /**
+   * A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time.
+   *
+   * @example 00:00:30
+   */
   previewOffset?: string | null
-  /** @minLength 1 */
+  /**
+   * @minLength 1
+   * @example Come Together
+   */
   title?: string
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @example 1
+   */
   trackNumber?: number
 }
 
@@ -505,6 +688,12 @@ export const resourceMap = {
        * Export the album catalogue
        *
        * Exports every album in the format the Accept header asks for: a JSON:API meta document with counts, a CSV of ids and titles, a PDF report, or the counts as plain JSON.
+       *
+       * @example Response `200` as `text/csv`
+       * ```
+       * id,title
+       * 1,Kind of Blue
+       * ```
        */
       export: {
         scope: "collection",
@@ -557,6 +746,44 @@ export const resourceMap = {
           }
         ]
       },
+      /**
+       * @example Request body
+       * ```json
+       * {
+       *   "data": {
+       *     "type": "albums",
+       *     "attributes": {
+       *       "title": "Abbey Road",
+       *       "releasedAt": "1969-09-26T00:00:00+00:00",
+       *       "explicit": false,
+       *       "status": "released",
+       *       "availableFrom": "2024-01-01",
+       *       "availableUntil": "2026-12-31",
+       *       "releaseInfo": {
+       *         "label": "Apple Records",
+       *         "catalogueNumber": "PCS 7088"
+       *       }
+       *     },
+       *     "relationships": {
+       *       "artist": {
+       *         "data": {
+       *           "type": "artists",
+       *           "id": "1"
+       *         }
+       *       },
+       *       "tracks": {
+       *         "data": [
+       *           {
+       *             "type": "tracks",
+       *             "id": "1"
+       *           }
+       *         ]
+       *       }
+       *     }
+       *   }
+       * }
+       * ```
+       */
       reissue: {
         scope: "resource",
         path: "/albums/{id}/-actions/reissue",
@@ -566,6 +793,20 @@ export const resourceMap = {
         outputType: "albums",
         outputCardinality: "one"
       },
+      /**
+       * @example Response `200`
+       * ```json
+       * {
+       *   "meta": {
+       *     "albums": {
+       *       "published": 12,
+       *       "unpublished": 3,
+       *       "total": 15
+       *     }
+       *   }
+       * }
+       * ```
+       */
       summary: {
         scope: "collection",
         path: "/albums/-actions/summary",

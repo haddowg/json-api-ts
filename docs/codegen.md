@@ -42,6 +42,7 @@ YAML** from either.
 | `--input`   | yes      | OpenAPI 3.1 document — an `http(s)` URL or a local file (`.json`/`.yaml`).    |
 | `--output`  | yes      | Output file for the generated client, e.g. `src/api/music.gen.ts`.           |
 | `--schemas` | no       | JSON Schema source (URL or path) for the [validation](validation.md) seam.   |
+| `--examples` | no      | Also write the operations' worked examples to a sibling module. See [below](#operation-examples). |
 | `--server`  | no       | Target server name. Metadata-only — the served document is already per-server. |
 | `--check`   | no       | Drift gate — regenerate in memory and fail if the committed output is stale. |
 
@@ -50,7 +51,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 11. An older document is an error, and a newer one
+codegen reads contracts 1 to 12. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -99,6 +100,18 @@ An action's summary and description become the JSDoc of its method. The projecto
 stand-in text for an action its author didn't describe ("Invoke the `report` action")
 is left out.
 
+Contract 12 adds a whole worked `example` to each operation's request body and
+success responses, built by the server from the examples its fields declare. An
+action's method shows one as an `@example` in its JSDoc: the request body when the
+action takes one, otherwise its first success response. It is the wire document,
+pretty-printed, under a title such as "Request body" or "Response `200` as
+`text/csv`". A text body is shown as is. A body longer than 80 lines is named but
+not shown, so a hover stays readable; the [examples module](#operation-examples)
+still has it. A `*/` in the example is broken up and the code fence is made longer
+than any run of backticks inside it, so a value can't end the comment or the block.
+The CRUD and relationship methods come from the generic runtime, so their examples
+are only in the examples module.
+
 ### The validation schemas
 
 Add `--schemas` to also read the server's JSON Schema bundle and emit a sibling
@@ -116,6 +129,38 @@ The schema artifact path is **derived from `--output`**: a `.gen.ts` suffix
 becomes `.schemas.gen.ts` (so the example above also writes
 `src/api/music.schemas.gen.ts`), a plain `.ts` becomes `.schemas.ts`. Omit
 `--schemas` and no schema module is written — validation is entirely optional.
+
+### Operation examples
+
+Add `--examples` to also write the worked examples a contract 12 document declares
+to a sibling module, named the way the schema module is: `music.gen.ts` gets
+`music.examples.gen.ts`. It exports `examples`, typed as the client's
+`ApiExamples`, for a consumer that wants each operation's sample without reading
+the OpenAPI document, such as a tool that describes every operation:
+
+```ts
+import { examples } from './api/music.examples.gen'
+
+examples.albums?.operations?.create?.request?.['application/vnd.api+json']
+examples.albums?.operations?.['fetchRelated.tracks']?.responses?.['200']
+examples.albums?.actions?.reissue?.request
+```
+
+Each type has `operations`, keyed by the operation's `operationId` without the
+type (`fetchCollection`, `fetchOne`, `create`, `update`, `delete`, and
+`fetchRelated.<relation>`, `fetchRelationship.<relation>`,
+`updateRelationship.<relation>`, `addRelationship.<relation>`,
+`removeRelationship.<relation>`), and `actions`, keyed by action name. Each entry
+has a `request` and `responses` keyed by status, and each of those maps a media
+type to its example. A body is the whole wire document, not the flat input or
+materialised result the client works with. Error responses are shared components
+in the document rather than per operation, so they are left out.
+
+Anything without an example is left out: a type, an operation, a request or a
+status. A document with no examples, which includes every document before
+contract 12, writes no module and warns that it has none. The module is off by
+default because it is several times the size of the client and an app that only
+calls the API has no use for it.
 
 ### Multiple servers
 
@@ -148,7 +193,8 @@ runtime's needs, and all the real machinery lives in the generic
   [below](#page-defaults-and-caps).
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema
-2020-12 map.
+2020-12 map. With `--examples`, another exports `examples`, each operation's
+worked examples.
 
 ### Attribute types
 
@@ -444,22 +490,24 @@ The server-level Atomic Operations capability is emitted separately as an
     custom regeneration harness:
 
     ```ts
-    import { generate, check, type CodegenConfig } from '@haddowg/json-api-codegen'
+    import { generate, generateFiles, check, type CodegenConfig } from '@haddowg/json-api-codegen'
 
     const config: CodegenConfig = {
       input: 'https://music.example/docs.json',
       output: 'src/api/music.gen.ts',
       schemas: 'https://music.example/schemas.json', // optional
+      examples: true,                                // optional
       server: 'default',                             // optional, metadata-only
     }
 
     await generate(config)                 // writes the file(s); returns the client source
+    await generateFiles(config)            // the same, returning the paths it wrote
     const { ok } = await check(config)     // drift gate: regenerate in memory, compare, no write
     ```
 
     Lower-level building blocks are exported too — `readDocument` / `readSchemas`,
-    `buildDescriptor`, `emit` / `emitSchemas`, `detectVerbCollisions`,
-    `schemasOutputPath`, and the provenance helpers `deriveProvenance` /
+    `buildDescriptor`, `buildExamples`, `emit` / `emitSchemas` / `emitExamples`,
+    `detectVerbCollisions`, `schemasOutputPath` / `examplesOutputPath`, and the provenance helpers `deriveProvenance` /
     `provenanceLines` / `hashJson`.
 
 ## Provenance and drift
@@ -498,7 +546,8 @@ then shows exactly how the wire contract moved.
 ### Drift checking (`--check`)
 
 `--check` regenerates every artifact **in memory** and compares it against the
-committed `--output` (and its schema sibling when `--schemas` is set) **without
+committed `--output` (and its schema and examples siblings when `--schemas` and
+`--examples` are set) **without
 writing anything**. It prints a per-artifact `ok`/`DRIFT` line and exits non-zero
 if any committed file is missing or out of date:
 

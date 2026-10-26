@@ -138,6 +138,13 @@ handles do not (serialize the data, not the handle).
   ready `FormData` or `URLSearchParams` is still taken as is. Errors stay
   `JsonApiError` whatever was asked for. An author's summary and description become the action's
   JSDoc; the projector's stand-in prose for an undescribed action is left out.
+- **Operation examples** (generator contract 12, ADR 0011): an action's JSDoc carries an
+  `@example` of its request body, else its first success response, as the pretty-printed wire
+  document; one over 80 lines is named but not shown. Every operation's examples go to an opt-in
+  sibling module (`--examples`, `<output>.examples.gen.ts`) exporting `examples: ApiExamples`,
+  keyed type → `operations` (the `operationId` without the type) or `actions` (by name) →
+  `request` / `responses[status]` → media type. They stay out of `resourceMap`, which every app
+  ships to the browser.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 

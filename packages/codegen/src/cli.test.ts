@@ -31,6 +31,13 @@ describe('parseArgs', () => {
     ).toEqual({ input: 'a.json', output: 'out.ts', server: 'admin', schemas: 's.json' })
   })
 
+  it('parses --examples as a valueless boolean flag', () => {
+    expect(parseArgs(['--examples', '--input', 'a.json'])).toEqual({
+      examples: true,
+      input: 'a.json',
+    })
+  })
+
   it('ignores unknown flags and a trailing flag with no value', () => {
     expect(parseArgs(['--bogus', 'x', '--input'])).toEqual({})
   })
@@ -102,6 +109,37 @@ describe('run', () => {
     const schemas = await readFile(join(dir, 'with-schemas.schemas.gen.ts'), 'utf8')
     expect(schemas).toContain('export const schemas = {')
     expect(schemas).toContain('"const": "albums"')
+  })
+
+  it('writes the operation examples beside the client when --examples is supplied', async () => {
+    const output = join(dir, 'with-examples.gen.ts')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(
+      await run([
+        '--input',
+        fixturePath('music-catalog.openapi.json'),
+        '--output',
+        output,
+        '--examples',
+      ]),
+    ).toBe(0)
+    const path = join(dir, 'with-examples.examples.gen.ts')
+    expect(error).toHaveBeenCalledWith(`wrote ${path}`)
+    const examples = await readFile(path, 'utf8')
+    expect(examples).toContain('export const examples: ApiExamples = {')
+    expect(examples).toContain('"title": "Abbey Road"')
+  })
+
+  it('writes no examples module, and says so, when the document declares none', async () => {
+    const input = join(dir, 'bare.openapi.json')
+    await writeFile(input, JSON.stringify({ openapi: '3.1.0', paths: {} }))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const output = join(dir, 'bare.gen.ts')
+    expect(await run(['--input', input, '--output', output, '--examples'])).toBe(0)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('declares no operation examples'))
+    expect(error).toHaveBeenCalledWith(`wrote ${output}`)
+    expect(error).not.toHaveBeenCalledWith(expect.stringContaining('.examples.'))
   })
 
   it('returns 0 in --check mode when the committed client is up to date', async () => {

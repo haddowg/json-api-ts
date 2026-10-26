@@ -289,6 +289,7 @@ describe('emit (descriptions -> JSDoc)', () => {
         '   * Value must be before a dynamically-resolved date/time bound.',
         '   *',
         '   * @format date-time',
+        '   * @example 1969-09-26T00:00:00+00:00',
         '   */',
         '  releasedAt: string | null',
       ].join('\n'),
@@ -297,19 +298,33 @@ describe('emit (descriptions -> JSDoc)', () => {
 
   it('documents an attribute whose description rides the $ref wrapper (status)', () => {
     expect(source).toContain(
-      '  /** Where the album sits in its release lifecycle. */\n  status: AlbumStatus\n',
+      [
+        '  /**',
+        '   * Where the album sits in its release lifecycle.',
+        '   *',
+        '   * @example released',
+        '   */',
+        '  status: AlbumStatus',
+      ].join('\n'),
     )
   })
 
   it('leaves an attribute with no description undocumented', () => {
-    // `artwork` carries no description or constraint, so no comment precedes it.
-    expect(source).toMatch(/\n  artwork: string \| null/)
-    expect(source).not.toMatch(/\*\/\n  artwork: string/)
+    // A release's `format` carries no description, constraint or example, so no comment precedes it.
+    expect(source).toMatch(/\n  format: \{ rpm: number/)
+    expect(source).not.toMatch(/\*\/\n  format: \{ rpm: number/)
   })
 
   it('documents the constraints each member declares as TSDoc tags', () => {
     expect(source).toContain(
-      ['  /**', '   * @minLength 1', '   * @maxLength 200', '   */', '  title: string'].join('\n'),
+      [
+        '  /**',
+        '   * @minLength 1',
+        '   * @maxLength 200',
+        '   * @example Abbey Road',
+        '   */',
+        '  title: string',
+      ].join('\n'),
     )
     expect(source).toContain(
       [
@@ -321,7 +336,14 @@ describe('emit (descriptions -> JSDoc)', () => {
       ].join('\n'),
     )
     expect(source).toContain(
-      ['  /**', '   * @minItems 1', '   * @uniqueItems', '   */', '  genres: [string'].join('\n'),
+      [
+        '  /**',
+        '   * @minItems 1',
+        '   * @uniqueItems',
+        '   * @example ["rock"]',
+        '   */',
+        '  genres: [string',
+      ].join('\n'),
     )
   })
 

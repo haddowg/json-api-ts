@@ -29,6 +29,8 @@ export type SchemaOrBool = SchemaObject | boolean
 
 export interface MediaTypeObject {
   schema?: SchemaObject
+  /** A whole worked body for this media type (generator contract 12 on an operation). */
+  example?: unknown
 }
 
 export interface RequestBodyObject {

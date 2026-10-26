@@ -15,6 +15,17 @@ export function stringLiteral(value: string): string {
     .replace(/\u2029/g, '\\u2029')
 }
 
+/**
+ * A JSON value as a TS literal, indented two spaces with the value's key order kept. A
+ * `__proto__` key becomes computed so it stays an own key, and U+2028/U+2029 are escaped.
+ */
+export function jsonLiteral(value: unknown): string {
+  return JSON.stringify(value, null, 2)
+    .replace(/^(\s*)"__proto__":/gm, '$1["__proto__"]:')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
+
 /** True when a string is a bare identifier. */
 export function isIdentifier(value: string): boolean {
   return IDENTIFIER.test(value)

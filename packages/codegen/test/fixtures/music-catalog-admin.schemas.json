@@ -10,7 +10,8 @@
                 "const": "albums"
             },
             "id": {
-                "type": "string"
+                "type": "string",
+                "example": "1"
             },
             "attributes": {
                 "type": "object",
@@ -18,19 +19,22 @@
                     "title": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 200,
+                        "example": "Abbey Road"
                     },
                     "averageRating": {
                         "type": [
                             "number",
                             "null"
-                        ]
+                        ],
+                        "example": 4.5
                     },
                     "artwork": {
                         "type": [
                             "string",
                             "null"
-                        ]
+                        ],
+                        "example": "/uploads/artwork/1.png"
                     },
                     "releasedAt": {
                         "type": [
@@ -38,10 +42,12 @@
                             "null"
                         ],
                         "format": "date-time",
-                        "description": "Value must be before a dynamically-resolved date/time bound."
+                        "description": "Value must be before a dynamically-resolved date/time bound.",
+                        "example": "1969-09-26T00:00:00+00:00"
                     },
                     "explicit": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "example": false
                     },
                     "status": {
                         "type": "string",
@@ -51,6 +57,7 @@
                             "released",
                             "withdrawn"
                         ],
+                        "example": "released",
                         "x-enum-varnames": [
                             "Upcoming",
                             "Released",
@@ -67,7 +74,8 @@
                             "string",
                             "null"
                         ],
-                        "format": "date"
+                        "format": "date",
+                        "example": "2024-01-01"
                     },
                     "availableUntil": {
                         "type": [
@@ -75,7 +83,8 @@
                             "null"
                         ],
                         "format": "date",
-                        "description": "Value is compared against the `availableFrom` field (>)."
+                        "description": "Value is compared against the `availableFrom` field (>).",
+                        "example": "2026-12-31"
                     },
                     "releaseInfo": {
                         "type": [
@@ -87,14 +96,20 @@
                                 "type": [
                                     "string",
                                     "null"
-                                ]
+                                ],
+                                "example": "Apple Records"
                             },
                             "catalogueNumber": {
                                 "type": [
                                     "string",
                                     "null"
-                                ]
+                                ],
+                                "example": "PCS 7088"
                             }
+                        },
+                        "example": {
+                            "label": "Apple Records",
+                            "catalogueNumber": "PCS 7088"
                         }
                     }
                 },
@@ -136,7 +151,8 @@
                 "const": "artists"
             },
             "id": {
-                "type": "string"
+                "type": "string",
+                "example": "1"
             },
             "attributes": {
                 "type": "object",
@@ -144,35 +160,41 @@
                     "name": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 120
+                        "maxLength": 120,
+                        "example": "The Beatles"
                     },
                     "slug": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "example": "the-beatles"
                     },
                     "website": {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "format": "uri"
+                        "format": "uri",
+                        "example": "https://www.thebeatles.com"
                     },
                     "bio": {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "maxLength": 1000
+                        "maxLength": 1000,
+                        "example": "Rock band formed in Liverpool in 1960."
                     },
                     "trackCount": {
-                        "type": "integer"
+                        "type": "integer",
+                        "example": 17
                     },
                     "createdAt": {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "format": "date-time"
+                        "format": "date-time",
+                        "example": "2024-03-01T12:00:00+00:00"
                     }
                 },
                 "required": [
@@ -210,7 +232,8 @@
                 "const": "libraries"
             },
             "id": {
-                "type": "string"
+                "type": "string",
+                "example": "1"
             },
             "attributes": {
                 "type": "object"
@@ -242,14 +265,16 @@
             },
             "id": {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "example": "0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10"
             },
             "attributes": {
                 "type": "object",
                 "properties": {
                     "title": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "example": "Road trip"
                     },
                     "slug": {
                         "type": "string",
@@ -257,14 +282,16 @@
                         "example": "example-slug"
                     },
                     "public": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "example": true
                     },
                     "externalId": {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "format": "uuid"
+                        "format": "uuid",
+                        "example": "5f1d7c2e-8a4b-4e6f-9c3d-2b1a0e9f8d7c"
                     }
                 },
                 "required": [
@@ -300,13 +327,15 @@
                 "const": "public-profiles"
             },
             "id": {
-                "type": "string"
+                "type": "string",
+                "example": "1"
             },
             "attributes": {
                 "type": "object",
                 "properties": {
                     "displayName": {
-                        "type": "string"
+                        "type": "string",
+                        "example": "Ada"
                     }
                 },
                 "required": [
@@ -339,24 +368,29 @@
                 "const": "tracks"
             },
             "id": {
-                "type": "string"
+                "type": "string",
+                "example": "1"
             },
             "attributes": {
                 "type": "object",
                 "properties": {
                     "title": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "example": "Come Together"
                     },
                     "trackNumber": {
                         "type": "integer",
-                        "minimum": 1
+                        "minimum": 1,
+                        "example": 1
                     },
                     "durationSeconds": {
-                        "type": "integer"
+                        "type": "integer",
+                        "example": 259
                     },
                     "explicit": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "example": false
                     },
                     "genres": {
                         "type": "array",
@@ -365,17 +399,22 @@
                         "items": {
                             "type": "string",
                             "minLength": 1
-                        }
+                        },
+                        "example": [
+                            "rock"
+                        ]
                     },
                     "previewOffset": {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
+                        "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time.",
+                        "example": "00:00:30"
                     },
                     "displayTitle": {
-                        "type": "string"
+                        "type": "string",
+                        "example": "1. Come Together"
                     }
                 },
                 "required": [
@@ -414,7 +453,8 @@
                 "const": "users"
             },
             "id": {
-                "type": "string"
+                "type": "string",
+                "example": "1"
             },
             "attributes": {
                 "type": "object",
@@ -422,30 +462,37 @@
                     "email": {
                         "type": "string",
                         "format": "email",
-                        "minLength": 1
+                        "minLength": 1,
+                        "example": "ada@example.com"
                     },
                     "displayName": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "example": "Ada"
                     },
                     "birthDate": {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "format": "date"
+                        "format": "date",
+                        "example": "1990-12-10"
                     },
                     "preferences": {
                         "type": "object",
                         "minProperties": 0,
                         "maxProperties": 20,
-                        "additionalProperties": {}
+                        "additionalProperties": {},
+                        "example": {
+                            "theme": "dark"
+                        }
                     },
                     "lastSeenIp": {
                         "type": [
                             "string",
                             "null"
-                        ]
+                        ],
+                        "example": "203.0.113.7"
                     }
                 },
                 "required": [

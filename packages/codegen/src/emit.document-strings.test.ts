@@ -43,6 +43,11 @@ function awkwardDocument(): OpenApiDocument {
   title.description = 'Title */ alert(9) /* end'
   const releaseInfo = attributes['releaseInfo'] as SchemaObject
   releaseInfo.properties = { ...releaseInfo.properties, '"; alert(10); "': { type: 'string' } }
+
+  const summary = doc.paths!['/albums/-actions/summary']!.post!
+  summary.responses!['200']!.content!['application/vnd.api+json']!.example = {
+    meta: { note: '*/ alert(11) /*\n```\nalert(12)' },
+  }
   return doc
 }
 

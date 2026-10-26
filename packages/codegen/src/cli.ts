@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { check, generate, schemasOutputPath, type CodegenConfig } from './index'
+import { check, generateFiles, type CodegenConfig } from './index'
 
 export const USAGE =
-  'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--check]'
+  'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--examples] [--check]'
 
 /**
  * Thin CLI wrapper. Real arg parsing + `japi.config.ts` discovery land with the
  * generator itself; this stub establishes the bin entry and the shape of invocation.
- * `--check` is a boolean flag (drift gate) with no value.
+ * `--check` (drift gate) and `--examples` are boolean flags with no value.
  */
 export function parseArgs(argv: string[]): Partial<CodegenConfig> {
   const config: Partial<CodegenConfig> = {}
@@ -17,6 +17,10 @@ export function parseArgs(argv: string[]): Partial<CodegenConfig> {
     const arg = argv[i]
     if (arg === '--check') {
       config.check = true
+      continue
+    }
+    if (arg === '--examples') {
+      config.examples = true
       continue
     }
     const next = argv[i + 1]
@@ -59,10 +63,9 @@ export async function run(argv: string[]): Promise<number> {
     }
     return 0
   }
-  await generate(config as CodegenConfig)
-  console.error(`wrote ${config.output}`)
-  if (config.schemas !== undefined) {
-    console.error(`wrote ${schemasOutputPath(config.output)}`)
+  const written = await generateFiles(config as CodegenConfig)
+  for (const path of written) {
+    console.error(`wrote ${path}`)
   }
   return 0
 }

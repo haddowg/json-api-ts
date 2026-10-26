@@ -1,5 +1,6 @@
 import { hashJson } from './provenance'
 import type { SchemaBundle } from './reader'
+import { jsonLiteral } from './source'
 
 /**
  * Emit the per-type JSON Schema map as a standalone generated artifact:
@@ -32,12 +33,6 @@ function header(bundle: SchemaBundle): string {
 }
 
 function body(bundle: SchemaBundle): string {
-  // `JSON.stringify` with two-space indent gives deterministic, diff-friendly output while
-  // preserving the bundle's key order. The raw schema objects are valid TS object literals.
-  // A `__proto__` key becomes computed so it stays an own key, and U+2028/U+2029 are escaped.
-  const json = JSON.stringify(bundle, null, 2)
-    .replace(/^(\s*)"__proto__":/gm, '$1["__proto__"]:')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029')
-  return `export const schemas = ${json} as const`
+  // The raw schema objects are valid TS object literals; JSON keeps the bundle's key order.
+  return `export const schemas = ${jsonLiteral(bundle)} as const`
 }

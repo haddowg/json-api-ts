@@ -6,14 +6,9 @@ import {
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
 import { buildAtomic } from './build-descriptor'
+import { actionOperation, operationExamples } from './build-examples'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
-import type {
-  HttpMethod,
-  OpenApiDocument,
-  OperationObject,
-  SchemaObject,
-  SchemaOrBool,
-} from './openapi'
+import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
 import { commentLines, isTypeName, propertyKey, stringLiteral } from './source'
 import { unwrapRefs } from './unwrap-refs'
@@ -240,6 +235,64 @@ function actionDoc(name: string, op: OperationObject | undefined): string | unde
   return parts.length === 0 ? undefined : parts.join('\n\n')
 }
 
+/** The most lines of example JSON an action's `@example` shows; a longer one is left out. */
+export const EXAMPLE_DOC_MAX_LINES = 80
+
+/** Whether a media type carries JSON: JSON:API, `application/json` or a `+json` suffix. */
+function isJsonMedia(mediaType: string): boolean {
+  const essence = mediaType.split(';')[0]!.trim().toLowerCase()
+  return essence === 'application/json' || essence.endsWith('+json')
+}
+
+/** The media type to show: JSON:API when it has an example, else the first that does. */
+function shownMedia(examples: Readonly<Record<string, unknown>>): string | undefined {
+  return JSON_API_MEDIA_TYPE in examples ? JSON_API_MEDIA_TYPE : Object.keys(examples)[0]
+}
+
+/**
+ * An `@example` for an action: its request body when it declares one, else its first success
+ * response, as a fenced block of pretty-printed JSON (a text body as is). A body over
+ * {@link EXAMPLE_DOC_MAX_LINES} lines is named but not shown. The fence is longer than any run of
+ * backticks in the body, so the body can't close it.
+ */
+function exampleDoc(op: OperationObject | undefined): string | undefined {
+  const examples = operationExamples(op)
+  if (examples === undefined) {
+    return undefined
+  }
+  let label: string
+  let media: Readonly<Record<string, unknown>>
+  if (examples.request !== undefined) {
+    label = 'Request body'
+    media = examples.request
+  } else {
+    const first = Object.entries(examples.responses ?? {})[0]
+    if (first === undefined) {
+      return undefined
+    }
+    label = `Response \`${first[0]}\``
+    media = first[1]
+  }
+  const mediaType = shownMedia(media)
+  if (mediaType === undefined) {
+    return undefined
+  }
+  if (mediaType !== JSON_API_MEDIA_TYPE) {
+    label += ` as \`${mediaType}\``
+  }
+  const value = media[mediaType]
+  const raw = typeof value === 'string' && !isJsonMedia(mediaType)
+  const text = raw ? value.replace(/(?:\r\n|\r|\n)+$/, '') : JSON.stringify(value, null, 2)
+  const lines = text.split(/\r\n|\r|\n/).length
+  if (lines > EXAMPLE_DOC_MAX_LINES) {
+    return `@example ${label}\nThe example is ${lines} lines long, too long to show here.`
+  }
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+  const fence = '`'.repeat(Math.max(3, longest + 1))
+  const language = raw ? '' : 'json'
+  return `@example ${label}\n${fence}${language}\n${text}\n${fence}`
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -310,18 +363,14 @@ export class Emitter {
         ) {
           this.takenNames.add(`${stem}${pascalCase(name)}${pascalCase(single)}Input`)
         }
-        const doc = actionDoc(name, this.actionOperation(action))
+        const op = actionOperation(this.doc, action)
+        const parts = [actionDoc(name, op), exampleDoc(op)].filter((part) => part !== undefined)
+        const doc = parts.length === 0 ? undefined : parts.join('\n\n')
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}`, doc)
         }
       }
     }
-  }
-
-  /** The operation an action is invoked over: its declared method, else `POST`. */
-  private actionOperation(action: ActionDescriptor): OperationObject | undefined {
-    const method = (action.method ?? 'POST').toLowerCase() as HttpMethod
-    return this.doc.paths?.[action.path]?.[method]
   }
 
   /**
@@ -500,7 +549,7 @@ export class Emitter {
           out.push(`export type ${member}Output = ${outputType}`)
           names.output = `${member}Output`
         }
-        const op = this.actionOperation(action)
+        const op = actionOperation(this.doc, action)
         for (const { mediaType, kind } of action.rawOutput ?? []) {
           if (kind === 'json') {
             const schema = firstSuccessSchema(op, mediaType)
