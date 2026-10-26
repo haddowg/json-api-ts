@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.6.0...json-api-client-v1.7.0) (2026-10-26)
+
+
+### Features
+
+* **client:** carry an action's declared safety on its descriptor ([05286a8](https://github.com/haddowg/json-api-ts/commit/05286a891a54b8dba2de04021244138c2bf6b4c8))
+
 ## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.5.0...json-api-client-v1.6.0) (2026-10-26)
 
 
