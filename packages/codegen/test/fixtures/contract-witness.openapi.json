@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 10
+            "contract": 11
         }
     },
     "servers": [
@@ -3466,6 +3466,72 @@
                 }
             }
         },
+        "/articles/-actions/bulk-import": {
+            "post": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `bulk-import` action",
+                "description": "Invokes the `bulk-import` custom action on the articles collection.",
+                "operationId": "action.articles.bulk-import",
+                "requestBody": {
+                    "description": "The request body, in one of the media types the action accepts.",
+                    "content": {
+                        "text/csv": {
+                            "schema": {
+                                "type": "string"
+                            }
+                        },
+                        "image/*": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        },
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticleImportRow"
+                            }
+                        }
+                    },
+                    "required": false
+                },
+                "responses": {
+                    "204": {
+                        "description": "The action completed with no content."
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
         "/people": {
             "get": {
                 "tags": [
@@ -5899,6 +5965,20 @@
                         ]
                     }
                 ]
+            },
+            "ArticleImportRow": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "title"
+                    ]
+                }
             },
             "ArticleSummary": {
                 "type": "object",

@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   3bbf78db1b91b0a5
+ * Spec hash:   685b92170ff32b40
  */
 
 import {
@@ -283,6 +283,8 @@ export interface VideosUpdateAttributes {
   url?: string
 }
 
+export type ArticleImportRow = { title: string }[]
+
 export type ArticleSummary = { total: number; byStatus?: Record<string, unknown> }
 
 export interface Attributes {
@@ -303,6 +305,7 @@ export interface WriteAttributes {
 
 export interface ActionTypes {
   articles: {
+    "bulk-import": { requests: { "application/json": ArticleImportRow } }
     report: { responses: { "application/json": ArticleSummary } }
   }
 }
@@ -516,6 +519,31 @@ export const resourceMap = {
       "wordCount"
     ],
     actions: {
+      "bulk-import": {
+        scope: "collection",
+        path: "/articles/-actions/bulk-import",
+        input: "raw",
+        output: "none",
+        contentType: "text/csv",
+        inputMedia: [
+          {
+            mediaType: "text/csv",
+            kind: "text"
+          },
+          {
+            mediaType: "image/*",
+            kind: "binary"
+          },
+          {
+            mediaType: "multipart/form-data",
+            kind: "multipart"
+          },
+          {
+            mediaType: "application/json",
+            kind: "json"
+          }
+        ]
+      },
       cover: {
         scope: "resource",
         path: "/articles/{id}/-actions/cover",
