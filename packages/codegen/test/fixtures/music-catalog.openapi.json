@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 9
+            "contract": 11
         }
     },
     "servers": [
@@ -1819,6 +1819,151 @@
                 }
             }
         },
+        "/albums/-actions/export": {
+            "get": {
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Export the album catalogue",
+                "description": "Exports every album in the format the Accept header asks for: a JSON:API meta document with counts, a CSV of ids and titles, a PDF report, or the counts as plain JSON.",
+                "operationId": "action.albums.export",
+                "responses": {
+                    "200": {
+                        "description": "The action result: a meta-only document.",
+                        "headers": {
+                            "Content-Disposition": {
+                                "description": "Names the downloaded file.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaDocument"
+                                }
+                            },
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "example": "id,title\n1,Kind of Blue\n"
+                            },
+                            "application/pdf": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AlbumCatalogueStats"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/albums/-actions/import": {
+            "post": {
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Import albums from a file",
+                "description": "Creates albums from a CSV export, a scanned sleeve image, a multipart form upload or a JSON list of rows. The response reports the media type the server read.",
+                "operationId": "action.albums.import",
+                "requestBody": {
+                    "description": "The request body, in one of the media types the action accepts.",
+                    "content": {
+                        "text/csv": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        },
+                        "image/*": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        },
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AlbumImportRows"
+                            }
+                        }
+                    },
+                    "required": false
+                },
+                "responses": {
+                    "200": {
+                        "description": "The action result: a meta-only document.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaDocument"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
         "/albums/{id}/-actions/reissue": {
             "parameters": [
                 {
@@ -2074,9 +2219,14 @@
                 "description": "Invokes the `artwork` custom action on an album.",
                 "operationId": "action.albums.artwork",
                 "requestBody": {
-                    "description": "A raw request body; the action relaxes content-type negotiation and owns the body shape.",
+                    "description": "The request body, in one of the media types the action accepts.",
                     "content": {
-                        "application/octet-stream": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        },
+                        "image/*": {
                             "schema": {
                                 "type": "string",
                                 "format": "binary"
@@ -2106,6 +2256,9 @@
                     },
                     "500": {
                         "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
                     },
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
@@ -13258,6 +13411,41 @@
                     }
                 ]
             },
+            "AlbumCatalogueStats": {
+                "type": "object",
+                "properties": {
+                    "published": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "unpublished": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "published",
+                    "unpublished"
+                ]
+            },
+            "AlbumImportRows": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string"
+                        },
+                        "releasedOn": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    "required": [
+                        "title"
+                    ]
+                }
+            },
             "AlbumStatus": {
                 "description": "| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
                 "enum": [
@@ -21331,7 +21519,8 @@
                     }
                 ],
                 "example": {
-                    "href": "https://music.example/"
+                    "href": "https://music.example/albums/1",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                 }
             },
             "Links": {
@@ -21480,7 +21669,7 @@
             },
             "MediaTypeUnsupportedError": {
                 "title": "The provided media type is unsupported",
-                "description": "The `Content-Type` is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send `Content-Type: application/vnd.api+json` with only the parameters the server supports.",
+                "description": "The `Content-Type` is missing or names a media type the endpoint does not accept, or is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send a JSON:API document as `Content-Type: application/vnd.api+json` with only the parameters the server supports.",
                 "allOf": [
                     {
                         "$ref": "#/components/schemas/Error"

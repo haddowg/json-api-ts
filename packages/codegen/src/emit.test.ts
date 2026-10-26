@@ -222,10 +222,12 @@ describe('emit (custom actions)', () => {
     expect(source).not.toContain('export type AlbumsArtworkOutput')
   })
 
-  it('still emits (an empty) ActionTypes threaded as the client fourth type arg', () => {
-    // Every action resolves its types from the descriptor, so the fallback alias map is empty —
-    // still emitted + threaded so a bespoke command document (no resolvable type) can populate it.
-    expect(source).toContain('export interface ActionTypes {}')
+  it('emits ActionTypes for the raw bodies and threads it as the client fourth type arg', () => {
+    // Only a raw JSON body needs a type the descriptor can't name: the export's JSON answer and
+    // the import's JSON rows.
+    expect(source).toMatch(
+      /export interface ActionTypes \{\n {2}albums: \{\n {4}export: \{ responses: \{ "application\/json": AlbumCatalogueStats \} \}\n {4}import: \{ requests: \{ "application\/json": AlbumImportRows \} \}\n {2}\}\n\}/,
+    )
     expect(source).toContain(
       'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode>(',
     )
