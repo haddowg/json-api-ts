@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.4.1...json-api-client-v1.5.0) (2026-10-26)
+
+
+### Features
+
+* **client:** describe operation examples with ApiExamples ([f059560](https://github.com/haddowg/json-api-ts/commit/f0595601fbd0b2049675d17ef310e4819ce3a49d))
+
 ## [1.4.1](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.4.0...json-api-client-v1.4.1) (2026-10-26)
 
 
