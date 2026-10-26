@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   995bd25f76a63a09
+ * Spec hash:   68cfec0bfbf28d9b
  */
 
 import type { ApiExamples } from '@haddowg/json-api-client'
@@ -99,6 +99,7 @@ export const examples: ApiExamples = {
                     "href": "https://music.example/albums/1",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
+                  "store": "https://store.example.com/albums/1",
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -184,6 +185,7 @@ export const examples: ApiExamples = {
                       "href": "https://music.example/albums/1",
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                     },
+                    "store": "https://store.example.com/albums/1",
                     "reissue": {
                       "href": "https://music.example/albums/1/-actions/reissue",
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -289,6 +291,7 @@ export const examples: ApiExamples = {
                     "href": "https://music.example/albums/1",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
+                  "store": "https://store.example.com/albums/1",
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -431,6 +434,14 @@ export const examples: ApiExamples = {
                     "self": {
                       "href": "https://music.example/tracks/1",
                       "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                    },
+                    "preview": {
+                      "href": "https://cdn.example.com/previews/1.mp3",
+                      "type": "audio/mpeg",
+                      "meta": {
+                        "format": "mp3",
+                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                      }
                     }
                   },
                   "attributes": {
@@ -704,6 +715,7 @@ export const examples: ApiExamples = {
                     "href": "https://music.example/albums/1",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
+                  "store": "https://store.example.com/albums/1",
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -908,6 +920,7 @@ export const examples: ApiExamples = {
                     "href": "https://music.example/albums/1",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
+                  "store": "https://store.example.com/albums/1",
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -1272,6 +1285,7 @@ export const examples: ApiExamples = {
                       "href": "https://music.example/albums/1",
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                     },
+                    "store": "https://store.example.com/albums/1",
                     "reissue": {
                       "href": "https://music.example/albums/1/-actions/reissue",
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -2238,6 +2252,14 @@ export const examples: ApiExamples = {
                   "self": {
                     "href": "https://music.example/tracks/1",
                     "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                  },
+                  "preview": {
+                    "href": "https://cdn.example.com/previews/1.mp3",
+                    "type": "audio/mpeg",
+                    "meta": {
+                      "format": "mp3",
+                      "expiresAt": "2026-01-01T12:00:00+00:00"
+                    }
                   }
                 },
                 "attributes": {
@@ -3033,6 +3055,14 @@ export const examples: ApiExamples = {
                     "self": {
                       "href": "https://music.example/tracks/1",
                       "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                    },
+                    "preview": {
+                      "href": "https://cdn.example.com/previews/1.mp3",
+                      "type": "audio/mpeg",
+                      "meta": {
+                        "format": "mp3",
+                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                      }
                     }
                   },
                   "attributes": {
@@ -3545,6 +3575,12 @@ export const examples: ApiExamples = {
                 "externalId": "5f1d7c2e-8a4b-4e6f-9c3d-2b1a0e9f8d7c"
               },
               "relationships": {
+                "owner": {
+                  "data": {
+                    "type": "users",
+                    "id": "1"
+                  }
+                },
                 "publicOwner": {
                   "data": {
                     "type": "public-profiles",
@@ -3602,6 +3638,10 @@ export const examples: ApiExamples = {
                         "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
                         "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
                       }
+                    },
+                    "data": {
+                      "type": "users",
+                      "id": "1"
                     }
                   },
                   "publicOwner": {
@@ -3708,6 +3748,10 @@ export const examples: ApiExamples = {
                           "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
                           "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
                         }
+                      },
+                      "data": {
+                        "type": "users",
+                        "id": "1"
                       }
                     },
                     "publicOwner": {
@@ -3834,6 +3878,10 @@ export const examples: ApiExamples = {
                         "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
                         "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
                       }
+                    },
+                    "data": {
+                      "type": "users",
+                      "id": "1"
                     }
                   },
                   "publicOwner": {
@@ -3925,6 +3973,14 @@ export const examples: ApiExamples = {
                     "self": {
                       "href": "https://music.example/tracks/1",
                       "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                    },
+                    "preview": {
+                      "href": "https://cdn.example.com/previews/1.mp3",
+                      "type": "audio/mpeg",
+                      "meta": {
+                        "format": "mp3",
+                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                      }
                     }
                   },
                   "attributes": {
@@ -4057,6 +4113,14 @@ export const examples: ApiExamples = {
                     "self": {
                       "href": "https://music.example/tracks/1",
                       "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                    },
+                    "preview": {
+                      "href": "https://cdn.example.com/previews/1.mp3",
+                      "type": "audio/mpeg",
+                      "meta": {
+                        "format": "mp3",
+                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                      }
                     }
                   },
                   "attributes": {
@@ -4218,6 +4282,18 @@ export const examples: ApiExamples = {
               "data": {
                 "type": "users",
                 "id": "1"
+              },
+              "links": {
+                "self": {
+                  "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
+                  "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                },
+                "describedby": {
+                  "href": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                }
+              },
+              "jsonapi": {
+                "version": "1.1"
               }
             }
           }
@@ -4416,6 +4492,12 @@ export const examples: ApiExamples = {
                 "externalId": "5f1d7c2e-8a4b-4e6f-9c3d-2b1a0e9f8d7c"
               },
               "relationships": {
+                "owner": {
+                  "data": {
+                    "type": "users",
+                    "id": "1"
+                  }
+                },
                 "publicOwner": {
                   "data": {
                     "type": "public-profiles",
@@ -4473,6 +4555,10 @@ export const examples: ApiExamples = {
                         "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
                         "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
                       }
+                    },
+                    "data": {
+                      "type": "users",
+                      "id": "1"
                     }
                   },
                   "publicOwner": {
@@ -4620,6 +4706,18 @@ export const examples: ApiExamples = {
               "data": {
                 "type": "users",
                 "id": "1"
+              },
+              "links": {
+                "self": {
+                  "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
+                  "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                },
+                "describedby": {
+                  "href": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                }
+              },
+              "jsonapi": {
+                "version": "1.1"
               }
             }
           }
@@ -5452,6 +5550,7 @@ export const examples: ApiExamples = {
                     "href": "https://music.example/albums/1",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
+                  "store": "https://store.example.com/albums/1",
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -5780,6 +5879,14 @@ export const examples: ApiExamples = {
                   "self": {
                     "href": "https://music.example/tracks/1",
                     "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                  },
+                  "preview": {
+                    "href": "https://cdn.example.com/previews/1.mp3",
+                    "type": "audio/mpeg",
+                    "meta": {
+                      "format": "mp3",
+                      "expiresAt": "2026-01-01T12:00:00+00:00"
+                    }
                   }
                 },
                 "attributes": {
@@ -5858,6 +5965,14 @@ export const examples: ApiExamples = {
                     "self": {
                       "href": "https://music.example/tracks/1",
                       "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                    },
+                    "preview": {
+                      "href": "https://cdn.example.com/previews/1.mp3",
+                      "type": "audio/mpeg",
+                      "meta": {
+                        "format": "mp3",
+                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                      }
                     }
                   },
                   "attributes": {
@@ -5956,6 +6071,14 @@ export const examples: ApiExamples = {
                   "self": {
                     "href": "https://music.example/tracks/1",
                     "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                  },
+                  "preview": {
+                    "href": "https://cdn.example.com/previews/1.mp3",
+                    "type": "audio/mpeg",
+                    "meta": {
+                      "format": "mp3",
+                      "expiresAt": "2026-01-01T12:00:00+00:00"
+                    }
                   }
                 },
                 "attributes": {
@@ -6034,6 +6157,7 @@ export const examples: ApiExamples = {
                     "href": "https://music.example/albums/1",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
+                  "store": "https://store.example.com/albums/1",
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -6133,6 +6257,10 @@ export const examples: ApiExamples = {
                           "href": "https://music.example/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
                           "describedby": "/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
                         }
+                      },
+                      "data": {
+                        "type": "users",
+                        "id": "1"
                       }
                     },
                     "publicOwner": {
@@ -6408,6 +6536,14 @@ export const examples: ApiExamples = {
                   "self": {
                     "href": "https://music.example/tracks/1",
                     "describedby": "/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                  },
+                  "preview": {
+                    "href": "https://cdn.example.com/previews/1.mp3",
+                    "type": "audio/mpeg",
+                    "meta": {
+                      "format": "mp3",
+                      "expiresAt": "2026-01-01T12:00:00+00:00"
+                    }
                   }
                 },
                 "attributes": {

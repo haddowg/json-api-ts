@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   995bd25f76a63a09
+ * Spec hash:   68cfec0bfbf28d9b
  */
 
 import {
@@ -13,6 +13,7 @@ import {
   createClient as createClientRuntime,
   type ErrorCodeGuard,
   hasErrorCode as hasErrorCodeRuntime,
+  type ResourceLinks,
 } from '@haddowg/json-api-client'
 
 /**
@@ -538,6 +539,43 @@ export interface TracksUpdateAttributes {
   trackNumber?: number
 }
 
+export interface AlbumsLinks extends ResourceLinks {
+  /**
+   * The album's page in the store.
+   *
+   * @example https://store.example.com/albums/1
+   */
+  store?: string
+}
+
+export interface TracksLinks extends ResourceLinks {
+  /**
+   * A short audio preview of the track, valid until expiresAt.
+   *
+   * @example {"href":"https://cdn.example.com/previews/1.mp3","type":"audio/mpeg","meta":{"format":"mp3","expiresAt":"2026-01-01T12:00:00+00:00"}}
+   */
+  preview?: {
+    /** @format uri-reference */
+    href: string
+    type: "audio/mpeg"
+    meta: {
+      /**
+       * Audio encoding of the preview.
+       *
+       * @example mp3
+       */
+      format: string | null
+      /**
+       * When the preview URL stops working.
+       *
+       * @format date-time
+       * @example 2026-01-01T12:00:00+00:00
+       */
+      expiresAt: string | null
+    }
+  }
+}
+
 export type AlbumCatalogueStats = { published: number; unpublished: number }
 
 export type AlbumImportRows = { title: string; releasedOn?: string }[]
@@ -574,7 +612,10 @@ export interface WriteAttributes {
   tracks: { create: TracksCreateAttributes; update: TracksUpdateAttributes }
 }
 
-export interface Links {}
+export interface Links {
+  albums: AlbumsLinks
+  tracks: TracksLinks
+}
 
 export interface ActionTypes {
   albums: {

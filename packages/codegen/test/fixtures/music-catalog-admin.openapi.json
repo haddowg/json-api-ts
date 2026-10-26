@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 13
+            "contract": 14
         }
     },
     "servers": [
@@ -306,7 +306,8 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/albums/1",
                                                     "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                                                }
+                                                },
+                                                "store": "https://store.example.com/albums/1"
                                             },
                                             "attributes": {
                                                 "title": "Abbey Road",
@@ -605,7 +606,8 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/albums/1",
                                                 "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                                            }
+                                            },
+                                            "store": "https://store.example.com/albums/1"
                                         },
                                         "attributes": {
                                             "title": "Abbey Road",
@@ -859,7 +861,8 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/albums/1",
                                                 "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                                            }
+                                            },
+                                            "store": "https://store.example.com/albums/1"
                                         },
                                         "attributes": {
                                             "title": "Abbey Road",
@@ -1163,7 +1166,8 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/albums/1",
                                                 "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                                            }
+                                            },
+                                            "store": "https://store.example.com/albums/1"
                                         },
                                         "attributes": {
                                             "title": "Abbey Road",
@@ -1975,6 +1979,14 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/tracks/1",
                                                     "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                                },
+                                                "preview": {
+                                                    "href": "https://cdn.example.com/previews/1.mp3",
+                                                    "type": "audio/mpeg",
+                                                    "meta": {
+                                                        "format": "mp3",
+                                                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                    }
                                                 }
                                             },
                                             "attributes": {
@@ -3830,7 +3842,8 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/albums/1",
                                                     "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                                                }
+                                                },
+                                                "store": "https://store.example.com/albums/1"
                                             },
                                             "attributes": {
                                                 "title": "Abbey Road",
@@ -5901,6 +5914,14 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/tracks/1",
                                                     "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                                },
+                                                "preview": {
+                                                    "href": "https://cdn.example.com/previews/1.mp3",
+                                                    "type": "audio/mpeg",
+                                                    "meta": {
+                                                        "format": "mp3",
+                                                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                    }
                                                 }
                                             },
                                             "attributes": {
@@ -7858,6 +7879,18 @@
                                     "data": {
                                         "type": "users",
                                         "id": "1"
+                                    },
+                                    "links": {
+                                        "self": {
+                                            "href": "https://admin.music.example/admin/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
+                                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
                                     }
                                 }
                             }
@@ -7923,6 +7956,18 @@
                                     "data": {
                                         "type": "users",
                                         "id": "1"
+                                    },
+                                    "links": {
+                                        "self": {
+                                            "href": "https://admin.music.example/admin/playlists/0b9e3c34-2f4e-4c1a-9a57-6d3b2a1f8c10/relationships/owner",
+                                            "describedby": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/admin/docs.json#/paths/~1playlists~1%7Bid%7D~1relationships~1owner/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
                                     }
                                 }
                             }
@@ -8525,6 +8570,14 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/tracks/1",
                                                     "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                                },
+                                                "preview": {
+                                                    "href": "https://cdn.example.com/previews/1.mp3",
+                                                    "type": "audio/mpeg",
+                                                    "meta": {
+                                                        "format": "mp3",
+                                                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                    }
                                                 }
                                             },
                                             "attributes": {
@@ -9460,6 +9513,14 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/tracks/1",
                                                     "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                                },
+                                                "preview": {
+                                                    "href": "https://cdn.example.com/previews/1.mp3",
+                                                    "type": "audio/mpeg",
+                                                    "meta": {
+                                                        "format": "mp3",
+                                                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                    }
                                                 }
                                             },
                                             "attributes": {
@@ -10727,6 +10788,14 @@
                                                 "self": {
                                                     "href": "https://admin.music.example/admin/tracks/1",
                                                     "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                                },
+                                                "preview": {
+                                                    "href": "https://cdn.example.com/previews/1.mp3",
+                                                    "type": "audio/mpeg",
+                                                    "meta": {
+                                                        "format": "mp3",
+                                                        "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                    }
                                                 }
                                             },
                                             "attributes": {
@@ -11062,6 +11131,14 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/tracks/1",
                                                 "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                            },
+                                            "preview": {
+                                                "href": "https://cdn.example.com/previews/1.mp3",
+                                                "type": "audio/mpeg",
+                                                "meta": {
+                                                    "format": "mp3",
+                                                    "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                }
                                             }
                                         },
                                         "attributes": {
@@ -11354,6 +11431,14 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/tracks/1",
                                                 "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                            },
+                                            "preview": {
+                                                "href": "https://cdn.example.com/previews/1.mp3",
+                                                "type": "audio/mpeg",
+                                                "meta": {
+                                                    "format": "mp3",
+                                                    "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                }
                                             }
                                         },
                                         "attributes": {
@@ -11686,6 +11771,14 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/tracks/1",
                                                 "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                                            },
+                                            "preview": {
+                                                "href": "https://cdn.example.com/previews/1.mp3",
+                                                "type": "audio/mpeg",
+                                                "meta": {
+                                                    "format": "mp3",
+                                                    "expiresAt": "2026-01-01T12:00:00+00:00"
+                                                }
                                             }
                                         },
                                         "attributes": {
@@ -12004,7 +12097,8 @@
                                             "self": {
                                                 "href": "https://admin.music.example/admin/albums/1",
                                                 "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                                            }
+                                            },
+                                            "store": "https://store.example.com/albums/1"
                                         },
                                         "attributes": {
                                             "title": "Abbey Road",
@@ -16178,6 +16272,15 @@
                             "href": "https://admin.music.example/admin/albums/1",
                             "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
                         }
+                    },
+                    "store": {
+                        "description": "The album's page in the store.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/LinkObject"
+                            }
+                        ],
+                        "example": "https://store.example.com/albums/1"
                     }
                 },
                 "additionalProperties": {
@@ -16187,7 +16290,8 @@
                     "self": {
                         "href": "https://admin.music.example/admin/albums/1",
                         "describedby": "/admin/docs.json#/paths/~1albums~1%7Bid%7D/get"
-                    }
+                    },
+                    "store": "https://store.example.com/albums/1"
                 }
             },
             "AlbumsTracksRelatedCollection": {
@@ -25073,6 +25177,59 @@
                             "href": "https://admin.music.example/admin/tracks/1",
                             "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
                         }
+                    },
+                    "preview": {
+                        "type": "object",
+                        "description": "A short audio preview of the track, valid until expiresAt.",
+                        "properties": {
+                            "href": {
+                                "type": "string",
+                                "format": "uri-reference"
+                            },
+                            "type": {
+                                "type": "string",
+                                "const": "audio/mpeg"
+                            },
+                            "meta": {
+                                "type": "object",
+                                "properties": {
+                                    "format": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Audio encoding of the preview.",
+                                        "example": "mp3"
+                                    },
+                                    "expiresAt": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "date-time",
+                                        "description": "When the preview URL stops working.",
+                                        "example": "2026-01-01T12:00:00+00:00"
+                                    }
+                                },
+                                "required": [
+                                    "format",
+                                    "expiresAt"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "href",
+                            "type",
+                            "meta"
+                        ],
+                        "example": {
+                            "href": "https://cdn.example.com/previews/1.mp3",
+                            "type": "audio/mpeg",
+                            "meta": {
+                                "format": "mp3",
+                                "expiresAt": "2026-01-01T12:00:00+00:00"
+                            }
+                        }
                     }
                 },
                 "additionalProperties": {
@@ -25082,6 +25239,14 @@
                     "self": {
                         "href": "https://admin.music.example/admin/tracks/1",
                         "describedby": "/admin/docs.json#/paths/~1tracks~1%7Bid%7D/get"
+                    },
+                    "preview": {
+                        "href": "https://cdn.example.com/previews/1.mp3",
+                        "type": "audio/mpeg",
+                        "meta": {
+                            "format": "mp3",
+                            "expiresAt": "2026-01-01T12:00:00+00:00"
+                        }
                     }
                 }
             },
