@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.4.0...json-api-client-v1.4.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **client:** take a string or a Blob for a text request body ([bb21658](https://github.com/haddowg/json-api-ts/commit/bb21658f6295032017d26a21f21ef0cbb982ff69))
+
 ## [1.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.3.1...json-api-client-v1.4.0) (2026-10-26)
 
 
