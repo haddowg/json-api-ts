@@ -1255,9 +1255,9 @@ describe('createClient — custom actions', () => {
     const req = requests[0]!
     expect(req.method).toBe('POST')
     expect(req.url).toBe(`${BASE}/albums/-actions/summary`)
-    // A `none` input sends no body at all.
+    // A `none` input sends no body, but a POST still names the JSON:API media type or the server answers 415.
     expect(req.body).toBeUndefined()
-    expect(req.headers['Content-Type']).toBeUndefined()
+    expect(req.headers['Content-Type']).toBe('application/vnd.api+json')
     expect(result['type']).toBe('albums')
   })
 
