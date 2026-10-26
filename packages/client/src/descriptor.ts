@@ -303,3 +303,32 @@ export type ApiDescriptor = Readonly<Record<string, ResourceDescriptor>>
 export interface AtomicDescriptor {
   path: string
 }
+
+/** Example bodies keyed by the media type they are declared for, such as `application/vnd.api+json`. */
+export type MediaExamples = Readonly<Record<string, unknown>>
+
+/**
+ * The worked examples one operation declares (generator contract 12): its request body, and its
+ * success responses keyed by status code. Each body is the whole wire document, not the flat input
+ * or materialised result the client works with. A part the document gives no example for is absent.
+ */
+export interface OperationExamples {
+  request?: MediaExamples
+  responses?: Readonly<Record<string, MediaExamples>>
+}
+
+/**
+ * The examples of one type's operations. `operations` is keyed by the operation's name in core's
+ * terms, its `operationId` without the type: `fetchCollection`, `fetchOne`, `create`, `update`,
+ * `delete`, and per relation `fetchRelated.<relation>`, `fetchRelationship.<relation>`,
+ * `updateRelationship.<relation>`, `addRelationship.<relation>` and
+ * `removeRelationship.<relation>`. `actions` is keyed by action name, as
+ * {@link ResourceDescriptor.actions} is.
+ */
+export interface ResourceExamples {
+  operations?: Readonly<Record<string, OperationExamples>>
+  actions?: Readonly<Record<string, OperationExamples>>
+}
+
+/** The operation examples of every type that has one, keyed by wire type. */
+export type ApiExamples = Readonly<Record<string, ResourceExamples>>
