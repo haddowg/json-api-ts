@@ -60,6 +60,8 @@ export interface OperationObject {
   parameters?: readonly ParameterObject[]
   requestBody?: RequestBodyObject
   responses?: Record<string, ResponseObject>
+  /** What a custom action declares about its effects (generator contract 15). */
+  'x-safety'?: { readOnly?: unknown; destructive?: unknown; idempotent?: unknown }
 }
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'put' | 'delete'

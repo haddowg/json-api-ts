@@ -238,6 +238,27 @@ function actionDoc(name: string, op: OperationObject | undefined): string | unde
   return parts.length === 0 ? undefined : parts.join('\n\n')
 }
 
+/**
+ * What an action declares about its effects (generator contract 15), as one sentence, or
+ * `undefined` when it declares nothing.
+ */
+function safetyDoc(action: ActionDescriptor): string | undefined {
+  const flags: [boolean | undefined, string][] = [
+    [action.readOnly, 'read-only'],
+    [action.destructive, 'destructive'],
+    [action.idempotent, 'idempotent'],
+  ]
+  const words = flags
+    .filter(([value]) => value !== undefined)
+    .map(([value, word]) => (value === true ? word : `not ${word}`))
+  if (words.length === 0) {
+    return undefined
+  }
+  const list =
+    words.length === 1 ? words[0]! : `${words.slice(0, -1).join(', ')} and ${words.at(-1)!}`
+  return `The server declares this action ${list}.`
+}
+
 /** The most lines of example JSON an action's `@example` shows; a longer one is left out. */
 export const EXAMPLE_DOC_MAX_LINES = 80
 
@@ -378,7 +399,11 @@ export class Emitter {
           this.takenNames.add(`${stem}${pascalCase(name)}${pascalCase(single)}Input`)
         }
         const op = actionOperation(this.doc, action)
-        const parts = [actionDoc(name, op), exampleDoc(op)].filter((part) => part !== undefined)
+        // A multi-method action's other methods are keyed apart from the name the server prose uses.
+        const wireName = action.path.slice(action.path.lastIndexOf('/') + 1)
+        const parts = [actionDoc(wireName, op), safetyDoc(action), exampleDoc(op)].filter(
+          (part) => part !== undefined,
+        )
         const doc = parts.length === 0 ? undefined : parts.join('\n\n')
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}`, doc)

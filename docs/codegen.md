@@ -121,6 +121,14 @@ Contract 14 is carried only by a document whose types declare named links. Each 
 link is a named property of the type's `<Type>ResourceLinks`, and the codegen types it, as
 described under [declared links](#declared-links).
 
+Contract 15 is carried only by a document with an action that answers to several methods,
+declares its safety or carries its own vendor extensions. Each method of a multi-method
+action now has its own operation id, and the codegen gives each one its own action method,
+as described under [several methods](custom-actions.md#an-action-with-several-methods). An
+action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and
+`idempotent`, and the action's JSDoc says which ones it declares. An action's own vendor
+extensions, such as `x-workflows`, are left out.
+
 ### The validation schemas
 
 Add `--schemas` to also read the server's JSON Schema bundle and emit a sibling
