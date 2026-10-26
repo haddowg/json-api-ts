@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.6.1...json-api-codegen-v1.7.0) (2026-10-26)
+
+
+### Features
+
+* **codegen:** read generator contract 10 ([4462c50](https://github.com/haddowg/json-api-ts/commit/4462c50f5519fcbc757112b1ea81d7cf9d76bf71))
+* **codegen:** read generator contract 11 ([#68](https://github.com/haddowg/json-api-ts/issues/68)) ([62635ef](https://github.com/haddowg/json-api-ts/commit/62635ef815f010f9f27d3265e48076e6924b4f7e))
+* **codegen:** type a multipart or form body's fields from its schema ([4488543](https://github.com/haddowg/json-api-ts/commit/448854387662222c8ef1dcbd18d13dedb50f6b08))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.4.0
+
 ## [1.6.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.6.0...json-api-codegen-v1.6.1) (2026-10-24)
 
 
