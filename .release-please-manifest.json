@@ -1,6 +1,6 @@
 {
-  "packages/angular": "1.2.3",
-  "packages/client": "1.6.0",
-  "packages/codegen": "1.9.0",
-  "packages/query": "1.1.6"
+  "packages/angular": "1.2.4",
+  "packages/client": "1.7.0",
+  "packages/codegen": "1.10.0",
+  "packages/query": "1.1.7"
 }
