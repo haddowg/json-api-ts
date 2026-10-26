@@ -248,6 +248,15 @@ describe('request media types', () => {
     expect(requests[0]!.body).toBe('id,title\n')
   })
 
+  it('sends a file picked for a text media type as is', async () => {
+    const { requests, transport } = recorder(() => ({ status: 204, headers: {}, body: '' }))
+    const file = new Blob(['id,title\n'], { type: 'text/csv' })
+    await client(transport).articles.actions.upload(file)
+    expect(requests[0]!.headers['Content-Type']).toBe('text/csv')
+    expect(requests[0]!.rawBody).toBe(file)
+    expect(requests[0]!.body).toBeUndefined()
+  })
+
   it('sends the picked media type, matched through a declared wildcard', async () => {
     const { requests, transport } = recorder(() => ({ status: 204, headers: {}, body: '' }))
     const image = new Blob(['png'], { type: 'image/png' })
@@ -298,8 +307,9 @@ describe('request media types', () => {
       void call(new Blob([]), { contentType: 'image/webp' })
       void call(new FormData(), { contentType: 'multipart/form-data' })
       void call({ rows: [] }, { contentType: 'application/json' })
-      // @ts-expect-error -- a CSV body is a string.
       void call(new Blob([]))
+      // @ts-expect-error -- a CSV body is a string or a file.
+      void call(42)
       // @ts-expect-error -- `application/xml` is not a declared request media type.
       void call('x', { contentType: 'application/xml' })
       // @ts-expect-error -- the JSON body follows the generated type.

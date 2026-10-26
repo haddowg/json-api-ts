@@ -114,9 +114,10 @@ An action can accept several request media types. Pick one with `contentType`, a
 ```ts
 // POST /articles/-actions/import accepts text/csv, image/*, multipart/form-data and application/json.
 await client.articles.actions.import('id,title\n1,Hello\n') // the first listed: text/csv
+await client.articles.actions.import(csvFile) // a text type also takes a picked Blob or File
 await client.articles.actions.import(pngBlob, { contentType: 'image/png' }) // Blob, ArrayBuffer or Uint8Array
 await client.articles.actions.import(form, { contentType: 'multipart/form-data' }) // FormData
-await client.articles.actions.import({ total: 3 }, { contentType: 'application/json' }) // typed from its schema
+await client.articles.actions.import({ total: 3 }, { contentType: 'application/json' }) // typed from its schema, unknown for {}
 ```
 
 A wildcard such as `image/*` takes any concrete `image/…` type. Without `contentType` the client sends JSON:API when the action lists it, building the document from flat input as usual, else the first listed type. A multipart body goes out without a `Content-Type` of its own, so the transport can write the boundary. A custom transport has to send `rawBody` as is for binary, multipart and URL-encoded bodies.
