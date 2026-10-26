@@ -18,7 +18,7 @@ import type {
   AtomicResults,
   AtomicUpdateHandle,
 } from './atomic'
-import type { ActionDescriptor, ApiDescriptor } from './descriptor'
+import type { ActionDescriptor, ApiDescriptor, InputMedia, RawOutputMedia } from './descriptor'
 import type {
   ArrayEnvelope,
   DocumentEnvelope,
@@ -905,26 +905,194 @@ type ActionResult<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> =
     ? Promise<Record<string, unknown>>
     : Promise<void>
 
+/** The JSON:API media type, as the `accept` / `contentType` an action call names it by. */
+type JsonApiMediaType = 'application/vnd.api+json'
+
+/** How an action call reads a binary response: as a `Blob` (the default) or an `ArrayBuffer`. */
+export type BinaryResponseType = 'blob' | 'arrayBuffer'
+
+/** A request body sent for a `binary` request media type. */
+export type BinaryBody = Blob | ArrayBuffer | Uint8Array<ArrayBuffer>
+
+/**
+ * The options every custom-action call takes, last argument (the only one for an action without
+ * input). `accept` and `responseType` matter for an action with raw responses, `contentType` for
+ * one listing several request media types; each generated method narrows them to what the action
+ * declares.
+ */
+export interface ActionCallOptions {
+  /** Cancels the request when signalled. */
+  signal?: AbortSignal
+  /** The media type to ask the action to answer in, sent as `Accept`. */
+  accept?: string
+  /** The request media type to send the body as, sent as `Content-Type`. */
+  contentType?: string
+  /** Read a binary response as a `Blob` (the default) or an `ArrayBuffer`. */
+  responseType?: BinaryResponseType
+}
+
+/** The raw response media types an action declares (`[]` when none). */
+type RawOutputOf<Act> = Act extends { rawOutput: infer R extends readonly RawOutputMedia[] }
+  ? R
+  : readonly []
+
+/** The request media types an action lists when it lists several (`[]` otherwise). */
+type InputMediaOf<Act> = Act extends { inputMedia: infer M extends readonly InputMedia[] }
+  ? M
+  : readonly []
+
+/** The media types an action can answer in: JSON:API unless it answers in no document, plus each raw one. */
+type AcceptOf<Act> =
+  | (Act extends { output: 'none' } ? never : JsonApiMediaType)
+  | RawOutputOf<Act>[number]['mediaType']
+
+/** What an action answers in without an `accept`: JSON:API, or the first raw media type of one that answers in no document. */
+type DefaultAccept<Act> = Act extends { output: 'none' }
+  ? RawOutputOf<Act> extends readonly [infer First extends RawOutputMedia, ...unknown[]]
+    ? First['mediaType']
+    : never
+  : JsonApiMediaType
+
+/** A declared request media type as the caller may name it: a wildcard such as `image/*` takes any `image/…`. */
+type MediaPattern<M extends string> = M extends `${infer Top}/*`
+  ? Top extends '*'
+    ? string
+    : `${Top}/${string}`
+  : M
+
+/** The media types an action with several request media types can be sent as. */
+type ContentTypeOf<Act> = MediaPattern<InputMediaOf<Act>[number]['mediaType']>
+
+/** What an action with several request media types sends without a `contentType`: JSON:API when listed, else the first. */
+type DefaultContentType<Act> = JsonApiMediaType extends InputMediaOf<Act>[number]['mediaType']
+  ? JsonApiMediaType
+  : InputMediaOf<Act> extends readonly [infer First extends InputMedia, ...unknown[]]
+    ? First['mediaType']
+    : never
+
+/** The declared entry a picked media type `C` matches through a wildcard. */
+type WildcardMatch<I, C> = I extends { mediaType: infer K extends string }
+  ? C extends MediaPattern<K>
+    ? I
+    : never
+  : never
+
+/** The declared request media entry for a picked `C`: an exact match first, else a wildcard that takes it. */
+type InputMediaFor<Act, C> = [Extract<InputMediaOf<Act>[number], { mediaType: C }>] extends [never]
+  ? WildcardMatch<InputMediaOf<Act>[number], C>
+  : Extract<InputMediaOf<Act>[number], { mediaType: C }>
+
+/** The generated type keyed by media type under `Key` of the action's type entry `E`, else `unknown`. */
+type GeneratedMediaType<E, Key extends string, M> = E extends { [K in Key]: infer Map }
+  ? M extends keyof Map
+    ? Map[M]
+    : unknown
+  : unknown
+
+/** The JSON:API document body an action takes: flat input for its `inputType`, else the generated or loose document. */
+type DocumentInput<D extends ApiDescriptor, W, Act, E> = Act extends {
+  inputType: infer IT extends TypeName<D>
+}
+  ? CreateInput<D, W, IT>
+  : ActionInputBody<E>
+
+/** The body an action with several request media types takes when sent as `C`. */
+type InputBodyFor<D extends ApiDescriptor, W, Act, E, C> =
+  InputMediaFor<Act, C> extends infer I
+    ? I extends { kind: 'document' }
+      ? DocumentInput<D, W, Act, E>
+      : I extends { kind: 'binary' }
+        ? BinaryBody
+        : I extends { kind: 'text' }
+          ? string
+          : I extends { kind: 'multipart' }
+            ? FormData
+            : I extends { kind: 'form' }
+              ? URLSearchParams | string
+              : I extends { kind: 'json'; mediaType: infer K }
+                ? GeneratedMediaType<E, 'requests', K>
+                : unknown
+    : never
+
+/** The value of a raw response in media type `M`, by its kind. */
+type RawResponseValue<Act, E, M, RT> =
+  Extract<RawOutputOf<Act>[number], { mediaType: M }> extends infer R
+    ? R extends { kind: 'text' }
+      ? string
+      : R extends { kind: 'binary' }
+        ? RT extends 'arrayBuffer'
+          ? ArrayBuffer
+          : Blob
+        : R extends { kind: 'json' }
+          ? GeneratedMediaType<E, 'responses', M>
+          : never
+    : never
+
+/** What an action call resolves to when it asks for media type `M`. */
+type ActionResultIn<
+  D extends ApiDescriptor,
+  A,
+  Act extends ActionDescriptor,
+  E,
+  M,
+  RT,
+> = M extends JsonApiMediaType
+  ? ActionResult<D, A, Act, E>
+  : Promise<RawResponseValue<Act, E, M, RT>>
+
+/** The `accept` / `responseType` options of an action with raw responses. */
+type ResponseOptions<Act, M, RT> = Act extends { rawOutput: readonly RawOutputMedia[] }
+  ? { accept?: M; responseType?: RT }
+  : unknown
+
+/** The body argument of an action with input, the options last. */
+type WithInput<D extends ApiDescriptor, W, Act, E> = Act extends { input: 'document' }
+  ? DocumentInput<D, W, Act, E>
+  : unknown
+
 /**
  * A single custom-action method, typed by its declared `input` mode:
  *
- * - `none`  — no argument;
+ * - `none`  — only the options;
  * - `document` — FLAT input (the `inputType`'s {@link CreateInput}, so the client builds the
  *   envelope + remaps `422` pointers like `create`); falls back to the generated
  *   {@link ActionInputBody} for a bespoke command document with no resolvable `inputType`;
- * - `raw`   — an arbitrary body (sent with a relaxed content type).
+ * - `raw`   — an arbitrary body (sent with the declared media type).
  *
- * The result is shaped by the action's `output` (see {@link ActionResult}).
+ * The result is shaped by the action's `output` (see {@link ActionResult}). An action that answers
+ * in raw media types takes an `accept` naming one, and resolves to that media type's value. An
+ * action listing several request media types takes a `contentType` naming one, and its body is
+ * typed by that media type.
  */
 type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E> = Act extends {
-  input: 'none'
+  inputMedia: readonly InputMedia[]
 }
-  ? () => ActionResult<D, A, Act, E>
-  : Act extends { input: 'document' }
-    ? Act extends { inputType: infer IT extends TypeName<D> }
-      ? (input: CreateInput<D, W, IT>) => ActionResult<D, A, Act, E>
-      : (input: ActionInputBody<E>) => ActionResult<D, A, Act, E>
-    : (input: unknown) => ActionResult<D, A, Act, E>
+  ? <
+      const C extends ContentTypeOf<Act> = Extract<DefaultContentType<Act>, ContentTypeOf<Act>>,
+      const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
+      RT extends BinaryResponseType = 'blob',
+    >(
+      input: InputBodyFor<D, W, Act, E, C>,
+      options?: { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT>,
+    ) => ActionResultIn<D, A, Act, E, M, RT>
+  : Act extends { rawOutput: readonly RawOutputMedia[] }
+    ? Act extends { input: 'none' }
+      ? <
+          const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
+          RT extends BinaryResponseType = 'blob',
+        >(
+          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT>,
+        ) => ActionResultIn<D, A, Act, E, M, RT>
+      : <
+          const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
+          RT extends BinaryResponseType = 'blob',
+        >(
+          input: WithInput<D, W, Act, E>,
+          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT>,
+        ) => ActionResultIn<D, A, Act, E, M, RT>
+    : Act extends { input: 'none' }
+      ? () => ActionResult<D, A, Act, E>
+      : (input: WithInput<D, W, Act, E>) => ActionResult<D, A, Act, E>
 
 /**
  * The typed map of a type's custom actions at one scope (`collection` on the
@@ -942,8 +1110,12 @@ export type ActionsAccessor<
   Scope extends string,
   Act = DefaultActionTypes,
 > = {
-  [N in ActionNameAtScope<D, T, Scope>]: ActionsOf<D, T>[N] extends ActionDescriptor
-    ? ActionMethod<D, A, W, ActionsOf<D, T>[N], ActionTypesFor<Act, T, N>>
+  // Mapped over the descriptor's own keys so each method keeps the JSDoc the codegen writes there.
+  [N in keyof ActionsOf<D, T> as N extends ActionNameAtScope<D, T, Scope> ? N : never]: ActionsOf<
+    D,
+    T
+  >[N] extends ActionDescriptor
+    ? ActionMethod<D, A, W, ActionsOf<D, T>[N], ActionTypesFor<Act, T, Extract<N, string>>>
     : never
 }
 

@@ -1,10 +1,23 @@
 import { type AtomicRecorder, runAtomic } from './atomic'
-import type { ActionDescriptor, ActionScope, ApiDescriptor, AtomicDescriptor } from './descriptor'
+import type {
+  ActionDescriptor,
+  ActionScope,
+  ApiDescriptor,
+  AtomicDescriptor,
+  InputMediaKind,
+} from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
 import { resolvePaginator } from './pagination'
-import { execute, type JsonApiContext, type JsonApiRequest, type ReadQuery } from './request'
+import {
+  execute,
+  executeRaw,
+  type JsonApiContext,
+  type JsonApiRequest,
+  type ReadQuery,
+} from './request'
 import type {
+  ActionCallOptions,
   ActionsAccessor,
   Client,
   DefaultActionTypes,
@@ -22,6 +35,7 @@ import {
   withRemappedRelationshipPaths,
 } from './serialize-write'
 import { fetchTransport, type JsonApiTransport } from './transport'
+import { JSON_API_MEDIA_TYPE } from './types'
 import { resolveValidator, type ValidationOption } from './validate'
 
 /**
@@ -252,19 +266,33 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
  * - `raw` — the caller's payload, sent with the action's declared media type (e.g.
  *   `application/octet-stream`), falling back to a wildcard when the spec declared none.
  *
+ * An action listing several request media types (`inputMedia`) sends the one the caller picks
+ * with `options.contentType`, or JSON:API when listed, else the first.
+ *
  * The response is shaped by the action's `output`: `document` materialises into the resource /
  * collection view, `meta` returns the document's top-level `meta`, `none` resolves `undefined` (a
- * `204` / no body).
+ * `204` / no body). An action declaring `rawOutput` answers in the media type the caller picks
+ * with `options.accept`: JSON:API as above, or a `string`, a `Blob` or `ArrayBuffer`, or parsed
+ * JSON by the media type's kind.
  */
 async function runAction(
   ctx: ClientContext,
   action: ActionDescriptor,
   vars: Record<string, string>,
   input: unknown,
+  options: ActionCallOptions = {},
 ): Promise<unknown> {
   const req: JsonApiRequest = { method: action.method ?? 'POST', path: fill(action.path, vars) }
+  if (options.signal !== undefined) {
+    req.signal = options.signal
+  }
   let remap: ((error: JsonApiError) => JsonApiError) | undefined
-  if (action.input === 'document') {
+  const media = requestMedia(action, options.contentType)
+  if (media !== undefined && media.kind !== 'document') {
+    req.body = input
+    req.raw = true
+    req.contentType = sentContentType(media.mediaType, media.kind, input)
+  } else if (action.input === 'document') {
     if (action.inputType !== undefined) {
       // Flat input: build the envelope like create, and remap 422 pointers to the flat paths.
       const inputType = action.inputType
@@ -278,25 +306,118 @@ async function runAction(
     req.body = input
     // Send the action's declared media type (e.g. application/octet-stream); fall back to a
     // wildcard only when the spec declared none.
-    req.contentType = action.contentType ?? '*/*'
+    req.contentType = sentContentType(action.contentType ?? '*/*', undefined, input)
     req.raw = true
   }
-  let doc: Awaited<ReturnType<typeof execute>>
+
+  const raw = responseMedia(action, options.accept)
   try {
-    doc = await execute(ctx.request, req)
+    if (raw !== undefined) {
+      req.accept = raw.mediaType
+      if (raw.kind === 'binary') {
+        return await executeRaw(
+          ctx.request,
+          req,
+          options.responseType === 'arrayBuffer' ? 'arraybuffer' : 'blob',
+        )
+      }
+      const text = await executeRaw(ctx.request, req, 'text')
+      return raw.kind === 'json' && text !== undefined ? (JSON.parse(text) as unknown) : text
+    }
+    const doc = await execute(ctx.request, req)
+    if (action.output === 'none' || doc === undefined) {
+      return undefined
+    }
+    if (action.output === 'meta') {
+      return doc.meta
+    }
+    return materialise(doc, ctx.materialise)
   } catch (error) {
     if (remap !== undefined && error instanceof JsonApiError) {
       throw remap(error)
     }
     throw error
   }
-  if (action.output === 'none' || doc === undefined) {
+}
+
+/**
+ * The request media type an action with several (`inputMedia`) sends: the caller's pick, matched
+ * exactly or through a declared wildcard such as `image/*`, else JSON:API when listed, else the
+ * first. `undefined` for an action with a single request media type.
+ */
+function requestMedia(
+  action: ActionDescriptor,
+  picked: string | undefined,
+): { mediaType: string; kind: InputMediaKind } | undefined {
+  const listed = action.inputMedia
+  if (listed === undefined || listed.length === 0) {
+    if (picked !== undefined) {
+      throw new Error(`This action declares no request media types to choose "${picked}" from.`)
+    }
     return undefined
   }
-  if (action.output === 'meta') {
-    return doc.meta
+  if (picked === undefined) {
+    const media = listed.find((entry) => entry.mediaType === JSON_API_MEDIA_TYPE) ?? listed[0]!
+    return { mediaType: media.mediaType, kind: media.kind }
   }
-  return materialise(doc, ctx.materialise)
+  const essence = picked.split(';')[0]!.trim().toLowerCase()
+  const match =
+    listed.find((entry) => entry.mediaType === essence) ??
+    listed.find((entry) => entry.mediaType === `${essence.split('/')[0]}/*`) ??
+    listed.find((entry) => entry.mediaType === '*/*')
+  if (match === undefined) {
+    throw new Error(
+      `This action does not accept "${picked}"; it accepts ${listed.map((entry) => entry.mediaType).join(', ')}.`,
+    )
+  }
+  return { mediaType: picked, kind: match.kind }
+}
+
+/**
+ * The `Content-Type` for a non-JSON:API body. A multipart `FormData` body gets none, so the
+ * transport writes the boundary. A wildcard media type takes a `Blob` body's own type.
+ */
+function sentContentType(
+  mediaType: string,
+  kind: InputMediaKind | undefined,
+  body: unknown,
+): string | null {
+  if (
+    (kind === 'multipart' || mediaType.startsWith('multipart/')) &&
+    typeof FormData !== 'undefined' &&
+    body instanceof FormData
+  ) {
+    return null
+  }
+  if (mediaType.includes('*') && typeof Blob !== 'undefined' && body instanceof Blob) {
+    return body.type === '' ? mediaType : body.type
+  }
+  return mediaType
+}
+
+/**
+ * The non-JSON:API media type an action is asked to answer in: the caller's `accept` when it isn't
+ * JSON:API, else, with no `accept`, the first raw media type of an action that answers in no
+ * JSON:API document. `undefined` means a JSON:API response.
+ */
+function responseMedia(
+  action: ActionDescriptor,
+  accept: string | undefined,
+): { mediaType: string; kind: string } | undefined {
+  const raw = action.rawOutput ?? []
+  if (accept === undefined) {
+    return action.output === 'none' ? raw[0] : undefined
+  }
+  if (accept === JSON_API_MEDIA_TYPE) {
+    return undefined
+  }
+  const media = raw.find((entry) => entry.mediaType === accept)
+  if (media === undefined) {
+    throw new Error(
+      `This action does not answer in "${accept}"; it answers in ${[...(action.output === 'none' ? [] : [JSON_API_MEDIA_TYPE]), ...raw.map((entry) => entry.mediaType)].join(', ')}.`,
+    )
+  }
+  return media
 }
 
 /**
@@ -313,10 +434,14 @@ function actionsAccessor(
   vars: Record<string, string>,
 ): ActionsAccessor<ApiDescriptor, unknown, unknown, string, ActionScope> {
   const actions = ctx.descriptor[type]?.actions ?? {}
-  const out: Record<string, (input?: unknown) => Promise<unknown>> = {}
+  const out: Record<string, (...args: unknown[]) => Promise<unknown>> = {}
   for (const [name, action] of Object.entries(actions)) {
     if (action.scope === scope) {
-      out[name] = (input?: unknown) => runAction(ctx, action, vars, input)
+      // An action without input takes only the options; any other takes the body first.
+      out[name] = (...args: unknown[]) =>
+        action.input === 'none'
+          ? runAction(ctx, action, vars, undefined, args[0] as ActionCallOptions | undefined)
+          : runAction(ctx, action, vars, args[0], args[1] as ActionCallOptions | undefined)
     }
   }
   return out as ActionsAccessor<ApiDescriptor, unknown, unknown, string, ActionScope>

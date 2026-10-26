@@ -297,6 +297,12 @@ Retries are deliberately out of scope here — the transport (or the TanStack la
 or `$next({ signal })`). Forward it to your HTTP library so the request can be cancelled; the
 default `fetch` transport passes it to `fetch`.
 
+Two optional members matter only for custom actions with non-JSON:API media types. Send
+`req.rawBody` as is when it's set: a binary, `FormData` or `URLSearchParams` body in place of
+`req.body`. When `req.responseType` is `'blob'` or `'arraybuffer'`, read a successful response
+into `binary` as that type and leave `body` empty; read an error response as text in `body` as
+usual. The `fetch` transport does both.
+
 ## Opt-in validation
 
 The core runtime trusts the wire (you own both ends; the envelope is invariant) and only runs the
