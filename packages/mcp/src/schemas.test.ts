@@ -90,7 +90,7 @@ describe('output schemas', () => {
     const output = find(tools, 'albums_update').outputSchema!
     expect(output['required']).toEqual(['id', 'type'])
     expect(new Set(Object.keys(output['$defs'] as object))).toEqual(
-      new Set(['albums', 'artists', 'playlists', 'tracks']),
+      new Set(['albums', 'artists', 'tracks']),
     )
     expect(props(output)['title']).toMatchObject({ type: 'string' })
     expect(props(output)['artist']).toEqual({

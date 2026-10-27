@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { writeMcpModel, type WriteModelOptions } from './generate'
 
 export const USAGE =
-  'Usage: json-api-mcp --input <url|file> --output <file> [--default-page-size <n>] [--check]'
+  'Usage: json-api-mcp --input <url|file> --output <file> [--default-page-size <n>] [--include-depth <n|all>] [--check]'
 
 /** Read the command line into generator options. */
 export function parseArgs(argv: readonly string[]): Partial<WriteModelOptions> {
@@ -28,6 +28,9 @@ export function parseArgs(argv: readonly string[]): Partial<WriteModelOptions> {
     } else if (arg === '--default-page-size') {
       options.defaultPageSize = Number(next)
       i++
+    } else if (arg === '--include-depth') {
+      options.includeDepth = next === 'all' ? null : Number(next)
+      i++
     }
   }
   return options
@@ -45,6 +48,13 @@ export async function main(argv: readonly string[]): Promise<number> {
     !(Number.isInteger(options.defaultPageSize) && options.defaultPageSize > 0)
   ) {
     console.error('--default-page-size takes a positive whole number')
+    return 1
+  }
+  if (
+    typeof options.includeDepth === 'number' &&
+    !(Number.isInteger(options.includeDepth) && options.includeDepth >= 0)
+  ) {
+    console.error('--include-depth takes a whole number of 0 or more, or all')
     return 1
   }
   try {

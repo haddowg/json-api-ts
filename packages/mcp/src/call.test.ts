@@ -23,9 +23,13 @@ const album = (id: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-async function session(handler: Parameters<typeof fakeTransport>[0], hooks = {}) {
+async function session(
+  handler: Parameters<typeof fakeTransport>[0],
+  hooks = {},
+  includeDepth: number | null = 1,
+) {
   const { transport, requests } = fakeTransport(handler)
-  const mcp = createJsonApiMcp({ ...fixture('music-catalog'), transport, hooks })
+  const mcp = createJsonApiMcp({ ...fixture('music-catalog', { includeDepth }), transport, hooks })
   return { requests, tools: await mcp.forRequest({ context: undefined }) }
 }
 
@@ -140,26 +144,30 @@ describe('list tools', () => {
 
 describe('reads', () => {
   it('flattens an included relation in place of its id, and cuts a cycle back to an id', async () => {
-    const { requests, tools } = await session(() => ({
-      json: {
-        data: album('1'),
-        included: [
-          {
-            type: 'artists',
-            id: '7',
-            attributes: { name: 'The Beatles' },
-            relationships: {
-              albums: {
-                data: [
-                  { type: 'albums', id: '1' },
-                  { type: 'albums', id: '2' },
-                ],
+    const { requests, tools } = await session(
+      () => ({
+        json: {
+          data: album('1'),
+          included: [
+            {
+              type: 'artists',
+              id: '7',
+              attributes: { name: 'The Beatles' },
+              relationships: {
+                albums: {
+                  data: [
+                    { type: 'albums', id: '1' },
+                    { type: 'albums', id: '2' },
+                  ],
+                },
               },
             },
-          },
-        ],
-      },
-    }))
+          ],
+        },
+      }),
+      {},
+      null,
+    )
     const result = await tools.callTool('albums_get', {
       id: '1',
       include: ['artist', 'artist.albums'],
@@ -178,6 +186,65 @@ describe('reads', () => {
         tracks: ['1', '2'],
       },
     })
+  })
+
+  it('nests included resources only as deep as the include depth, and ids below it', async () => {
+    const { tools } = await session(() => ({
+      json: {
+        data: album('1'),
+        included: [
+          {
+            type: 'artists',
+            id: '7',
+            attributes: { name: 'The Beatles' },
+            relationships: { albums: { data: [{ type: 'albums', id: '2' }] } },
+          },
+          { type: 'albums', id: '2', attributes: { title: 'Album 2' } },
+        ],
+      },
+    }))
+    const result = await tools.callTool('albums_get', {
+      id: '1',
+      include: ['artist'],
+      fields: null,
+    })
+    expect(result.structuredContent).toEqual({
+      item: {
+        id: '1',
+        type: 'albums',
+        title: 'Album 1',
+        explicit: false,
+        artist: { id: '7', type: 'artists', name: 'The Beatles', albums: ['2'] },
+        tracks: ['1', '2'],
+      },
+    })
+  })
+
+  it('refuses an include deeper than the include depth without calling the API', async () => {
+    const { requests, tools } = await session(() => ({ json: { data: album('1') } }))
+    const result = await tools.callTool('albums_get', {
+      id: '1',
+      include: ['artist', 'artist.albums'],
+      fields: null,
+    })
+    expect(result.isError).toBe(true)
+    expect(json(result)).toEqual({
+      error: 'include can\'t name "artist.albums"; this tool includes only artist, tracks',
+    })
+    expect(requests).toHaveLength(0)
+  })
+
+  it('takes a deeper include at a higher include depth', async () => {
+    const { requests, tools } = await session(() => ({ json: { data: album('1') } }), {}, 2)
+    const result = await tools.callTool('albums_get', {
+      id: '1',
+      include: ['artist.albums'],
+      fields: null,
+    })
+    expect(result.isError).toBeUndefined()
+    expect(decodeURIComponent(requests[0]!.url)).toBe(
+      'https://music.example/albums/1?include=artist.albums',
+    )
   })
 
   it('wraps a to-one related read, null when nothing is related', async () => {

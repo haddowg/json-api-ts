@@ -1,5 +1,5 @@
 {
-  "format": 2,
+  "format": 3,
   "generator": "@haddowg/json-api-mcp",
   "contract": 16,
   "source": {
@@ -9,6 +9,7 @@
   "credentialSchemes": [
     "oauth2"
   ],
+  "includeDepth": 1,
   "descriptor": {
     "albums": {
       "attributes": {
@@ -781,11 +782,6 @@
           "description": "Returns the related `artist` resource of an album.",
           "operationId": "fetchRelated.albums.artist"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "artist"
       },
       "tool": {
@@ -803,9 +799,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "albums"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -1050,14 +1049,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -1067,77 +1059,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -1157,7 +1078,10 @@
             "albums",
             "tracks"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "albums"
+          ]
         }
       },
       "result": "item"
@@ -1176,14 +1100,7 @@
           ],
           "summary": "Create an album",
           "description": "Creates a new album from the supplied attributes and relationships.",
-          "operationId": "create.albums",
-          "security": [
-            {
-              "oauth2": [
-                "catalog:write"
-              ]
-            }
-          ]
+          "operationId": "create.albums"
         },
         "security": [
           {
@@ -1191,9 +1108,6 @@
               "catalog:write"
             ]
           }
-        ],
-        "scopes": [
-          "catalog:write"
         ]
       },
       "tool": {
@@ -1681,14 +1595,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -1698,91 +1605,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -1917,14 +1739,7 @@
           ],
           "summary": "Delete an album",
           "description": "Deletes the album identified by its `id`.",
-          "operationId": "delete.albums",
-          "security": [
-            {
-              "oauth2": [
-                "catalog:write"
-              ]
-            }
-          ]
+          "operationId": "delete.albums"
         },
         "security": [
           {
@@ -1932,9 +1747,6 @@
               "catalog:write"
             ]
           }
-        ],
-        "scopes": [
-          "catalog:write"
         ]
       },
       "tool": {
@@ -1985,11 +1797,6 @@
             "readOnly": true
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "export",
         "actionKey": "export"
       },
@@ -2037,12 +1844,7 @@
           "summary": "Fetch an album",
           "description": "Returns a single album by its `id`.",
           "operationId": "fetchOne.albums"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "albums_get",
@@ -2059,9 +1861,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "artist",
+                  "tracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -2387,14 +2193,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -2404,91 +2203,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -2509,7 +2223,11 @@
             "tracks",
             "playlists"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "artist",
+            "tracks"
+          ]
         }
       },
       "result": "item"
@@ -2528,14 +2246,7 @@
           ],
           "summary": "Import albums from a file",
           "description": "Creates albums from a CSV export, a scanned sleeve image, a multipart form upload or a JSON list of rows. The response reports the media type the server read.",
-          "operationId": "action.albums.import",
-          "security": [
-            {
-              "oauth2": [
-                "catalog:write"
-              ]
-            }
-          ]
+          "operationId": "action.albums.import"
         },
         "security": [
           {
@@ -2543,9 +2254,6 @@
               "catalog:write"
             ]
           }
-        ],
-        "scopes": [
-          "catalog:write"
         ],
         "action": "import",
         "actionKey": "import"
@@ -2644,12 +2352,7 @@
           "summary": "List albums",
           "description": "Returns a paginated collection of albums.",
           "operationId": "fetchCollection.albums"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "albums_list",
@@ -2780,9 +2483,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "artist",
+                  "tracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -3151,14 +2858,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -3168,91 +2868,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -3343,6 +2958,10 @@
               }
             }
           },
+          "includePaths": [
+            "artist",
+            "tracks"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -3364,14 +2983,7 @@
           ],
           "summary": "Invoke the `reissue` action",
           "description": "Invokes the `reissue` custom action on an album.",
-          "operationId": "action.albums.reissue",
-          "security": [
-            {
-              "oauth2": [
-                "catalog:write"
-              ]
-            }
-          ]
+          "operationId": "action.albums.reissue"
         },
         "security": [
           {
@@ -3379,9 +2991,6 @@
               "catalog:write"
             ]
           }
-        ],
-        "scopes": [
-          "catalog:write"
         ],
         "action": "reissue",
         "actionKey": "reissue"
@@ -3876,14 +3485,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -3893,91 +3495,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -4115,11 +3632,6 @@
             "readOnly": true
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "summary",
         "actionKey": "summary"
       },
@@ -4168,11 +3680,6 @@
           "description": "Returns the related `tracks` resources of an album.",
           "operationId": "fetchRelated.albums.tracks"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "tracks"
       },
       "tool": {
@@ -4263,9 +3770,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album",
+                  "playlists"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -4578,9 +4089,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -4606,70 +4114,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -4730,9 +4174,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -4758,26 +4199,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -4838,6 +4259,10 @@
               }
             }
           },
+          "includePaths": [
+            "album",
+            "playlists"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 100,
@@ -4860,14 +4285,7 @@
           ],
           "summary": "Update an album",
           "description": "Updates an existing album, applying the supplied attributes and relationships.",
-          "operationId": "update.albums",
-          "security": [
-            {
-              "oauth2": [
-                "catalog:write"
-              ]
-            }
-          ]
+          "operationId": "update.albums"
         },
         "security": [
           {
@@ -4875,9 +4293,6 @@
               "catalog:write"
             ]
           }
-        ],
-        "scopes": [
-          "catalog:write"
         ]
       },
       "tool": {
@@ -5390,14 +4805,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -5407,91 +4815,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -5631,8 +4954,7 @@
           ],
           "summary": "Fetch the related albums of an artist",
           "description": "Returns the related `albums` resources of an artist.",
-          "operationId": "fetchRelated.artists.albums",
-          "security": []
+          "operationId": "fetchRelated.artists.albums"
         },
         "security": [],
         "relation": "albums"
@@ -5770,9 +5092,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "artist",
+                  "tracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -6142,14 +5468,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -6159,91 +5478,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -6334,6 +5568,10 @@
               }
             }
           },
+          "includePaths": [
+            "artist",
+            "tracks"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -6356,12 +5594,7 @@
           "summary": "Create an artist",
           "description": "Creates a new artist from the supplied attributes and relationships.",
           "operationId": "create.artists"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "artists_create",
@@ -6659,14 +5892,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -6676,77 +5902,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -6838,12 +5993,7 @@
           "summary": "Delete an artist",
           "description": "Deletes the artist identified by its `id`.",
           "operationId": "delete.artists"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "artists_delete",
@@ -6888,8 +6038,7 @@
           ],
           "summary": "Fetch an artist",
           "description": "Returns a single artist by its `id`.",
-          "operationId": "fetchOne.artists",
-          "security": []
+          "operationId": "fetchOne.artists"
         },
         "security": []
       },
@@ -6908,9 +6057,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "albums"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -7148,14 +6300,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -7165,77 +6310,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -7255,7 +6329,10 @@
             "albums",
             "tracks"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "albums"
+          ]
         }
       },
       "result": "item"
@@ -7274,8 +6351,7 @@
           ],
           "summary": "List artists",
           "description": "Returns a paginated collection of artists.",
-          "operationId": "fetchCollection.artists",
-          "security": []
+          "operationId": "fetchCollection.artists"
         },
         "security": []
       },
@@ -7336,9 +6412,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "albums"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -7619,14 +6698,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -7636,77 +6708,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -7744,6 +6745,9 @@
               }
             }
           },
+          "includePaths": [
+            "albums"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -7766,12 +6770,7 @@
           "summary": "Update an artist",
           "description": "Updates an existing artist, applying the supplied attributes and relationships.",
           "operationId": "update.artists"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "artists_update",
@@ -8084,14 +7083,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -8101,77 +7093,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -8258,12 +7179,7 @@
           "summary": "Create a catalog export",
           "description": "Creates a new catalog export from the supplied attributes and relationships.",
           "operationId": "create.catalog-exports"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "catalog_exports_create",
@@ -8376,12 +7292,7 @@
           "summary": "Delete a catalog export",
           "description": "Deletes the catalog export identified by its `id`.",
           "operationId": "delete.catalog-exports"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "catalog_exports_delete",
@@ -8427,12 +7338,7 @@
           "summary": "Fetch a catalog export",
           "description": "Returns a single catalog export by its `id`.",
           "operationId": "fetchOne.catalog-exports"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "catalog_exports_get",
@@ -8547,12 +7453,7 @@
           "summary": "List catalog exports",
           "description": "Returns a paginated collection of catalog exports.",
           "operationId": "fetchCollection.catalog-exports"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "catalog_exports_list",
@@ -8707,12 +7608,7 @@
           "summary": "Fetch a chart",
           "description": "Returns a single chart by its `id`.",
           "operationId": "fetchOne.charts"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "charts_get",
@@ -8794,12 +7690,7 @@
           "summary": "List charts",
           "description": "Returns a collection of charts.",
           "operationId": "fetchCollection.charts"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "charts_list",
@@ -8900,12 +7791,7 @@
           "summary": "Fetch a country",
           "description": "Returns a single country by its `id`.",
           "operationId": "fetchOne.countries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "countries_get",
@@ -8987,12 +7873,7 @@
           "summary": "List countries",
           "description": "Returns a collection of countries.",
           "operationId": "fetchCollection.countries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "countries_list",
@@ -9093,12 +7974,7 @@
           "summary": "Create a device",
           "description": "Creates a new device from the supplied attributes and relationships.",
           "operationId": "create.devices"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "devices_create",
@@ -9203,12 +8079,7 @@
           "summary": "Delete a device",
           "description": "Deletes the device identified by its `id`.",
           "operationId": "delete.devices"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "devices_delete",
@@ -9254,12 +8125,7 @@
           "summary": "Fetch a device",
           "description": "Returns a single device by its `id`.",
           "operationId": "fetchOne.devices"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "devices_get",
@@ -9370,12 +8236,7 @@
           "summary": "List devices",
           "description": "Returns a paginated collection of devices.",
           "operationId": "fetchCollection.devices"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "devices_list",
@@ -9526,12 +8387,7 @@
           "summary": "Update a device",
           "description": "Updates an existing device, applying the supplied attributes and relationships.",
           "operationId": "update.devices"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "devices_update",
@@ -9644,12 +8500,7 @@
           "summary": "Fetch an export job",
           "description": "Returns a single export job by its `id`.",
           "operationId": "fetchOne.export-jobs"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "export_jobs_get",
@@ -9759,12 +8610,7 @@
           "summary": "List export jobs",
           "description": "Returns a paginated collection of export jobs.",
           "operationId": "fetchCollection.export-jobs"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "export_jobs_list",
@@ -9914,12 +8760,7 @@
           "summary": "Create a favorite",
           "description": "Creates a new favorite from the supplied attributes and relationships.",
           "operationId": "create.favorites"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "favorites_create",
@@ -10202,12 +9043,7 @@
           "summary": "Delete a favorite",
           "description": "Deletes the favorite identified by its `id`.",
           "operationId": "delete.favorites"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "favorites_delete",
@@ -10254,11 +9090,6 @@
           "description": "Returns the related `favoritable` resource of a favorite.",
           "operationId": "fetchRelated.favorites.favoritable"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "favoritable"
       },
       "tool": {
@@ -10645,12 +9476,7 @@
           "summary": "Fetch a favorite",
           "description": "Returns a single favorite by its `id`.",
           "operationId": "fetchOne.favorites"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "favorites_get",
@@ -10667,9 +9493,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "user"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -10828,7 +9657,10 @@
             "favorites",
             "public-profiles"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "user"
+          ]
         }
       },
       "result": "item"
@@ -10848,12 +9680,7 @@
           "summary": "List favorites",
           "description": "Returns a paginated collection of favorites.",
           "operationId": "fetchCollection.favorites"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "favorites_list",
@@ -10866,9 +9693,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "user"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -11069,6 +9899,9 @@
             "public-profiles"
           ],
           "paginated": true,
+          "includePaths": [
+            "user"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -11091,12 +9924,7 @@
           "summary": "Update a favorite",
           "description": "Updates an existing favorite, applying the supplied attributes and relationships.",
           "operationId": "update.favorites"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "favorites_update",
@@ -11387,11 +10215,6 @@
           "description": "Returns the related `user` resource of a favorite.",
           "operationId": "fetchRelated.favorites.user"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "user"
       },
       "tool": {
@@ -11509,12 +10332,7 @@
           "summary": "Create a genre",
           "description": "Creates a new genre from the supplied attributes and relationships.",
           "operationId": "create.genres"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "genres_create",
@@ -11624,12 +10442,7 @@
           "summary": "Delete a genre",
           "description": "Deletes the genre identified by its `id`.",
           "operationId": "delete.genres"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "genres_delete",
@@ -11675,12 +10488,7 @@
           "summary": "Fetch a genre",
           "description": "Returns a single genre by its `id`.",
           "operationId": "fetchOne.genres"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "genres_get",
@@ -11791,12 +10599,7 @@
           "summary": "List genres",
           "description": "Returns a paginated collection of genres.",
           "operationId": "fetchCollection.genres"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "genres_list",
@@ -11947,12 +10750,7 @@
           "summary": "Update a genre",
           "description": "Updates an existing genre, applying the supplied attributes and relationships.",
           "operationId": "update.genres"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "genres_update",
@@ -12065,12 +10863,7 @@
           "summary": "Create a library",
           "description": "Creates a new library from the supplied attributes and relationships.",
           "operationId": "create.libraries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "libraries_create",
@@ -12605,12 +11398,7 @@
           "summary": "Delete a library",
           "description": "Deletes the library identified by its `id`.",
           "operationId": "delete.libraries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "libraries_delete",
@@ -12656,12 +11444,7 @@
           "summary": "Fetch a library",
           "description": "Returns a single library by its `id`.",
           "operationId": "fetchOne.libraries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "libraries_get",
@@ -12678,9 +11461,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "items"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -13135,7 +11922,11 @@
             "albums",
             "artists"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "owner",
+            "items"
+          ]
         }
       },
       "result": "item"
@@ -13156,11 +11947,6 @@
           "description": "Returns the related `items` resources of a library.",
           "operationId": "fetchRelated.libraries.items"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "items"
       },
       "tool": {
@@ -13589,12 +12375,7 @@
           "summary": "List libraries",
           "description": "Returns a paginated collection of libraries.",
           "operationId": "fetchCollection.libraries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "libraries_list",
@@ -13607,9 +12388,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "items"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -14106,6 +12891,10 @@
             "artists"
           ],
           "paginated": true,
+          "includePaths": [
+            "owner",
+            "items"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -14129,11 +12918,6 @@
           "description": "Returns the related `owner` resource of a library.",
           "operationId": "fetchRelated.libraries.owner"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "owner"
       },
       "tool": {
@@ -14251,12 +13035,7 @@
           "summary": "Update a library",
           "description": "Updates an existing library, applying the supplied attributes and relationships.",
           "operationId": "update.libraries"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "libraries_update",
@@ -14811,14 +13590,7 @@
           ],
           "summary": "Create a playlist",
           "description": "Creates a new playlist from the supplied attributes and relationships.",
-          "operationId": "create.playlists",
-          "security": [
-            {
-              "oauth2": [
-                "library:write"
-              ]
-            }
-          ]
+          "operationId": "create.playlists"
         },
         "security": [
           {
@@ -14826,9 +13598,6 @@
               "library:write"
             ]
           }
-        ],
-        "scopes": [
-          "library:write"
         ]
       },
       "tool": {
@@ -15146,9 +13915,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -15174,129 +13940,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "albums": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "albums"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "averageRating": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "artwork": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "releasedAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time",
-                  "description": "Value must be before a dynamically-resolved date/time bound."
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "status": {
-                  "description": "Where the album sits in its release lifecycle.",
-                  "allOf": [
-                    {
-                      "description": "| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
-                      "enum": [
-                        "upcoming",
-                        "released",
-                        "withdrawn"
-                      ],
-                      "x-enum-descriptions": [
-                        "Announced but not yet on sale.",
-                        "Released and available to stream or buy.",
-                        "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
-                      ]
-                    }
-                  ]
-                },
-                "availableFrom": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date"
-                },
-                "availableUntil": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date",
-                  "description": "Value is compared against the `availableFrom` field (>)."
-                },
-                "releaseInfo": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "label": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "catalogueNumber": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "artist": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related artists: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An album resource object."
             }
           }
         },
@@ -15413,15 +14056,7 @@
           ],
           "summary": "Delete a playlist",
           "description": "Deletes the playlist identified by its `id`.",
-          "operationId": "delete.playlists",
-          "security": [
-            {
-              "oauth2": [
-                "library:write",
-                "library:admin"
-              ]
-            }
-          ]
+          "operationId": "delete.playlists"
         },
         "security": [
           {
@@ -15430,10 +14065,6 @@
               "library:admin"
             ]
           }
-        ],
-        "scopes": [
-          "library:write",
-          "library:admin"
         ]
       },
       "tool": {
@@ -15480,12 +14111,7 @@
           "summary": "Fetch a playlist",
           "description": "Returns a single playlist by its `id`.",
           "operationId": "fetchOne.playlists"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "playlists_get",
@@ -15502,9 +14128,14 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "publicOwner",
+                  "tracks",
+                  "orderedTracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -15737,9 +14368,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -15765,129 +14393,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "albums": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "albums"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "averageRating": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "artwork": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "releasedAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time",
-                  "description": "Value must be before a dynamically-resolved date/time bound."
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "status": {
-                  "description": "Where the album sits in its release lifecycle.",
-                  "allOf": [
-                    {
-                      "description": "| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
-                      "enum": [
-                        "upcoming",
-                        "released",
-                        "withdrawn"
-                      ],
-                      "x-enum-descriptions": [
-                        "Announced but not yet on sale.",
-                        "Released and available to stream or buy.",
-                        "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
-                      ]
-                    }
-                  ]
-                },
-                "availableFrom": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date"
-                },
-                "availableUntil": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date",
-                  "description": "Value is compared against the `availableFrom` field (>)."
-                },
-                "releaseInfo": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "label": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "catalogueNumber": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "artist": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related artists: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An album resource object."
             }
           }
         },
@@ -15908,7 +14413,12 @@
             "tracks",
             "albums"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "publicOwner",
+            "tracks",
+            "orderedTracks"
+          ]
         }
       },
       "result": "item"
@@ -15928,12 +14438,7 @@
           "summary": "List playlists",
           "description": "Returns a paginated collection of playlists.",
           "operationId": "fetchCollection.playlists"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "playlists_list",
@@ -15946,9 +14451,14 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "publicOwner",
+                  "tracks",
+                  "orderedTracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -16222,9 +14732,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -16250,129 +14757,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "albums": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "albums"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "averageRating": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "artwork": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "releasedAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time",
-                  "description": "Value must be before a dynamically-resolved date/time bound."
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "status": {
-                  "description": "Where the album sits in its release lifecycle.",
-                  "allOf": [
-                    {
-                      "description": "| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
-                      "enum": [
-                        "upcoming",
-                        "released",
-                        "withdrawn"
-                      ],
-                      "x-enum-descriptions": [
-                        "Announced but not yet on sale.",
-                        "Released and available to stream or buy.",
-                        "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
-                      ]
-                    }
-                  ]
-                },
-                "availableFrom": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date"
-                },
-                "availableUntil": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date",
-                  "description": "Value is compared against the `availableFrom` field (>)."
-                },
-                "releaseInfo": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "label": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "catalogueNumber": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "artist": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related artists: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An album resource object."
             }
           }
         },
@@ -16394,6 +14778,11 @@
             "albums"
           ],
           "paginated": true,
+          "includePaths": [
+            "publicOwner",
+            "tracks",
+            "orderedTracks"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -16417,11 +14806,6 @@
           "description": "Returns the related `orderedTracks` resources of a playlist.",
           "operationId": "fetchRelated.playlists.orderedTracks"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "orderedTracks"
       },
       "tool": {
@@ -16524,9 +14908,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album",
+                  "playlists"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -16831,9 +15219,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -16859,70 +15244,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -16983,9 +15304,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -17011,26 +15329,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -17097,6 +15395,10 @@
               }
             }
           },
+          "includePaths": [
+            "album",
+            "playlists"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 100
@@ -17120,11 +15422,6 @@
           "description": "Returns the related `publicOwner` resource of a playlist.",
           "operationId": "fetchRelated.playlists.publicOwner"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "publicOwner"
       },
       "tool": {
@@ -17243,11 +15540,6 @@
           "description": "Returns the related `tracks` resources of a playlist.",
           "operationId": "fetchRelated.playlists.tracks"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "tracks"
       },
       "tool": {
@@ -17328,9 +15620,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album",
+                  "playlists"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -17643,9 +15939,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -17671,70 +15964,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -17795,9 +16024,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -17823,26 +16049,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -17897,6 +16103,10 @@
               }
             }
           },
+          "includePaths": [
+            "album",
+            "playlists"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 100,
@@ -17919,14 +16129,7 @@
           ],
           "summary": "Update a playlist",
           "description": "Updates an existing playlist, applying the supplied attributes and relationships.",
-          "operationId": "update.playlists",
-          "security": [
-            {
-              "oauth2": [
-                "library:write"
-              ]
-            }
-          ]
+          "operationId": "update.playlists"
         },
         "security": [
           {
@@ -17934,9 +16137,6 @@
               "library:write"
             ]
           }
-        ],
-        "scopes": [
-          "library:write"
         ]
       },
       "tool": {
@@ -18278,9 +16478,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -18306,129 +16503,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "albums": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "albums"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "averageRating": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "artwork": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "releasedAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time",
-                  "description": "Value must be before a dynamically-resolved date/time bound."
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "status": {
-                  "description": "Where the album sits in its release lifecycle.",
-                  "allOf": [
-                    {
-                      "description": "| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
-                      "enum": [
-                        "upcoming",
-                        "released",
-                        "withdrawn"
-                      ],
-                      "x-enum-descriptions": [
-                        "Announced but not yet on sale.",
-                        "Released and available to stream or buy.",
-                        "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
-                      ]
-                    }
-                  ]
-                },
-                "availableFrom": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date"
-                },
-                "availableUntil": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date",
-                  "description": "Value is compared against the `availableFrom` field (>)."
-                },
-                "releaseInfo": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "label": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "catalogueNumber": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "artist": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related artists: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An album resource object."
             }
           }
         },
@@ -18550,12 +16624,7 @@
           "summary": "Create a product",
           "description": "Creates a new product from the supplied attributes and relationships.",
           "operationId": "create.products"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "products_create",
@@ -18710,12 +16779,7 @@
           "summary": "Delete a product",
           "description": "Deletes the product identified by its `id`.",
           "operationId": "delete.products"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "products_delete",
@@ -18761,12 +16825,7 @@
           "summary": "Fetch a product",
           "description": "Returns a single product by its `id`.",
           "operationId": "fetchOne.products"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "products_get",
@@ -18783,9 +16842,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "parent"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -18882,7 +16944,10 @@
           "fields": [
             "products"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "parent"
+          ]
         }
       },
       "result": "item"
@@ -18902,12 +16967,7 @@
           "summary": "List products",
           "description": "Returns a paginated collection of products.",
           "operationId": "fetchCollection.products"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "products_list",
@@ -18920,9 +16980,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "parent"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -19061,6 +17124,9 @@
             "products"
           ],
           "paginated": true,
+          "includePaths": [
+            "parent"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -19084,11 +17150,6 @@
           "description": "Returns the related `parent` resource of a product.",
           "operationId": "fetchRelated.products.parent"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "parent"
       },
       "tool": {
@@ -19106,9 +17167,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "parent"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -19212,7 +17276,10 @@
           "fields": [
             "products"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "parent"
+          ]
         }
       },
       "result": "item"
@@ -19232,12 +17299,7 @@
           "summary": "Update a product",
           "description": "Updates an existing product, applying the supplied attributes and relationships.",
           "operationId": "update.products"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "products_update",
@@ -19416,12 +17478,7 @@
           "summary": "Fetch a public profile",
           "description": "Returns a single public profile by its `id`.",
           "operationId": "fetchOne.public-profiles"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "public_profiles_get",
@@ -19531,12 +17588,7 @@
           "summary": "List public profiles",
           "description": "Returns a paginated collection of public profiles.",
           "operationId": "fetchCollection.public-profiles"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "public_profiles_list",
@@ -19702,11 +17754,6 @@
           "description": "Returns the related `album` resource of a release.",
           "operationId": "fetchRelated.releases.album"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "album"
       },
       "tool": {
@@ -19724,9 +17771,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "artist",
+                  "tracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -20059,14 +18110,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -20076,91 +18120,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -20181,7 +18140,11 @@
             "tracks",
             "playlists"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "artist",
+            "tracks"
+          ]
         }
       },
       "result": "item"
@@ -20201,12 +18164,7 @@
           "summary": "Create a release",
           "description": "Creates a new release from the supplied attributes and relationships.",
           "operationId": "create.releases"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "releases_create",
@@ -20933,9 +18891,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -20944,14 +18899,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -20961,141 +18909,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -21221,12 +19034,7 @@
           "summary": "Delete a release",
           "description": "Deletes the release identified by its `id`.",
           "operationId": "delete.releases"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "releases_delete",
@@ -21272,12 +19080,7 @@
           "summary": "Fetch a release",
           "description": "Returns a single release by its `id`.",
           "operationId": "fetchOne.releases"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "releases_get",
@@ -21294,9 +19097,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -21684,9 +19490,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -21695,14 +19498,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -21712,141 +19508,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -21867,7 +19528,10 @@
             "artists",
             "tracks"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "album"
+          ]
         }
       },
       "result": "item"
@@ -21887,12 +19551,7 @@
           "summary": "List releases",
           "description": "Returns a paginated collection of releases.",
           "operationId": "fetchCollection.releases"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "releases_list",
@@ -21919,9 +19578,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -22351,9 +20013,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -22362,14 +20021,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -22379,141 +20031,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -22535,6 +20052,9 @@
             "tracks"
           ],
           "paginated": true,
+          "includePaths": [
+            "album"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -22557,12 +20077,7 @@
           "summary": "Update a release",
           "description": "Updates an existing release, applying the supplied attributes and relationships.",
           "operationId": "update.releases"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "releases_update",
@@ -23339,9 +20854,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -23350,14 +20862,7 @@
                 "tracks": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related tracks resources: ids, or the resources themselves when included."
                 }
@@ -23367,141 +20872,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
-            },
-            "tracks": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "tracks"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "trackNumber": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "durationSeconds": {
-                  "type": "integer"
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "genres": {
-                  "type": "array",
-                  "minItems": 1,
-                  "uniqueItems": true,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "previewOffset": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
-                },
-                "displayTitle": {
-                  "type": "string"
-                },
-                "album": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related albums: its id, or the resource itself when included."
-                },
-                "playlists": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The related playlists resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A track resource object."
             }
           }
         },
@@ -23634,11 +21004,6 @@
           "description": "Returns the related `album` resource of a track.",
           "operationId": "fetchRelated.tracks.album"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "album"
       },
       "tool": {
@@ -23656,9 +21021,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "artist",
+                  "tracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -23991,14 +21360,7 @@
                 "playlists": {
                   "type": "array",
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/playlists"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "description": "The related playlists resources: ids, or the resources themselves when included."
                 }
@@ -24008,91 +21370,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "playlists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "playlists"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "slug": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                },
-                "public": {
-                  "type": "boolean"
-                },
-                "externalId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "orderedTracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                },
-                "owner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related users: its id, or the resource itself when included."
-                },
-                "publicOwner": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related public-profiles: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A playlist resource object."
             }
           }
         },
@@ -24113,7 +21390,11 @@
             "tracks",
             "playlists"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "artist",
+            "tracks"
+          ]
         }
       },
       "result": "item"
@@ -24133,12 +21414,7 @@
           "summary": "Create a track",
           "description": "Creates a new track from the supplied attributes and relationships.",
           "operationId": "create.tracks"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tracks_create",
@@ -24465,9 +21741,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -24493,70 +21766,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -24617,9 +21826,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -24645,26 +21851,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -24781,12 +21967,7 @@
           "summary": "Delete a track",
           "description": "Deletes the track identified by its `id`.",
           "operationId": "delete.tracks"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tracks_delete",
@@ -24832,12 +22013,7 @@
           "summary": "Fetch a track",
           "description": "Returns a single track by its `id`.",
           "operationId": "fetchOne.tracks"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tracks_get",
@@ -24854,9 +22030,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album",
+                  "playlists"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -25117,9 +22297,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -25145,70 +22322,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -25269,9 +22382,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -25297,26 +22407,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -25338,7 +22428,11 @@
             "playlists",
             "public-profiles"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "album",
+            "playlists"
+          ]
         }
       },
       "result": "item"
@@ -25358,12 +22452,7 @@
           "summary": "List tracks",
           "description": "Returns a paginated collection of tracks.",
           "operationId": "fetchCollection.tracks"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tracks_list",
@@ -25439,9 +22528,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "album",
+                  "playlists"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -25745,9 +22838,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -25773,70 +22863,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -25897,9 +22923,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -25925,26 +22948,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -25999,6 +23002,10 @@
               }
             }
           },
+          "includePaths": [
+            "album",
+            "playlists"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50
@@ -26022,11 +23029,6 @@
           "description": "Returns the related `playlists` resources of a track.",
           "operationId": "fetchRelated.tracks.playlists"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "playlists"
       },
       "tool": {
@@ -26044,9 +23046,14 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "publicOwner",
+                  "tracks",
+                  "orderedTracks"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -26329,9 +23336,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/albums"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -26357,129 +23361,6 @@
                 "type"
               ],
               "description": "A track resource object."
-            },
-            "albums": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "albums"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "averageRating": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "artwork": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "releasedAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time",
-                  "description": "Value must be before a dynamically-resolved date/time bound."
-                },
-                "explicit": {
-                  "type": "boolean"
-                },
-                "status": {
-                  "description": "Where the album sits in its release lifecycle.",
-                  "allOf": [
-                    {
-                      "description": "| Value | Description |\n| --- | --- |\n| `upcoming` | Announced but not yet on sale. |\n| `released` | Released and available to stream or buy. |\n| `withdrawn` | Withdrawn from the catalogue (back-catalogue or rights lapsed). |",
-                      "enum": [
-                        "upcoming",
-                        "released",
-                        "withdrawn"
-                      ],
-                      "x-enum-descriptions": [
-                        "Announced but not yet on sale.",
-                        "Released and available to stream or buy.",
-                        "Withdrawn from the catalogue (back-catalogue or rights lapsed)."
-                      ]
-                    }
-                  ]
-                },
-                "availableFrom": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date"
-                },
-                "availableUntil": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date",
-                  "description": "Value is compared against the `availableFrom` field (>)."
-                },
-                "releaseInfo": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "label": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "catalogueNumber": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  }
-                },
-                "artist": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The related artists: its id, or the resource itself when included."
-                },
-                "tracks": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/tracks"
-                      }
-                    ]
-                  },
-                  "description": "The related tracks resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An album resource object."
             }
           }
         },
@@ -26501,6 +23382,11 @@
             "albums"
           ],
           "paginated": true,
+          "includePaths": [
+            "publicOwner",
+            "tracks",
+            "orderedTracks"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 50,
@@ -26524,12 +23410,7 @@
           "summary": "Update a track",
           "description": "Updates an existing track, applying the supplied attributes and relationships.",
           "operationId": "update.tracks"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tracks_update",
@@ -26874,9 +23755,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/artists"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -26902,70 +23780,6 @@
                 "type"
               ],
               "description": "An album resource object."
-            },
-            "artists": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "artists"
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
-                },
-                "slug": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "website": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uri"
-                },
-                "bio": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 1000
-                },
-                "trackCount": {
-                  "type": "integer"
-                },
-                "createdAt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date-time"
-                },
-                "albums": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/albums"
-                      }
-                    ]
-                  },
-                  "description": "The related albums resources: ids, or the resources themselves when included."
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "An artist resource object."
             },
             "playlists": {
               "type": "object",
@@ -27026,9 +23840,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/public-profiles"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -27054,26 +23865,6 @@
                 "type"
               ],
               "description": "A playlist resource object."
-            },
-            "public-profiles": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "public-profiles"
-                },
-                "displayName": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ],
-              "description": "A public profile resource object."
             }
           }
         },
@@ -27169,6 +23960,11 @@
     {
       "operationId": "action.albums.artwork",
       "reason": "every request media type it accepts is one a model cannot send, such as a binary upload"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
     }
   ],
   "baseUrl": "https://music.example"

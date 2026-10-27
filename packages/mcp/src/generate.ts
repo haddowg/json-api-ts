@@ -31,6 +31,11 @@ async function codegen(): Promise<Codegen> {
 export interface GenerateModelOptions {
   /** The page size a list tool asks for when the model gives none. Defaults to 10. */
   defaultPageSize?: number
+  /**
+   * How many relationships deep a tool's `include` may reach, 1 by default. `null` keeps every
+   * path the document declares.
+   */
+  includeDepth?: number | null
 }
 
 /** Build the model from a parsed document, building its descriptor with the codegen. */
@@ -75,8 +80,10 @@ export interface WriteModelResult {
 export async function writeMcpModel(options: WriteModelOptions): Promise<WriteModelResult> {
   const { readDocument } = await codegen()
   const document = (await readDocument(options.input)) as OpenApiDocument
-  const generateOptions: GenerateModelOptions =
-    options.defaultPageSize === undefined ? {} : { defaultPageSize: options.defaultPageSize }
+  const generateOptions: GenerateModelOptions = {}
+  if (options.defaultPageSize !== undefined)
+    generateOptions.defaultPageSize = options.defaultPageSize
+  if (options.includeDepth !== undefined) generateOptions.includeDepth = options.includeDepth
   const content = serialiseMcpModel(await generateMcpModel(document, generateOptions))
   if (options.check === true) {
     let committed: unknown

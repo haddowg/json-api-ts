@@ -8,11 +8,18 @@ import { deref, isObject, type OpenApiDocument, type OperationObject } from './o
 export interface BuildModelOptions {
   /** The page size a list tool asks for when the model gives none. Defaults to 10. */
   defaultPageSize?: number
+  /**
+   * How many relationships deep a tool's `include` may reach, 1 by default. Each tool lists and
+   * accepts only the declared paths within it, and its output schema covers only the types those
+   * reach. `null` keeps every path the document declares.
+   */
+  includeDepth?: number | null
   /** The source document's content hash, recorded in the model. */
   hash: string
 }
 
-const OMITTED = new Set(['parameters', 'requestBody', 'responses', 'callbacks'])
+// `security` is stored once, on the model operation, and put back by the runtime.
+const OMITTED = new Set(['parameters', 'requestBody', 'responses', 'callbacks', 'security'])
 
 function lightOperation(operation: OperationObject): OperationObject {
   const out: OperationObject = {}
@@ -47,7 +54,18 @@ export function buildMcpModel(
   options: BuildModelOptions,
 ): McpModel {
   const contract = assertContract(document)
-  const catalogue = buildCatalogue(document, descriptor, options.defaultPageSize ?? 10)
+  const includeDepth = options.includeDepth === undefined ? 1 : options.includeDepth
+  if (includeDepth !== null && !(Number.isInteger(includeDepth) && includeDepth >= 0)) {
+    throw new Error(
+      `includeDepth must be a whole number of 0 or more, or null; got ${includeDepth}`,
+    )
+  }
+  const catalogue = buildCatalogue(
+    document,
+    descriptor,
+    options.defaultPageSize ?? 10,
+    includeDepth,
+  )
   const info = document.info as { title?: unknown; version?: unknown } | undefined
   const model: McpModel = {
     format: MODEL_FORMAT,
@@ -58,6 +76,7 @@ export function buildMcpModel(
       hash: options.hash,
     },
     credentialSchemes: oauthSchemes(document),
+    includeDepth,
     descriptor,
     tools: catalogue.entries.map((entry) => {
       const { op } = entry
@@ -69,9 +88,8 @@ export function buildMcpModel(
         method: op.method,
         path: op.path,
         operation: lightOperation(op.operation),
-        security: op.security,
       }
-      if (op.scopes !== undefined) operation.scopes = op.scopes
+      if (op.operation.security !== undefined) operation.security = op.operation.security
       if (op.relation !== undefined) operation.relation = op.relation
       if (op.action !== undefined) operation.action = op.action
       if (entry.actionKey !== undefined) operation.actionKey = entry.actionKey
@@ -79,6 +97,9 @@ export function buildMcpModel(
       return { operation, tool: entry.tool, plan, result: entry.result }
     }),
     skipped: catalogue.skipped,
+  }
+  if (document.security !== undefined) {
+    model.security = document.security
   }
   const server = document.servers?.[0]?.url
   if (server !== undefined) {

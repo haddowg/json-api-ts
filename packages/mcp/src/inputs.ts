@@ -21,6 +21,7 @@ import {
   type ParameterObject,
   type RequestBodyObject,
 } from './openapi'
+import { capIncludePaths, includePaths } from './outputs'
 import {
   allowsNull,
   closedObject,
@@ -30,8 +31,16 @@ import {
   toPortable,
 } from './portable'
 
-export const INCLUDE_DESCRIPTION =
-  'Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing.'
+/** The include description, for a tool capped at `depth` relationships or uncapped. */
+export function includeDescription(depth: number | null): string {
+  const reach =
+    depth === null
+      ? ''
+      : depth === 1
+        ? ' Only direct relationships can be included, so relations of an included resource come back as ids.'
+        : ` Paths reach at most ${depth} relationships deep, and relations below that come back as ids.`
+  return `Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id.${reach} Leave null to include nothing.`
+}
 
 export const FIELDS_DESCRIPTION =
   'Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields.'
@@ -50,6 +59,11 @@ export interface QueryPlan {
   filter?: Decoder
   sort: boolean
   include: boolean
+  /**
+   * The include paths the tool accepts, the ones its input lists. A model before format 3
+   * doesn't carry them and its tools accept any path.
+   */
+  includePaths?: readonly string[]
   fields: readonly string[]
   /** The wire key `pageSize` maps to, when the endpoint paginates by a size. */
   sizeKey?: string
@@ -168,12 +182,11 @@ function pageBounds(
 
 /** A read tool's query arguments, read from the operation's own parameters. */
 function queryInput(
-  doc: OpenApiDocument,
-  params: readonly ParameterObject[],
+  ctx: InputContext,
   paginator: PaginatorDescriptor | undefined,
-  defaultPageSize: number,
   collection: boolean,
 ): { properties: Record<string, JsonSchema>; plan: QueryPlan } {
+  const { doc, params, defaultPageSize, includeDepth } = ctx
   const properties: Record<string, JsonSchema> = {}
   const plan: QueryPlan = { sort: false, include: false, fields: [], paginated: false }
 
@@ -197,13 +210,16 @@ function queryInput(
     }
   }
 
-  if (params.some((p) => p.in === 'query' && p.name === 'include')) {
+  const includable = params.some((p) => p.in === 'query' && p.name === 'include')
+  const paths = includable ? capIncludePaths(includePaths(doc, ctx.operation), includeDepth) : []
+  if (paths.length > 0) {
     properties['include'] = nullable({
       type: 'array',
-      items: { type: 'string' },
-      description: INCLUDE_DESCRIPTION,
+      items: { type: 'string', enum: paths },
+      description: includeDescription(includeDepth),
     })
     plan.include = true
+    plan.includePaths = paths
   }
 
   const fieldTypes = params
@@ -389,6 +405,8 @@ export interface InputContext {
   params: readonly ParameterObject[]
   operation: OperationObject
   defaultPageSize: number
+  /** How many relationships deep `include` may reach; null for every declared path. */
+  includeDepth: number | null
 }
 
 /** A list or to-many related read. */
@@ -398,7 +416,7 @@ export function collectionInput(
   parent: { type: string; relation: string } | undefined,
   countable: CountableDescriptor | undefined,
 ): ToolInput {
-  const { properties, plan } = queryInput(ctx.doc, ctx.params, paginator, ctx.defaultPageSize, true)
+  const { properties, plan } = queryInput(ctx, paginator, true)
   if (countable !== undefined && countable.tokens.includes(SELF_COUNT)) {
     properties['withCount'] = nullable({ type: 'boolean', description: WITH_COUNT_DESCRIPTION })
     plan.countProfile = countable.profile
@@ -416,13 +434,7 @@ export function collectionInput(
 
 /** A get or to-one related read. */
 export function singleInput(ctx: InputContext, description: string): ToolInput {
-  const { properties, plan } = queryInput(
-    ctx.doc,
-    ctx.params,
-    undefined,
-    ctx.defaultPageSize,
-    false,
-  )
+  const { properties, plan } = queryInput(ctx, undefined, false)
   return { schema: root({ id: idSchema(description), ...properties }, ['id']), query: plan }
 }
 

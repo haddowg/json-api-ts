@@ -1,5 +1,5 @@
 {
-  "format": 2,
+  "format": 3,
   "generator": "@haddowg/json-api-mcp",
   "contract": 17,
   "source": {
@@ -9,6 +9,7 @@
   "credentialSchemes": [
     "oauth2"
   ],
+  "includeDepth": 1,
   "descriptor": {
     "articles": {
       "attributes": {
@@ -708,11 +709,6 @@
           "description": "Invokes the `archive` custom action on the articles collection.",
           "operationId": "action.articles.archive"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "archive",
         "actionKey": "archive"
       },
@@ -751,14 +747,7 @@
           ],
           "summary": "Fetch the related attachments of an article",
           "description": "Returns the related `attachments` resources of an article.",
-          "operationId": "fetchRelated.articles.attachments",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.attachments"
         },
         "security": [
           {
@@ -766,9 +755,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ],
         "relation": "attachments"
       },
@@ -989,15 +975,7 @@
           ],
           "summary": "Fetch the related author of an article",
           "description": "Who wrote it.",
-          "operationId": "fetchRelated.articles.author",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read",
-                "people:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.author"
         },
         "security": [
           {
@@ -1006,10 +984,6 @@
               "people:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read",
-          "people:read"
         ],
         "relation": "author"
       },
@@ -1161,11 +1135,6 @@
           "description": "Invokes the `bulk-import` custom action on the articles collection.",
           "operationId": "action.articles.bulk-import"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "bulk-import",
         "actionKey": "bulk-import"
       },
@@ -1245,11 +1214,6 @@
           "description": "Invokes the `cover` custom action on an article.",
           "operationId": "action.articles.cover"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "cover",
         "actionKey": "cover"
       },
@@ -1295,14 +1259,7 @@
           ],
           "summary": "Create an article",
           "description": "Creates a new article from the supplied attributes and relationships.",
-          "operationId": "create.articles",
-          "security": [
-            {
-              "oauth2": [
-                "articles:write"
-              ]
-            }
-          ]
+          "operationId": "create.articles"
         },
         "security": [
           {
@@ -1310,9 +1267,6 @@
               "articles:write"
             ]
           }
-        ],
-        "scopes": [
-          "articles:write"
         ]
       },
       "tool": {
@@ -2783,9 +2737,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -2832,22 +2783,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -3299,14 +3234,7 @@
           ],
           "summary": "Delete an article",
           "description": "Deletes the article identified by its `id`.",
-          "operationId": "delete.articles",
-          "security": [
-            {
-              "oauth2": [
-                "articles:write"
-              ]
-            }
-          ]
+          "operationId": "delete.articles"
         },
         "security": [
           {
@@ -3314,9 +3242,6 @@
               "articles:write"
             ]
           }
-        ],
-        "scopes": [
-          "articles:write"
         ]
       },
       "tool": {
@@ -3367,11 +3292,6 @@
             "readOnly": true
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "download",
         "actionKey": "download"
       },
@@ -3447,11 +3367,6 @@
           "description": "Save a draft revision.",
           "operationId": "action.articles.draft"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "draft",
         "actionKey": "draft"
       },
@@ -4386,15 +4301,7 @@
           ],
           "summary": "Fetch the related editor of an article",
           "description": "Returns the related `editor` resource of an article.",
-          "operationId": "fetchRelated.articles.editor",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read",
-                "people:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.editor"
         },
         "security": [
           {
@@ -4403,10 +4310,6 @@
               "people:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read",
-          "people:read"
         ],
         "relation": "editor"
       },
@@ -4558,11 +4461,6 @@
           "description": "Invokes the `export` custom action on the articles collection.",
           "operationId": "action.articles.export.get"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "export",
         "actionKey": "exportGet"
       },
@@ -4608,11 +4506,6 @@
           "description": "Invokes the `export` custom action on the articles collection.",
           "operationId": "action.articles.export.post"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "export",
         "actionKey": "export"
       },
@@ -4656,14 +4549,7 @@
           ],
           "summary": "Fetch the related gallery of an article",
           "description": "Returns the related `gallery` resources of an article.",
-          "operationId": "fetchRelated.articles.gallery",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.gallery"
         },
         "security": [
           {
@@ -4671,9 +4557,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ],
         "relation": "gallery"
       },
@@ -4839,14 +4722,7 @@
           ],
           "summary": "Fetch an article",
           "description": "Returns a single article by its `id`.",
-          "operationId": "fetchOne.articles",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchOne.articles"
         },
         "security": [
           {
@@ -4854,9 +4730,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ]
       },
       "tool": {
@@ -4874,9 +4747,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "author",
+                  "tags"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -5456,9 +5333,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -5505,22 +5379,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -5540,7 +5398,11 @@
             "people",
             "tags"
           ],
-          "paginated": false
+          "paginated": false,
+          "includePaths": [
+            "author",
+            "tags"
+          ]
         }
       },
       "result": "item"
@@ -5559,14 +5421,7 @@
           ],
           "summary": "List articles",
           "description": "List every article the caller may read.",
-          "operationId": "fetchCollection.articles",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchCollection.articles"
         },
         "security": [
           {
@@ -5574,9 +5429,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ]
       },
       "tool": {
@@ -5768,9 +5620,13 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "author",
+                  "tags"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -6401,9 +6257,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -6450,22 +6303,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -6603,6 +6440,10 @@
               }
             }
           },
+          "includePaths": [
+            "author",
+            "tags"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 100,
@@ -6625,14 +6466,7 @@
           ],
           "summary": "Fetch the related locked of an article",
           "description": "Returns the related `locked` resources of an article.",
-          "operationId": "fetchRelated.articles.locked",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.locked"
         },
         "security": [
           {
@@ -6640,9 +6474,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ],
         "relation": "locked"
       },
@@ -6868,11 +6699,6 @@
             "idempotent": true
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "preview",
         "actionKey": "preview"
       },
@@ -7881,9 +7707,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -7930,22 +7753,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -7979,14 +7786,7 @@
           ],
           "summary": "Publish the article",
           "description": "Invokes the `publish` custom action on an article.",
-          "operationId": "action.articles.publish",
-          "security": [
-            {
-              "oauth2": [
-                "articles:publish"
-              ]
-            }
-          ]
+          "operationId": "action.articles.publish"
         },
         "security": [
           {
@@ -7994,9 +7794,6 @@
               "articles:publish"
             ]
           }
-        ],
-        "scopes": [
-          "articles:publish"
         ],
         "action": "publish",
         "actionKey": "publish"
@@ -9006,9 +8803,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -9055,22 +8849,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -9099,15 +8877,7 @@
           ],
           "summary": "Fetch the related publisher of an article",
           "description": "Returns the related `publisher` resource of an article.",
-          "operationId": "fetchRelated.articles.publisher",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read",
-                "people:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.publisher"
         },
         "security": [
           {
@@ -9116,10 +8886,6 @@
               "people:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read",
-          "people:read"
         ],
         "relation": "publisher"
       },
@@ -9278,11 +9044,6 @@
             "destructive": true
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "purge",
         "actionKey": "purge"
       },
@@ -9333,11 +9094,6 @@
           "description": "Invokes the `report` custom action on the articles collection.",
           "operationId": "action.articles.report"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "report",
         "actionKey": "report"
       },
@@ -9383,11 +9139,6 @@
           "description": "Invokes the `revision` custom action on an article.",
           "operationId": "action.articles.revision"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "revision",
         "actionKey": "revision"
       },
@@ -10426,9 +10177,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -10475,22 +10223,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -10521,11 +10253,6 @@
           "description": "Invokes the `stats` custom action on the articles collection.",
           "operationId": "action.articles.stats"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "action": "stats",
         "actionKey": "stats"
       },
@@ -10569,15 +10296,7 @@
           ],
           "summary": "Fetch the related subject of an article",
           "description": "Returns the related `subject` resource of an article.",
-          "operationId": "fetchRelated.articles.subject",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read",
-                "people:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.subject"
         },
         "security": [
           {
@@ -10586,10 +10305,6 @@
               "people:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read",
-          "people:read"
         ],
         "relation": "subject"
       },
@@ -10739,14 +10454,7 @@
           ],
           "summary": "Fetch the related tags of an article",
           "description": "Returns the related `tags` resources of an article.",
-          "operationId": "fetchRelated.articles.tags",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.articles.tags"
         },
         "security": [
           {
@@ -10754,9 +10462,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ],
         "relation": "tags"
       },
@@ -10827,9 +10532,12 @@
                 "null"
               ],
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "articles"
+                ]
               },
-              "description": "Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing."
+              "description": "Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id. Only direct relationships can be included, so relations of an included resource come back as ids. Leave null to include nothing."
             },
             "fields": {
               "type": [
@@ -11468,6 +11176,9 @@
               }
             }
           },
+          "includePaths": [
+            "articles"
+          ],
           "sizeKey": "size",
           "defaultPageSize": 10,
           "maxPageSize": 100,
@@ -11490,14 +11201,7 @@
           ],
           "summary": "Update an article",
           "description": "Updates an existing article, applying the supplied attributes and relationships.",
-          "operationId": "update.articles",
-          "security": [
-            {
-              "oauth2": [
-                "articles:write"
-              ]
-            }
-          ]
+          "operationId": "update.articles"
         },
         "security": [
           {
@@ -11505,9 +11209,6 @@
               "articles:write"
             ]
           }
-        ],
-        "scopes": [
-          "articles:write"
         ]
       },
       "tool": {
@@ -13003,9 +12704,6 @@
                       "type": "string"
                     },
                     {
-                      "$ref": "#/$defs/companies"
-                    },
-                    {
                       "type": "null"
                     }
                   ],
@@ -13052,22 +12750,6 @@
                 "type"
               ],
               "description": "A tag resource object."
-            },
-            "companies": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "const": "companies"
-                }
-              },
-              "required": [
-                "id",
-                "type"
-              ]
             }
           }
         },
@@ -13510,11 +13192,6 @@
           "description": "Returns the related `clips` resources of an image.",
           "operationId": "fetchRelated.images.clips"
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "relation": "clips"
       },
       "tool": {
@@ -13728,12 +13405,7 @@
           "summary": "Fetch an image",
           "description": "Returns a single image by its `id`.",
           "operationId": "fetchOne.images"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "images_get",
@@ -13854,12 +13526,7 @@
           "summary": "List images",
           "description": "Returns a paginated collection of images.",
           "operationId": "fetchCollection.images"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "images_list",
@@ -14020,12 +13687,7 @@
           "summary": "Create a person",
           "description": "Creates a new person from the supplied attributes and relationships.",
           "operationId": "create.people"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "people_create",
@@ -14244,12 +13906,7 @@
           "summary": "Delete a person",
           "description": "Deletes the person identified by its `id`.",
           "operationId": "delete.people"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "people_delete",
@@ -14294,14 +13951,7 @@
           ],
           "summary": "Fetch a person",
           "description": "Returns a single person by its `id`.",
-          "operationId": "fetchOne.people",
-          "security": [
-            {
-              "oauth2": [
-                "people:read"
-              ]
-            }
-          ]
+          "operationId": "fetchOne.people"
         },
         "security": [
           {
@@ -14309,9 +13959,6 @@
               "people:read"
             ]
           }
-        ],
-        "scopes": [
-          "people:read"
         ]
       },
       "tool": {
@@ -14453,8 +14100,7 @@
           ],
           "summary": "List people",
           "description": "Returns a paginated collection of people.",
-          "operationId": "fetchCollection.people",
-          "security": []
+          "operationId": "fetchCollection.people"
         },
         "security": []
       },
@@ -14670,12 +14316,7 @@
           "summary": "Update a person",
           "description": "Updates an existing person, applying the supplied attributes and relationships.",
           "operationId": "update.people"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "people_update",
@@ -14909,14 +14550,7 @@
           ],
           "summary": "Fetch the related articles of a tag",
           "description": "Returns the related `articles` resources of a tag.",
-          "operationId": "fetchRelated.tags.articles",
-          "security": [
-            {
-              "oauth2": [
-                "articles:read"
-              ]
-            }
-          ]
+          "operationId": "fetchRelated.tags.articles"
         },
         "security": [
           {
@@ -14924,9 +14558,6 @@
               "articles:read"
             ]
           }
-        ],
-        "scopes": [
-          "articles:read"
         ],
         "relation": "articles"
       },
@@ -15807,12 +15438,7 @@
           "summary": "Create a tag",
           "description": "Creates a new tag from the supplied attributes and relationships.",
           "operationId": "create.tags"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tags_create",
@@ -15961,12 +15587,7 @@
           "summary": "Delete a tag",
           "description": "Deletes the tag identified by its `id`.",
           "operationId": "delete.tags"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tags_delete",
@@ -16012,12 +15633,7 @@
           "summary": "Fetch a tag",
           "description": "Returns a single tag by its `id`.",
           "operationId": "fetchOne.tags"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tags_get",
@@ -16135,12 +15751,7 @@
           "summary": "List tags",
           "description": "Returns a paginated collection of tags.",
           "operationId": "fetchCollection.tags"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tags_list",
@@ -16379,12 +15990,7 @@
           "summary": "Update a tag",
           "description": "Updates an existing tag, applying the supplied attributes and relationships.",
           "operationId": "update.tags"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "tags_update",
@@ -16536,12 +16142,7 @@
           "summary": "Create a video clip",
           "description": "Creates a new video clip from the supplied attributes and relationships.",
           "operationId": "create.videos"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "videos_create",
@@ -16682,12 +16283,7 @@
           "summary": "Delete a video clip",
           "description": "Deletes the video clip identified by its `id`.",
           "operationId": "delete.videos"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "videos_delete",
@@ -16733,12 +16329,7 @@
           "summary": "Fetch a video clip",
           "description": "Returns a single video clip by its `id`.",
           "operationId": "fetchOne.videos"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "videos_get",
@@ -16858,12 +16449,7 @@
           "summary": "List videos",
           "description": "Returns a collection of videos.",
           "operationId": "fetchCollection.videos"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "videos_list",
@@ -17062,12 +16648,7 @@
           "summary": "Update a video clip",
           "description": "Updates an existing video clip, applying the supplied attributes and relationships.",
           "operationId": "update.videos"
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "tool": {
         "name": "videos_update",
@@ -17203,6 +16784,11 @@
     {
       "operationId": "action.articles.import",
       "reason": "every request media type it accepts is one a model cannot send, such as a binary upload"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
     }
   ],
   "baseUrl": "https://api.example.com"

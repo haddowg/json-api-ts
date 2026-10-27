@@ -14,11 +14,15 @@ function identifier(value: Record<string, unknown>, polymorphic: boolean): unkno
   return polymorphic ? { type: value['type'], id: value['id'] } : value['id']
 }
 
-/** Flatten one materialised resource. A resource already on the path is cut back to its id. */
+/**
+ * Flatten one materialised resource. A resource already on the path, or one more than
+ * `maxDepth` relationships from the root, is cut back to its id.
+ */
 export function flattenResource(
   value: Record<string, unknown>,
   descriptor: ApiDescriptor,
   path: readonly string[] = [],
+  maxDepth: number | null = null,
 ): Record<string, unknown> {
   const type = String(value['type'])
   const key = `${type}:${String(value['id'])}`
@@ -39,8 +43,11 @@ export function flattenResource(
         return item
       }
       const itemKey = `${String(item['type'])}:${String(item['id'])}`
-      return isIncluded(item) && itemKey !== key && !path.includes(itemKey)
-        ? flattenResource(item, descriptor, [...path, key])
+      return isIncluded(item) &&
+        itemKey !== key &&
+        !path.includes(itemKey) &&
+        (maxDepth === null || path.length < maxDepth)
+        ? flattenResource(item, descriptor, [...path, key], maxDepth)
         : identifier(item, polymorphic)
     }
     out[name] = Array.isArray(member) ? member.map(one) : one(member)
@@ -60,6 +67,7 @@ function linkHref(link: unknown): string | undefined {
 export function flattenCollection(
   value: readonly unknown[] & { $links?: Record<string, unknown>; $meta?: Record<string, unknown> },
   descriptor: ApiDescriptor,
+  maxDepth: number | null = null,
 ): Record<string, unknown> {
   const links: Record<string, string> = {}
   for (const name of PAGE_LINKS) {
@@ -69,7 +77,9 @@ export function flattenCollection(
     }
   }
   const out: Record<string, unknown> = {
-    items: value.map((item) => (isObject(item) ? flattenResource(item, descriptor) : item)),
+    items: value.map((item) =>
+      isObject(item) ? flattenResource(item, descriptor, [], maxDepth) : item,
+    ),
     links,
   }
   if (value.$meta !== undefined) {

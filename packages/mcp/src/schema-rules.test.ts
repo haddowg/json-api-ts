@@ -132,13 +132,32 @@ export function inputSchemaViolations(schema: JsonSchema): string[] {
 
 describe('every input schema is portable', () => {
   for (const name of ['music-catalog', 'music-catalog-admin', 'contract-witness'] as const) {
-    const mcp = createJsonApiMcp(fixture(name))
-    it.each(mcp.tools.map((tool) => [tool.name, tool] as const))(`${name}: %s`, (_, tool) => {
-      expect(tool.name).toMatch(/^[a-zA-Z0-9_-]{1,64}$/)
-      expect(inputSchemaViolations(tool.inputSchema)).toEqual([])
-      expect(JSON.stringify(tool.inputSchema)).not.toMatch(/"(oneOf|if|then)"/)
-    })
+    for (const includeDepth of [1, 2, null]) {
+      const mcp = createJsonApiMcp(fixture(name, { includeDepth }))
+      it.each(mcp.tools.map((tool) => [tool.name, tool] as const))(
+        `${name}, include depth ${includeDepth}: %s`,
+        (_, tool) => {
+          expect(tool.name).toMatch(/^[a-zA-Z0-9_-]{1,64}$/)
+          expect(inputSchemaViolations(tool.inputSchema)).toEqual([])
+          expect(JSON.stringify(tool.inputSchema)).not.toMatch(/"(oneOf|if|then)"/)
+        },
+      )
+    }
   }
+
+  it('lists the include paths a tool accepts as an enum on a nullable array', () => {
+    const tools = createJsonApiMcp(fixture('music-catalog')).tools
+    const include = (
+      tools.find((t) => t.name === 'albums_get')!.inputSchema['properties'] as Record<
+        string,
+        JsonSchema
+      >
+    )['include']
+    expect(include).toMatchObject({
+      type: ['array', 'null'],
+      items: { type: 'string', enum: ['artist', 'tracks'] },
+    })
+  })
 
   it('catches what it should', () => {
     expect(

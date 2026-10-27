@@ -64,6 +64,8 @@ export interface CallEnvironment {
   transport: JsonApiTransport | undefined
   headers: HeadersInit | undefined
   signal: AbortSignal | undefined
+  /** How many relationships deep a result nests included resources; null for no cap. */
+  includeDepth: number | null
 }
 
 const text = (value: string): McpContent => ({ type: 'text', text: value })
@@ -118,6 +120,15 @@ export function readQuery(args: Record<string, unknown>, plan: QueryPlan): ReadQ
     query.sort = sort
   }
   const include = plan.include ? stringList(args['include'], 'include') : undefined
+  if (plan.includePaths !== undefined) {
+    const allowed = plan.includePaths
+    const refused = (include ?? []).filter((path) => !allowed.includes(path))
+    if (refused.length > 0) {
+      throw new ArgumentError(
+        `include can't name ${refused.map((p) => `"${p}"`).join(', ')}; this tool includes only ${allowed.join(', ')}`,
+      )
+    }
+  }
   if (include !== undefined && include.length > 0) {
     query.include = include
   }
@@ -323,7 +334,9 @@ export async function runCall(
       if (entry.result === 'item') {
         const related = await accessor.id(requireId(args)).rel(op.relation!).related(query)
         return structured({
-          item: isObject(related) ? flattenResource(related, env.descriptor) : null,
+          item: isObject(related)
+            ? flattenResource(related, env.descriptor, [], env.includeDepth)
+            : null,
         })
       }
       let collection: unknown
@@ -363,13 +376,19 @@ export async function runCall(
         collection = await accessor.id(requireId(args)).rel(op.relation!).related(query)
       }
       return structured(
-        flattenCollection(Array.isArray(collection) ? collection : [], env.descriptor),
+        flattenCollection(
+          Array.isArray(collection) ? collection : [],
+          env.descriptor,
+          env.includeDepth,
+        ),
       )
     }
     case 'get': {
       const resource = await accessor.get(requireId(args), query)
       return structured({
-        item: isObject(resource) ? flattenResource(resource, env.descriptor) : null,
+        item: isObject(resource)
+          ? flattenResource(resource, env.descriptor, [], env.includeDepth)
+          : null,
       })
     }
     case 'create': {
@@ -377,7 +396,7 @@ export async function runCall(
       const created = await accessor.create(input)
       return structured(
         isObject(created)
-          ? flattenResource(created, env.descriptor)
+          ? flattenResource(created, env.descriptor, [], env.includeDepth)
           : { id: String(input['id'] ?? ''), type: op.type },
       )
     }
@@ -385,7 +404,9 @@ export async function runCall(
       const id = requireId(args)
       const updated = await accessor.id(id).update(writeInput(args, entry.input.write!))
       return structured(
-        isObject(updated) ? flattenResource(updated, env.descriptor) : { id, type: op.type },
+        isObject(updated)
+          ? flattenResource(updated, env.descriptor, [], env.includeDepth)
+          : { id, type: op.type },
       )
     }
     case 'delete': {
@@ -434,14 +455,16 @@ async function runAction(
 
   switch (entry.result) {
     case 'collection':
-      return structured(flattenCollection(Array.isArray(result) ? result : [], env.descriptor))
+      return structured(
+        flattenCollection(Array.isArray(result) ? result : [], env.descriptor, env.includeDepth),
+      )
     case 'resource':
     case 'loose':
       if (Array.isArray(result)) {
-        return structured(flattenCollection(result, env.descriptor))
+        return structured(flattenCollection(result, env.descriptor, env.includeDepth))
       }
       return isObject(result)
-        ? structured(flattenResource(result, env.descriptor))
+        ? structured(flattenResource(result, env.descriptor, [], env.includeDepth))
         : { content: [text('The action returned no resource.')] }
     case 'meta':
       return structured(isObject(result) ? result : {})
