@@ -248,7 +248,9 @@ describe('emit (per-relation mutation verbs)', () => {
 
 describe('emit (atomic capability)', () => {
   it('emits the server-level atomic const for a server with /operations', () => {
-    expect(source).toMatch(/export const atomic = \{\s*path: "\/operations"\s*\} as const/)
+    expect(source).toMatch(
+      /export const atomic = \{\s*path: "\/operations",\s*scopes: \[\s*"batch"\s*\]\s*\} as const/,
+    )
   })
 
   it('emits `atomic = null` when the server has no atomic endpoint', () => {

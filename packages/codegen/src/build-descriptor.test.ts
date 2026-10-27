@@ -164,6 +164,7 @@ describe('buildDescriptor — custom actions', () => {
       inputType: 'albums',
       outputType: 'albums',
       outputCardinality: 'one',
+      scopes: ['catalog:write'],
     })
   })
 
@@ -174,6 +175,7 @@ describe('buildDescriptor — custom actions', () => {
       input: 'none',
       // A meta-only document ($ref MetaDocument) — the client returns its top-level `meta`.
       output: 'meta',
+      readOnly: true,
     })
   })
 
@@ -190,6 +192,8 @@ describe('buildDescriptor — custom actions', () => {
         { mediaType: 'multipart/form-data', kind: 'multipart' },
         { mediaType: 'image/*', kind: 'binary' },
       ],
+      idempotent: true,
+      scopes: ['catalog:write', 'catalog:media'],
     })
   })
 
@@ -425,12 +429,16 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
 
 describe('buildAtomic — server-level atomic capability', () => {
   it('detects the /operations endpoint by its atomic ext media type', () => {
-    expect(buildAtomic(loadFixture('music-catalog.openapi.json'))).toEqual({ path: '/operations' })
+    expect(buildAtomic(loadFixture('music-catalog.openapi.json'))).toEqual({
+      path: '/operations',
+      scopes: ['batch'],
+    })
   })
 
   it('detects the atomic endpoint on the admin server too', () => {
     expect(buildAtomic(loadFixture('music-catalog-admin.openapi.json'))).toEqual({
       path: '/operations',
+      scopes: ['batch'],
     })
   })
 
