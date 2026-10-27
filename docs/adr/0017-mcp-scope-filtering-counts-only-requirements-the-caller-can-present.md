@@ -18,3 +18,9 @@ scopes under. A document with no `oauth2` scheme records none and filters as bef
 guessing which `http` or `apiKey` scheme a caller holds would drop tools a host relies on; such a
 host passes `credentialSchemes` itself. What we gave up is the old default for a mixed document:
 a bearer-only operation beside `oauth2` ones is now left out until the host names `bearer`.
+
+A `null` grant means no scopes granted, the same as `[]`, so it fails closed. A plain JS host can
+pass one, and it used to reach the scope matcher, which threw. Core's
+`GrantedScopesProviderInterface` reads a null grant as an unrestricted caller, but here a host
+switches filtering off by leaving `grantedScopes` undefined, so a null from a failed token lookup
+can't widen the tool list.

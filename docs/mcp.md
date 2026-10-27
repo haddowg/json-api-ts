@@ -199,4 +199,6 @@ A document with no `oauth2` scheme records none, and the filter then counts ever
 
 Omitting `grantedScopes` from `forRequest` skips this filter entirely, credential schemes included.
 
+Passing `null` grants no scopes, the same as `[]`. The filter fails closed, so the caller sees only public operations and those whose applicable alternative lists no scopes. This differs from core's `GrantedScopesProviderInterface`, where a null grant means the caller is unrestricted. Here, leaving `grantedScopes` out or passing `undefined` is the only way to switch filtering off.
+
 From generator contract 16 the server writes the scopes it enforces into each operation's `security` under its `oauth2` scheme, so a related read lists the scopes of the type it returns as well. The operation's `scopes` holds the same list for a hook to read, and is absent when it needs none.

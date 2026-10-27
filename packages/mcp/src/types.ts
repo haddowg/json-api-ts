@@ -177,8 +177,12 @@ export interface JsonApiMcpOptions<Ctx> {
 
 /** Per-request input to {@link JsonApiMcp.forRequest}. */
 export interface McpRequest<Ctx> {
-  /** The caller's granted scopes. Omit to skip scope filtering, credential schemes included. */
-  grantedScopes?: readonly string[]
+  /**
+   * The caller's granted scopes. Omit to skip scope filtering, credential schemes included. `null`
+   * grants none, the same as `[]`, unlike core's `GrantedScopesProviderInterface`, where null means
+   * unrestricted.
+   */
+  grantedScopes?: readonly string[] | null
   /** The host's own per-request context, handed to every hook. */
   context: Ctx
 }
