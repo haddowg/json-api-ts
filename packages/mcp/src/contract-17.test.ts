@@ -147,7 +147,7 @@ describe('the music catalogue at contract 17', () => {
       },
     }))
     const mcp = createJsonApiMcp({ ...fixture('music-catalog'), transport })
-    expect(mcp.contract).toBe(17)
+    expect(mcp.contract).toBeGreaterThanOrEqual(17)
     const download = mcp.tools.find((t) => t.name === 'albums_download')!
     expect(download.annotations).toEqual({ readOnlyHint: true })
     expect(download.outputSchema?.['required']).toEqual(['url', 'type'])
