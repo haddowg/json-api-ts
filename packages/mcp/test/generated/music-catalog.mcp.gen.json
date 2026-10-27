@@ -770,7 +770,7 @@
                 "tracks"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -2006,7 +2006,7 @@
                 "playlists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -2715,7 +2715,7 @@
                 "playlists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -4195,7 +4195,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -5680,7 +5680,7 @@
                 "playlists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -6808,7 +6808,7 @@
                 "tracks"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -7236,7 +7236,7 @@
                 "tracks"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -8319,7 +8319,7 @@
                 "catalog-exports"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -8435,7 +8435,7 @@
                 "catalog-exports"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -9146,7 +9146,7 @@
                 "devices"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -9258,7 +9258,7 @@
                 "devices"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -9536,7 +9536,7 @@
                 "export-jobs"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -9647,7 +9647,7 @@
                 "export-jobs"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -10165,7 +10165,7 @@
                 "artists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -10556,7 +10556,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -10755,7 +10755,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -11277,7 +11277,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -11565,7 +11565,7 @@
                 "genres"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -11677,7 +11677,7 @@
                 "genres"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -12595,7 +12595,7 @@
                 "artists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -13065,7 +13065,7 @@
                 "artists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -13524,7 +13524,7 @@
                 "artists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -14018,7 +14018,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -15386,7 +15386,7 @@
                 "albums"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -15830,7 +15830,7 @@
                 "albums"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -16418,7 +16418,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -16986,7 +16986,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -17222,7 +17222,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -18630,7 +18630,7 @@
                 "products"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -18767,7 +18767,7 @@
                 "products"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -18953,7 +18953,7 @@
                 "products"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -19275,7 +19275,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -19400,7 +19400,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -19601,7 +19601,7 @@
                 "playlists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -21171,7 +21171,7 @@
                 "tracks"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -21796,7 +21796,7 @@
                 "tracks"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -23533,7 +23533,7 @@
                 "playlists"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -24741,7 +24741,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             }
           },
           "required": [
@@ -25326,7 +25326,7 @@
                 "public-profiles"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
@@ -25921,7 +25921,7 @@
                 "albums"
               ],
               "additionalProperties": false,
-              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields."
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
             },
             "pageSize": {
               "type": [
