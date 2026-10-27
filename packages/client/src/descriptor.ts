@@ -163,10 +163,20 @@ export type ActionInput = 'document' | 'none' | 'raw'
 
 /**
  * What a custom action returns: a JSON:API document (materialised into the resource view of its
- * {@link ActionDescriptor.outputType}), a meta-only document (its top-level `meta`), or nothing (a
- * `204`).
+ * {@link ActionDescriptor.outputType}), a meta-only document (its top-level `meta`), only the URL
+ * of a location document (see {@link ActionDescriptor.location}), or nothing (a `204`).
  */
-export type ActionOutput = 'document' | 'meta' | 'none'
+export type ActionOutput = 'document' | 'meta' | 'location' | 'none'
+
+/**
+ * An action that answers with a URL, such as a short-lived download link (generator contract 17).
+ * Asked for JSON:API, the server answers `200` with a location document whose `links.location`
+ * carries the URL, and the client returns that URL without following it.
+ */
+export interface ActionLocationDescriptor {
+  /** The media type the action declares the URL serves, such as `text/csv`. */
+  mediaType: string
+}
 
 /**
  * How the client reads or sends a body that is not JSON:API: `binary` as a `Blob` or
@@ -264,6 +274,13 @@ export interface ActionDescriptor {
    * 16). Absent when it needs none.
    */
   scopes?: readonly string[]
+  /**
+   * Present when the action answers with a URL in a location document (generator contract 17).
+   * With {@link output} `location` that is all it answers with; with `document` or `meta` it
+   * answers with either, and the client tells them apart by the document's shape. Absent for an
+   * action that answers with a bare `303`, which the transport follows as before.
+   */
+  location?: ActionLocationDescriptor
 }
 
 /**

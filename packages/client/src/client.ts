@@ -7,6 +7,7 @@ import type {
   InputMediaKind,
 } from './descriptor'
 import { JsonApiError } from './errors'
+import { readActionLocation } from './location'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
 import { resolvePaginator } from './pagination'
 import {
@@ -271,9 +272,10 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
  *
  * The response is shaped by the action's `output`: `document` materialises into the resource /
  * collection view, `meta` returns the document's top-level `meta`, `none` resolves `undefined` (a
- * `204` / no body). An action declaring `rawOutput` answers in the media type the caller picks
- * with `options.accept`: JSON:API as above, or a `string`, a `Blob` or `ArrayBuffer`, or parsed
- * JSON by the media type's kind.
+ * `204` / no body). An action declaring a `location` returns the URL of a location document as an
+ * `ActionLocation` and never follows it. An action declaring `rawOutput` answers in the media type
+ * the caller picks with `options.accept`: JSON:API as above, or a `string`, a `Blob` or
+ * `ArrayBuffer`, or parsed JSON by the media type's kind.
  */
 async function runAction(
   ctx: ClientContext,
@@ -325,7 +327,16 @@ async function runAction(
       return raw.kind === 'json' && text !== undefined ? (JSON.parse(text) as unknown) : text
     }
     const doc = await execute(ctx.request, req)
-    if (action.output === 'none' || doc === undefined) {
+    if (action.location !== undefined) {
+      const location = doc === undefined ? undefined : readActionLocation(doc, action.location)
+      if (location !== undefined) {
+        return location
+      }
+      if (action.output === 'location') {
+        throw new Error('The action answered without the location document it declares.')
+      }
+    }
+    if (action.output === 'none' || action.output === 'location' || doc === undefined) {
       return undefined
     }
     if (action.output === 'meta') {

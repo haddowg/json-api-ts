@@ -135,6 +135,37 @@ const cover = await client.articles.id('art-1').actions.cover() // Blob
 
 A custom [transport](getting-started.md) has to honour `responseType` for binary media types: read a successful response into `binary` instead of `body`. The `fetch` transport and the Angular `httpClientTransport` do.
 
+## Actions that answer with a URL
+
+Some actions hand out a URL instead of a body, such as a presigned link to a CSV export in object storage. From generator contract 17 the server answers such an action with a location document when the request asks for JSON:API, and with a `303` redirect otherwise. The client always asks for JSON:API, so it gets the document and returns the URL as an `ActionLocation`, without fetching it:
+
+```ts
+// GET /articles/{id}/-actions/download answers with a link to the article as text/csv.
+const { url, type, expiresAt } = await client.articles.id('art-1').actions.download()
+// url: 'https://storage.example.com/art-1.csv?signature=…'
+// type: 'text/csv'
+// expiresAt: '2026-10-27T12:00:00+00:00', absent when the URL doesn't expire
+
+window.location.assign(url) // or hand it to a download link, an <img>, or another service
+```
+
+`type` is the media type the link names, which is normally the one the action declares. `expiresAt` stays the ISO 8601 string the server sent, like every date the client reads. The descriptor marks the action with `location: { mediaType }`, and with `output: 'location'` when the URL is all it returns.
+
+An action can declare its own JSON:API document as well, and answer with either. Its method then resolves to the resource or an `ActionLocation`, and `isActionLocation()` tells them apart:
+
+```ts
+import { isActionLocation } from '@haddowg/json-api-client'
+
+const result = await client.articles.id('art-1').actions.revision()
+if (isActionLocation(result)) {
+  window.open(result.url)
+} else {
+  console.log(result.title)
+}
+```
+
+An action that only documents a `303`, such as an asynchronous job pointing at what it produced, has no `location`. Its method is typed as before, and the transport follows the redirect.
+
 ## Request media types
 
 An action can accept several request media types. Pick one with `contentType`, and the body is typed by it:
