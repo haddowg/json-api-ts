@@ -202,8 +202,9 @@ describe('annotations', () => {
 
   it('gives an action no hints until it declares its safety', () => {
     const tools = createJsonApiMcp(fixture('music-catalog')).tools
-    expect(tool(tools, 'albums_export').annotations).toBeUndefined()
+    expect(tool(tools, 'albums_import').annotations).toBeUndefined()
     expect(tool(tools, 'albums_reissue').annotations).toBeUndefined()
+    expect(tool(tools, 'albums_export').annotations).toEqual({ readOnlyHint: true })
   })
 
   it('reads the declared flags from x-safety', () => {

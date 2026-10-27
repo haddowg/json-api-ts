@@ -21,6 +21,20 @@ describe('generator contract 16', () => {
     expect(createJsonApiMcp(fixture('contract-witness')).contract).toBe(16)
   })
 
+  it("filters the music catalogue's writes by the scopes it declares", async () => {
+    const mcp = createJsonApiMcp(fixture('music-catalog'))
+    const playlists = mcp.operations.find((o) => o.toolName === 'playlists_delete')!
+    expect(playlists.security).toEqual([{ oauth2: ['library:write', 'library:admin'] }])
+    expect(playlists.scopes).toEqual(['library:write', 'library:admin'])
+    const tools = names(
+      (await mcp.forRequest({ grantedScopes: ['library:write'], context: {} })).tools,
+    )
+    expect(tools).toContain('albums_list')
+    expect(tools).toContain('playlists_update')
+    expect(tools).not.toContain('playlists_delete')
+    expect(tools).not.toContain('albums_create')
+  })
+
   describe('operation scopes', () => {
     const mcp = createJsonApiMcp(fixture('contract-witness'))
     const op = (tool: string) => mcp.operations.find((o) => o.toolName === tool)!
