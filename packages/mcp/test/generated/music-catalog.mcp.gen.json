@@ -1,10 +1,10 @@
 {
   "format": 1,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 14,
+  "contract": 16,
   "source": {
     "title": "Music Catalog API 1.0.0",
-    "hash": "68cfec0bfbf28d9b"
+    "hash": "6d1632b7866439fb"
   },
   "descriptor": {
     "albums": {
@@ -107,6 +107,11 @@
               "mediaType": "image/*",
               "kind": "binary"
             }
+          ],
+          "idempotent": true,
+          "scopes": [
+            "catalog:write",
+            "catalog:media"
           ]
         },
         "export": {
@@ -128,7 +133,8 @@
               "mediaType": "application/json",
               "kind": "json"
             }
-          ]
+          ],
+          "readOnly": true
         },
         "import": {
           "scope": "collection",
@@ -153,6 +159,9 @@
               "mediaType": "application/json",
               "kind": "json"
             }
+          ],
+          "scopes": [
+            "catalog:write"
           ]
         },
         "reissue": {
@@ -162,14 +171,41 @@
           "output": "document",
           "inputType": "albums",
           "outputType": "albums",
-          "outputCardinality": "one"
+          "outputCardinality": "one",
+          "scopes": [
+            "catalog:write"
+          ]
         },
         "summary": {
           "scope": "collection",
           "path": "/albums/-actions/summary",
           "input": "none",
-          "output": "meta"
+          "output": "meta",
+          "readOnly": true
         }
+      },
+      "scopes": {
+        "addRelationship.tracks": [
+          "catalog:write"
+        ],
+        "create": [
+          "catalog:write"
+        ],
+        "delete": [
+          "catalog:write"
+        ],
+        "removeRelationship.tracks": [
+          "catalog:write"
+        ],
+        "update": [
+          "catalog:write"
+        ],
+        "updateRelationship.artist": [
+          "catalog:write"
+        ],
+        "updateRelationship.tracks": [
+          "catalog:write"
+        ]
       }
     },
     "artists": {
@@ -511,7 +547,43 @@
         "orderedTracks",
         "orderedTracks.album",
         "orderedTracks.playlists"
-      ]
+      ],
+      "scopes": {
+        "addRelationship.orderedTracks": [
+          "library:write"
+        ],
+        "addRelationship.tracks": [
+          "library:write"
+        ],
+        "create": [
+          "library:write"
+        ],
+        "delete": [
+          "library:write",
+          "library:admin"
+        ],
+        "removeRelationship.orderedTracks": [
+          "library:write"
+        ],
+        "removeRelationship.tracks": [
+          "library:write"
+        ],
+        "update": [
+          "library:write"
+        ],
+        "updateRelationship.orderedTracks": [
+          "library:write"
+        ],
+        "updateRelationship.owner": [
+          "library:write"
+        ],
+        "updateRelationship.publicOwner": [
+          "library:write"
+        ],
+        "updateRelationship.tracks": [
+          "library:write"
+        ]
+      }
     },
     "products": {
       "attributes": {
@@ -1101,12 +1173,24 @@
           ],
           "summary": "Create an album",
           "description": "Creates a new album from the supplied attributes and relationships.",
-          "operationId": "create.albums"
+          "operationId": "create.albums",
+          "security": [
+            {
+              "oauth2": [
+                "catalog:write"
+              ]
+            }
+          ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "catalog:write"
+            ]
           }
+        ],
+        "scopes": [
+          "catalog:write"
         ]
       },
       "tool": {
@@ -1830,12 +1914,24 @@
           ],
           "summary": "Delete an album",
           "description": "Deletes the album identified by its `id`.",
-          "operationId": "delete.albums"
+          "operationId": "delete.albums",
+          "security": [
+            {
+              "oauth2": [
+                "catalog:write"
+              ]
+            }
+          ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "catalog:write"
+            ]
           }
+        ],
+        "scopes": [
+          "catalog:write"
         ]
       },
       "tool": {
@@ -1881,7 +1977,10 @@
           ],
           "summary": "Export the album catalogue",
           "description": "Exports every album in the format the Accept header asks for: a JSON:API meta document with counts, a CSV of ids and titles, a PDF report, or the counts as plain JSON.",
-          "operationId": "action.albums.export"
+          "operationId": "action.albums.export",
+          "x-safety": {
+            "readOnly": true
+          }
         },
         "security": [
           {
@@ -1905,6 +2004,9 @@
           "type": "object",
           "description": "A JSON:API meta object: a free-form set of non-standard members.",
           "additionalProperties": {}
+        },
+        "annotations": {
+          "readOnlyHint": true
         },
         "_meta": {
           "operationId": "action.albums.export"
@@ -2423,12 +2525,24 @@
           ],
           "summary": "Import albums from a file",
           "description": "Creates albums from a CSV export, a scanned sleeve image, a multipart form upload or a JSON list of rows. The response reports the media type the server read.",
-          "operationId": "action.albums.import"
+          "operationId": "action.albums.import",
+          "security": [
+            {
+              "oauth2": [
+                "catalog:write"
+              ]
+            }
+          ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "catalog:write"
+            ]
           }
+        ],
+        "scopes": [
+          "catalog:write"
         ],
         "action": "import",
         "actionKey": "import"
@@ -3250,14 +3364,21 @@
           "operationId": "action.albums.reissue",
           "security": [
             {
-              "bearer": []
+              "oauth2": [
+                "catalog:write"
+              ]
             }
           ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "catalog:write"
+            ]
           }
+        ],
+        "scopes": [
+          "catalog:write"
         ],
         "action": "reissue",
         "actionKey": "reissue"
@@ -3986,7 +4107,10 @@
           ],
           "summary": "Invoke the `summary` action",
           "description": "Invokes the `summary` custom action on the albums collection.",
-          "operationId": "action.albums.summary"
+          "operationId": "action.albums.summary",
+          "x-safety": {
+            "readOnly": true
+          }
         },
         "security": [
           {
@@ -4010,6 +4134,9 @@
           "type": "object",
           "description": "A JSON:API meta object: a free-form set of non-standard members.",
           "additionalProperties": {}
+        },
+        "annotations": {
+          "readOnlyHint": true
         },
         "_meta": {
           "operationId": "action.albums.summary"
@@ -4730,12 +4857,24 @@
           ],
           "summary": "Update an album",
           "description": "Updates an existing album, applying the supplied attributes and relationships.",
-          "operationId": "update.albums"
+          "operationId": "update.albums",
+          "security": [
+            {
+              "oauth2": [
+                "catalog:write"
+              ]
+            }
+          ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "catalog:write"
+            ]
           }
+        ],
+        "scopes": [
+          "catalog:write"
         ]
       },
       "tool": {
@@ -14669,12 +14808,24 @@
           ],
           "summary": "Create a playlist",
           "description": "Creates a new playlist from the supplied attributes and relationships.",
-          "operationId": "create.playlists"
+          "operationId": "create.playlists",
+          "security": [
+            {
+              "oauth2": [
+                "library:write"
+              ]
+            }
+          ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "library:write"
+            ]
           }
+        ],
+        "scopes": [
+          "library:write"
         ]
       },
       "tool": {
@@ -15262,14 +15413,24 @@
           "operationId": "delete.playlists",
           "security": [
             {
-              "bearer": []
+              "oauth2": [
+                "library:write",
+                "library:admin"
+              ]
             }
           ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "library:write",
+              "library:admin"
+            ]
           }
+        ],
+        "scopes": [
+          "library:write",
+          "library:admin"
         ]
       },
       "tool": {
@@ -17758,14 +17919,21 @@
           "operationId": "update.playlists",
           "security": [
             {
-              "bearer": []
+              "oauth2": [
+                "library:write"
+              ]
             }
           ]
         },
         "security": [
           {
-            "bearer": []
+            "oauth2": [
+              "library:write"
+            ]
           }
+        ],
+        "scopes": [
+          "library:write"
         ]
       },
       "tool": {
