@@ -7,6 +7,7 @@ import {
   type ActionDescriptor,
   type ApiDescriptor,
   type CountableDescriptor,
+  isPolymorphic,
   type PaginatorDescriptor,
   type RelationDescriptor,
   resolvePaginator,
@@ -65,7 +66,7 @@ export interface QueryPlan {
 
 /** One top-level write field: an attribute, or a relation sent as ids. */
 export interface WriteField {
-  relation?: { cardinality: 'one' | 'many'; types: readonly string[] }
+  relation?: { cardinality: 'one' | 'many'; types: readonly string[]; polymorphic?: boolean }
   property: PropertyDecoder
 }
 
@@ -254,7 +255,7 @@ function relationArgument(
   relation: RelationDescriptor,
   allowNull: boolean,
 ): JsonSchema {
-  const polymorphic = relation.types.length > 1
+  const polymorphic = isPolymorphic(relation)
   const one: JsonSchema = polymorphic
     ? closedObject({
         type: { type: 'string', enum: [...relation.types] },
@@ -341,7 +342,9 @@ function writeInput(
     const schema = relationArgument(name, relation, linkageAllowsNull)
     properties[name] = isRequired || allowsNull(schema) ? schema : nullable(schema)
     fields[name] = {
-      relation: { cardinality: relation.cardinality, types: relation.types },
+      relation: isPolymorphic(relation)
+        ? { cardinality: relation.cardinality, types: relation.types, polymorphic: true }
+        : { cardinality: relation.cardinality, types: relation.types },
       property: { decoder: { kind: 'value' }, nullMeansOmit: !isRequired },
     }
     if (isRequired) {

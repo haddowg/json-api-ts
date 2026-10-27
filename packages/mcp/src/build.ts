@@ -58,6 +58,7 @@ export function buildMcpModel(
         operation: lightOperation(op.operation),
         security: op.security,
       }
+      if (op.scopes !== undefined) operation.scopes = op.scopes
       if (op.relation !== undefined) operation.relation = op.relation
       if (op.action !== undefined) operation.action = op.action
       if (entry.actionKey !== undefined) operation.actionKey = entry.actionKey

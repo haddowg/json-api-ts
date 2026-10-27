@@ -54,6 +54,7 @@ function hydrate(model: McpModel, tool: McpModelTool): ToolEntry {
     operation: source.operation,
     security: source.security,
   }
+  if (source.scopes !== undefined) op.scopes = source.scopes
   if (source.relation !== undefined) {
     op.relation = source.relation
     const relation = resource.relations[source.relation]

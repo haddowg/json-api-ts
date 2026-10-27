@@ -35,6 +35,8 @@ export interface McpModelOperation {
    */
   operation: OperationObject
   security: readonly SecurityRequirement[]
+  /** The OAuth scopes the descriptor says the operation needs. Absent when none. */
+  scopes?: readonly string[]
 }
 
 /** How the handler turns one tool's arguments into a client call. */

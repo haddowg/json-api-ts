@@ -80,8 +80,16 @@ export interface McpOperation {
   actionDescriptor?: ActionDescriptor
   /** The operation object as the document writes it, extensions included. */
   operation: OperationObject
-  /** The operation's own `security`, else the document's. Empty means none is required. */
+  /**
+   * The operation's own `security`, else the document's. Empty means none is required. The
+   * default scope filtering reads the scopes it lists.
+   */
   security: readonly SecurityRequirement[]
+  /**
+   * The OAuth scopes the operation needs, as the descriptor carries them (generator contract
+   * 16): the ones its `security` lists under an `oauth2` scheme. Absent when it needs none.
+   */
+  scopes?: readonly string[]
 }
 
 /** What the host's capabilities resource says about one operation for this caller. */

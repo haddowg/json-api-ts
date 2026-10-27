@@ -290,7 +290,10 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
   method of a multi-method action is its own tool, suffixed with the method, and calls the
   descriptor entry at its path and method. CRUD hints come from the kind; a delete is
   destructive and idempotent.
-- **Contract:** reads 13 to 15 and throws outside it.
+- **Polymorphic relations:** a relation `isPolymorphic()` takes and returns `{ type, id }`,
+  even over one type, so adding a second type doesn't change a tool's input. Every other
+  relation takes a bare id. Each operation carries the descriptor's `scopes` for its hooks.
+- **Contract:** reads 13 to 16 and throws outside it.
 
 ### Dependency policy (supersedes "zero runtime deps")
 
