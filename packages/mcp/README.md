@@ -41,6 +41,8 @@ session.tools // answer tools/list with these
 await session.callTool('albums_list', { sort: ['-releasedAt'], pageSize: 5 })
 ```
 
-Scopes, feature gates, headers and error hints come from optional hooks: `scopeMatcher`,
-`capabilities`, `includeOperation`, `decorateTool`, `requestInit` and `mapError`. See the
+Scope filtering counts only the security requirements a caller can meet with its credential
+schemes, the document's `oauth2` schemes unless you pass `credentialSchemes`. Scopes, feature
+gates, headers and error hints come from optional hooks: `scopeMatcher`, `capabilities`,
+`includeOperation`, `decorateTool`, `requestInit` and `mapError`. See the
 [MCP tools guide](https://haddowg.github.io/json-api-ts/mcp/).

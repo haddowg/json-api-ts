@@ -285,6 +285,13 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
 - **Per caller:** `forRequest({ grantedScopes, context })` filters by the operation's
   `security` through `scopeMatcher`, then `capabilities`, then `includeOperation`;
   `decorateTool`, `requestInit` and `mapError` are the other hooks. They're public API.
+- **Credential schemes** (ADR 0017): the scope filter counts a security requirement only when
+  every scheme it names is one the MCP caller authenticates with. The model records the
+  document's `oauth2` schemes as `credentialSchemes` (format 2), and the host's
+  `credentialSchemes` option overrides them. A requirement naming another scheme, such as a
+  session cookie, is ignored; an operation with security but no requirement left is dropped,
+  and an empty or `{}` alternative stays public. With no `oauth2` scheme every requirement
+  counts, as before. A format 1 model is read with the schemes it lists scopes under.
 - **Safety:** an action's declared `readOnly`, `destructive` and `idempotent` become its
   annotations, read from its descriptor entry and its `x-safety`, the latter winning. Every
   method of a multi-method action is its own tool, suffixed with the method, and calls the

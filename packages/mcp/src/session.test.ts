@@ -1,20 +1,39 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createJsonApiMcp, satisfiesSecurity } from './mcp'
-import type { OpenApiDocument } from './openapi'
+import type { OpenApiDocument, OperationObject, SecurityRequirement } from './openapi'
 import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
 import type { McpOperation } from './types'
 
-/** The music catalogue with OAuth scopes on some operations and a vendor extension on others. */
+/**
+ * The music catalogue with OAuth scopes on some operations and a vendor extension on others. Its
+ * other operations need the bearer scheme, which the caller's OAuth token also satisfies here.
+ */
 function scoped() {
   const { document, descriptor } = source('music-catalog')
   const doc = structuredClone(document) as OpenApiDocument
-  doc.paths!['/albums']!.get!.security = [{ oauth: ['albums:read'] }]
-  doc.paths!['/albums']!.post!.security = [{ oauth: ['albums:write'] }]
+  doc.paths!['/albums']!.get!.security = [{ oauth2: ['albums:read'] }]
+  doc.paths!['/albums']!.post!.security = [{ oauth2: ['albums:write'] }]
   doc.paths!['/albums/{id}']!.delete!.security = [
-    { oauth: ['albums:manage'] },
+    { oauth2: ['albums:manage'] },
     { apiKey: ['admin:manage'] },
   ]
   doc.paths!['/artists']!.get!['x-feature'] = 'artists'
+  return { ...modelOf(doc, descriptor), credentialSchemes: ['oauth2', 'bearer'] }
+}
+
+/** The music catalogue with `security` set on four operations, the rest left as written. */
+function securedBy(security: Record<string, SecurityRequirement[]>) {
+  const { document, descriptor } = source('music-catalog')
+  const doc = structuredClone(document) as OpenApiDocument
+  const ops: Record<string, OperationObject> = {
+    albums_list: doc.paths!['/albums']!.get!,
+    albums_create: doc.paths!['/albums']!.post!,
+    albums_get: doc.paths!['/albums/{id}']!.get!,
+    albums_delete: doc.paths!['/albums/{id}']!.delete!,
+  }
+  for (const [tool, value] of Object.entries(security)) {
+    ops[tool]!.security = value
+  }
   return modelOf(doc, descriptor)
 }
 
@@ -30,7 +49,7 @@ describe('scopes', () => {
     expect(
       scoped().model.tools.find((t) => t.operation.operationId === 'fetchCollection.albums')!
         .operation.security,
-    ).toEqual([{ oauth: ['albums:read'] }])
+    ).toEqual([{ oauth2: ['albums:read'] }])
   })
 
   it('filters by granted scopes, exactly by default', async () => {
@@ -41,7 +60,7 @@ describe('scopes', () => {
     expect(tools).toContain('albums_list')
     expect(tools).not.toContain('albums_create')
     expect(tools).not.toContain('albums_delete')
-    // No scopes in the operation's security, or the document's bearer default: kept.
+    // The document's bearer default, a credential scheme listing no scopes: kept.
     expect(tools).toContain('albums_get')
   })
 
@@ -69,6 +88,111 @@ describe('scopes', () => {
   it('skips scope filtering when the request names no scopes', async () => {
     const mcp = createJsonApiMcp(scoped())
     expect((await mcp.forRequest({ context: {} })).tools).toHaveLength(mcp.tools.length)
+  })
+})
+
+describe('credential schemes', () => {
+  it("counts only requirements naming the caller's schemes", () => {
+    const security = [{ oauth2: ['x:read'] }, { session: [] }]
+    expect(satisfiesSecurity(security, [])).toBe(true)
+    expect(satisfiesSecurity(security, [], undefined, ['oauth2'])).toBe(false)
+    expect(satisfiesSecurity(security, ['x:read'], undefined, ['oauth2'])).toBe(true)
+    expect(
+      satisfiesSecurity([{ oauth2: ['x:read'], session: [] }], ['x:read'], undefined, ['oauth2']),
+    ).toBe(false)
+    expect(satisfiesSecurity([{ oauth2: [] }], [], undefined, ['oauth2'])).toBe(true)
+    expect(satisfiesSecurity([{ session: [] }], [], undefined, ['oauth2'])).toBe(false)
+    expect(satisfiesSecurity([], [], undefined, ['oauth2'])).toBe(true)
+    expect(satisfiesSecurity([{ session: [] }, {}], [], undefined, ['oauth2'])).toBe(true)
+  })
+
+  it("records the document's oauth2 schemes in the model", () => {
+    expect(fixture('music-catalog').model.credentialSchemes).toEqual(['oauth2'])
+    expect(createJsonApiMcp(fixture('music-catalog')).credentialSchemes).toEqual(['oauth2'])
+  })
+
+  it('leaves out an operation whose only scope-free alternative is another credential', async () => {
+    const mcp = createJsonApiMcp(
+      securedBy({ albums_list: [{ oauth2: ['x:read'] }, { session: [] }] }),
+    )
+    const session = await mcp.forRequest({ grantedScopes: [], context: {} })
+    expect(names(session.tools)).not.toContain('albums_list')
+    const refused = await session.callTool('albums_list', {})
+    expect(refused.isError).toBe(true)
+    expect(refused.content[0]).toEqual({
+      type: 'text',
+      text: expect.stringContaining('Unknown tool'),
+    })
+    const granted = await mcp.forRequest({ grantedScopes: ['x:read'], context: {} })
+    expect(names(granted.tools)).toContain('albums_list')
+  })
+
+  it('lists an oauth2-only operation only with its scope', async () => {
+    const mcp = createJsonApiMcp(securedBy({ albums_list: [{ oauth2: ['x:read'] }] }))
+    expect(names((await mcp.forRequest({ grantedScopes: [], context: {} })).tools)).not.toContain(
+      'albums_list',
+    )
+    expect(
+      names((await mcp.forRequest({ grantedScopes: ['x:read'], context: {} })).tools),
+    ).toContain('albums_list')
+  })
+
+  it('keeps a public operation and leaves out one needing another credential', async () => {
+    const mcp = createJsonApiMcp(
+      securedBy({
+        albums_list: [],
+        albums_get: [{ session: [] }, {}],
+        albums_create: [{ session: [] }],
+        albums_delete: [{ apiKey: [] }],
+      }),
+    )
+    const tools = names((await mcp.forRequest({ grantedScopes: [], context: {} })).tools)
+    expect(tools).toContain('albums_list')
+    expect(tools).toContain('albums_get')
+    expect(tools).not.toContain('albums_create')
+    expect(tools).not.toContain('albums_delete')
+    // The document's bearer default isn't a credential scheme either.
+    expect(tools).not.toContain('albums_tracks_list')
+  })
+
+  it("takes the host's schemes over the model's", async () => {
+    const mcp = createJsonApiMcp({
+      ...securedBy({ albums_delete: [{ apiKey: [] }], albums_create: [{ oauth2: ['x:write'] }] }),
+      credentialSchemes: ['oauth2', 'apiKey'],
+    })
+    expect(mcp.credentialSchemes).toEqual(['oauth2', 'apiKey'])
+    const tools = names((await mcp.forRequest({ grantedScopes: [], context: {} })).tools)
+    expect(tools).toContain('albums_delete')
+    expect(tools).not.toContain('albums_create')
+    expect(tools).not.toContain('albums_get')
+  })
+
+  it('counts every requirement when the document has no oauth2 scheme', async () => {
+    const { document, descriptor } = source('music-catalog')
+    const doc = structuredClone(document) as OpenApiDocument
+    delete (doc.components!['securitySchemes'] as Record<string, unknown>)['oauth2']
+    doc.paths!['/albums']!.get!.security = [{ oauth2: ['x:read'] }, { session: [] }]
+    const { model } = modelOf(doc, descriptor)
+    expect(model.credentialSchemes).toEqual([])
+    const mcp = createJsonApiMcp({ model })
+    expect(mcp.credentialSchemes).toBeUndefined()
+    let tools = names((await mcp.forRequest({ grantedScopes: [], context: {} })).tools)
+    expect(tools).toContain('albums_list')
+    expect(tools).toContain('albums_get')
+    // The host can still name them.
+    const strict = createJsonApiMcp({ model, credentialSchemes: ['oauth2'] })
+    tools = names((await strict.forRequest({ grantedScopes: [], context: {} })).tools)
+    expect(tools).not.toContain('albums_list')
+  })
+
+  it('reads a format 1 model, taking the schemes it lists scopes under', async () => {
+    const { credentialSchemes: _schemes, ...rest } = securedBy({
+      albums_list: [{ oauth2: ['x:read'] }, { session: [] }],
+    }).model
+    const mcp = createJsonApiMcp({ model: { ...rest, format: 1 } })
+    expect(mcp.credentialSchemes).toEqual(['oauth2'])
+    const tools = names((await mcp.forRequest({ grantedScopes: [], context: {} })).tools)
+    expect(tools).not.toContain('albums_list')
   })
 })
 

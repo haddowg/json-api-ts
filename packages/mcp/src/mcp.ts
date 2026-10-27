@@ -1,5 +1,11 @@
 import { errorResult, runCall, type ToolEntry, toToolError } from './call'
-import { assertModel, McpModelError, type McpModel, type McpModelTool } from './model'
+import {
+  assertModel,
+  inferCredentialSchemes,
+  McpModelError,
+  type McpModel,
+  type McpModelTool,
+} from './model'
 import type { SecurityRequirement } from './openapi'
 import type {
   JsonApiMcp,
@@ -19,21 +25,50 @@ export const exactScopeMatcher = (
 ): boolean => required.every((scope) => granted.includes(scope))
 
 /**
- * Whether granted scopes satisfy an operation's security: any one requirement whose scopes, across
- * its schemes, all match. No requirement, or one listing no scopes, needs none.
+ * Whether granted scopes satisfy an operation's security. No requirement, or an empty one, needs
+ * nothing. Given `credentialSchemes`, the schemes the caller authenticates with, a requirement
+ * counts only when it names nothing else, so an operation whose every requirement needs another
+ * credential fails. A counted requirement passes when its scopes, across its schemes, all match,
+ * or when it lists none. Without `credentialSchemes` every requirement counts.
  */
 export function satisfiesSecurity(
   security: readonly SecurityRequirement[],
   granted: readonly string[],
   matcher: (granted: readonly string[], required: readonly string[]) => boolean = exactScopeMatcher,
+  credentialSchemes?: readonly string[],
 ): boolean {
   if (security.length === 0) {
     return true
   }
   return security.some((requirement) => {
+    const schemes = Object.keys(requirement)
+    if (schemes.length === 0) {
+      return true
+    }
+    if (
+      credentialSchemes !== undefined &&
+      !schemes.every((scheme) => credentialSchemes.includes(scheme))
+    ) {
+      return false
+    }
     const scopes = Object.values(requirement).flat()
     return scopes.length === 0 || matcher(granted, scopes)
   })
+}
+
+/**
+ * The schemes the scope filter counts: the host's, else the model's, else for a format 1 model
+ * the schemes it lists scopes under. `undefined`, so every requirement counts, when that's empty.
+ */
+function resolveCredentialSchemes(
+  model: McpModel,
+  override: readonly string[] | undefined,
+): readonly string[] | undefined {
+  if (override !== undefined) {
+    return override
+  }
+  const schemes = model.credentialSchemes ?? inferCredentialSchemes(model)
+  return schemes.length > 0 ? schemes : undefined
 }
 
 /** Rebuild an operation for the hooks, adding back the descriptor entries it names. */
@@ -80,13 +115,16 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
   const descriptor = model.descriptor
   const catalogue = { entries: model.tools.map((tool) => hydrate(model, tool)) }
   const defaultBaseUrl = options.baseUrl ?? model.baseUrl
+  const credentialSchemes = resolveCredentialSchemes(model, options.credentialSchemes)
 
   async function forRequest(request: McpRequest<Ctx>): Promise<McpToolSession> {
     const ctx = request.context
     let entries: ToolEntry[] = catalogue.entries
     if (request.grantedScopes !== undefined) {
       const granted = request.grantedScopes
-      entries = entries.filter((e) => satisfiesSecurity(e.op.security, granted, hooks.scopeMatcher))
+      entries = entries.filter((e) =>
+        satisfiesSecurity(e.op.security, granted, hooks.scopeMatcher, credentialSchemes),
+      )
     }
     if (hooks.capabilities !== undefined) {
       const capabilities = await hooks.capabilities(ctx)
@@ -148,6 +186,7 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
     skipped: model.skipped,
     contract: model.contract,
     source: model.source,
+    credentialSchemes,
     forRequest,
   }
 }
