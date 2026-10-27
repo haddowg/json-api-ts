@@ -19,6 +19,7 @@ import type {
   AtomicUpdateHandle,
 } from './atomic'
 import type { ActionDescriptor, ApiDescriptor, InputMedia, RawOutputMedia } from './descriptor'
+import type { ActionLocation } from './location'
 import type {
   ArrayEnvelope,
   DocumentEnvelope,
@@ -904,7 +905,8 @@ type ActionInputBody<E> = 'input' extends keyof E ? E['input'] : Record<string, 
 type ActionOutputBody<E> = 'output' extends keyof E ? E['output'] : unknown
 
 /**
- * The static value an action returns, by its declared `output`:
+ * The static value an action returns, by its declared `output`, or an {@link ActionLocation} when
+ * it declares a `location` (only that for output `location`):
  *
  * - `document` — the MATERIALISED resource view of the action's `outputType` (matching the read
  *   path — `result.title`, not `result.data.attributes.title`), a {@link Collection} when the
@@ -914,17 +916,31 @@ type ActionOutputBody<E> = 'output' extends keyof E ? E['output'] : unknown
  * - `meta` — the response document's top-level `meta` object;
  * - `none` — `void` (a `204`).
  */
-type ActionResult<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Act extends {
+type ActionResult<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Promise<
+  Act extends { location: object }
+    ? ActionDocumentValue<D, A, Act, E> | ActionLocation
+    : ActionDocumentValue<D, A, Act, E>
+>
+
+/** The value of an action's JSON:API answer other than a location document. */
+type ActionDocumentValue<
+  D extends ApiDescriptor,
+  A,
+  Act extends ActionDescriptor,
+  E,
+> = Act extends {
   output: 'document'
 }
   ? Act extends { outputType: infer OT extends TypeName<D> }
     ? Act extends { outputCardinality: 'many' }
-      ? Promise<Collection<ReadResult<D, A, OT>>>
-      : Promise<ReadResult<D, A, OT>>
-    : Promise<ActionOutputBody<E>>
+      ? Collection<ReadResult<D, A, OT>>
+      : ReadResult<D, A, OT>
+    : ActionOutputBody<E>
   : Act extends { output: 'meta' }
-    ? Promise<Record<string, unknown>>
-    : Promise<void>
+    ? Record<string, unknown>
+    : Act extends { output: 'location' }
+      ? never
+      : void
 
 /** The JSON:API media type, as the `accept` / `contentType` an action call names it by. */
 type JsonApiMediaType = 'application/vnd.api+json'
