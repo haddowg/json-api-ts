@@ -30,6 +30,21 @@ try {
   rmSync(dir, { recursive: true, force: true })
 }
 
-console.log(
-  '[bin] json-api-codegen ran through a node_modules/.bin symlink and wrote the client OK',
-)
+// The MCP generator's bin, the same way: a check of the committed model through a symlink.
+const mcpCli = join(root, 'packages/mcp/dist/cli.mjs')
+const mcpModel = join(root, 'packages/mcp/test/generated/music-catalog.mcp.gen.json')
+const mcpDir = mkdtempSync(join(tmpdir(), 'japi-mcp-bin-'))
+try {
+  mkdirSync(join(mcpDir, 'node_modules/.bin'), { recursive: true })
+  const bin = join(mcpDir, 'node_modules/.bin/json-api-mcp')
+  symlinkSync(mcpCli, bin)
+  const result = spawnSync('node', [bin, '--input', spec, '--output', mcpModel, '--check'], {
+    encoding: 'utf8',
+  })
+  assert.equal(result.status, 0, `[bin] json-api-mcp exited ${result.status}: ${result.stderr}`)
+  assert.match(result.stderr, /ok +.*music-catalog\.mcp\.gen\.json/)
+} finally {
+  rmSync(mcpDir, { recursive: true, force: true })
+}
+
+console.log('[bin] json-api-codegen and json-api-mcp ran through node_modules/.bin symlinks OK')

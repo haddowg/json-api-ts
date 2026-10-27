@@ -6,6 +6,7 @@
 import {
   type ActionDescriptor,
   type ApiDescriptor,
+  type CountableDescriptor,
   type PaginatorDescriptor,
   type RelationDescriptor,
   resolvePaginator,
@@ -34,6 +35,12 @@ export const INCLUDE_DESCRIPTION =
 export const FIELDS_DESCRIPTION =
   'Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields.'
 
+/** The Countable profile's token for counting the collection itself. */
+export const SELF_COUNT = '_self_'
+
+export const WITH_COUNT_DESCRIPTION =
+  'Set true to have the total number of results counted and returned in meta. Counting can be slow on a large collection, so leave it null unless the total is needed.'
+
 export const PAGE_LINK_DESCRIPTION =
   'A pagination link (first, prev, next or last) copied from the links of an earlier result of this same tool, to fetch that page. When given, every other argument is ignored.'
 
@@ -49,6 +56,11 @@ export interface QueryPlan {
   defaultPageSize?: number
   /** Whether `pageLink` is offered: the endpoint paginates at all. */
   paginated: boolean
+  /**
+   * Whether `withCount` is offered: the endpoint counts its own collection under the Countable
+   * profile, sent as `withCount=_self_` with this profile negotiated.
+   */
+  countProfile?: string
 }
 
 /** One top-level write field: an attribute, or a relation sent as ids. */
@@ -381,8 +393,13 @@ export function collectionInput(
   ctx: InputContext,
   paginator: PaginatorDescriptor | undefined,
   parent: { type: string; relation: string } | undefined,
+  countable: CountableDescriptor | undefined,
 ): ToolInput {
   const { properties, plan } = queryInput(ctx.doc, ctx.params, paginator, ctx.defaultPageSize, true)
+  if (countable !== undefined && countable.tokens.includes(SELF_COUNT)) {
+    properties['withCount'] = nullable({ type: 'boolean', description: WITH_COUNT_DESCRIPTION })
+    plan.countProfile = countable.profile
+  }
   const props: Record<string, JsonSchema> = {}
   const required: string[] = []
   if (parent !== undefined) {

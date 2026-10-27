@@ -70,7 +70,7 @@ Another optional layer. `httpClientTransport` sends the client's requests throug
 
 ### `@haddowg/json-api-mcp`
 
-Builds MCP tool definitions at runtime from the OpenAPI document and its descriptor, one per collection, resource, related and custom action operation, and runs calls through the client. It returns tools and a call handler rather than owning an MCP server, and leaves scopes, feature gates and auth to the host's hooks. It depends only on the client. See [MCP tools](mcp.md).
+Serves MCP tool definitions, one per collection, resource, related and custom action operation, from a JSON model its build-time generator writes from the OpenAPI document, and runs calls through the client. It returns tools and a call handler rather than owning an MCP server, and leaves scopes, feature gates and auth to the host's hooks. Its runtime depends only on the client and loads from ESM or CommonJS; the generator also needs the codegen. See [MCP tools](mcp.md).
 
 ## The descriptor: the seam between codegen and runtime
 

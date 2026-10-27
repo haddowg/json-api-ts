@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createJsonApiMcp } from './mcp'
-import { fakeTransport, fixture } from './test-fixtures'
+import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
 import type { McpCallToolResult } from './types'
 
 const album = (id: string, extra: Record<string, unknown> = {}) => ({
@@ -89,10 +89,12 @@ describe('list tools', () => {
 
   it('maps the page size to an offset strategy limit', async () => {
     const { transport, requests } = fakeTransport(() => ({ json: { data: [] } }))
-    const { document, descriptor } = fixture('music-catalog')
+    const { document, descriptor } = source('music-catalog')
     const mcp = createJsonApiMcp({
-      document,
-      descriptor: { ...descriptor, albums: { ...descriptor['albums']!, paginator: 'offset' } },
+      ...modelOf(document, {
+        ...descriptor,
+        albums: { ...descriptor['albums']!, paginator: 'offset' },
+      }),
       transport,
     })
     await (await mcp.forRequest({ context: undefined })).callTool('albums_list', { pageSize: 3 })
@@ -167,12 +169,14 @@ describe('reads', () => {
       'https://music.example/albums/1?include=artist,artist.albums&fields[albums]=title,artist',
     )
     expect(result.structuredContent).toEqual({
-      id: '1',
-      type: 'albums',
-      title: 'Album 1',
-      explicit: false,
-      artist: { id: '7', type: 'artists', name: 'The Beatles', albums: ['1', '2'] },
-      tracks: ['1', '2'],
+      item: {
+        id: '1',
+        type: 'albums',
+        title: 'Album 1',
+        explicit: false,
+        artist: { id: '7', type: 'artists', name: 'The Beatles', albums: ['1', '2'] },
+        tracks: ['1', '2'],
+      },
     })
   })
 
@@ -204,7 +208,7 @@ describe('reads', () => {
     const result = await (
       await mcp.forRequest({ context: undefined })
     ).callTool('articles_get', { id: '1' })
-    expect(result.structuredContent).toMatchObject({
+    expect(result.structuredContent!['item']).toMatchObject({
       attachments: [
         { type: 'images', id: '3' },
         { type: 'videos', id: '4' },
@@ -366,5 +370,34 @@ describe('multi-method actions', () => {
       'GET /articles/-actions/export',
       'POST /articles/-actions/export',
     ])
+  })
+})
+
+describe('withCount', () => {
+  it('counts the collection under the Countable profile when asked', async () => {
+    const { transport, requests } = fakeTransport(() => ({
+      json: { data: [], meta: { page: { total: 42 } } },
+    }))
+    const mcp = createJsonApiMcp({ ...fixture('contract-witness'), transport })
+    const tools = await mcp.forRequest({ context: undefined })
+    const counted = await tools.callTool('articles_list', { withCount: true })
+    await tools.callTool('articles_list', { withCount: null })
+    expect(decodeURIComponent(requests[0]!.url)).toContain('withCount=_self_')
+    expect(requests[0]!.headers['Accept']).toContain(
+      'profile="https://haddowg.github.io/json-api/profiles/countable/"',
+    )
+    expect(counted.structuredContent).toMatchObject({ meta: { page: { total: 42 } } })
+    expect(requests[1]!.url).not.toContain('withCount')
+    expect(requests[1]!.headers['Accept']).toBe('application/vnd.api+json')
+  })
+
+  it('negotiates the profile when a pageLink carries withCount', async () => {
+    const { transport, requests } = fakeTransport(() => ({ json: { data: [] } }))
+    const mcp = createJsonApiMcp({ ...fixture('contract-witness'), transport })
+    const tools = await mcp.forRequest({ context: undefined })
+    await tools.callTool('articles_list', {
+      pageLink: 'https://api.example.com/articles?page[number]=2&withCount=_self_',
+    })
+    expect(requests[0]!.headers['Accept']).toContain('countable')
   })
 })

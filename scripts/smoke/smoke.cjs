@@ -36,4 +36,29 @@ for (const [name, fn] of [
   assert.equal(typeof fn, 'function', `[cjs] expected ${name} to be a function`)
 }
 
-console.log('[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK')
+// The MCP runtime serves a committed model from CommonJS, with no codegen in its bundle.
+const { readFileSync } = require('node:fs')
+const mcpDist = require.resolve('@haddowg/json-api-mcp')
+assert.ok(mcpDist.endsWith('.cjs'), `[cjs] expected the mcp runtime's CJS build, got ${mcpDist}`)
+assert.doesNotMatch(readFileSync(mcpDist, 'utf8'), /json-api-codegen/)
+const model = require('../../packages/mcp/test/generated/music-catalog.mcp.gen.json')
+const mcp = createJsonApiMcp({
+  model,
+  transport: async () => ({
+    status: 200,
+    headers: {},
+    body: '{"data":{"type":"albums","id":"1","attributes":{"title":"Help!"}}}',
+  }),
+})
+
+;(async () => {
+  const session = await mcp.forRequest({ context: undefined })
+  const result = await session.callTool('albums_get', { id: '1' })
+  assert.deepEqual(result.structuredContent, { item: { id: '1', type: 'albums', title: 'Help!' } })
+  console.log(
+    '[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK, and the mcp runtime served a committed model',
+  )
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})

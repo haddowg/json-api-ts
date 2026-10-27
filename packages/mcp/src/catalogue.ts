@@ -22,7 +22,7 @@ import {
   LOOSE_OUTPUT,
   metaOutput,
   type OutputContext,
-  relatedOneOutput,
+  itemOutput,
   resourceOutput,
   resourceSchemas,
 } from './outputs'
@@ -33,7 +33,7 @@ import type { McpOperation, McpTool, McpToolAnnotations, SkippedOperation } from
 export type ResultShape =
   | 'collection'
   | 'resource'
-  | 'relatedOne'
+  | 'item'
   | 'deleted'
   | 'meta'
   | 'none'
@@ -68,7 +68,7 @@ function annotations(op: McpOperation): McpToolAnnotations | undefined {
     case 'update':
       return { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
     case 'delete':
-      return { readOnlyHint: false, destructiveHint: true }
+      return { readOnlyHint: false, destructiveHint: true, idempotentHint: true }
     case 'action': {
       const safety = actionSafety(op)
       const out: McpToolAnnotations = {}
@@ -206,14 +206,14 @@ function buildEntry(
 
   switch (parsed.kind) {
     case 'list':
-      input = collectionInput(inputCtx, op.resource.paginator, undefined)
+      input = collectionInput(inputCtx, op.resource.paginator, undefined, op.resource.countable)
       output = collectionOutput(outputCtx, [op.type])
       result = 'collection'
       break
     case 'get':
       input = singleInput(inputCtx, `The id of the \`${op.type}\` resource to get.`)
-      output = resourceOutput(outputCtx, op.type)
-      result = 'resource'
+      output = itemOutput(outputCtx, [op.type], false)
+      result = 'item'
       break
     case 'create':
       input = createInput(inputCtx, op.type)
@@ -239,7 +239,12 @@ function buildEntry(
       if (relation.cardinality === 'many') {
         const paginator: PaginatorDescriptor | undefined =
           relation.paginator ?? descriptor[relation.types[0] ?? '']?.paginator
-        input = collectionInput(inputCtx, paginator, { type: op.type, relation: parsed.relation! })
+        input = collectionInput(
+          inputCtx,
+          paginator,
+          { type: op.type, relation: parsed.relation! },
+          relation.countable,
+        )
         output = collectionOutput(outputCtx, relation.types)
         result = 'collection'
       } else {
@@ -247,8 +252,8 @@ function buildEntry(
           inputCtx,
           `The id of the \`${op.type}\` resource whose ${parsed.relation} to get.`,
         )
-        output = relatedOneOutput(outputCtx, relation.types)
-        result = 'relatedOne'
+        output = itemOutput(outputCtx, relation.types, true)
+        result = 'item'
       }
       break
     }

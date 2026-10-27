@@ -4,7 +4,7 @@ import { createJsonApiMcp } from './mcp'
 import { parseOperationId, ToolNameError } from './names'
 import type { OpenApiDocument } from './openapi'
 import { readActionSafety, SAFETY_EXTENSION } from './safety'
-import { fixture } from './test-fixtures'
+import { fixture, modelOf, source } from './test-fixtures'
 import type { McpTool } from './types'
 
 const tool = (tools: readonly McpTool[], name: string): McpTool => {
@@ -19,11 +19,17 @@ function withOperation(
   method: 'get' | 'post',
   change: (op: Record<string, unknown>) => Record<string, unknown>,
 ) {
-  const { document, descriptor } = fixture('music-catalog')
+  const { document, descriptor } = source('music-catalog')
   const doc = structuredClone(document) as OpenApiDocument
   const item = doc.paths![path]!
   item[method] = change(item[method] as Record<string, unknown>)
   return { document: doc, descriptor }
+}
+
+/** The model for the music catalogue with one path's operation changed. */
+function withOperationModel(...args: Parameters<typeof withOperation>) {
+  const { document, descriptor } = withOperation(...args)
+  return modelOf(document, descriptor)
 }
 
 describe('names', () => {
@@ -97,13 +103,13 @@ describe('names', () => {
       ...albums.actions,
       list: albums.actions!['summary']!,
     }
-    expect(() => createJsonApiMcp({ document: options.document, descriptor })).toThrow(
+    expect(() => modelOf(options.document, descriptor)).toThrow(
       /"albums_list" is the tool name of fetchCollection\.albums and action\.albums\.list/,
     )
   })
 
   it('fails the build on a name over 64 characters or outside [a-zA-Z0-9_-]', () => {
-    const { document, descriptor } = fixture('music-catalog')
+    const { document, descriptor } = source('music-catalog')
     const long = 'a'.repeat(60)
     const doc = structuredClone(document) as OpenApiDocument
     doc.paths![`/${long}`] = { get: { operationId: `fetchCollection.${long}`, responses: {} } }
@@ -115,7 +121,7 @@ describe('names', () => {
     }
     let error: unknown
     try {
-      createJsonApiMcp({ document: doc, descriptor: wider })
+      modelOf(doc, wider)
     } catch (e) {
       error = e
     }
@@ -157,8 +163,23 @@ describe('contract', () => {
     [undefined, /declares no generator contract/],
   ])('fails clearly on contract %s', (contract, message) => {
     expect(() => assertContract(document(contract))).toThrow(message)
-    const { descriptor } = fixture('music-catalog')
-    expect(() => createJsonApiMcp({ document: document(contract), descriptor })).toThrow(message)
+    const { descriptor } = source('music-catalog')
+    expect(() => modelOf(document(contract), descriptor)).toThrow(message)
+  })
+
+  it.each([12, 16])('refuses a model built from contract %s at runtime', (contract) => {
+    const { model } = fixture('music-catalog')
+    expect(() => createJsonApiMcp({ model: { ...model, contract } })).toThrow(
+      new RegExp(`generator contract ${contract}, and this runtime reads contracts 13 to 15`),
+    )
+  })
+
+  it('refuses something that is not a model, or a model of another format', () => {
+    const { model } = fixture('music-catalog')
+    expect(() => createJsonApiMcp({ model: {} })).toThrow(/isn't a model written by/)
+    expect(() => createJsonApiMcp({ model: { ...model, format: 2 } })).toThrow(
+      /format 2 and this runtime reads format 1/,
+    )
   })
 })
 
@@ -175,6 +196,7 @@ describe('annotations', () => {
     expect(tool(tools, 'albums_delete').annotations).toEqual({
       readOnlyHint: false,
       destructiveHint: true,
+      idempotentHint: true,
     })
   })
 
@@ -187,7 +209,7 @@ describe('annotations', () => {
   it('reads the declared flags from x-safety', () => {
     expect(SAFETY_EXTENSION).toBe('x-safety')
     const mcp = createJsonApiMcp(
-      withOperation('/albums/{id}/-actions/reissue', 'post', (op) => ({
+      withOperationModel('/albums/{id}/-actions/reissue', 'post', (op) => ({
         ...op,
         'x-safety': { destructive: true, idempotent: true },
       })),
@@ -197,7 +219,7 @@ describe('annotations', () => {
       idempotentHint: true,
     })
     const readOnly = createJsonApiMcp(
-      withOperation('/albums/-actions/summary', 'post', (op) => ({
+      withOperationModel('/albums/-actions/summary', 'post', (op) => ({
         ...op,
         'x-safety': { readOnly: true },
       })),
@@ -217,7 +239,7 @@ describe('annotations', () => {
   })
 
   it('reads the safety a descriptor carries without x-safety on the operation', () => {
-    const catalog = fixture('music-catalog')
+    const catalog = source('music-catalog')
     const albums = catalog.descriptor['albums']!
     const withSafety = {
       ...catalog.descriptor,
@@ -226,7 +248,7 @@ describe('annotations', () => {
         actions: { ...albums.actions, summary: { ...albums.actions!['summary']!, readOnly: true } },
       },
     }
-    const tools = createJsonApiMcp({ document: catalog.document, descriptor: withSafety }).tools
+    const tools = createJsonApiMcp(modelOf(catalog.document, withSafety)).tools
     expect(tool(tools, 'albums_summary').annotations).toEqual({ readOnlyHint: true })
   })
 
