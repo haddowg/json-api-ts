@@ -26,6 +26,7 @@ import type {
   PathItemObject,
   SchemaObject,
   SchemaOrBool,
+  SecurityRequirement,
 } from './openapi'
 import { unwrapRefs } from './unwrap-refs'
 
@@ -81,11 +82,78 @@ export class DescriptorBuilder {
   private readonly paths: Record<string, PathItemObject>
   /** Lazily-built wire-type -> collection-level paginator kind (for per-relation divergence, D6a). */
   private typePaginators?: Map<string, PaginatorDescriptor>
+  /** The names of the document's `oauth2` security schemes, under which operations list scopes. */
+  private readonly scopeSchemes: ReadonlySet<string>
+  /** The document's default security, which an operation without its own inherits. */
+  private readonly defaultSecurity: readonly SecurityRequirement[]
 
   constructor(source: OpenApiDocument) {
     const doc = unwrapRefs(source)
     this.schemas = doc.components?.schemas ?? {}
     this.paths = doc.paths ?? {}
+    this.scopeSchemes = new Set(
+      Object.entries(doc.components?.securitySchemes ?? {})
+        .filter(([, scheme]) => scheme?.type === 'oauth2')
+        .map(([name]) => name),
+    )
+    this.defaultSecurity = doc.security ?? []
+  }
+
+  /**
+   * The OAuth scopes an operation needs (generator contract 16): those its `security` lists under
+   * an `oauth2` scheme, in order and without repeats. `undefined` when it lists none.
+   */
+  private scopes(op: OperationObject | undefined): string[] | undefined {
+    if (op === undefined || this.scopeSchemes.size === 0) {
+      return undefined
+    }
+    const out = new Set<string>()
+    for (const requirement of op.security ?? this.defaultSecurity) {
+      for (const [scheme, scopes] of Object.entries(requirement)) {
+        if (this.scopeSchemes.has(scheme) && Array.isArray(scopes)) {
+          for (const scope of scopes) {
+            out.add(scope)
+          }
+        }
+      }
+    }
+    return out.size === 0 ? undefined : [...out]
+  }
+
+  /**
+   * The scopes each of a type's CRUD, related and relationship operations needs, keyed by the
+   * operationId without the type (`fetchOne`, `fetchRelated.author`). Operations needing none are
+   * left out; actions carry their own.
+   */
+  private operationScopes(wireType: string): Record<string, string[]> {
+    const out: Record<string, string[]> = {}
+    for (const item of Object.values(this.paths)) {
+      for (const op of Object.values(item) as (OperationObject | undefined)[]) {
+        const id = op?.operationId
+        if (typeof id !== 'string') {
+          continue
+        }
+        const dot = id.indexOf('.')
+        const prefix = id.slice(0, dot)
+        const rest = id.slice(dot + 1)
+        if (dot < 0 || prefix === 'action' || prefix === 'atomic') {
+          continue
+        }
+        let key: string
+        if (rest === wireType) {
+          key = prefix
+        } else if (rest.startsWith(`${wireType}.`)) {
+          key = `${prefix}.${rest.slice(wireType.length + 1)}`
+        } else {
+          continue
+        }
+        const scopes = this.scopes(op)
+        if (scopes !== undefined) {
+          out[key] = scopes
+        }
+      }
+    }
+    return sortRecord(out)
   }
 
   /**
@@ -142,6 +210,10 @@ export class DescriptorBuilder {
       if (Object.keys(actions).length > 0) {
         descriptor.actions = actions
       }
+      const scopes = this.operationScopes(wireType)
+      if (Object.keys(scopes).length > 0) {
+        descriptor.scopes = scopes
+      }
       // A synthetic stub for an unregistered related type — core's `permissiveResourceObject`
       // emits a `<Rel>Resource` carrying ONLY a `type` const (no `id`/`attributes`) so linkage
       // refs resolve — is reachable only through a parent's `.related()` (which works via the
@@ -167,7 +239,8 @@ export class DescriptorBuilder {
     for (const [path, item] of Object.entries(this.paths)) {
       const content = item.post?.requestBody?.content ?? {}
       if (Object.keys(content).some(isAtomicMediaType)) {
-        return { path }
+        const scopes = this.scopes(item.post)
+        return scopes === undefined ? { path } : { path, scopes }
       }
     }
     return null
@@ -554,6 +627,11 @@ export class DescriptorBuilder {
         action[flag] = value
       }
     }
+    // Generator contract 16: the scopes its operation's `security` lists.
+    const scopes = this.scopes(op)
+    if (scopes !== undefined) {
+      action.scopes = scopes
+    }
     return action
   }
 
@@ -699,8 +777,11 @@ export class DescriptorBuilder {
         return relation
       }
       if (Array.isArray(items.anyOf)) {
-        // polymorphic to-many
-        return { cardinality: 'many', types: this.constsFromRefs(items.anyOf), pivot: false }
+        // polymorphic to-many, a union even of one type (generator contract 16)
+        const types = this.constsFromRefs(items.anyOf)
+        return types.length === 0
+          ? undefined
+          : { cardinality: 'many', types, polymorphic: true, pivot: false }
       }
       return undefined
     }
@@ -710,6 +791,7 @@ export class DescriptorBuilder {
     if (Array.isArray(data.anyOf)) {
       const types: string[] = []
       let pivot = false
+      let polymorphic = false
       let readPivot: PivotDescriptor | undefined
       for (const entry of data.anyOf) {
         if (typeof entry.$ref === 'string') {
@@ -725,14 +807,17 @@ export class DescriptorBuilder {
             readPivot = this.pivotDescriptor(pivotNodeFromAllOf(entry.allOf), 'read')
           }
         } else if (Array.isArray(entry.anyOf)) {
-          // polymorphic to-one: the non-null entry is itself an anyOf of $refs
+          // polymorphic to-one: the non-null entry is itself an anyOf of $refs, even of one
           types.push(...this.constsFromRefs(entry.anyOf))
+          polymorphic = true
         }
       }
       if (types.length === 0) {
         return undefined
       }
-      const relation: RelationDescriptor = { cardinality: 'one', types, pivot }
+      const relation: RelationDescriptor = polymorphic
+        ? { cardinality: 'one', types, polymorphic: true, pivot }
+        : { cardinality: 'one', types, pivot }
       if (readPivot !== undefined) {
         relation.readPivot = readPivot
       }

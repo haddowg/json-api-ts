@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 15
+            "contract": 16
         }
     },
     "servers": [
@@ -262,7 +262,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -384,7 +386,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             },
             "post": {
                 "tags": [
@@ -455,7 +464,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -558,7 +569,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -645,7 +658,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -738,7 +753,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             },
             "delete": {
                 "tags": [
@@ -784,7 +806,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -855,7 +884,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -1007,7 +1038,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -1089,7 +1122,15 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/relationships/author": {
@@ -1173,7 +1214,15 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -1261,7 +1310,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -1406,7 +1457,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -1571,7 +1624,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/relationships/tags": {
@@ -1717,7 +1777,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             },
             "post": {
                 "tags": [
@@ -1777,7 +1844,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             },
@@ -1839,7 +1908,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             },
@@ -1901,7 +1972,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -1983,7 +2056,15 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/relationships/published-by": {
@@ -2067,7 +2148,15 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -2155,7 +2244,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -2209,7 +2300,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -2293,7 +2391,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -2375,7 +2475,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/relationships/locked": {
@@ -2461,7 +2568,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/attachments": {
@@ -2614,7 +2728,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/relationships/attachments": {
@@ -2690,7 +2811,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             },
             "post": {
                 "tags": [
@@ -2782,7 +2910,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             },
@@ -2876,7 +3006,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             },
@@ -2970,7 +3102,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -3045,7 +3179,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -3122,7 +3258,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             },
@@ -3185,7 +3323,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             },
@@ -3248,7 +3388,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -3330,7 +3472,15 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
             }
         },
         "/articles/{id}/relationships/editor": {
@@ -3414,7 +3564,15 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -3502,7 +3660,777 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/articles/{id}/subject": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Fetch the related subject of an article",
+                "description": "Returns the related `subject` resource of an article.",
+                "operationId": "fetchRelated.articles.subject",
+                "parameters": [
+                    {
+                        "name": "fields[people]",
+                        "in": "query",
+                        "description": "A comma-separated list of `people` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "name",
+                                    "role",
+                                    "company"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The related subject resource.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSubjectRelatedDocument"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/articles/{id}/relationships/subject": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Fetch the subject relationship of an article",
+                "description": "Returns the `subject` relationship linkage of an article.",
+                "operationId": "fetchRelationship.articles.subject",
+                "responses": {
+                    "200": {
+                        "description": "The subject relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSubjectRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": {
+                                        "type": "people",
+                                        "id": "per-1"
+                                    },
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/subject",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/subject",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read",
+                            "people:read"
+                        ]
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Replace the subject relationship of an article",
+                "description": "Fully replaces the `subject` relationship of an article with the supplied linkage.",
+                "operationId": "updateRelationship.articles.subject",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesSubjectRelationshipDocument"
+                            },
+                            "example": {
+                                "data": {
+                                    "type": "people",
+                                    "id": "per-1"
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated subject relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSubjectRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": {
+                                        "type": "people",
+                                        "id": "per-1"
+                                    },
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/subject",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/subject",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/articles/{id}/gallery": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Fetch the related gallery of an article",
+                "description": "Returns the related `gallery` resources of an article.",
+                "operationId": "fetchRelated.articles.gallery",
+                "parameters": [
+                    {
+                        "name": "fields[images]",
+                        "in": "query",
+                        "description": "A comma-separated list of `images` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "url",
+                                    "clips"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The related gallery collection.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesGalleryRelatedCollection"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "images",
+                                            "id": "img-1",
+                                            "links": {
+                                                "self": {
+                                                    "href": "https://api.example.com/images/img-1",
+                                                    "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D/get"
+                                                },
+                                                "download": {
+                                                    "href": "https://cdn.example.com/originals/img-1.png",
+                                                    "title": "Original",
+                                                    "type": "image/png",
+                                                    "meta": {
+                                                        "method": "GET",
+                                                        "expiresAt": "2026-10-26T12:00:00+00:00",
+                                                        "headers": {
+                                                            "Range": "bytes=0-"
+                                                        }
+                                                    }
+                                                },
+                                                "thumbnail": "https://cdn.example.com/thumbs/img-1.png"
+                                            },
+                                            "attributes": {
+                                                "url": "https://cdn.example.com/cover.png"
+                                            },
+                                            "relationships": {
+                                                "clips": {
+                                                    "links": {
+                                                        "self": {
+                                                            "href": "https://api.example.com/images/img-1/relationships/clips",
+                                                            "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D~1relationships~1clips/get"
+                                                        },
+                                                        "related": {
+                                                            "href": "https://api.example.com/images/img-1/clips",
+                                                            "describedby": "/docs/openapi.json#/paths/~1images~1%7Bid%7D~1clips/get"
+                                                        }
+                                                    },
+                                                    "data": [
+                                                        {
+                                                            "type": "videos",
+                                                            "id": "vid-1"
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                                        }
+                                    },
+                                    "meta": {
+                                        "total": 1
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/articles/{id}/relationships/gallery": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Fetch the gallery relationship of an article",
+                "description": "Returns the `gallery` relationship linkage of an article.",
+                "operationId": "fetchRelationship.articles.gallery",
+                "responses": {
+                    "200": {
+                        "description": "The gallery relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "images",
+                                            "id": "img-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Add to the gallery relationship of an article",
+                "description": "Adds the supplied members to the `gallery` relationship of an article.",
+                "operationId": "addRelationship.articles.gallery",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                            },
+                            "example": {
+                                "data": [
+                                    {
+                                        "type": "images",
+                                        "id": "img-1"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated gallery relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "images",
+                                            "id": "img-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Remove from the gallery relationship of an article",
+                "description": "Removes the supplied members from the `gallery` relationship of an article.",
+                "operationId": "removeRelationship.articles.gallery",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                            },
+                            "example": {
+                                "data": [
+                                    {
+                                        "type": "images",
+                                        "id": "img-1"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated gallery relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "images",
+                                            "id": "img-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Replace the gallery relationship of an article",
+                "description": "Fully replaces the `gallery` relationship of an article with the supplied linkage.",
+                "operationId": "updateRelationship.articles.gallery",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                            },
+                            "example": {
+                                "data": [
+                                    {
+                                        "type": "images",
+                                        "id": "img-1"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated gallery relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "images",
+                                            "id": "img-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/gallery",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
                     }
                 ]
             }
@@ -3589,7 +4517,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -3670,7 +4600,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "articles:publish"
+                        ]
                     }
                 ]
             }
@@ -4212,7 +5144,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -4662,7 +5596,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "people:read"
+                        ]
+                    }
+                ]
             },
             "delete": {
                 "tags": [
@@ -4821,7 +5762,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "companies:read"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -5679,7 +6627,9 @@
                                     "cover",
                                     "locked",
                                     "attachments",
-                                    "editor"
+                                    "editor",
+                                    "subject",
+                                    "gallery"
                                 ]
                             }
                         },
@@ -5733,7 +6683,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             }
         },
         "/tags/{id}/relationships/articles": {
@@ -5974,7 +6931,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
             },
             "post": {
                 "tags": [
@@ -7325,7 +8289,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "batch"
+                        ]
                     }
                 ]
             }
@@ -7511,6 +8477,12 @@
                             },
                             "editor": {
                                 "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                            },
+                            "subject": {
+                                "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                            },
+                            "gallery": {
+                                "$ref": "#/components/schemas/ArticlesGalleryRelationship"
                             }
                         }
                     },
@@ -7566,6 +8538,12 @@
                             },
                             "editor": {
                                 "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                            },
+                            "subject": {
+                                "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                            },
+                            "gallery": {
+                                "$ref": "#/components/schemas/ArticlesGalleryRelationship"
                             }
                         }
                     }
@@ -8873,6 +9851,12 @@
                                     },
                                     "editor": {
                                         "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                                    },
+                                    "subject": {
+                                        "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                                    },
+                                    "gallery": {
+                                        "$ref": "#/components/schemas/ArticlesGalleryRelationship"
                                     }
                                 }
                             }
@@ -9178,6 +10162,222 @@
                     "related": {
                         "href": "https://api.example.com/articles/art-1/editor",
                         "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1editor/get"
+                    }
+                }
+            },
+            "ArticlesGalleryRelatedCollection": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/ImagesResource"
+                                }
+                            ]
+                        }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/ArticlesGalleryRelatedDocumentLinks"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "ArticlesGalleryRelatedDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of the `gallery` related endpoint's document for a resource of type `articles`.",
+                "properties": {
+                    "self": {
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/gallery",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                        }
+                    },
+                    "describedby": {
+                        "description": "The OpenAPI operation that describes the document.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                },
+                "example": {
+                    "self": {
+                        "href": "https://api.example.com/articles/art-1/gallery",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                    },
+                    "describedby": {
+                        "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                    }
+                }
+            },
+            "ArticlesGalleryRelationship": {
+                "type": "object",
+                "properties": {
+                    "links": {
+                        "$ref": "#/components/schemas/ArticlesGalleryRelationshipLinks"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            ]
+                        }
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                }
+            },
+            "ArticlesGalleryRelationshipDocument": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            ]
+                        }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/ArticlesGalleryRelationshipDocumentLinks"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "ArticlesGalleryRelationshipDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of the `gallery` relationship endpoint's document for a resource of type `articles`.",
+                "properties": {
+                    "self": {
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                        }
+                    },
+                    "related": {
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/gallery",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                        }
+                    },
+                    "describedby": {
+                        "description": "The OpenAPI operation that describes the document.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                },
+                "example": {
+                    "self": {
+                        "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                    },
+                    "related": {
+                        "href": "https://api.example.com/articles/art-1/gallery",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                    },
+                    "describedby": {
+                        "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                    }
+                }
+            },
+            "ArticlesGalleryRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `gallery` relationship object of a resource of type `articles`.",
+                "properties": {
+                    "self": {
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                        }
+                    },
+                    "related": {
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/gallery",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                },
+                "example": {
+                    "self": {
+                        "href": "https://api.example.com/articles/art-1/relationships/gallery",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1gallery/get"
+                    },
+                    "related": {
+                        "href": "https://api.example.com/articles/art-1/gallery",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1gallery/get"
                     }
                 }
             },
@@ -9639,6 +10839,12 @@
                             },
                             "editor": {
                                 "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                            },
+                            "subject": {
+                                "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                            },
+                            "gallery": {
+                                "$ref": "#/components/schemas/ArticlesGalleryRelationship"
                             }
                         }
                     },
@@ -9811,6 +11017,234 @@
                 "example": {
                     "self": {
                         "href": "https://api.example.com/articles/art-1/relationships/reviewer"
+                    }
+                }
+            },
+            "ArticlesSubjectRelatedDocument": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "anyOf": [
+                            {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PeopleResource"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/ArticlesSubjectRelatedDocumentLinks"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "ArticlesSubjectRelatedDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of the `subject` related endpoint's document for a resource of type `articles`.",
+                "properties": {
+                    "self": {
+                        "description": "The URL that produced the document. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/subject",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                        }
+                    },
+                    "describedby": {
+                        "description": "The OpenAPI operation that describes the document.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                },
+                "example": {
+                    "self": {
+                        "href": "https://api.example.com/articles/art-1/subject",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                    },
+                    "describedby": {
+                        "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                    }
+                }
+            },
+            "ArticlesSubjectRelationship": {
+                "type": "object",
+                "properties": {
+                    "links": {
+                        "$ref": "#/components/schemas/ArticlesSubjectRelationshipLinks"
+                    },
+                    "data": {
+                        "anyOf": [
+                            {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PeopleResourceIdentifier"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                }
+            },
+            "ArticlesSubjectRelationshipDocument": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "anyOf": [
+                            {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PeopleResourceIdentifier"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/ArticlesSubjectRelationshipDocumentLinks"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "ArticlesSubjectRelationshipDocumentLinks": {
+                "type": "object",
+                "description": "The top-level `links` of the `subject` relationship endpoint's document for a resource of type `articles`.",
+                "properties": {
+                    "self": {
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/relationships/subject",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                        }
+                    },
+                    "related": {
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/subject",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                        }
+                    },
+                    "describedby": {
+                        "description": "The OpenAPI operation that describes the document.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                },
+                "example": {
+                    "self": {
+                        "href": "https://api.example.com/articles/art-1/relationships/subject",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                    },
+                    "related": {
+                        "href": "https://api.example.com/articles/art-1/subject",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                    },
+                    "describedby": {
+                        "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                    }
+                }
+            },
+            "ArticlesSubjectRelationshipLinks": {
+                "type": "object",
+                "description": "The `links` of the `subject` relationship object of a resource of type `articles`.",
+                "properties": {
+                    "self": {
+                        "description": "The relationship's own URL. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/relationships/subject",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                        }
+                    },
+                    "related": {
+                        "description": "The related resource data. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/subject",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
+                        }
+                    }
+                },
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/LinkObject"
+                },
+                "example": {
+                    "self": {
+                        "href": "https://api.example.com/articles/art-1/relationships/subject",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1subject/get"
+                    },
+                    "related": {
+                        "href": "https://api.example.com/articles/art-1/subject",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1subject/get"
                     }
                 }
             },
@@ -10608,6 +12042,12 @@
                                     },
                                     "editor": {
                                         "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                                    },
+                                    "subject": {
+                                        "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                                    },
+                                    "gallery": {
+                                        "$ref": "#/components/schemas/ArticlesGalleryRelationship"
                                     }
                                 }
                             }
@@ -11419,6 +12859,9 @@
                                     "$ref": "#/components/schemas/InclusionUnsupportedError"
                                 },
                                 {
+                                    "$ref": "#/components/schemas/InsufficientScopeError"
+                                },
+                                {
                                     "$ref": "#/components/schemas/LocalIdConflictError"
                                 },
                                 {
@@ -11732,6 +13175,9 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/FullReplacementProhibitedError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InsufficientScopeError"
                                 },
                                 {
                                     "$ref": "#/components/schemas/RemovalProhibitedError"
@@ -13087,6 +14533,36 @@
                             "code",
                             "status",
                             "source"
+                        ]
+                    }
+                ]
+            },
+            "InsufficientScopeError": {
+                "title": "Insufficient scope",
+                "description": "The access token is valid but does not grant every scope the request needs. `meta.missingScopes` names the ones it lacks; request a token that grants them, or drop the `include` path named in `meta.include`.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "INSUFFICIENT_SCOPE"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "403"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The access token does not grant every scope this request needs."
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status"
                         ]
                     }
                 ]
@@ -16534,6 +18010,22 @@
                 "type": "apiKey",
                 "name": "X-Api-Key",
                 "in": "header"
+            },
+            "oauth2": {
+                "type": "oauth2",
+                "flows": {
+                    "clientCredentials": {
+                        "tokenUrl": "https://auth.example.com/token",
+                        "scopes": {
+                            "articles:read": "Read articles.",
+                            "articles:write": "Create, change and delete articles.",
+                            "articles:publish": "Publish articles.",
+                            "people:read": "Read people.",
+                            "companies:read": "Read the companies people work for.",
+                            "batch": "Send Atomic Operations batches."
+                        }
+                    }
+                }
             }
         }
     },

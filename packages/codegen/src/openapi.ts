@@ -62,6 +62,16 @@ export interface OperationObject {
   responses?: Record<string, ResponseObject>
   /** What a custom action declares about its effects (generator contract 15). */
   'x-safety'?: { readOnly?: unknown; destructive?: unknown; idempotent?: unknown }
+  /** The credentials the operation takes: scheme name to the scopes it needs, per alternative. */
+  security?: readonly SecurityRequirement[]
+}
+
+/** One security alternative: each scheme it names, with the scopes it needs under that scheme. */
+export type SecurityRequirement = Readonly<Record<string, readonly string[]>>
+
+/** A security scheme; the codegen reads only its `type`, to find the `oauth2` ones. */
+export interface SecuritySchemeObject {
+  type?: string
 }
 
 export type HttpMethod = 'get' | 'post' | 'patch' | 'put' | 'delete'
@@ -80,7 +90,10 @@ export interface OpenApiDocument {
   info?: InfoObject
   servers?: readonly { url?: string }[]
   paths?: Record<string, PathItemObject>
+  /** The default security of every operation that declares none of its own. */
+  security?: readonly SecurityRequirement[]
   components?: {
     schemas?: Record<string, SchemaObject>
+    securitySchemes?: Record<string, SecuritySchemeObject>
   }
 }

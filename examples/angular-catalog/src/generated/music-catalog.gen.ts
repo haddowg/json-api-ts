@@ -990,6 +990,7 @@ export const resourceMap = {
           "albums",
           "artists"
         ],
+        polymorphic: true,
         pivot: false,
         mutations: {
           set: true
@@ -1046,6 +1047,7 @@ export const resourceMap = {
           "albums",
           "artists"
         ],
+        polymorphic: true,
         pivot: false,
         mutations: {
           add: true,
