@@ -2,7 +2,7 @@
  * Each tool's output schema, generated from the descriptor and the document's resource schemas.
  * Output schemas aren't held to the portable subset inputs are: the model only reads them.
  */
-import type { ApiDescriptor } from '@haddowg/json-api-client'
+import { type ApiDescriptor, isPolymorphic } from '@haddowg/json-api-client'
 import {
   deref,
   isObject,
@@ -139,7 +139,7 @@ function flatResource(
     if (relation.writeOnly === true) {
       continue
     }
-    const polymorphic = relation.types.length > 1
+    const polymorphic = isPolymorphic(relation)
     const identifier: JsonSchema = polymorphic
       ? {
           type: 'object',

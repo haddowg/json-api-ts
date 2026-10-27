@@ -5,6 +5,7 @@ import {
   execute,
   fetchTransport,
   type HeadersInit,
+  isPolymorphic,
   JsonApiError,
   type JsonApiTransport,
   materialise,
@@ -167,7 +168,7 @@ export function writeInput(
       continue
     }
     const identify = (item: unknown): unknown => {
-      if (relation.types.length > 1) {
+      if (isPolymorphic(relation)) {
         if (!isObject(item) || typeof item['type'] !== 'string' || typeof item['id'] !== 'string') {
           throw new ArgumentError(`${name} takes the related resource's type and id`)
         }

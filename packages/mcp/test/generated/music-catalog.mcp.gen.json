@@ -304,6 +304,7 @@
             "albums",
             "artists"
           ],
+          "polymorphic": true,
           "pivot": false,
           "mutations": {
             "set": true
@@ -360,6 +361,7 @@
             "albums",
             "artists"
           ],
+          "polymorphic": true,
           "pivot": false,
           "mutations": {
             "add": true,
@@ -10026,7 +10028,8 @@
                   "tracks",
                   "albums",
                   "artists"
-                ]
+                ],
+                "polymorphic": true
               },
               "property": {
                 "decoder": {
@@ -11206,7 +11209,8 @@
                   "tracks",
                   "albums",
                   "artists"
-                ]
+                ],
+                "polymorphic": true
               },
               "property": {
                 "decoder": {
@@ -12427,7 +12431,8 @@
                   "tracks",
                   "albums",
                   "artists"
-                ]
+                ],
+                "polymorphic": true
               },
               "property": {
                 "decoder": {
@@ -14631,7 +14636,8 @@
                   "tracks",
                   "albums",
                   "artists"
-                ]
+                ],
+                "polymorphic": true
               },
               "property": {
                 "decoder": {

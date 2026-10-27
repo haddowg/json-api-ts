@@ -4,7 +4,7 @@
  * and id for a polymorphic relation), or the flattened related resource when it was included.
  * Links and meta on resources are dropped; a collection keeps only its pagination links.
  */
-import type { ApiDescriptor } from '@haddowg/json-api-client'
+import { type ApiDescriptor, isPolymorphic } from '@haddowg/json-api-client'
 import { isObject } from './openapi'
 
 /** A materialised related value carries `$raw` when it was included, not when it's only linkage. */
@@ -33,7 +33,7 @@ export function flattenResource(
       out[name] = member
       continue
     }
-    const polymorphic = relation.types.length > 1
+    const polymorphic = isPolymorphic(relation)
     const one = (item: unknown): unknown => {
       if (!isObject(item)) {
         return item
