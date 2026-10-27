@@ -1,10 +1,10 @@
 {
   "format": 2,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 16,
+  "contract": 17,
   "source": {
     "title": "Contract Witness API 3.4.1",
-    "hash": "ce3a668ffbd33fc8"
+    "hash": "9ccc4831ab5c04cc"
   },
   "credentialSchemes": [
     "oauth2"
@@ -243,6 +243,13 @@
         "wordCount"
       ],
       "actions": {
+        "archive": {
+          "scope": "collection",
+          "path": "/articles/-actions/archive",
+          "input": "none",
+          "output": "none",
+          "method": "GET"
+        },
         "bulk-import": {
           "scope": "collection",
           "path": "/articles/-actions/bulk-import",
@@ -280,6 +287,17 @@
               "kind": "binary"
             }
           ]
+        },
+        "download": {
+          "scope": "resource",
+          "path": "/articles/{id}/-actions/download",
+          "input": "none",
+          "output": "location",
+          "method": "GET",
+          "readOnly": true,
+          "location": {
+            "mediaType": "text/csv"
+          }
         },
         "draft": {
           "scope": "resource",
@@ -358,6 +376,18 @@
               "kind": "json"
             }
           ]
+        },
+        "revision": {
+          "scope": "resource",
+          "path": "/articles/{id}/-actions/revision",
+          "input": "none",
+          "output": "document",
+          "method": "GET",
+          "outputType": "articles",
+          "outputCardinality": "one",
+          "location": {
+            "mediaType": "application/octet-stream"
+          }
         },
         "stats": {
           "scope": "collection",
@@ -662,6 +692,51 @@
     }
   },
   "tools": [
+    {
+      "operation": {
+        "operationId": "action.articles.archive",
+        "toolName": "articles_archive",
+        "kind": "action",
+        "type": "articles",
+        "method": "GET",
+        "path": "/articles/-actions/archive",
+        "operation": {
+          "tags": [
+            "Articles"
+          ],
+          "summary": "Invoke the `archive` action",
+          "description": "Invokes the `archive` custom action on the articles collection.",
+          "operationId": "action.articles.archive"
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "action": "archive",
+        "actionKey": "archive"
+      },
+      "tool": {
+        "name": "articles_archive",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "title": "Invoke the `archive` action",
+        "description": "Invokes the `archive` custom action on the articles collection.",
+        "_meta": {
+          "operationId": "action.articles.archive"
+        }
+      },
+      "plan": {
+        "action": {
+          "kind": "none"
+        }
+      },
+      "result": "none"
+    },
     {
       "operation": {
         "operationId": "fetchRelated.articles.attachments",
@@ -3272,6 +3347,89 @@
       },
       "plan": {},
       "result": "deleted"
+    },
+    {
+      "operation": {
+        "operationId": "action.articles.download",
+        "toolName": "articles_download",
+        "kind": "action",
+        "type": "articles",
+        "method": "GET",
+        "path": "/articles/{id}/-actions/download",
+        "operation": {
+          "tags": [
+            "Articles"
+          ],
+          "summary": "Invoke the `download` action",
+          "description": "Invokes the `download` custom action on an article.",
+          "operationId": "action.articles.download",
+          "x-safety": {
+            "readOnly": true
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "action": "download",
+        "actionKey": "download"
+      },
+      "tool": {
+        "name": "articles_download",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the `articles` resource to run download on."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "title": "Invoke the `download` action",
+        "description": "Invokes the `download` custom action on an article.",
+        "outputSchema": {
+          "type": "object",
+          "description": "The URL the action produced, such as a short-lived download link. The tool does not fetch it.",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri-reference",
+              "description": "The URL."
+            },
+            "type": {
+              "type": "string",
+              "description": "The media type the URL serves. The action declares `text/csv`."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When the URL stops working. Absent when it does not expire."
+            }
+          },
+          "required": [
+            "url",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        },
+        "_meta": {
+          "operationId": "action.articles.download"
+        }
+      },
+      "plan": {
+        "action": {
+          "kind": "none"
+        }
+      },
+      "result": "location"
     },
     {
       "operation": {
@@ -9208,6 +9366,1144 @@
         }
       },
       "result": "meta"
+    },
+    {
+      "operation": {
+        "operationId": "action.articles.revision",
+        "toolName": "articles_revision",
+        "kind": "action",
+        "type": "articles",
+        "method": "GET",
+        "path": "/articles/{id}/-actions/revision",
+        "operation": {
+          "tags": [
+            "Articles"
+          ],
+          "summary": "Invoke the `revision` action",
+          "description": "Invokes the `revision` custom action on an article.",
+          "operationId": "action.articles.revision"
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "action": "revision",
+        "actionKey": "revision"
+      },
+      "tool": {
+        "name": "articles_revision",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the `articles` resource to run revision on."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "title": "Invoke the `revision` action",
+        "description": "Invokes the `revision` custom action on an article.",
+        "outputSchema": {
+          "type": "object",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "articles"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "The article headline.",
+                  "minLength": 3,
+                  "maxLength": 120
+                },
+                "slug": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                },
+                "status": {
+                  "description": "Publication status.",
+                  "anyOf": [
+                    {
+                      "description": "| Value | Description |\n| --- | --- |\n| `draft` | Not yet visible to readers |\n| `published` | Live and public |\n| `archived` |  |",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "archived"
+                      ],
+                      "x-enum-descriptions": [
+                        "Not yet visible to readers",
+                        "Live and public",
+                        ""
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "priority": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        1,
+                        2
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "wordCount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "multipleOf": 10
+                },
+                "rating": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0,
+                  "exclusiveMaximum": 10
+                },
+                "featured": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "releasedOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "publishedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "syncedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "archivedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A date/time value written as `05/09/2024 09:08`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
+                },
+                "embargoLifts": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
+                },
+                "editorEmail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "email"
+                },
+                "canonicalUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uri"
+                },
+                "excerpt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "revision": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "reviewNote": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A conditional rule applies to this value; see the resource documentation."
+                },
+                "originIp": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "keywords": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "analytics": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": {}
+                },
+                "address": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "street": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "city": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "street",
+                    "city"
+                  ]
+                },
+                "block": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "heading"
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "src": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uri"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "image"
+                        }
+                      },
+                      "required": [
+                        "src",
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind"
+                  }
+                },
+                "contact": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "firstName": {
+                      "type": "string"
+                    },
+                    "nickname": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "phone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "geo": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "lat": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "lat"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "firstName",
+                    "nickname",
+                    "geo"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "legacyRef": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commentCount": {
+                  "type": "integer"
+                },
+                "authorName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "score": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "images",
+                          "videos"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "description": "The related images or videos resources: type and id, or the resources themselves when included."
+                },
+                "author": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its id, or the resource itself when included."
+                },
+                "cover": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related images: its id, or the resource itself when included."
+                },
+                "editor": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its id, or the resource itself when included."
+                },
+                "gallery": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "images"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "description": "The related images resources: type and id, or the resources themselves when included."
+                },
+                "locked": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people resources: ids, or the resources themselves when included."
+                },
+                "publisher": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its id, or the resource itself when included."
+                },
+                "subject": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "people"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id"
+                      ]
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its type and id, or the resource itself when included."
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "$ref": "#/$defs/tags"
+                      }
+                    ]
+                  },
+                  "description": "The related tags resources: ids, or the resources themselves when included."
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "description": "A blog article."
+            },
+            {
+              "type": "object",
+              "description": "The URL the action produced, such as a short-lived download link. The tool does not fetch it.",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "The URL."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "The media type the URL serves. The action declares `application/octet-stream`."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the URL stops working. Absent when it does not expire."
+                }
+              },
+              "required": [
+                "url",
+                "type"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "$defs": {
+            "articles": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "articles"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "The article headline.",
+                  "minLength": 3,
+                  "maxLength": 120
+                },
+                "slug": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                },
+                "status": {
+                  "description": "Publication status.",
+                  "anyOf": [
+                    {
+                      "description": "| Value | Description |\n| --- | --- |\n| `draft` | Not yet visible to readers |\n| `published` | Live and public |\n| `archived` |  |",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "archived"
+                      ],
+                      "x-enum-descriptions": [
+                        "Not yet visible to readers",
+                        "Live and public",
+                        ""
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "priority": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        1,
+                        2
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "wordCount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "multipleOf": 10
+                },
+                "rating": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0,
+                  "exclusiveMaximum": 10
+                },
+                "featured": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "releasedOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "publishedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "syncedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "archivedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A date/time value written as `05/09/2024 09:08`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
+                },
+                "embargoLifts": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A date/time value written as `09:08:07`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time."
+                },
+                "editorEmail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "email"
+                },
+                "canonicalUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uri"
+                },
+                "excerpt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "revision": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "reviewNote": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A conditional rule applies to this value; see the resource documentation."
+                },
+                "originIp": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "keywords": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "analytics": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": {}
+                },
+                "address": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "street": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "city": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "street",
+                    "city"
+                  ]
+                },
+                "block": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "heading"
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "src": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uri"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "image"
+                        }
+                      },
+                      "required": [
+                        "src",
+                        "kind"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind"
+                  }
+                },
+                "contact": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "firstName": {
+                      "type": "string"
+                    },
+                    "nickname": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "phone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "geo": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "lat": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "lat"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "firstName",
+                    "nickname",
+                    "geo"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "legacyRef": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commentCount": {
+                  "type": "integer"
+                },
+                "authorName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "score": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "images",
+                          "videos"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "description": "The related images or videos resources: type and id, or the resources themselves when included."
+                },
+                "author": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its id, or the resource itself when included."
+                },
+                "cover": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related images: its id, or the resource itself when included."
+                },
+                "editor": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its id, or the resource itself when included."
+                },
+                "gallery": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "images"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "description": "The related images resources: type and id, or the resources themselves when included."
+                },
+                "locked": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people resources: ids, or the resources themselves when included."
+                },
+                "publisher": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its id, or the resource itself when included."
+                },
+                "subject": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "people"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "id"
+                      ]
+                    },
+                    {
+                      "$ref": "#/$defs/people"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related people: its type and id, or the resource itself when included."
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "$ref": "#/$defs/tags"
+                      }
+                    ]
+                  },
+                  "description": "The related tags resources: ids, or the resources themselves when included."
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "description": "A blog article."
+            },
+            "people": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "people"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "description": "| Value | Description |\n| --- | --- |\n| `draft` | Not yet visible to readers |\n| `published` | Live and public |\n| `archived` |  |",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "archived"
+                      ],
+                      "x-enum-descriptions": [
+                        "Not yet visible to readers",
+                        "Live and public",
+                        ""
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/companies"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related companies: its id, or the resource itself when included."
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "description": "A person resource object."
+            },
+            "tags": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "tags"
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "articles": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "$ref": "#/$defs/articles"
+                      }
+                    ]
+                  },
+                  "description": "The related articles resources: ids, or the resources themselves when included."
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "description": "A tag resource object."
+            },
+            "companies": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "companies"
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ]
+            }
+          }
+        },
+        "_meta": {
+          "operationId": "action.articles.revision"
+        }
+      },
+      "plan": {
+        "action": {
+          "kind": "none"
+        }
+      },
+      "result": "resource"
     },
     {
       "operation": {

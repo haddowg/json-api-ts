@@ -20,7 +20,9 @@ import {
 import {
   collectionOutput,
   LOOSE_OUTPUT,
+  locationOutput,
   metaOutput,
+  orLocation,
   type OutputContext,
   itemOutput,
   resourceOutput,
@@ -42,6 +44,7 @@ export type ResultShape =
   | 'item'
   | 'deleted'
   | 'meta'
+  | 'location'
   | 'none'
   | 'raw'
   | 'loose'
@@ -133,6 +136,9 @@ function findAction(op: McpOperation): [string, ActionDescriptor] | undefined {
 }
 
 function actionResult(action: ActionDescriptor): ResultShape {
+  if (action.output === 'location') {
+    return 'location'
+  }
   if (action.output === 'none') {
     return action.rawOutput !== undefined && action.rawOutput.length > 0 ? 'raw' : 'none'
   }
@@ -145,7 +151,21 @@ function actionResult(action: ActionDescriptor): ResultShape {
   return action.outputCardinality === 'many' ? 'collection' : 'resource'
 }
 
+/**
+ * An action's output schema. One that may answer with a URL instead of its usual result takes
+ * either; one that only answers with a URL takes the URL.
+ */
 function actionOutput(ctx: OutputContext, action: ActionDescriptor): JsonSchema | undefined {
+  const usual = documentOutput(ctx, action)
+  if (action.location === undefined) {
+    return usual
+  }
+  return usual === undefined
+    ? locationOutput(action.location.mediaType)
+    : orLocation(usual, action.location.mediaType)
+}
+
+function documentOutput(ctx: OutputContext, action: ActionDescriptor): JsonSchema | undefined {
   switch (actionResult(action)) {
     case 'collection':
       return collectionOutput(ctx, [action.outputType!])
