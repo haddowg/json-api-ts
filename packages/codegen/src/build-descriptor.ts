@@ -632,6 +632,12 @@ export class DescriptorBuilder {
     if (scopes !== undefined) {
       action.scopes = scopes
     }
+    // Generator contract 17: a location document carrying the URL the action produced.
+    const okSchema = okJsonApiSchema(op)
+    const mediaType = okSchema === undefined ? undefined : locationMediaType(okSchema)
+    if (mediaType !== undefined) {
+      action.location = { mediaType }
+    }
     return action
   }
 
@@ -737,7 +743,9 @@ export class DescriptorBuilder {
       if (!code.startsWith('2')) {
         continue
       }
-      const ref = response.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+      const schema = response.content?.[JSON_API_MEDIA_TYPE]?.schema
+      // A response offering a location document too names its other document in a `oneOf`.
+      const ref = schema === undefined ? undefined : documentArms(schema)[0]?.$ref
       if (typeof ref === 'string') {
         return ref
       }
@@ -1376,19 +1384,66 @@ function rawContentType(op: OperationObject): string | undefined {
  * (only a `204`).
  */
 function actionOutput(op: OperationObject): ActionDescriptor['output'] {
+  const schema = okJsonApiSchema(op)
+  if (schema === undefined) {
+    return 'none'
+  }
+  const arm = documentArms(schema)[0]
+  if (arm === undefined) {
+    return locationMediaType(schema) === undefined ? 'document' : 'location'
+  }
+  return typeof arm.$ref === 'string' && refName(arm.$ref) === 'MetaDocument' ? 'meta' : 'document'
+}
+
+/** The JSON:API schema of an operation's first success response that declares one. */
+function okJsonApiSchema(op: OperationObject): SchemaObject | undefined {
   for (const [code, response] of Object.entries(op.responses ?? {})) {
     if (!code.startsWith('2')) {
       continue
     }
     const schema = response.content?.[JSON_API_MEDIA_TYPE]?.schema
-    if (schema === undefined) {
-      continue
+    if (schema !== undefined) {
+      return schema
     }
-    return typeof schema.$ref === 'string' && refName(schema.$ref) === 'MetaDocument'
-      ? 'meta'
-      : 'document'
   }
-  return 'none'
+  return undefined
+}
+
+/** Whether a schema is a location document: a `$ref` to `LocationDocument`, or an `allOf` with one. */
+function isLocationSchema(schema: SchemaObject): boolean {
+  const isRef = (entry: SchemaObject) =>
+    typeof entry.$ref === 'string' && refName(entry.$ref) === 'LocationDocument'
+  return isRef(schema) || (schema.allOf?.some(isRef) ?? false)
+}
+
+/**
+ * The documents a success response's schema offers besides a location document (generator
+ * contract 17): each `oneOf` member that isn't one, or the schema itself when it isn't one.
+ */
+function documentArms(schema: SchemaObject): SchemaObject[] {
+  const arms = schema.oneOf ?? [schema]
+  return arms.filter((arm) => !isLocationSchema(arm))
+}
+
+/**
+ * The media type a location document's `links.location.type` is fixed to (generator contract
+ * 17), `application/octet-stream` when the schema fixes none, or `undefined` when the schema
+ * offers no location document.
+ */
+function locationMediaType(schema: SchemaObject): string | undefined {
+  const location = (schema.oneOf ?? [schema]).find(isLocationSchema)
+  if (location === undefined) {
+    return undefined
+  }
+  for (const entry of location.allOf ?? []) {
+    const links = entry.properties?.['links']
+    const link = isSchema(links) ? links.properties?.['location'] : undefined
+    const type = isSchema(link) ? link.properties?.['type'] : undefined
+    if (isSchema(type) && typeof type.const === 'string') {
+      return type.const
+    }
+  }
+  return 'application/octet-stream'
 }
 
 /** Build the {@link ApiDescriptor} from a parsed OpenAPI document. */

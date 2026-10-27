@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 16
+            "contract": 17
         }
     },
     "servers": [
@@ -5287,6 +5287,411 @@
                 },
                 "x-safety": {
                     "destructive": true
+                }
+            }
+        },
+        "/articles/{id}/-actions/download": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `download` action",
+                "description": "Invokes the `download` custom action on an article.",
+                "operationId": "action.articles.download",
+                "responses": {
+                    "200": {
+                        "description": "A short-lived link to the article as CSV.",
+                        "headers": {
+                            "Cache-Control": {
+                                "description": "`no-store` unless the action sets its own: the URL may be short-lived.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/LocationDocument"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "links": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "location": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "type": {
+                                                                    "type": "string",
+                                                                    "const": "text/csv"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                "example": {
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/-actions/download",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1download/get"
+                                        },
+                                        "location": {
+                                            "href": "https://storage.example.com/downloads/example?signature=example",
+                                            "type": "text/csv",
+                                            "meta": {
+                                                "expiresAt": "2030-01-01T00:00:00+00:00"
+                                            }
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1download/get"
+                                        }
+                                    },
+                                    "meta": {
+                                        "expiresAt": "2030-01-01T00:00:00+00:00"
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "303": {
+                        "description": "A short-lived link to the article as CSV.",
+                        "headers": {
+                            "Location": {
+                                "description": "The URL the action produced.",
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "format": "uri-reference"
+                                }
+                            },
+                            "Cache-Control": {
+                                "description": "`no-store` unless the action sets its own: the URL may be short-lived.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "x-safety": {
+                    "readOnly": true
+                }
+            }
+        },
+        "/articles/-actions/archive": {
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `archive` action",
+                "description": "Invokes the `archive` custom action on the articles collection.",
+                "operationId": "action.articles.archive",
+                "responses": {
+                    "303": {
+                        "description": "The asynchronous operation is complete; follow Location to the produced resource.",
+                        "headers": {
+                            "Location": {
+                                "description": "The URL of the produced resource.",
+                                "schema": {
+                                    "type": "string",
+                                    "format": "uri-reference"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/articles/{id}/-actions/revision": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Invoke the `revision` action",
+                "description": "Invokes the `revision` custom action on an article.",
+                "operationId": "action.articles.revision",
+                "parameters": [
+                    {
+                        "name": "include",
+                        "in": "query",
+                        "description": "A comma-separated list of relationship paths to include in a compound document.",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "author",
+                                    "tags",
+                                    "author.company"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[articles]",
+                        "in": "query",
+                        "description": "A comma-separated list of `articles` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "title",
+                                    "slug",
+                                    "status",
+                                    "priority",
+                                    "wordCount",
+                                    "rating",
+                                    "featured",
+                                    "releasedOn",
+                                    "publishedAt",
+                                    "syncedAt",
+                                    "archivedAt",
+                                    "embargoLifts",
+                                    "editorEmail",
+                                    "canonicalUrl",
+                                    "excerpt",
+                                    "revision",
+                                    "reviewNote",
+                                    "originIp",
+                                    "keywords",
+                                    "analytics",
+                                    "address",
+                                    "block",
+                                    "contact",
+                                    "createdAt",
+                                    "legacyRef",
+                                    "commentCount",
+                                    "authorName",
+                                    "score",
+                                    "author",
+                                    "tags",
+                                    "publisher",
+                                    "cover",
+                                    "locked",
+                                    "attachments",
+                                    "editor",
+                                    "subject",
+                                    "gallery"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[people]",
+                        "in": "query",
+                        "description": "A comma-separated list of `people` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "name",
+                                    "role",
+                                    "company"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[tags]",
+                        "in": "query",
+                        "description": "A comma-separated list of `tags` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "label",
+                                    "articles"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The action result. Or the URL the action produced, as its `location` link.",
+                        "headers": {
+                            "Cache-Control": {
+                                "description": "`no-store` unless the action sets its own: the URL may be short-lived.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ArticlesDocument"
+                                        },
+                                        {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/LocationDocument"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "links": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "location": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "type": {
+                                                                            "type": "string",
+                                                                            "const": "application/octet-stream"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "303": {
+                        "description": "Redirects to the URL the action produced.",
+                        "headers": {
+                            "Location": {
+                                "description": "The URL the action produced.",
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "format": "uri-reference"
+                                }
+                            },
+                            "Cache-Control": {
+                                "description": "`no-store` unless the action sets its own: the URL may be short-lived.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
                 }
             }
         },
@@ -10906,6 +11311,18 @@
                             "href": "https://api.example.com/articles/art-1/-actions/publish",
                             "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1publish/post"
                         }
+                    },
+                    "download": {
+                        "description": "The `download` action on this resource. The example uses the document's server URL; in a response, `href` is absolute to the request host unless the server pins its links to a configured base URI.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/RenderedLink"
+                            }
+                        ],
+                        "example": {
+                            "href": "https://api.example.com/articles/art-1/-actions/download",
+                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1download/get"
+                        }
                     }
                 },
                 "additionalProperties": {
@@ -10919,6 +11336,10 @@
                     "publish": {
                         "href": "https://api.example.com/articles/art-1/-actions/publish",
                         "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1publish/post"
+                    },
+                    "download": {
+                        "href": "https://api.example.com/articles/art-1/-actions/download",
+                        "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1download/get"
                     }
                 }
             },
@@ -14795,6 +15216,84 @@
                             "source"
                         ]
                     }
+                ]
+            },
+            "LocationDocument": {
+                "type": "object",
+                "description": "The URL a custom action produced, as the document's `location` link.",
+                "properties": {
+                    "links": {
+                        "type": "object",
+                        "properties": {
+                            "self": {
+                                "$ref": "#/components/schemas/LinkObject"
+                            },
+                            "location": {
+                                "$ref": "#/components/schemas/LocationLink"
+                            },
+                            "describedby": {
+                                "$ref": "#/components/schemas/LinkObject"
+                            }
+                        },
+                        "required": [
+                            "location"
+                        ]
+                    },
+                    "meta": {
+                        "type": "object",
+                        "properties": {
+                            "expiresAt": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "date-time",
+                                "description": "When the URL stops working, or `null` when it does not expire."
+                            }
+                        },
+                        "required": [
+                            "expiresAt"
+                        ],
+                        "additionalProperties": {}
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "links",
+                    "meta"
+                ]
+            },
+            "LocationLink": {
+                "type": "object",
+                "description": "The URL a custom action produced, such as a short-lived download link.",
+                "properties": {
+                    "href": {
+                        "type": "string",
+                        "format": "uri-reference"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The media type the URL serves."
+                    },
+                    "meta": {
+                        "type": "object",
+                        "properties": {
+                            "expiresAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "When the URL stops working."
+                            }
+                        },
+                        "required": [
+                            "expiresAt"
+                        ]
+                    }
+                },
+                "required": [
+                    "href",
+                    "type"
                 ]
             },
             "MediaTypeUnacceptableError": {
