@@ -11,6 +11,12 @@ const find = (list: readonly McpTool[], name: string): McpTool => list.find((t) 
 const props = (schema: JsonSchema) => schema['properties'] as Record<string, JsonSchema>
 
 describe('input schemas', () => {
+  it('says a relationship only has a value when it is also included', () => {
+    expect(props(find(tools, 'albums_get').inputSchema)['fields']!['description']).toContain(
+      'A relationship only has a value in the result when it is also included.',
+    )
+  })
+
   it('gives a get tool an id, include and fields, and no paging', () => {
     expect(Object.keys(props(find(tools, 'albums_get').inputSchema))).toEqual([
       'id',

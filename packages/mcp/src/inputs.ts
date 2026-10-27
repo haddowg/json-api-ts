@@ -33,7 +33,7 @@ export const INCLUDE_DESCRIPTION =
   'Relationship paths to include in the result (JSON:API compound documents), such as `author` or `comments.author`. An included relation comes back as the related resource in place of its id. Leave null to include nothing.'
 
 export const FIELDS_DESCRIPTION =
-  'Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. Leave a type null for its default fields.'
+  'Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields.'
 
 /** The Countable profile's token for counting the collection itself. */
 export const SELF_COUNT = '_self_'
