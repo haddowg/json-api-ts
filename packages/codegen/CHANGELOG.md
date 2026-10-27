@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.11.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.10.0...json-api-codegen-v1.11.0) (2026-10-27)
+
+
+### Features
+
+* **codegen:** read contract 16 scopes and one-type polymorphic unions ([c194208](https://github.com/haddowg/json-api-ts/commit/c1942084f6a4fcebcb30a8446cf3cc7ac7a21527))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.8.0
+
 ## [1.10.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.9.0...json-api-codegen-v1.10.0) (2026-10-26)
 
 
