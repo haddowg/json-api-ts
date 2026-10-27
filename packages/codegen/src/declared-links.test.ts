@@ -46,7 +46,7 @@ function clientAnswering(body: unknown) {
 
 describe('generator contract 14 (declared links)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(17)
+    expect(witness.info?.['x-generator']?.contract).toBe(18)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -59,6 +59,31 @@ describe('generator contract 14 (declared links)', () => {
     ])
     expect(readDeclaredLinks(schemas['ArticlesResourceLinks'])).toEqual([])
     expect(readDeclaredLinks(schemas['VideosResourceLinks'])).toEqual([])
+  })
+
+  it('reads the named links from the allOf extending the shared ResourceLinks', () => {
+    const schemas = witness.components!.schemas!
+    expect(schemas['ImagesResourceLinks']!.allOf![0]).toEqual({
+      $ref: '#/components/schemas/ResourceLinks',
+    })
+    // a type with no named links points straight at the shared component
+    expect(schemas['VideosResource']!.properties!['links']).toEqual({
+      $ref: '#/components/schemas/ResourceLinks',
+    })
+    expect(readDeclaredLinks(schemas['ResourceLinks'])).toEqual([])
+  })
+
+  it('still reads the named links listed beside self before contract 18', () => {
+    const flat = readDeclaredLinks({
+      type: 'object',
+      properties: {
+        self: { $ref: '#/components/schemas/RenderedLink' },
+        thumbnail: { $ref: '#/components/schemas/LinkObject' },
+      },
+    })
+    expect(flat.map(({ name, kind }) => ({ name, kind }))).toEqual([
+      { name: 'thumbnail', kind: 'bare' },
+    ])
   })
 
   it('types a link object with its static members and typed, documented meta', () => {
@@ -94,10 +119,7 @@ describe('generator contract 14 (declared links)', () => {
     )
     expect(source).toContain(
       [
-        '   * The `thumbnail` link, absent when it does not apply to the resource.',
-        '   *',
-        '   * @example https://cdn.example.com/thumbs/img-1.png',
-        '   */',
+        '  /** The `thumbnail` link, absent when it does not apply to the resource. */',
         '  thumbnail?: string',
       ].join('\n'),
     )
@@ -107,7 +129,7 @@ describe('generator contract 14 (declared links)', () => {
 
   it('emits an empty links map and no import when no type declares a link', () => {
     const doc = loadWitness()
-    const links = doc.components!.schemas!['ImagesResourceLinks']!.properties!
+    const links = doc.components!.schemas!['ImagesResourceLinks']!.allOf![1]!.properties!
     delete links['download']
     delete links['thumbnail']
     const source = emit(doc, buildDescriptor(doc))

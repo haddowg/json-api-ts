@@ -177,6 +177,11 @@ handles do not (serialize the data, not the handle).
   whose `200` is a `oneOf` of its own document and a location document returns either, told
   apart by the document's shape at runtime and by `isActionLocation()` in the caller. An action
   documenting only a `303` is unchanged: the transport follows it.
+- **Shared links components** (generator contract 18): the document has one links component
+  per context instead of one per type and relation. A type with declared or action links keeps
+  `<Type>ResourceLinks` as an `allOf` of the shared `ResourceLinks` and its named links, which
+  the codegen reads; the others point at `ResourceLinks` and have no typed links. Link schemas
+  carry no examples, so a declared link's JSDoc has none either.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 

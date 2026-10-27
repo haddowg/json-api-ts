@@ -19,6 +19,19 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
 }
 
 /**
+ * The named links of a `<Type>ResourceLinks` component. From generator contract 18 the component
+ * is an `allOf` of the shared `ResourceLinks` and an object listing them; before, it listed them
+ * beside `self`.
+ */
+function namedLinks(component: SchemaObject | undefined): [string, SchemaOrBool][] {
+  const own = Object.entries(component?.properties ?? {})
+  const extended = (component?.allOf ?? [])
+    .filter((member) => member.$ref === undefined)
+    .flatMap((member) => Object.entries(member.properties ?? {}))
+  return [...own, ...extended]
+}
+
+/**
  * The declared links on a `<Type>ResourceLinks` component, in document order. `self` is never
  * declared, and a link the server builds itself, such as an action's link, points at
  * `RenderedLink`, so neither is read. A server that renders its links as strings points those at
@@ -27,7 +40,7 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
  */
 export function readDeclaredLinks(component: SchemaObject | undefined): DeclaredLink[] {
   const out: DeclaredLink[] = []
-  for (const [name, schema] of Object.entries(component?.properties ?? {})) {
+  for (const [name, schema] of namedLinks(component)) {
     if (name === 'self' || !isSchema(schema)) {
       continue
     }
