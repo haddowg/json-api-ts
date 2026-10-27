@@ -326,7 +326,8 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
   document's at the top level, and drops `scopes`, which the runtime reads from the descriptor.
   Hooks see the operation object with its `security` as before. Formats 1 and 2 still load,
   with no include cap.
-- **Contract:** reads 13 to 17 and throws outside it.
+- **Contract:** reads 13 to 18 and throws outside it. Contract 18 only moves the links
+  components, and no tool schema copies them.
 
 ### Dependency policy (supersedes "zero runtime deps")
 
