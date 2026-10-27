@@ -259,6 +259,20 @@ function safetyDoc(action: ActionDescriptor): string | undefined {
   return `The server declares this action ${list}.`
 }
 
+/**
+ * What an action that answers with a URL returns (generator contract 17), as JSDoc, or
+ * `undefined` for any other action.
+ */
+function locationDoc(action: ActionDescriptor): string | undefined {
+  if (action.location === undefined) {
+    return undefined
+  }
+  const serving = `a URL serving \`${action.location.mediaType}\``
+  return action.output === 'location'
+    ? `Returns ${serving} as an \`ActionLocation\`. The client doesn't follow it.`
+    : `May return ${serving} instead, as an \`ActionLocation\`. The client doesn't follow it.`
+}
+
 /** A list of scopes as inline code joined into prose: `a`, `b` and `c`. */
 function scopeList(scopes: readonly string[]): string {
   const quoted = scopes.map((scope) => `\`${scope}\``)
@@ -451,6 +465,7 @@ export class Emitter {
         const wireName = action.path.slice(action.path.lastIndexOf('/') + 1)
         const parts = [
           actionDoc(wireName, op),
+          locationDoc(action),
           safetyDoc(action),
           scopeDoc(action.scopes),
           exampleDoc(op),

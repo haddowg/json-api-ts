@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   ce3a668ffbd33fc8
+ * Spec hash:   9ccc4831ab5c04cc
  */
 
 import {
@@ -703,6 +703,13 @@ export const resourceMap = {
       "wordCount"
     ],
     actions: {
+      archive: {
+        scope: "collection",
+        path: "/articles/-actions/archive",
+        input: "none",
+        output: "none",
+        method: "GET"
+      },
       "bulk-import": {
         scope: "collection",
         path: "/articles/-actions/bulk-import",
@@ -740,6 +747,50 @@ export const resourceMap = {
             kind: "binary"
           }
         ]
+      },
+      /**
+       * Returns a URL serving `text/csv` as an `ActionLocation`. The client doesn't follow it.
+       *
+       * The server declares this action read-only.
+       *
+       * @example Response `200`
+       * ```json
+       * {
+       *   "links": {
+       *     "self": {
+       *       "href": "https://api.example.com/articles/art-1/-actions/download",
+       *       "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1download/get"
+       *     },
+       *     "location": {
+       *       "href": "https://storage.example.com/downloads/example?signature=example",
+       *       "type": "text/csv",
+       *       "meta": {
+       *         "expiresAt": "2030-01-01T00:00:00+00:00"
+       *       }
+       *     },
+       *     "describedby": {
+       *       "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1-actions~1download/get"
+       *     }
+       *   },
+       *   "meta": {
+       *     "expiresAt": "2030-01-01T00:00:00+00:00"
+       *   },
+       *   "jsonapi": {
+       *     "version": "1.1"
+       *   }
+       * }
+       * ```
+       */
+      download: {
+        scope: "resource",
+        path: "/articles/{id}/-actions/download",
+        input: "none",
+        output: "location",
+        method: "GET",
+        readOnly: true,
+        location: {
+          mediaType: "text/csv"
+        }
       },
       /** Save a draft revision. */
       draft: {
@@ -833,6 +884,19 @@ export const resourceMap = {
             kind: "json"
           }
         ]
+      },
+      /** May return a URL serving `application/octet-stream` instead, as an `ActionLocation`. The client doesn't follow it. */
+      revision: {
+        scope: "resource",
+        path: "/articles/{id}/-actions/revision",
+        input: "none",
+        output: "document",
+        method: "GET",
+        outputType: "articles",
+        outputCardinality: "one",
+        location: {
+          mediaType: "application/octet-stream"
+        }
       },
       /**
        * @example Response `200`

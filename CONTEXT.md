@@ -169,6 +169,14 @@ handles do not (serialize the data, not the handle).
   each absent when none is needed, and a sentence in the JSDoc. A relation whose linkage is an
   `anyOf` union, even of one member, carries `polymorphic: true`; `isPolymorphic()` reads it and
   falls back to more than one type for an older descriptor.
+- **Actions that answer with a URL** (generator contract 17, ADR 0018): a `200` location
+  document, an `allOf` of `LocationDocument` fixing `links.location.type`, marks the action
+  `location: { mediaType }`, with `output: 'location'` when that is all it answers with. Its
+  method returns an `ActionLocation`, `{ url, type, expiresAt? }`, read from `links.location`,
+  and never follows the URL. `expiresAt` stays an ISO string, as every date does. An action
+  whose `200` is a `oneOf` of its own document and a location document returns either, told
+  apart by the document's shape at runtime and by `isActionLocation()` in the caller. An action
+  documenting only a `303` is unchanged: the transport follows it.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 
@@ -300,7 +308,10 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
 - **Polymorphic relations:** a relation `isPolymorphic()` takes and returns `{ type, id }`,
   even over one type, so adding a second type doesn't change a tool's input. Every other
   relation takes a bare id. Each operation carries the descriptor's `scopes` for its hooks.
-- **Contract:** reads 13 to 16 and throws outside it.
+- **URLs:** an action that answers with a URL returns `{ url, type, expiresAt? }` as structured
+  content, and its `outputSchema` describes it, or an `anyOf` of it and the action's document
+  when it answers with either. The tool never fetches the URL.
+- **Contract:** reads 13 to 17 and throws outside it.
 
 ### Dependency policy (supersedes "zero runtime deps")
 

@@ -51,7 +51,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 16. An older document is an error, and a newer one
+codegen reads contracts 1 to 17. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -146,6 +146,16 @@ relation, so its types don't change; the [MCP tools](mcp.md) do, since they take
 for a relation that isn't polymorphic. The relation's related and relationship endpoints
 also stop advertising the related type's `filter`, `sort` and `page` parameters, as they
 already did for a polymorphic relation over several types.
+
+Contract 17 is carried only by a document with an action that answers with a URL, such as a
+short-lived download link. Its `200` JSON:API response is a location document: an `allOf` of
+the shared `LocationDocument` with a `const` on `links.location.type`, the media type the URL
+serves, or a `oneOf` of that and the action's own document when it declares one. The codegen
+marks such an action with `location: { mediaType }` and, when the URL is all it answers with,
+`output: "location"`. The client then returns the URL instead of fetching it, as described
+under [actions that answer with a URL](custom-actions.md#actions-that-answer-with-a-url). An
+action that only documents a `303` has no `location`, and the transport follows the redirect
+as before.
 
 ### The validation schemas
 
@@ -564,8 +574,8 @@ document's structure:
   profile URI (read from the parameter's `x-profile`, never hardcoded).
 - **`actions`** — custom actions keyed by name, each carrying `scope`
   (`resource`/`collection`), `path`, `input` (`document`/`none`/`raw`) and
-  `output` (`document`/`meta`/`none`), plus an `inputType`/`outputType` where the
-  action names a resource. A `document` action gets emitted `…Input`/`…Output`
+  `output` (`document`/`meta`/`location`/`none`), plus an `inputType`/`outputType` where the
+  action names a resource, and a `location` when it answers with a URL. A `document` action gets emitted `…Input`/`…Output`
   type aliases. See [custom actions](custom-actions.md). An action needing OAuth
   scopes carries them as `scopes`.
 - **`scopes`** — the OAuth scopes each operation needs, keyed by the operation id
