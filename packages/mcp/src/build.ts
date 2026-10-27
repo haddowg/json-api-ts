@@ -2,7 +2,7 @@ import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { buildCatalogue } from './catalogue'
 import { assertContract } from './contract'
 import { MODEL_FORMAT, MODEL_GENERATOR, type McpModel, type McpModelOperation } from './model'
-import type { OpenApiDocument, OperationObject } from './openapi'
+import { deref, isObject, type OpenApiDocument, type OperationObject } from './openapi'
 
 /** Options for {@link buildMcpModel}. */
 export interface BuildModelOptions {
@@ -22,6 +22,18 @@ function lightOperation(operation: OperationObject): OperationObject {
     }
   }
   return out
+}
+
+/** The names of the document's `oauth2` security schemes, the ones an MCP caller presents. */
+function oauthSchemes(document: OpenApiDocument): string[] {
+  const schemes = document.components?.['securitySchemes']
+  if (!isObject(schemes)) {
+    return []
+  }
+  return Object.keys(schemes).filter((name) => {
+    const scheme = deref<unknown>(document, schemes[name])
+    return isObject(scheme) && scheme['type'] === 'oauth2'
+  })
 }
 
 /**
@@ -45,6 +57,7 @@ export function buildMcpModel(
       title: `${String(info?.title ?? 'unknown')} ${String(info?.version ?? 'unknown')}`,
       hash: options.hash,
     },
+    credentialSchemes: oauthSchemes(document),
     descriptor,
     tools: catalogue.entries.map((entry) => {
       const { op } = entry

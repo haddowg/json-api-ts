@@ -11,7 +11,10 @@ import { isObject, type OperationObject, type SecurityRequirement } from './open
 import type { McpOperationKind, McpTool, SkippedOperation } from './types'
 
 /** The artefact's own format. A runtime refuses a format it doesn't know. */
-export const MODEL_FORMAT = 1
+export const MODEL_FORMAT = 2
+
+/** Every format this runtime reads. Format 1 has no `credentialSchemes`. */
+const READABLE_FORMATS: readonly number[] = [1, MODEL_FORMAT]
 
 /** The package that writes the artefact. */
 export const MODEL_GENERATOR = '@haddowg/json-api-mcp'
@@ -55,7 +58,7 @@ export interface McpModelTool {
 
 /** The generated artefact. */
 export interface McpModel {
-  format: typeof MODEL_FORMAT
+  format: 1 | typeof MODEL_FORMAT
   generator: typeof MODEL_GENERATOR
   /** The generator contract the source document declared. */
   contract: number
@@ -63,6 +66,11 @@ export interface McpModel {
   source: { title: string; hash: string }
   /** The document's first server URL, the default base URL. */
   baseUrl?: string
+  /**
+   * The security schemes an MCP caller authenticates with: the document's `oauth2` schemes.
+   * Empty when it has none. A format 1 model doesn't carry it.
+   */
+  credentialSchemes?: string[]
   /** The json-api-ts descriptor the client calls through. */
   descriptor: ApiDescriptor
   tools: McpModelTool[]
@@ -84,9 +92,9 @@ export function assertModel(value: unknown): McpModel {
       `This isn't a model written by ${MODEL_GENERATOR}. Generate one with the json-api-mcp CLI.`,
     )
   }
-  if (value['format'] !== MODEL_FORMAT) {
+  if (typeof value['format'] !== 'number' || !READABLE_FORMATS.includes(value['format'])) {
     throw new McpModelError(
-      `The model is format ${String(value['format'])} and this runtime reads format ${MODEL_FORMAT}. Regenerate it with the same version of ${MODEL_GENERATOR} the server runs.`,
+      `The model is format ${String(value['format'])} and this runtime reads formats ${READABLE_FORMATS.join(' and ')}. Regenerate it with the same version of ${MODEL_GENERATOR} the server runs.`,
     )
   }
   const contract = value['contract']
@@ -98,5 +106,28 @@ export function assertModel(value: unknown): McpModel {
   if (!isObject(value['descriptor']) || !Array.isArray(value['tools'])) {
     throw new McpModelError('The model has no descriptor or tools; regenerate it.')
   }
+  const credentialSchemes = value['credentialSchemes']
+  if (
+    value['format'] !== 1 &&
+    (!Array.isArray(credentialSchemes) || !credentialSchemes.every((s) => typeof s === 'string'))
+  ) {
+    throw new McpModelError('The model has no credentialSchemes list; regenerate it.')
+  }
   return value as unknown as McpModel
+}
+
+/**
+ * The schemes a format 1 model's caller is taken to authenticate with, since it doesn't record
+ * them: every scheme some operation lists scopes under.
+ */
+export function inferCredentialSchemes(model: McpModel): string[] {
+  const schemes = new Set<string>()
+  for (const tool of model.tools) {
+    for (const requirement of tool.operation.security) {
+      for (const [scheme, scopes] of Object.entries(requirement)) {
+        if (scopes.length > 0) schemes.add(scheme)
+      }
+    }
+  }
+  return [...schemes]
 }

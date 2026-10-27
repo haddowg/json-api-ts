@@ -1,11 +1,14 @@
 {
-  "format": 1,
+  "format": 2,
   "generator": "@haddowg/json-api-mcp",
   "contract": 16,
   "source": {
     "title": "Music Catalog API 1.0.0",
     "hash": "6d1632b7866439fb"
   },
+  "credentialSchemes": [
+    "oauth2"
+  ],
   "descriptor": {
     "albums": {
       "attributes": {

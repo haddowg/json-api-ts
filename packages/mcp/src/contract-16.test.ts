@@ -22,7 +22,11 @@ describe('generator contract 16', () => {
   })
 
   it("filters the music catalogue's writes by the scopes it declares", async () => {
-    const mcp = createJsonApiMcp(fixture('music-catalog'))
+    // Its reads need the bearer scheme, which an OAuth token here also satisfies.
+    const mcp = createJsonApiMcp({
+      ...fixture('music-catalog'),
+      credentialSchemes: ['oauth2', 'bearer'],
+    })
     const playlists = mcp.operations.find((o) => o.toolName === 'playlists_delete')!
     expect(playlists.security).toEqual([{ oauth2: ['library:write', 'library:admin'] }])
     expect(playlists.scopes).toEqual(['library:write', 'library:admin'])
@@ -65,8 +69,9 @@ describe('generator contract 16', () => {
       // The related read also needs the read scope of the type it returns.
       expect(tools).not.toContain('articles_author_get')
       expect(tools).not.toContain('people_get')
-      // No scopes in its security: kept.
-      expect(tools).toContain('tags_get')
+      // Needs the bearer scheme, which isn't a credential scheme: left out.
+      expect(tools).not.toContain('tags_get')
+      // Public: kept.
       expect(tools).toContain('people_list')
     })
 

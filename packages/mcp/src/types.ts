@@ -166,12 +166,18 @@ export interface JsonApiMcpOptions<Ctx> {
   baseUrl?: string
   /** The transport the client sends through. Defaults to `fetch`. */
   transport?: JsonApiTransport
+  /**
+   * The security schemes an MCP caller authenticates with. Scope filtering ignores a security
+   * requirement naming any other scheme, such as a session cookie. Defaults to the model's, the
+   * document's `oauth2` schemes. When neither names one, every requirement counts.
+   */
+  credentialSchemes?: readonly string[]
   hooks?: JsonApiMcpHooks<Ctx>
 }
 
 /** Per-request input to {@link JsonApiMcp.forRequest}. */
 export interface McpRequest<Ctx> {
-  /** The caller's granted scopes. Omit to skip scope filtering. */
+  /** The caller's granted scopes. Omit to skip scope filtering, credential schemes included. */
   grantedScopes?: readonly string[]
   /** The host's own per-request context, handed to every hook. */
   context: Ctx
@@ -207,6 +213,8 @@ export interface JsonApiMcp<Ctx> {
   readonly contract: number
   /** The document the model was built from, and its content hash. */
   readonly source: { readonly title: string; readonly hash: string }
+  /** The credential schemes scope filtering counts. `undefined` when it counts every scheme. */
+  readonly credentialSchemes: readonly string[] | undefined
   /** Filter and decorate the tools for one caller. */
   forRequest(request: McpRequest<Ctx>): Promise<McpToolSession>
 }
