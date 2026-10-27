@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   6d1632b7866439fb
+ * Spec hash:   bd5a487e37ef7d25
  */
 
 import {
@@ -751,6 +751,50 @@ export const resourceMap = {
           "catalog:write",
           "catalog:media"
         ]
+      },
+      /**
+       * Returns a URL serving `text/csv` as an `ActionLocation`. The client doesn't follow it.
+       *
+       * The server declares this action read-only.
+       *
+       * @example Response `200`
+       * ```json
+       * {
+       *   "links": {
+       *     "self": {
+       *       "href": "https://music.example/albums/1/-actions/download",
+       *       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+       *     },
+       *     "location": {
+       *       "href": "https://storage.example.com/downloads/example?signature=example",
+       *       "type": "text/csv",
+       *       "meta": {
+       *         "expiresAt": "2030-01-01T00:00:00+00:00"
+       *       }
+       *     },
+       *     "describedby": {
+       *       "href": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+       *     }
+       *   },
+       *   "meta": {
+       *     "expiresAt": "2030-01-01T00:00:00+00:00"
+       *   },
+       *   "jsonapi": {
+       *     "version": "1.1"
+       *   }
+       * }
+       * ```
+       */
+      download: {
+        scope: "resource",
+        path: "/albums/{id}/-actions/download",
+        input: "none",
+        output: "location",
+        method: "GET",
+        readOnly: true,
+        location: {
+          mediaType: "text/csv"
+        }
       },
       /**
        * Export the album catalogue

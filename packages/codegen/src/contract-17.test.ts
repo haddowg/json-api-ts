@@ -156,3 +156,24 @@ describe('generator contract 17 (actions that answer with a URL)', () => {
     })
   })
 })
+
+describe('the music catalogue at contract 17', () => {
+  const path = fileURLToPath(
+    new URL('../test/fixtures/music-catalog.openapi.json', import.meta.url),
+  )
+  const music = JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
+
+  it('marks the albums download action as answering with a CSV URL', () => {
+    expect(music.info?.['x-generator']?.contract).toBe(17)
+    expect(checkContract(music)).toBeUndefined()
+    expect(buildDescriptor(music)['albums']!.actions?.['download']).toEqual({
+      scope: 'resource',
+      path: '/albums/{id}/-actions/download',
+      input: 'none',
+      output: 'location',
+      method: 'GET',
+      readOnly: true,
+      location: { mediaType: 'text/csv' },
+    })
+  })
+})
