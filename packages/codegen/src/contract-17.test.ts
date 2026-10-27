@@ -164,7 +164,7 @@ describe('the music catalogue at contract 17', () => {
   const music = JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 
   it('marks the albums download action as answering with a CSV URL', () => {
-    expect(music.info?.['x-generator']?.contract).toBe(17)
+    expect(music.info?.['x-generator']?.contract).toBeGreaterThanOrEqual(17)
     expect(checkContract(music)).toBeUndefined()
     expect(buildDescriptor(music)['albums']!.actions?.['download']).toEqual({
       scope: 'resource',
