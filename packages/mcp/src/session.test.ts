@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createJsonApiMcp, satisfiesSecurity } from './mcp'
 import type { OpenApiDocument, OperationObject, SecurityRequirement } from './openapi'
 import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
-import type { McpOperation } from './types'
+import type { McpOperation, McpRequest } from './types'
 
 /**
  * The music catalogue with OAuth scopes on some operations and a vendor extension on others. Its
@@ -153,6 +153,30 @@ describe('credential schemes', () => {
     expect(tools).not.toContain('albums_delete')
     // The document's bearer default isn't a credential scheme either.
     expect(tools).not.toContain('albums_tracks_list')
+  })
+
+  it('treats a null grant as no scopes granted', async () => {
+    const mcp = createJsonApiMcp(
+      securedBy({
+        albums_list: [{ oauth2: ['x:read'] }],
+        albums_get: [],
+        albums_create: [{ oauth2: [] }],
+      }),
+    )
+    const tools = names((await mcp.forRequest({ grantedScopes: null, context: {} })).tools)
+    expect(tools).not.toContain('albums_list')
+    expect(tools).toContain('albums_get')
+    expect(tools).toContain('albums_create')
+    expect(tools).toEqual(names((await mcp.forRequest({ grantedScopes: [], context: {} })).tools))
+  })
+
+  it('skips scope filtering for an undefined grant', async () => {
+    const mcp = createJsonApiMcp(securedBy({ albums_list: [{ oauth2: ['x:read'] }] }))
+    const all = names((await mcp.forRequest({ context: {} })).tools)
+    expect(all).toContain('albums_list')
+    // A plain JS host can set the key to undefined, which exactOptionalPropertyTypes rejects.
+    const request = { grantedScopes: undefined, context: {} } as unknown as McpRequest<unknown>
+    expect(names((await mcp.forRequest(request)).tools)).toEqual(all)
   })
 
   it("takes the host's schemes over the model's", async () => {

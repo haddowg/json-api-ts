@@ -121,7 +121,8 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
     const ctx = request.context
     let entries: ToolEntry[] = catalogue.entries
     if (request.grantedScopes !== undefined) {
-      const granted = request.grantedScopes
+      // null grants nothing, so the filter fails closed.
+      const granted = request.grantedScopes ?? []
       entries = entries.filter((e) =>
         satisfiesSecurity(e.op.security, granted, hooks.scopeMatcher, credentialSchemes),
       )
