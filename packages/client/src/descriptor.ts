@@ -43,8 +43,16 @@ export interface PivotDescriptor {
 
 export interface RelationDescriptor {
   cardinality: Cardinality
-  /** Related JSON:API type(s); more than one = polymorphic. */
+  /** Related JSON:API type(s). */
   types: readonly string[]
+  /**
+   * `true` when the relation is polymorphic: its linkage is a union of identifier types, even a
+   * union of one (generator contract 16). Read this rather than counting {@link types}, so a
+   * relation declared polymorphic over one type keeps its shape when a second type is added. A
+   * descriptor without the flag, such as one generated from an older document or written by
+   * hand, is polymorphic when it lists more than one type; see {@link isPolymorphic}.
+   */
+  polymorphic?: boolean
   /** Whether members carry pivot data (`meta.pivot`). */
   pivot?: boolean
   /**
@@ -251,6 +259,11 @@ export interface ActionDescriptor {
    * declares. Absent when the server doesn't say.
    */
   idempotent?: boolean
+  /**
+   * The OAuth scopes the action needs, read from its operation's `security` (generator contract
+   * 16). Absent when it needs none.
+   */
+  scopes?: readonly string[]
 }
 
 /**
@@ -301,9 +314,29 @@ export interface ResourceDescriptor {
   filterable?: readonly string[]
   /** Custom actions declared on this type, keyed by action name. Absent/empty when none. */
   actions?: Readonly<Record<string, ActionDescriptor>>
+  /**
+   * The OAuth scopes each of the type's operations needs, read from the operation's `security`
+   * (generator contract 16). Keyed like {@link ResourceExamples.operations}: `fetchCollection`,
+   * `fetchOne`, `create`, `update`, `delete`, and per relation `fetchRelated.<relation>`,
+   * `fetchRelationship.<relation>`, `updateRelationship.<relation>`,
+   * `addRelationship.<relation>` and `removeRelationship.<relation>`. An operation that needs
+   * no scope has no entry, and the map is absent when none does. An action's scopes are on its
+   * {@link ActionDescriptor.scopes}.
+   */
+  scopes?: Readonly<Record<string, readonly string[]>>
 }
 
 export type ApiDescriptor = Readonly<Record<string, ResourceDescriptor>>
+
+/**
+ * Whether a relation is polymorphic: flagged {@link RelationDescriptor.polymorphic}, or, when the
+ * flag is absent, listing more than one related type.
+ */
+export function isPolymorphic(
+  relation: Pick<RelationDescriptor, 'polymorphic' | 'types'>,
+): boolean {
+  return relation.polymorphic ?? relation.types.length > 1
+}
 
 /**
  * The server-level Atomic Operations capability (ADR 0001): the single `/operations`
@@ -314,6 +347,8 @@ export type ApiDescriptor = Readonly<Record<string, ResourceDescriptor>>
  */
 export interface AtomicDescriptor {
   path: string
+  /** The OAuth scopes the endpoint itself needs (generator contract 16). Absent when none. */
+  scopes?: readonly string[]
 }
 
 /** Example bodies keyed by the media type they are declared for, such as `application/vnd.api+json`. */
