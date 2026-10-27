@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   bd5a487e37ef7d25
+ * Spec hash:   836e3cf3907824d9
  */
 
 import {
@@ -540,20 +540,12 @@ export interface TracksUpdateAttributes {
 }
 
 export interface AlbumsLinks extends ResourceLinks {
-  /**
-   * The album's page in the store.
-   *
-   * @example https://store.example.com/albums/1
-   */
+  /** The album's page in the store. */
   store?: string
 }
 
 export interface TracksLinks extends ResourceLinks {
-  /**
-   * A short audio preview of the track, valid until expiresAt.
-   *
-   * @example {"href":"https://cdn.example.com/previews/1.mp3","type":"audio/mpeg","meta":{"format":"mp3","expiresAt":"2026-01-01T12:00:00+00:00"}}
-   */
+  /** A short audio preview of the track, valid until expiresAt. */
   preview?: {
     /** @format uri-reference */
     href: string
@@ -1982,6 +1974,12 @@ export const ErrorCodes = {
    * @example The media type 'application/vnd.api+json; charset=utf-8' is unsupported in the 'Content-Type' header!
    */
   MEDIA_TYPE_UNSUPPORTED: "MEDIA_TYPE_UNSUPPORTED",
+  /**
+   * The path exists, but not for the method the request used: the type or relationship may be read-only, or the endpoint may take no such operation. The `Allow` response header lists the methods the path accepts.
+   *
+   * @example The method PATCH is not allowed on this path, which accepts GET.
+   */
+  METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
   /**
    * The server tried to use a resource type it has nothing registered for, which is a configuration fault on its side. Retrying won't help; report it to the API's maintainers.
    *
