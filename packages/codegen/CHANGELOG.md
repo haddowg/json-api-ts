@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.12.0...json-api-codegen-v1.13.0) (2026-10-27)
+
+
+### Features
+
+* **codegen:** read contract 18 and its shared links components ([ffdb3ae](https://github.com/haddowg/json-api-ts/commit/ffdb3ae0609a3149290bc722cc92737cc9f8e673))
+
 ## [1.12.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.11.0...json-api-codegen-v1.12.0) (2026-10-27)
 
 
