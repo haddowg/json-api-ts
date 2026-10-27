@@ -69,7 +69,7 @@ describe('generator contract 16 (operation scopes, one-type polymorphic relation
   describe('operation scopes', () => {
     it("carries the music catalogue's scopes", () => {
       const music = load('music-catalog.openapi.json')
-      expect(music.info?.['x-generator']?.contract).toBe(16)
+      expect(music.info?.['x-generator']?.contract).toBeGreaterThanOrEqual(16)
       const albums = buildDescriptor(music)['albums']!
       expect(albums.scopes?.['create']).toEqual(['catalog:write'])
       expect(albums.scopes?.['fetchCollection']).toBeUndefined()

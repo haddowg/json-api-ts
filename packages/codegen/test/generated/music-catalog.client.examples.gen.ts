@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   6d1632b7866439fb
+ * Spec hash:   bd5a487e37ef7d25
  */
 
 import type { ApiExamples } from '@haddowg/json-api-client'
@@ -100,6 +100,10 @@ export const examples: ApiExamples = {
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
                   "store": "https://store.example.com/albums/1",
+                  "download": {
+                    "href": "https://music.example/albums/1/-actions/download",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                  },
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -186,6 +190,10 @@ export const examples: ApiExamples = {
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                     },
                     "store": "https://store.example.com/albums/1",
+                    "download": {
+                      "href": "https://music.example/albums/1/-actions/download",
+                      "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                    },
                     "reissue": {
                       "href": "https://music.example/albums/1/-actions/reissue",
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -292,6 +300,10 @@ export const examples: ApiExamples = {
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
                   "store": "https://store.example.com/albums/1",
+                  "download": {
+                    "href": "https://music.example/albums/1/-actions/download",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                  },
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -716,6 +728,10 @@ export const examples: ApiExamples = {
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
                   "store": "https://store.example.com/albums/1",
+                  "download": {
+                    "href": "https://music.example/albums/1/-actions/download",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                  },
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -866,6 +882,36 @@ export const examples: ApiExamples = {
       }
     },
     "actions": {
+      "download": {
+        "responses": {
+          "200": {
+            "application/vnd.api+json": {
+              "links": {
+                "self": {
+                  "href": "https://music.example/albums/1/-actions/download",
+                  "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                },
+                "location": {
+                  "href": "https://storage.example.com/downloads/example?signature=example",
+                  "type": "text/csv",
+                  "meta": {
+                    "expiresAt": "2030-01-01T00:00:00+00:00"
+                  }
+                },
+                "describedby": {
+                  "href": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                }
+              },
+              "meta": {
+                "expiresAt": "2030-01-01T00:00:00+00:00"
+              },
+              "jsonapi": {
+                "version": "1.1"
+              }
+            }
+          }
+        }
+      },
       "export": {
         "responses": {
           "200": {
@@ -921,6 +967,10 @@ export const examples: ApiExamples = {
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
                   "store": "https://store.example.com/albums/1",
+                  "download": {
+                    "href": "https://music.example/albums/1/-actions/download",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                  },
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -1286,6 +1336,10 @@ export const examples: ApiExamples = {
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                     },
                     "store": "https://store.example.com/albums/1",
+                    "download": {
+                      "href": "https://music.example/albums/1/-actions/download",
+                      "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                    },
                     "reissue": {
                       "href": "https://music.example/albums/1/-actions/reissue",
                       "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -5551,6 +5605,10 @@ export const examples: ApiExamples = {
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
                   "store": "https://store.example.com/albums/1",
+                  "download": {
+                    "href": "https://music.example/albums/1/-actions/download",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                  },
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
@@ -6158,6 +6216,10 @@ export const examples: ApiExamples = {
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D/get"
                   },
                   "store": "https://store.example.com/albums/1",
+                  "download": {
+                    "href": "https://music.example/albums/1/-actions/download",
+                    "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1download/get"
+                  },
                   "reissue": {
                     "href": "https://music.example/albums/1/-actions/reissue",
                     "describedby": "/docs.json#/paths/~1albums~1%7Bid%7D~1-actions~1reissue/post"
