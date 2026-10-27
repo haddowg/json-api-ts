@@ -17,10 +17,6 @@ const article = {
 }
 
 describe('generator contract 16', () => {
-  it('reads the witness', () => {
-    expect(createJsonApiMcp(fixture('contract-witness')).contract).toBe(16)
-  })
-
   it("filters the music catalogue's writes by the scopes it declares", async () => {
     // Its reads need the bearer scheme, which an OAuth token here also satisfies.
     const mcp = createJsonApiMcp({

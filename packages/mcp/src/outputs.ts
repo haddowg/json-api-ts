@@ -280,3 +280,36 @@ export function metaOutput(ctx: OutputContext): ObjectSchema {
 
 /** A JSON:API result whose primary type the descriptor doesn't name. */
 export const LOOSE_OUTPUT: ObjectSchema = { type: 'object' }
+
+/** The URL an action answered with (generator contract 17): `{ url, type, expiresAt? }`. */
+export function locationOutput(mediaType: string): ObjectSchema {
+  return {
+    type: 'object',
+    description:
+      'The URL the action produced, such as a short-lived download link. The tool does not fetch it.',
+    properties: {
+      url: { type: 'string', format: 'uri-reference', description: 'The URL.' },
+      type: {
+        type: 'string',
+        description: `The media type the URL serves. The action declares \`${mediaType}\`.`,
+      },
+      expiresAt: {
+        type: 'string',
+        format: 'date-time',
+        description: 'When the URL stops working. Absent when it does not expire.',
+      },
+    },
+    required: ['url', 'type'],
+    additionalProperties: false,
+  }
+}
+
+/** An action's usual output or the URL it may answer with instead, sharing the root `$defs`. */
+export function orLocation(schema: JsonSchema, mediaType: string): ObjectSchema {
+  const { $defs, ...rest } = schema
+  return {
+    type: 'object',
+    anyOf: [rest, locationOutput(mediaType)],
+    ...($defs === undefined ? {} : { $defs }),
+  }
+}

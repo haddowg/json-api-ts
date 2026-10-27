@@ -5,6 +5,7 @@ import {
   execute,
   fetchTransport,
   type HeadersInit,
+  isActionLocation,
   isPolymorphic,
   JsonApiError,
   type JsonApiTransport,
@@ -424,6 +425,11 @@ async function runAction(
       throw new ArgumentError('body is required')
     }
     result = await call(body, options)
+  }
+
+  // A URL the action produced goes back as data; the tool never fetches it.
+  if (action.location !== undefined && isActionLocation(result)) {
+    return structured({ ...result })
   }
 
   switch (entry.result) {
