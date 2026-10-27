@@ -103,6 +103,11 @@ export function reachableTypes(
   return out
 }
 
+/** The include paths no more than `depth` relationships deep; all of them when `depth` is null. */
+export function capIncludePaths(paths: readonly string[], depth: number | null): string[] {
+  return depth === null ? [...paths] : paths.filter((path) => path.split('.').length <= depth)
+}
+
 /** The include paths an operation's `include` parameter lists. */
 export function includePaths(doc: OpenApiDocument, op: OperationObject): string[] {
   for (const raw of op.parameters ?? []) {
@@ -193,6 +198,8 @@ export interface OutputContext {
   descriptor: ApiDescriptor
   schemas: Map<string, JsonSchema>
   operation: OperationObject
+  /** The include paths the tool may ask for, already capped at the model's include depth. */
+  includes: readonly string[]
 }
 
 /** The `meta` schema a success response declares, else a free-form object. */
@@ -226,7 +233,7 @@ const LINKS: JsonSchema = {
 
 /** A collection: `{ items, links, meta }`. */
 export function collectionOutput(ctx: OutputContext, types: readonly string[]): ObjectSchema {
-  const reachable = reachableTypes(ctx.descriptor, types, includePaths(ctx.doc, ctx.operation))
+  const reachable = reachableTypes(ctx.descriptor, types, ctx.includes)
   const items = types.length === 1 ? ref(types[0]!) : { anyOf: types.map(ref) }
   return {
     type: 'object',
@@ -242,7 +249,7 @@ export function collectionOutput(ctx: OutputContext, types: readonly string[]): 
 
 /** One resource, flattened, at the root. */
 export function resourceOutput(ctx: OutputContext, type: string): ObjectSchema {
-  const reachable = reachableTypes(ctx.descriptor, [type], includePaths(ctx.doc, ctx.operation))
+  const reachable = reachableTypes(ctx.descriptor, [type], ctx.includes)
   const defs = defsFor(ctx.doc, ctx.descriptor, ctx.schemas, reachable)
   return { ...(defs[type] as ObjectSchema), $defs: defs }
 }
@@ -253,7 +260,7 @@ export function itemOutput(
   types: readonly string[],
   nullable: boolean,
 ): ObjectSchema {
-  const reachable = reachableTypes(ctx.descriptor, types, includePaths(ctx.doc, ctx.operation))
+  const reachable = reachableTypes(ctx.descriptor, types, ctx.includes)
   const item: JsonSchema = nullable
     ? {
         anyOf: [...types.map(ref), { type: 'null' }],

@@ -107,6 +107,17 @@ describe('writeMcpModel and the CLI', () => {
         '--check',
       ]),
     ).toEqual({ input: 'a.json', output: 'b.json', defaultPageSize: 20, check: true })
+    expect(parseArgs(['--include-depth', '2'])).toEqual({ includeDepth: 2 })
+    expect(parseArgs(['--include-depth', 'all'])).toEqual({ includeDepth: null })
+  })
+
+  it('records the include depth it was given, 1 by default', async () => {
+    const output = join(dir, 'api.mcp.json')
+    await writeMcpModel({ input: spec, output, includeDepth: 2 })
+    expect(JSON.parse(readFileSync(output, 'utf8'))).toMatchObject({ includeDepth: 2 })
+    await writeMcpModel({ input: spec, output, includeDepth: null })
+    expect(JSON.parse(readFileSync(output, 'utf8'))).toMatchObject({ includeDepth: null })
+    expect(JSON.parse(readFileSync(committed, 'utf8'))).toMatchObject({ includeDepth: 1 })
   })
 
   it('exits 1 with usage or a reason, 0 when it writes or the check passes', async () => {
@@ -114,6 +125,8 @@ describe('writeMcpModel and the CLI', () => {
     const output = join(dir, 'api.mcp.json')
     expect(await main(['--input', spec])).toBe(1)
     expect(await main(['--input', spec, '--output', output, '--default-page-size', '0'])).toBe(1)
+    expect(await main(['--input', spec, '--output', output, '--include-depth', '-1'])).toBe(1)
+    expect(await main(['--input', spec, '--output', output, '--include-depth', 'deep'])).toBe(1)
     expect(await main(['--input', spec, '--output', output, '--check'])).toBe(1)
     expect(await main(['--input', spec, '--output', output])).toBe(0)
     expect(await main(['--input', spec, '--output', output, '--check'])).toBe(0)

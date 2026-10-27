@@ -11,10 +11,13 @@ import { isObject, type OperationObject, type SecurityRequirement } from './open
 import type { McpOperationKind, McpTool, SkippedOperation } from './types'
 
 /** The artefact's own format. A runtime refuses a format it doesn't know. */
-export const MODEL_FORMAT = 2
+export const MODEL_FORMAT = 3
 
-/** Every format this runtime reads. Format 1 has no `credentialSchemes`. */
-const READABLE_FORMATS: readonly number[] = [1, MODEL_FORMAT]
+/**
+ * Every format this runtime reads. Format 1 has no `credentialSchemes`. Formats 1 and 2 have no
+ * `includeDepth`, and store each operation's `scopes` and the `security` of its operation object.
+ */
+const READABLE_FORMATS: readonly number[] = [1, 2, MODEL_FORMAT]
 
 /** The package that writes the artefact. */
 export const MODEL_GENERATOR = '@haddowg/json-api-mcp'
@@ -34,11 +37,19 @@ export interface McpModelOperation {
   /**
    * The operation object, extensions included, without its `parameters`, `requestBody` and
    * `responses`: the tool already holds what those say, and they can refer to components the
-   * artefact doesn't carry.
+   * artefact doesn't carry. From format 3 it has no `security` either: the runtime puts back
+   * the `security` below.
    */
   operation: OperationObject
-  security: readonly SecurityRequirement[]
-  /** The OAuth scopes the descriptor says the operation needs. Absent when none. */
+  /**
+   * The operation's own `security`, else the document's. From format 3 it is absent when the
+   * operation declares none, and the runtime takes the model's `security`.
+   */
+  security?: readonly SecurityRequirement[]
+  /**
+   * Formats 1 and 2: the OAuth scopes the descriptor says the operation needs. From format 3
+   * the runtime reads them from the descriptor.
+   */
   scopes?: readonly string[]
 }
 
@@ -58,7 +69,7 @@ export interface McpModelTool {
 
 /** The generated artefact. */
 export interface McpModel {
-  format: 1 | typeof MODEL_FORMAT
+  format: 1 | 2 | typeof MODEL_FORMAT
   generator: typeof MODEL_GENERATOR
   /** The generator contract the source document declared. */
   contract: number
@@ -71,6 +82,16 @@ export interface McpModel {
    * Empty when it has none. A format 1 model doesn't carry it.
    */
   credentialSchemes?: string[]
+  /**
+   * Format 3: the document's `security`, which an operation declaring none of its own takes.
+   * Absent when the document declares none.
+   */
+  security?: readonly SecurityRequirement[]
+  /**
+   * How many relationships deep a tool's `include` may reach; null for every path the document
+   * declares. Formats 1 and 2 don't carry it and set no cap.
+   */
+  includeDepth?: number | null
   /** The json-api-ts descriptor the client calls through. */
   descriptor: ApiDescriptor
   tools: McpModelTool[]
@@ -94,7 +115,7 @@ export function assertModel(value: unknown): McpModel {
   }
   if (typeof value['format'] !== 'number' || !READABLE_FORMATS.includes(value['format'])) {
     throw new McpModelError(
-      `The model is format ${String(value['format'])} and this runtime reads formats ${READABLE_FORMATS.join(' and ')}. Regenerate it with the same version of ${MODEL_GENERATOR} the server runs.`,
+      `The model is format ${String(value['format'])} and this runtime reads formats ${READABLE_FORMATS.slice(0, -1).join(', ')} and ${MODEL_FORMAT}. Regenerate it with the same version of ${MODEL_GENERATOR} the server runs.`,
     )
   }
   const contract = value['contract']
@@ -113,6 +134,14 @@ export function assertModel(value: unknown): McpModel {
   ) {
     throw new McpModelError('The model has no credentialSchemes list; regenerate it.')
   }
+  const includeDepth = value['includeDepth']
+  if (
+    value['format'] === MODEL_FORMAT &&
+    includeDepth !== null &&
+    !(typeof includeDepth === 'number' && Number.isInteger(includeDepth) && includeDepth >= 0)
+  ) {
+    throw new McpModelError('The model has no includeDepth; regenerate it.')
+  }
   return value as unknown as McpModel
 }
 
@@ -123,7 +152,7 @@ export function assertModel(value: unknown): McpModel {
 export function inferCredentialSchemes(model: McpModel): string[] {
   const schemes = new Set<string>()
   for (const tool of model.tools) {
-    for (const requirement of tool.operation.security) {
+    for (const requirement of tool.operation.security ?? []) {
       for (const [scheme, scopes] of Object.entries(requirement)) {
         if (scopes.length > 0) schemes.add(scheme)
       }

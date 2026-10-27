@@ -307,10 +307,20 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
   destructive and idempotent.
 - **Polymorphic relations:** a relation `isPolymorphic()` takes and returns `{ type, id }`,
   even over one type, so adding a second type doesn't change a tool's input. Every other
-  relation takes a bare id. Each operation carries the descriptor's `scopes` for its hooks.
+  relation takes a bare id. Each operation carries the descriptor's `scopes` for its hooks,
+  read at load time.
 - **URLs:** an action that answers with a URL returns `{ url, type, expiresAt? }` as structured
   content, and its `outputSchema` describes it, or an `anyOf` of it and the action's document
   when it answers with either. The tool never fetches the URL.
+- **Include depth** (ADR 0019): the generator caps `include` at a depth, 1 by default,
+  `null` (`--include-depth all`) for every declared path. A tool's `include` is an enum of the
+  declared paths within it, absent when there are none, and its `$defs` cover only the types
+  those paths reach. The runtime refuses any other path before calling the API and flattens a
+  related resource deeper than the cap to its id.
+- **Model format 3:** records `includeDepth`, stores an operation's own `security` once and the
+  document's at the top level, and drops `scopes`, which the runtime reads from the descriptor.
+  Hooks see the operation object with its `security` as before. Formats 1 and 2 still load,
+  with no include cap.
 - **Contract:** reads 13 to 17 and throws outside it.
 
 ### Dependency policy (supersedes "zero runtime deps")

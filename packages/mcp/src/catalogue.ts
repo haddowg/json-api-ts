@@ -24,18 +24,15 @@ import {
   metaOutput,
   orLocation,
   type OutputContext,
+  capIncludePaths,
+  includePaths,
   itemOutput,
   resourceOutput,
   resourceSchemas,
 } from './outputs'
 import { type ActionSafety, readActionSafety } from './safety'
-import type {
-  McpOperation,
-  McpOperationKind,
-  McpTool,
-  McpToolAnnotations,
-  SkippedOperation,
-} from './types'
+import { descriptorScopes } from './scopes'
+import type { McpOperation, McpTool, McpToolAnnotations, SkippedOperation } from './types'
 
 /** How the handler shapes a call's result. */
 export type ResultShape =
@@ -105,28 +102,6 @@ function actionSafety(op: McpOperation): ActionSafety {
   return { ...safety, ...readActionSafety(op.operation) }
 }
 
-/** The descriptor's key for each kind's operation in a type's `scopes`. */
-const SCOPE_KEYS: Readonly<Record<Exclude<McpOperationKind, 'related' | 'action'>, string>> = {
-  list: 'fetchCollection',
-  get: 'fetchOne',
-  create: 'create',
-  update: 'update',
-  delete: 'delete',
-}
-
-/** The scopes the descriptor says an operation needs, or `undefined` when it names none. */
-function descriptorScopes(op: McpOperation): readonly string[] | undefined {
-  let scopes: readonly string[] | undefined
-  if (op.kind === 'action') {
-    scopes = op.actionDescriptor?.scopes
-  } else if (op.kind === 'related') {
-    scopes = op.resource.scopes?.[`fetchRelated.${op.relation ?? ''}`]
-  } else {
-    scopes = op.resource.scopes?.[SCOPE_KEYS[op.kind]]
-  }
-  return scopes === undefined || scopes.length === 0 ? undefined : scopes
-}
-
 /** The descriptor entry an action operation calls: the one at its path and method. */
 function findAction(op: McpOperation): [string, ActionDescriptor] | undefined {
   const entries = Object.entries(op.resource.actions ?? {})
@@ -185,6 +160,7 @@ export function buildCatalogue(
   doc: OpenApiDocument,
   descriptor: ApiDescriptor,
   defaultPageSize: number,
+  includeDepth: number | null = null,
 ): Catalogue {
   const entries: CatalogueEntry[] = []
   const skipped: SkippedOperation[] = []
@@ -223,8 +199,15 @@ export function buildCatalogue(
         params: operationParameters(doc, item, operation),
         operation,
         defaultPageSize,
+        includeDepth,
       }
-      const outputCtx: OutputContext = { doc, descriptor, schemas, operation }
+      const outputCtx: OutputContext = {
+        doc,
+        descriptor,
+        schemas,
+        operation,
+        includes: capIncludePaths(includePaths(doc, operation), includeDepth),
+      }
       const built = buildEntry(op, parsed, inputCtx, outputCtx, descriptor)
       if (typeof built === 'string') {
         skipped.push({ operationId, reason: built })

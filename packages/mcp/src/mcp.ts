@@ -7,6 +7,7 @@ import {
   type McpModelTool,
 } from './model'
 import type { SecurityRequirement } from './openapi'
+import { descriptorScopes } from './scopes'
 import type {
   JsonApiMcp,
   JsonApiMcpOptions,
@@ -78,6 +79,12 @@ function hydrate(model: McpModel, tool: McpModelTool): ToolEntry {
   if (resource === undefined) {
     throw new McpModelError(`The model's descriptor has no type "${source.type}"; regenerate it.`)
   }
+  // From format 3 security is stored once: the operation's own, else the document's.
+  const security = source.security ?? model.security ?? []
+  const operation =
+    model.format < 3 || source.security === undefined
+      ? source.operation
+      : { ...source.operation, security: source.security as SecurityRequirement[] }
   const op: McpOperation = {
     operationId: source.operationId,
     toolName: source.toolName,
@@ -86,10 +93,9 @@ function hydrate(model: McpModel, tool: McpModelTool): ToolEntry {
     method: source.method,
     path: source.path,
     resource,
-    operation: source.operation,
-    security: source.security,
+    operation,
+    security,
   }
-  if (source.scopes !== undefined) op.scopes = source.scopes
   if (source.relation !== undefined) {
     op.relation = source.relation
     const relation = resource.relations[source.relation]
@@ -100,6 +106,8 @@ function hydrate(model: McpModel, tool: McpModelTool): ToolEntry {
     const action = resource.actions?.[source.actionKey ?? source.action]
     if (action !== undefined) op.actionDescriptor = action
   }
+  const scopes = source.scopes ?? descriptorScopes(op)
+  if (scopes !== undefined) op.scopes = scopes
   const entry: ToolEntry = { op, tool: tool.tool, input: tool.plan, result: tool.result }
   if (source.actionKey !== undefined) entry.actionKey = source.actionKey
   return entry
@@ -116,6 +124,7 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
   const catalogue = { entries: model.tools.map((tool) => hydrate(model, tool)) }
   const defaultBaseUrl = options.baseUrl ?? model.baseUrl
   const credentialSchemes = resolveCredentialSchemes(model, options.credentialSchemes)
+  const includeDepth = model.includeDepth ?? null
 
   async function forRequest(request: McpRequest<Ctx>): Promise<McpToolSession> {
     const ctx = request.context
@@ -169,6 +178,7 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
           transport: options.transport,
           headers: init.headers,
           signal: callOptions.signal,
+          includeDepth,
         })
       } catch (error) {
         const toolError = toToolError(error)

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { ApiDescriptor, TransportRequest, TransportResponse } from '@haddowg/json-api-client'
 import { buildDescriptor, hashJson } from '@haddowg/json-api-codegen'
-import { buildMcpModel } from './build'
+import { type BuildModelOptions, buildMcpModel } from './build'
 import type { McpModel } from './model'
 import type { OpenApiDocument } from './openapi'
 
@@ -25,14 +25,18 @@ export function source(name: FixtureName): {
 export function modelOf(
   document: OpenApiDocument,
   descriptor: ApiDescriptor = buildDescriptor(document as Parameters<typeof buildDescriptor>[0]),
+  options: Omit<BuildModelOptions, 'hash'> = {},
 ): { model: McpModel } {
-  return { model: buildMcpModel(document, descriptor, { hash: hashJson(document) }) }
+  return { model: buildMcpModel(document, descriptor, { ...options, hash: hashJson(document) }) }
 }
 
 /** The model for a fixture document. */
-export function fixture(name: FixtureName): { model: McpModel } {
+export function fixture(
+  name: FixtureName,
+  options: Omit<BuildModelOptions, 'hash'> = {},
+): { model: McpModel } {
   const { document, descriptor } = source(name)
-  return modelOf(document, descriptor)
+  return modelOf(document, descriptor, options)
 }
 
 /** A transport answering from a handler, recording every request. */
