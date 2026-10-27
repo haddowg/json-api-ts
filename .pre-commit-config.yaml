@@ -23,7 +23,8 @@ repos:
             docs/|
             packages/codegen/test/fixtures/|
             pnpm-lock\.yaml$|
-            .*\.gen\.ts$
+            .*\.gen\.ts$|
+            .*\.gen\.json$
           )
 
       - id: oxlint

@@ -10,12 +10,22 @@ import {
   materialise,
   type ReadQuery,
 } from '@haddowg/json-api-client'
-import type { CatalogueEntry } from './catalogue'
-import type { QueryPlan, WritePlan } from './inputs'
+import type { ResultShape } from './catalogue'
+import type { McpModelPlan } from './model'
+import { type QueryPlan, SELF_COUNT, type WritePlan } from './inputs'
 import { isObject } from './openapi'
 import { ArgumentError, decode } from './portable'
 import { flattenCollection, flattenResource } from './flatten'
-import type { McpCallToolResult, McpContent, McpToolError } from './types'
+import type { McpCallToolResult, McpContent, McpOperation, McpTool, McpToolError } from './types'
+
+/** One tool the runtime serves: its operation, definition, call plan and result shape. */
+export interface ToolEntry {
+  op: McpOperation
+  tool: McpTool
+  input: McpModelPlan
+  result: ResultShape
+  actionKey?: string
+}
 
 /** Thrown when a `pageLink` isn't a link this tool may follow. */
 export class PageLinkError extends Error {
@@ -120,6 +130,9 @@ export function readQuery(args: Record<string, unknown>, plan: QueryPlan): ReadQ
     if (Object.keys(fields).length > 0) {
       query.fields = fields
     }
+  }
+  if (plan.countProfile !== undefined && args['withCount'] === true) {
+    query.withCount = [SELF_COUNT]
   }
   if (plan.sizeKey !== undefined) {
     const asked = args['pageSize']
@@ -227,7 +240,7 @@ export function checkPageLink(link: unknown, baseUrl: string, template: string):
 }
 
 /** The descriptor entry a call sends this action with: the operation's method and the body plan picked. */
-function effectiveAction(entry: CatalogueEntry): ActionDescriptor {
+function effectiveAction(entry: ToolEntry): ActionDescriptor {
   const {
     inputMedia: _inputMedia,
     inputType,
@@ -250,7 +263,7 @@ function effectiveAction(entry: CatalogueEntry): ActionDescriptor {
   }
 }
 
-function withAction(descriptor: ApiDescriptor, entry: CatalogueEntry): ApiDescriptor {
+function withAction(descriptor: ApiDescriptor, entry: ToolEntry): ApiDescriptor {
   const resource = descriptor[entry.op.type]!
   return {
     ...descriptor,
@@ -275,7 +288,7 @@ async function binaryContent(
 
 /** Run one tool call against the API. Throws what the call failed with. */
 export async function runCall(
-  entry: CatalogueEntry,
+  entry: ToolEntry,
   rawArgs: unknown,
   env: CallEnvironment,
 ): Promise<McpCallToolResult> {
@@ -305,7 +318,7 @@ export async function runCall(
   switch (op.kind) {
     case 'list':
     case 'related': {
-      if (entry.result === 'relatedOne') {
+      if (entry.result === 'item') {
         const related = await accessor.id(requireId(args)).rel(op.relation!).related(query)
         return structured({
           item: isObject(related) ? flattenResource(related, env.descriptor) : null,
@@ -328,6 +341,10 @@ export async function runCall(
             method: 'GET',
             path: url,
             link: true,
+            ...(entry.input.query?.countProfile !== undefined &&
+            new URL(url).searchParams.has('withCount')
+              ? { profiles: [entry.input.query.countProfile] }
+              : {}),
             ...(env.signal !== undefined ? { signal: env.signal } : {}),
           },
         )
@@ -349,7 +366,9 @@ export async function runCall(
     }
     case 'get': {
       const resource = await accessor.get(requireId(args), query)
-      return structured(flattenResource(resource as Record<string, unknown>, env.descriptor))
+      return structured({
+        item: isObject(resource) ? flattenResource(resource, env.descriptor) : null,
+      })
     }
     case 'create': {
       const input = writeInput(args, entry.input.write!)
@@ -378,7 +397,7 @@ export async function runCall(
 }
 
 async function runAction(
-  entry: CatalogueEntry,
+  entry: ToolEntry,
   args: Record<string, unknown>,
   accessor: LooseAccessor,
   env: CallEnvironment,

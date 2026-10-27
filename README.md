@@ -19,13 +19,13 @@ signal-based bindings that send through `HttpClient`.
 
 ## Packages
 
-| Package                                           | Role                                                                          |
-| ------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`@haddowg/json-api-client`](./packages/client)   | Generic, framework-agnostic runtime, parameterised by a generated descriptor. |
-| [`@haddowg/json-api-codegen`](./packages/codegen) | CLI: OpenAPI (+ JSON Schemas) → descriptor + types + bound `createClient`.    |
-| [`@haddowg/json-api-query`](./packages/query)     | TanStack Query option/key factories + `type:id` normalization.                |
-| [`@haddowg/json-api-angular`](./packages/angular) | Angular bindings: `HttpClient` transport, DI providers, signal-based reads.   |
-| [`@haddowg/json-api-mcp`](./packages/mcp)         | MCP tool definitions and a call handler, built at runtime from the document.  |
+| Package                                           | Role                                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [`@haddowg/json-api-client`](./packages/client)   | Generic, framework-agnostic runtime, parameterised by a generated descriptor.  |
+| [`@haddowg/json-api-codegen`](./packages/codegen) | CLI: OpenAPI (+ JSON Schemas) → descriptor + types + bound `createClient`.     |
+| [`@haddowg/json-api-query`](./packages/query)     | TanStack Query option/key factories + `type:id` normalization.                 |
+| [`@haddowg/json-api-angular`](./packages/angular) | Angular bindings: `HttpClient` transport, DI providers, signal-based reads.    |
+| [`@haddowg/json-api-mcp`](./packages/mcp)         | MCP tools and a call handler, served from a model generated from the document. |
 
 ## Install
 

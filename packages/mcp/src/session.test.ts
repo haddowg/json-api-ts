@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createJsonApiMcp, satisfiesSecurity } from './mcp'
 import type { OpenApiDocument } from './openapi'
-import { fakeTransport, fixture } from './test-fixtures'
+import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
 import type { McpOperation } from './types'
 
 /** The music catalogue with OAuth scopes on some operations and a vendor extension on others. */
 function scoped() {
-  const { document, descriptor } = fixture('music-catalog')
+  const { document, descriptor } = source('music-catalog')
   const doc = structuredClone(document) as OpenApiDocument
   doc.paths!['/albums']!.get!.security = [{ oauth: ['albums:read'] }]
   doc.paths!['/albums']!.post!.security = [{ oauth: ['albums:write'] }]
@@ -15,7 +15,7 @@ function scoped() {
     { apiKey: ['admin:manage'] },
   ]
   doc.paths!['/artists']!.get!['x-feature'] = 'artists'
-  return { document: doc, descriptor }
+  return modelOf(doc, descriptor)
 }
 
 const names = (tools: readonly { name: string }[]) => tools.map((t) => t.name)
@@ -27,7 +27,10 @@ describe('scopes', () => {
     expect(satisfiesSecurity([{ oauth: ['a', 'b'] }], ['a'])).toBe(false)
     expect(satisfiesSecurity([{ oauth: ['a', 'b'] }], ['a', 'b'])).toBe(true)
     expect(satisfiesSecurity([{ oauth: ['a'] }, { key: ['b'] }], ['b'])).toBe(true)
-    expect(scoped().document.paths!['/albums']!.get!.security).toEqual([{ oauth: ['albums:read'] }])
+    expect(
+      scoped().model.tools.find((t) => t.operation.operationId === 'fetchCollection.albums')!
+        .operation.security,
+    ).toEqual([{ oauth: ['albums:read'] }])
   })
 
   it('filters by granted scopes, exactly by default', async () => {
@@ -217,8 +220,8 @@ describe('decorateTool, requestInit and mapError', () => {
   })
 
   it('fails a call clearly when there is no base URL', async () => {
-    const { document, descriptor } = fixture('music-catalog')
-    const mcp = createJsonApiMcp({ document: { ...document, servers: [] }, descriptor })
+    const { document, descriptor } = source('music-catalog')
+    const mcp = createJsonApiMcp(modelOf({ ...document, servers: [] }, descriptor))
     const result = await (await mcp.forRequest({ context: undefined })).callTool('albums_list', {})
     expect(JSON.parse((result.content[0] as { text: string }).text).error).toMatch(/No base URL/)
   })

@@ -1,33 +1,64 @@
 # MCP tools
 
-`@haddowg/json-api-mcp` turns a JSON:API server's OpenAPI document into [Model Context Protocol](https://modelcontextprotocol.io) tools: one per collection, resource, related and custom action operation. It builds them at runtime, so a host that fetches the server's document gets tools that follow the API without a codegen step.
+`@haddowg/json-api-mcp` turns a JSON:API server's OpenAPI document into [Model Context Protocol](https://modelcontextprotocol.io) tools: one per collection, resource, related and custom action operation. A generator reads the document at build time and writes one JSON model, which you commit beside your spec. At runtime the package serves the tools from that model.
 
 The package doesn't run an MCP server. It hands your server a list of tool definitions and a function that runs a call, and your server registers them with its own `tools/list` and `tools/call` handlers. Calls go through the [client](reads.md), which serialises the query, negotiates profiles and maps error documents.
 
 ```bash
 npm install @haddowg/json-api-mcp @haddowg/json-api-client
+npm install --save-dev @haddowg/json-api-codegen
 ```
 
-It has no dependency on `@modelcontextprotocol/sdk`. Its tool and result types are written to match the SDK's, so they assign to the SDK's `Tool` and `CallToolResult` directly.
+The runtime has no dependency on `@modelcontextprotocol/sdk`. Its tool and result types are written to match the SDK's, so they assign to the SDK's `Tool` and `CallToolResult` directly.
 
-## Build the tools
+## Generate the model
 
-The package needs the OpenAPI document and the json-api-ts descriptor for it. A host that reads the document at runtime builds the descriptor with the codegen's `buildDescriptor`; a host with a generated client can pass its `resourceMap` instead.
+Run the generator against your committed spec and commit what it writes, the same way you commit a generated client:
+
+```bash
+npx json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json
+```
+
+Add the same command with `--check` to CI. It exits 1 when the committed model no longer matches the spec, and passes when only whitespace differs, so your formatter can touch the file. `--default-page-size <n>` sets the page size a list tool asks for when the model gives none, 10 by default.
+
+The generator reads a URL or a file, JSON or YAML, and builds the descriptor with `@haddowg/json-api-codegen`, which it needs as a dev dependency. It's also a function, from the `@haddowg/json-api-mcp/generate` entry point:
 
 ```ts
-import { buildDescriptor } from '@haddowg/json-api-codegen'
-import { createJsonApiMcp } from '@haddowg/json-api-mcp'
+import { generateMcpModel, writeMcpModel } from '@haddowg/json-api-mcp/generate'
 
-const document = await (await fetch('https://api.example.com/docs.json')).json()
+await writeMcpModel({ input: 'openapi/v5.json', output: 'src/mcp/v5.mcp.json' })
+const model = await generateMcpModel(document) // in memory
+```
+
+`buildMcpModel(document, descriptor, { hash })` from the same entry point takes a descriptor you already have, such as a generated client's `resourceMap`, and needs no codegen.
+
+The generator throws when the document's generator contract is outside the range the package reads, 13 to 15 (`MINIMUM_CONTRACT`, `MAXIMUM_CONTRACT`). It also throws a `ToolNameError` listing every tool name over 64 characters, with a character outside `[a-zA-Z0-9_-]`, or shared by two operations. An action whose every request media type is one a model can't send, such as a binary upload, is left out and listed in the model's `skipped` with the reason.
+
+### What the model holds
+
+- `format` and `generator`: the model's own format and the package that wrote it.
+- `contract` and `source`: the document's generator contract, its title and version, and a content hash of the document.
+- `baseUrl`: the document's first server, the default base URL.
+- `descriptor`: the json-api-ts descriptor the client calls through. The client can't make a call without one, so the model carries it.
+- `tools`: per tool, the MCP definition, the plan the handler follows to turn arguments into a client call, the shape of its result, and the operation the hooks see.
+- `skipped`: the operations that didn't become a tool, and why.
+
+An operation keeps its id, summary, description, tags, `security` and vendor extensions such as `x-feature`. Its `parameters`, `requestBody` and `responses` are left out: the tool already holds what they say, and they can refer to components the model doesn't carry.
+
+## Load it at runtime
+
+The runtime entry point is built for both ESM and CommonJS and loads only the client, so a CommonJS server can `require` both the package and the model:
+
+```ts
+const { createJsonApiMcp } = require('@haddowg/json-api-mcp')
 
 const mcp = createJsonApiMcp({
-  document,
-  descriptor: buildDescriptor(document),
-  baseUrl: 'https://api.example.com',
+  model: require('./mcp/v5.mcp.json'),
+  baseUrl: 'https://api.example.com/api/v5',
 })
 ```
 
-`createJsonApiMcp` checks the document's generator contract first and throws outside the range the package reads, which is 13 to 15 (`MINIMUM_CONTRACT`, `MAXIMUM_CONTRACT`). It also throws a `ToolNameError` listing every tool name over 64 characters, with a character outside `[a-zA-Z0-9_-]`, or shared by two operations. An action whose every request media type is one a model can't send, such as a binary upload, is left out and listed in `mcp.skipped` with the reason.
+From ESM, read the file and `JSON.parse` it, or import it with `with { type: 'json' }`. `createJsonApiMcp` checks the model first. It throws an `McpModelError` for a file another tool wrote, a model format it doesn't know, or a contract outside 13 to 15, so a model generated by a newer package fails at startup rather than serving tools it misreads.
 
 ## Serve them per request
 
@@ -72,7 +103,7 @@ Every input schema is accepted by both OpenAI's strict function calling and Anth
 
 | Tool | Arguments |
 |---|---|
-| list, to-many related | `id` of the parent for a related read, `filter`, `sort`, `include`, `fields`, `pageSize`, `pageLink` |
+| list, to-many related | `id` of the parent for a related read, `filter`, `sort`, `include`, `fields`, `pageSize`, `pageLink`, and `withCount` where the endpoint counts itself |
 | get, to-one related | `id`, `include`, `fields` |
 | create | the client id when the type takes one, then the attributes and relationships as one flat object |
 | update | `id`, the attributes and relationships, and `clear` |
@@ -83,6 +114,7 @@ Every input schema is accepted by both OpenAI's strict function calling and Anth
 - `sort` is a list of the operation's sort tokens, `-` first for descending.
 - `include` and `fields` carry one generic description and no per-type lists of names. The output schema names the fields, and a wrong name comes back as the API's error.
 - `pageSize` maps to the paginator's size key, whichever strategy answers, so it's `page[size]` for page and cursor pagination and `page[limit]` for offset. It's capped at the operation's maximum, and defaults to 10 (`defaultPageSize`).
+- `withCount` is offered when the endpoint advertises the Countable profile with `_self_`, a count of the collection itself. `true` sends `withCount=_self_` with the profile negotiated, and the total comes back in `meta`. Counting can be slow on a large collection, which is why it's off unless asked for.
 - `pageLink` takes a link from a previous result's `links`. The handler follows it only when it has the base URL's origin and the tool's own path, and ignores every other argument when it does. Anything else is a tool error, sent nowhere.
 - A relationship takes an id, or a list of ids for a to-many. A polymorphic relationship takes the type and id of each resource.
 - On an update, `null` keeps a field's value. `clear` names the nullable fields to set to `null`.
@@ -92,7 +124,7 @@ Every input schema is accepted by both OpenAI's strict function calling and Anth
 
 A resource comes back flattened: `id`, `type`, its attributes, and each relationship as an id (ids for a to-many, type and id for a polymorphic one), or as the flattened related resource when it was included. Resource links and meta are dropped. A collection is `{ items, links, meta }`, where `links` keeps only `first`, `prev`, `next` and `last`, and `meta` is the document's own, page totals included.
 
-Each tool has an `outputSchema` built from the descriptor and the document's resource schemas, with attributes optional because of sparse fieldsets, and descriptions kept but examples left out. Results carry `structuredContent` and the same JSON as text. A to-one related read returns `{ item }`, `null` when nothing is related. A delete, an action without a body in its response, or one answering in a raw media type returns content only: text, an image, or an embedded resource for other binary bodies.
+Each tool has an `outputSchema` built from the descriptor and the document's resource schemas, with attributes optional because of sparse fieldsets, and descriptions kept but examples left out. Results carry `structuredContent` and the same JSON as text. A get returns `{ item }`, and so does a to-one related read, with `null` when nothing is related. A delete, an action without a body in its response, or one answering in a raw media type returns content only: text, an image, or an embedded resource for other binary bodies.
 
 A failed call is a tool error whose text is JSON with the message, the HTTP status and each error's `code`, `detail`, `source`, and `path`, the argument it's about, such as `title` or `releaseInfo.label`.
 
@@ -102,7 +134,7 @@ A failed call is a tool error whose text is JSON with the message, the HTTP stat
 |---|---|
 | list, get, related | `readOnlyHint: true` |
 | create, update | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false` |
-| delete | `readOnlyHint: false`, `destructiveHint: true` |
+| delete | `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: true` |
 | action | whatever it declares, else none |
 
 An action declares its safety on its operation as `x-safety`, an object holding whichever of `readOnly`, `destructive` and `idempotent` it declares. The codegen copies the same flags onto the action's descriptor entry. The package reads both, and the operation's `x-safety` wins where they differ. `readActionSafety()` reads the extension, and `SAFETY_EXTENSION` names it.
@@ -124,8 +156,7 @@ The tool list is filtered by scopes, then capabilities, then `includeOperation`.
 
 ```ts
 const mcp = createJsonApiMcp<{ token: string; features: string[] }>({
-  document,
-  descriptor,
+  model,
   hooks: {
     includeOperation: (op, ctx) => {
       const feature = op.operation['x-feature']

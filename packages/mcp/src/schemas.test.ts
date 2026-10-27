@@ -78,7 +78,10 @@ describe('input schemas', () => {
 
 describe('output schemas', () => {
   it('flattens a resource with optional attributes and id-or-resource relations', () => {
-    const output = find(tools, 'albums_get').outputSchema!
+    const get = find(tools, 'albums_get').outputSchema!
+    expect(get['required']).toEqual(['item'])
+    expect(props(get)['item']).toEqual({ $ref: '#/$defs/albums', description: 'The resource.' })
+    const output = find(tools, 'albums_update').outputSchema!
     expect(output['required']).toEqual(['id', 'type'])
     expect(new Set(Object.keys(output['$defs'] as object))).toEqual(
       new Set(['albums', 'artists', 'playlists', 'tracks']),
@@ -114,5 +117,18 @@ describe('MCP SDK compatibility', () => {
     const sdkResult: CallToolResult = result
     expect(tool.name).toBe('albums_list')
     expect(sdkResult.isError).toBe(false)
+  })
+})
+
+describe('withCount', () => {
+  it('is offered only where the endpoint counts its own collection', () => {
+    expect(props(find(witness, 'articles_list').inputSchema)['withCount']).toMatchObject({
+      type: ['boolean', 'null'],
+    })
+    // The albums collection counts only its tracks relation, not itself.
+    expect(props(find(tools, 'albums_list').inputSchema)['withCount']).toBeUndefined()
+    expect(
+      witness.filter((t) => props(t.inputSchema)['withCount'] !== undefined).map((t) => t.name),
+    ).toEqual(expect.arrayContaining(['articles_list']))
   })
 })

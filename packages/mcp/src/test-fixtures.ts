@@ -1,11 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { ApiDescriptor, TransportRequest, TransportResponse } from '@haddowg/json-api-client'
-import { buildDescriptor } from '@haddowg/json-api-codegen'
+import { buildDescriptor, hashJson } from '@haddowg/json-api-codegen'
+import { buildMcpModel } from './build'
+import type { McpModel } from './model'
 import type { OpenApiDocument } from './openapi'
 
+type FixtureName = 'music-catalog' | 'music-catalog-admin' | 'contract-witness'
+
 /** A fixture document from the codegen package, the same ones its own tests read. */
-export function fixture(name: 'music-catalog' | 'music-catalog-admin' | 'contract-witness'): {
+export function source(name: FixtureName): {
   document: OpenApiDocument
   descriptor: ApiDescriptor
 } {
@@ -15,6 +19,20 @@ export function fixture(name: 'music-catalog' | 'music-catalog-admin' | 'contrac
   const document = JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
   const descriptor = buildDescriptor(document as Parameters<typeof buildDescriptor>[0])
   return { document, descriptor }
+}
+
+/** The model for a document, built the way the generator builds it. */
+export function modelOf(
+  document: OpenApiDocument,
+  descriptor: ApiDescriptor = buildDescriptor(document as Parameters<typeof buildDescriptor>[0]),
+): { model: McpModel } {
+  return { model: buildMcpModel(document, descriptor, { hash: hashJson(document) }) }
+}
+
+/** The model for a fixture document. */
+export function fixture(name: FixtureName): { model: McpModel } {
+  const { document, descriptor } = source(name)
+  return modelOf(document, descriptor)
 }
 
 /** A transport answering from a handler, recording every request. */

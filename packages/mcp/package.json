@@ -2,7 +2,7 @@
   "name": "@haddowg/json-api-mcp",
   "version": "0.0.0",
   "private": true,
-  "description": "MCP tool definitions and a call handler built at runtime from a JSON:API server's OpenAPI document and json-api-ts descriptor.",
+  "description": "MCP tool definitions and a call handler for a JSON:API server, served from a model generated at build time from its OpenAPI document.",
   "license": "MIT",
   "author": "Gregory Haddow (https://github.com/haddowg)",
   "homepage": "https://haddowg.github.io/json-api-ts/",
@@ -34,11 +34,20 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./generate": {
+      "import": {
+        "types": "./dist/generate.d.mts",
+        "default": "./dist/generate.mjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
+  "bin": {
+    "json-api-mcp": "./dist/cli.mjs"
+  },
   "files": [
     "dist"
   ],
@@ -52,10 +61,18 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "lint:publish": "publint --strict && attw --pack ."
+    "lint:publish": "publint --strict && attw --pack . --exclude-entrypoints ./generate"
   },
   "dependencies": {
     "@haddowg/json-api-client": "workspace:^"
+  },
+  "peerDependencies": {
+    "@haddowg/json-api-codegen": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@haddowg/json-api-codegen": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@haddowg/json-api-codegen": "workspace:^",

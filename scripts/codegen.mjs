@@ -5,7 +5,8 @@
 // The test snapshot and the example clients share the music-catalog fixture, which keeps
 // them honest against the same wire contract. Only the test snapshot writes the examples
 // module. The contract witness is core's own document, kept verbatim, for the structures the
-// example app doesn't use.
+// example app doesn't use. The MCP models are checked the same way, built with the MCP
+// package's own CLI.
 import { spawnSync } from 'node:child_process'
 
 const CLI = 'packages/codegen/dist/cli.mjs'
@@ -29,6 +30,19 @@ const TARGETS = [
   },
 ]
 
+// The MCP models, written by the MCP package's generator CLI from the same specs.
+const MCP_CLI = 'packages/mcp/dist/cli.mjs'
+const MCP_TARGETS = [
+  {
+    input: MUSIC_CATALOG.input,
+    output: 'packages/mcp/test/generated/music-catalog.mcp.gen.json',
+  },
+  {
+    input: 'packages/codegen/test/fixtures/contract-witness.openapi.json',
+    output: 'packages/mcp/test/generated/contract-witness.mcp.gen.json',
+  },
+]
+
 const check = process.argv.includes('--check')
 
 let failed = false
@@ -40,6 +54,17 @@ for (const { input, schemas, output, examples } of TARGETS) {
   if (examples) {
     args.push('--examples')
   }
+  if (check) {
+    args.push('--check')
+  }
+  const result = spawnSync('node', args, { stdio: 'inherit' })
+  if (result.status !== 0) {
+    failed = true
+  }
+}
+
+for (const { input, output } of MCP_TARGETS) {
+  const args = [MCP_CLI, '--input', input, '--output', output]
   if (check) {
     args.push('--check')
   }

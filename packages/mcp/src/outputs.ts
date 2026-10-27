@@ -247,16 +247,25 @@ export function resourceOutput(ctx: OutputContext, type: string): ObjectSchema {
   return { ...(defs[type] as ObjectSchema), $defs: defs }
 }
 
-/** A to-one related read: `{ item }`, null when nothing is related. */
-export function relatedOneOutput(ctx: OutputContext, types: readonly string[]): ObjectSchema {
+/** A single read: `{ item }`, and for a to-one related read null when nothing is related. */
+export function itemOutput(
+  ctx: OutputContext,
+  types: readonly string[],
+  nullable: boolean,
+): ObjectSchema {
   const reachable = reachableTypes(ctx.descriptor, types, includePaths(ctx.doc, ctx.operation))
+  const item: JsonSchema = nullable
+    ? {
+        anyOf: [...types.map(ref), { type: 'null' }],
+        description: 'The related resource, or null when there is none.',
+      }
+    : types.length === 1
+      ? { ...ref(types[0]!), description: 'The resource.' }
+      : { anyOf: types.map(ref), description: 'The resource.' }
   return {
     type: 'object',
     properties: {
-      item: {
-        anyOf: [...types.map(ref), { type: 'null' }],
-        description: 'The related resource, or null when there is none.',
-      },
+      item,
     },
     required: ['item'],
     $defs: defsFor(ctx.doc, ctx.descriptor, ctx.schemas, reachable),

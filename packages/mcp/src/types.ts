@@ -1,12 +1,11 @@
 import type {
   ActionDescriptor,
-  ApiDescriptor,
   HeadersInit,
   JsonApiTransport,
   RelationDescriptor,
   ResourceDescriptor,
 } from '@haddowg/json-api-client'
-import type { JsonSchema, OpenApiDocument, OperationObject, SecurityRequirement } from './openapi'
+import type { JsonSchema, OperationObject, SecurityRequirement } from './openapi'
 
 // The MCP shapes below are written structurally, as type aliases rather than interfaces, so they
 // assign to @modelcontextprotocol/sdk's own `Tool` and `CallToolResult` types without this
@@ -150,19 +149,15 @@ export interface JsonApiMcpHooks<Ctx> {
 
 /** Options for {@link createJsonApiMcp}. */
 export interface JsonApiMcpOptions<Ctx> {
-  /** The server's OpenAPI document, already parsed. */
-  document: OpenApiDocument
   /**
-   * The json-api-ts descriptor for the same document: a generated client's `resourceMap`, or
-   * `buildDescriptor(document)` from `@haddowg/json-api-codegen` at runtime.
+   * The model the generator wrote, parsed: `require('./api.mcp.json')`, or `JSON.parse` of the
+   * file. Checked before use.
    */
-  descriptor: ApiDescriptor
-  /** The API's base URL. Defaults to the document's first server. */
+  model: unknown
+  /** The API's base URL. Defaults to the source document's first server. */
   baseUrl?: string
   /** The transport the client sends through. Defaults to `fetch`. */
   transport?: JsonApiTransport
-  /** The page size a list tool asks for when the model gives none. Defaults to 10. */
-  defaultPageSize?: number
   hooks?: JsonApiMcpHooks<Ctx>
 }
 
@@ -200,6 +195,10 @@ export interface JsonApiMcp<Ctx> {
   readonly tools: readonly McpTool[]
   /** Operations that couldn't become a tool, such as an action whose body only takes binary. */
   readonly skipped: readonly SkippedOperation[]
+  /** The generator contract of the document the model was built from. */
+  readonly contract: number
+  /** The document the model was built from, and its content hash. */
+  readonly source: { readonly title: string; readonly hash: string }
   /** Filter and decorate the tools for one caller. */
   forRequest(request: McpRequest<Ctx>): Promise<McpToolSession>
 }

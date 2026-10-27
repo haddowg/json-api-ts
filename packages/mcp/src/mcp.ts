@@ -1,18 +1,16 @@
-import { buildCatalogue, type CatalogueEntry } from './catalogue'
-import { errorResult, runCall, toToolError } from './call'
-import { assertContract } from './contract'
+import { errorResult, runCall, type ToolEntry, toToolError } from './call'
+import { assertModel, McpModelError, type McpModel, type McpModelTool } from './model'
 import type { SecurityRequirement } from './openapi'
 import type {
   JsonApiMcp,
   JsonApiMcpOptions,
   McpCallToolResult,
   McpCapability,
+  McpOperation,
   McpRequest,
   McpTool,
   McpToolSession,
 } from './types'
-
-const DEFAULT_PAGE_SIZE = 10
 
 /** Every required scope appears among the granted ones. */
 export const exactScopeMatcher = (
@@ -38,25 +36,53 @@ export function satisfiesSecurity(
   })
 }
 
+/** Rebuild an operation for the hooks, adding back the descriptor entries it names. */
+function hydrate(model: McpModel, tool: McpModelTool): ToolEntry {
+  const source = tool.operation
+  const resource = model.descriptor[source.type]
+  if (resource === undefined) {
+    throw new McpModelError(`The model's descriptor has no type "${source.type}"; regenerate it.`)
+  }
+  const op: McpOperation = {
+    operationId: source.operationId,
+    toolName: source.toolName,
+    kind: source.kind,
+    type: source.type,
+    method: source.method,
+    path: source.path,
+    resource,
+    operation: source.operation,
+    security: source.security,
+  }
+  if (source.relation !== undefined) {
+    op.relation = source.relation
+    const relation = resource.relations[source.relation]
+    if (relation !== undefined) op.relationDescriptor = relation
+  }
+  if (source.action !== undefined) {
+    op.action = source.action
+    const action = resource.actions?.[source.actionKey ?? source.action]
+    if (action !== undefined) op.actionDescriptor = action
+  }
+  const entry: ToolEntry = { op, tool: tool.tool, input: tool.plan, result: tool.result }
+  if (source.actionKey !== undefined) entry.actionKey = source.actionKey
+  return entry
+}
+
 /**
- * Build MCP tools from a JSON:API server's OpenAPI document and its json-api-ts descriptor: one
- * tool per collection, resource, related and custom action operation. Throws when the document's
- * generator contract is outside the range this package reads, or when two tools would share a
- * name or a name breaks the model APIs' rules.
+ * Serve MCP tools from a model the generator wrote: `createJsonApiMcp({ model })` with the parsed
+ * artefact. Throws when the artefact isn't one this runtime can read.
  */
 export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>): JsonApiMcp<Ctx> {
-  const { document, descriptor, hooks = {} } = options
-  assertContract(document)
-  const catalogue = buildCatalogue(
-    document,
-    descriptor,
-    options.defaultPageSize ?? DEFAULT_PAGE_SIZE,
-  )
-  const defaultBaseUrl = options.baseUrl ?? document.servers?.[0]?.url
+  const { hooks = {} } = options
+  const model = assertModel(options.model)
+  const descriptor = model.descriptor
+  const catalogue = { entries: model.tools.map((tool) => hydrate(model, tool)) }
+  const defaultBaseUrl = options.baseUrl ?? model.baseUrl
 
   async function forRequest(request: McpRequest<Ctx>): Promise<McpToolSession> {
     const ctx = request.context
-    let entries: CatalogueEntry[] = catalogue.entries
+    let entries: ToolEntry[] = catalogue.entries
     if (request.grantedScopes !== undefined) {
       const granted = request.grantedScopes
       entries = entries.filter((e) => satisfiesSecurity(e.op.security, granted, hooks.scopeMatcher))
@@ -75,7 +101,7 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
       entries = entries.filter((_, index) => keep[index] === true)
     }
 
-    const byName = new Map<string, CatalogueEntry>()
+    const byName = new Map<string, ToolEntry>()
     const tools: McpTool[] = []
     for (const entry of entries) {
       const tool =
@@ -118,7 +144,9 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
   return {
     operations: catalogue.entries.map((e) => e.op),
     tools: catalogue.entries.map((e) => e.tool),
-    skipped: catalogue.skipped,
+    skipped: model.skipped,
+    contract: model.contract,
+    source: model.source,
     forRequest,
   }
 }
