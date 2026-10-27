@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   9ccc4831ab5c04cc
+ * Spec hash:   c2e8557b1f287c13
  */
 
 import {
@@ -318,11 +318,7 @@ export interface VideosUpdateAttributes {
 }
 
 export interface ImagesLinks extends ResourceLinks {
-  /**
-   * Where to fetch the original file.
-   *
-   * @example {"href":"https://cdn.example.com/originals/img-1.png","title":"Original","type":"image/png","meta":{"method":"GET","expiresAt":"2026-10-26T12:00:00+00:00","headers":{"Range":"bytes=0-"}}}
-   */
+  /** Where to fetch the original file. */
   download?: {
     /** @format uri-reference */
     href: string
@@ -346,11 +342,7 @@ export interface ImagesLinks extends ResourceLinks {
       headers?: Record<string, unknown> | null
     }
   }
-  /**
-   * The `thumbnail` link, absent when it does not apply to the resource.
-   *
-   * @example https://cdn.example.com/thumbs/img-1.png
-   */
+  /** The `thumbnail` link, absent when it does not apply to the resource. */
   thumbnail?: string
 }
 

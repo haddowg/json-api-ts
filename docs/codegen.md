@@ -51,7 +51,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 17. An older document is an error, and a newer one
+codegen reads contracts 1 to 18. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -156,6 +156,15 @@ marks such an action with `location: { mediaType }` and, when the URL is all it 
 under [actions that answer with a URL](custom-actions.md#actions-that-answer-with-a-url). An
 action that only documents a `303` has no `location`, and the transport follows the redirect
 as before.
+
+Contract 18 is on every document from core 1.20.0. The per-type and per-relation links
+components gave way to one shared component per context, `ResourceLinks`, `DocumentLinks`,
+`CollectionLinks`, `RelationshipLinks`, `RelationshipDocumentLinks` and
+`RelatedDocumentLinks`, and link schemas no longer carry examples. A type with declared or
+action links keeps a `<Type>ResourceLinks`, now an `allOf` of the shared `ResourceLinks` and
+an object listing its named links, and the codegen reads them from there. The generated
+types are the same as before, except that a declared link's JSDoc loses its `@example`,
+since the document no longer has one. The worked links are in the operation examples.
 
 ### The validation schemas
 
@@ -358,8 +367,9 @@ rendered on reads, and drops the fields marked `readOnly` from writes.
 
 A server can declare named links on a type, such as a signed upload URL with the
 method, headers and expiry to use. The document lists each one under the type's
-`<Type>ResourceLinks` (generator contract 14), and the codegen emits a `…Links`
-interface for every type that declares any:
+`<Type>ResourceLinks` (generator contract 14), which from contract 18 extends the shared
+`ResourceLinks` through an `allOf`, and the codegen emits a `…Links` interface for every
+type that declares any:
 
 ```ts
 export interface ImagesLinks extends ResourceLinks {
