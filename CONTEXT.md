@@ -12,7 +12,8 @@ servers). Key facts the codegen relies on:
 - Relationships are fully derivable from structure (no extension): enumerate
   `<Type>Resource.properties.relationships.properties`; the relationship component's
   `data` gives cardinality (array = to-many; `anyOf [..,null]` = to-one) and related
-  type (follow `$ref` → identifier → `type.const`); a nested `anyOf` = polymorphic.
+  type (follow `$ref` → identifier → `type.const`); a nested `anyOf` = polymorphic, even
+  with one member (contract 16).
 - `?include` paths are handed to us literally and **pre-expanded** as a bounded enum
   per endpoint (`tracks.album`, `tracks.playlists`, …) — so include-driven type
   inference is a union over a finite set, not open recursion.
@@ -161,6 +162,13 @@ handles do not (serialize the data, not the handle).
   document whose methods share one id still gives only the preferred one. An action's `x-safety`
   becomes optional `readOnly`, `destructive` and `idempotent` on its `ActionDescriptor`, absent
   when undeclared, and a sentence in its JSDoc.
+- **Operation scopes and one-type polymorphic relations** (generator contract 16, ADR 0016):
+  the scopes an operation's `security` lists under an `oauth2` scheme go into the descriptor as
+  optional string lists: `ResourceDescriptor.scopes` keyed like the examples module
+  (`fetchOne`, `fetchRelated.<rel>`), `ActionDescriptor.scopes` and `AtomicDescriptor.scopes`,
+  each absent when none is needed, and a sentence in the JSDoc. A relation whose linkage is an
+  `anyOf` union, even of one member, carries `polymorphic: true`; `isPolymorphic()` reads it and
+  falls back to more than one type for an older descriptor.
 - **Every `POST` sends the JSON:API `Content-Type`**, bodyless included, because core 1.11
   answers `415` without it. `PATCH`, `PUT` and `DELETE` send it only with a body.
 

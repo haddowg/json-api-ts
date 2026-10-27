@@ -51,7 +51,7 @@ convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 14. An older document is an error, and a newer one
+codegen reads contracts 1 to 16. An older document is an error, and a newer one
 generates with a warning that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
@@ -128,6 +128,24 @@ as described under [several methods](custom-actions.md#an-action-with-several-me
 action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and
 `idempotent`, and the action's JSDoc says which ones it declares. An action's own vendor
 extensions, such as `x-workflows`, are left out.
+
+Contract 16 is carried only by a document with an operation that needs OAuth scopes, or with
+a polymorphic relation over a single type. Such an operation's `security` lists its scopes
+under the server's `oauth2` scheme. The codegen finds the scheme by its `type` in
+`components.securitySchemes`, whatever it's named, and carries the scopes in the descriptor:
+per type in `scopes`, keyed by operation, on each action as `scopes`, and on the `atomic`
+const. An operation that needs none has no entry. The JSDoc of the descriptor's `paths`
+entries, relations, actions and `atomic` names the scopes too, so a hover on
+`resourceMap.articles.relations.author` lists what each of its endpoints needs.
+
+The same contract projects a `MorphTo` or `MorphToMany` over one type as a union with one
+member, where it used to be a plain `$ref` that looked like a `BelongsTo`. The codegen reads a
+union of any size as polymorphic and marks the relation `polymorphic: true`, so it no longer
+depends on counting `types`. The TypeScript client already takes `{ type, id }` for every
+relation, so its types don't change; the [MCP tools](mcp.md) do, since they take a bare id
+for a relation that isn't polymorphic. The relation's related and relationship endpoints
+also stop advertising the related type's `filter`, `sort` and `page` parameters, as they
+already did for a polymorphic relation over several types.
 
 ### The validation schemas
 
@@ -502,8 +520,9 @@ document's structure:
   `types` array, whether it is a `pivot` (`belongsToMany`) relation (with its
   [`readPivot` and `writePivot`](#pivot-fields)), whether it is
   [`writeOnly`](#write-only-relations), its `uriField` when its paths use a
-  segment other than its name, the polymorphic type set (multiple entries in
-  `types`), and the derived `mutations` capability (`add`/`remove`/`replace` for
+  segment other than its name, `polymorphic: true` when its linkage is a union of
+  types, even of one (read `isPolymorphic(relation)`, which falls back to counting
+  `types` in an older descriptor), and the derived `mutations` capability (`add`/`remove`/`replace` for
   a to-many, `set` for a to-one — read from the relationship endpoint's HTTP
   methods). A relation whose related or relationship endpoint is suppressed by the
   API is marked `related: false` / `relationship: false` so the client gates it
@@ -547,7 +566,11 @@ document's structure:
   (`resource`/`collection`), `path`, `input` (`document`/`none`/`raw`) and
   `output` (`document`/`meta`/`none`), plus an `inputType`/`outputType` where the
   action names a resource. A `document` action gets emitted `…Input`/`…Output`
-  type aliases. See [custom actions](custom-actions.md).
+  type aliases. See [custom actions](custom-actions.md). An action needing OAuth
+  scopes carries them as `scopes`.
+- **`scopes`** — the OAuth scopes each operation needs, keyed by the operation id
+  without its type (`fetchOne`, `fetchRelated.author`, `addRelationship.tags`), from
+  generator contract 16. Absent when no operation of the type needs one.
 
 The server-level Atomic Operations capability is emitted separately as an
 `atomic` const and threaded into `createClient` by default — see

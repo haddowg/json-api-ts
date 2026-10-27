@@ -259,6 +259,54 @@ function safetyDoc(action: ActionDescriptor): string | undefined {
   return `The server declares this action ${list}.`
 }
 
+/** A list of scopes as inline code joined into prose: `a`, `b` and `c`. */
+function scopeList(scopes: readonly string[]): string {
+  const quoted = scopes.map((scope) => `\`${scope}\``)
+  return quoted.length === 1
+    ? quoted[0]!
+    : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)!}`
+}
+
+/** The sentence naming the OAuth scopes an operation needs (generator contract 16). */
+function scopeDoc(scopes: readonly string[] | undefined): string | undefined {
+  if (scopes === undefined || scopes.length === 0) {
+    return undefined
+  }
+  return `Needs the OAuth ${scopes.length === 1 ? 'scope' : 'scopes'} ${scopeList(scopes)}.`
+}
+
+/** The descriptor's `paths` keys, by the operation whose scopes they carry. */
+const PATH_OPERATIONS: Readonly<Record<string, string>> = {
+  fetchMany: 'fetchCollection',
+  create: 'create',
+  fetchOne: 'fetchOne',
+  update: 'update',
+  delete: 'delete',
+}
+
+/** A relation's operations, in the order its JSDoc lists their scopes. */
+const RELATION_OPERATIONS = [
+  'fetchRelated',
+  'fetchRelationship',
+  'updateRelationship',
+  'addRelationship',
+  'removeRelationship',
+] as const
+
+/** The OAuth scopes each of a relation's endpoints needs, one line per operation, or `undefined`. */
+function relationScopeDoc(
+  scopes: Readonly<Record<string, readonly string[]>> | undefined,
+  relation: string,
+): string | undefined {
+  const lines = RELATION_OPERATIONS.flatMap((operation) => {
+    const needed = scopes?.[`${operation}.${relation}`]
+    return needed === undefined || needed.length === 0
+      ? []
+      : [`- \`${operation}\` needs ${scopeList(needed)}`]
+  })
+  return lines.length === 0 ? undefined : ['OAuth scopes:', '', ...lines].join('\n')
+}
+
 /** The most lines of example JSON an action's `@example` shows; a longer one is left out. */
 export const EXAMPLE_DOC_MAX_LINES = 80
 
@@ -401,12 +449,28 @@ export class Emitter {
         const op = actionOperation(this.doc, action)
         // A multi-method action's other methods are keyed apart from the name the server prose uses.
         const wireName = action.path.slice(action.path.lastIndexOf('/') + 1)
-        const parts = [actionDoc(wireName, op), safetyDoc(action), exampleDoc(op)].filter(
-          (part) => part !== undefined,
-        )
+        const parts = [
+          actionDoc(wireName, op),
+          safetyDoc(action),
+          scopeDoc(action.scopes),
+          exampleDoc(op),
+        ].filter((part) => part !== undefined)
         const doc = parts.length === 0 ? undefined : parts.join('\n\n')
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}`, doc)
+        }
+      }
+      const scopes = descriptor[type]?.scopes
+      for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
+        const doc = scopeDoc(scopes?.[operation])
+        if (doc !== undefined && descriptor[type]?.paths[key] !== undefined) {
+          this.literalDocs.set(`${type}/paths/${key}`, doc)
+        }
+      }
+      for (const relation of Object.keys(descriptor[type]?.relations ?? {})) {
+        const doc = relationScopeDoc(scopes, relation)
+        if (doc !== undefined) {
+          this.literalDocs.set(`${type}/relations/${relation}`, doc)
         }
       }
     }
@@ -885,10 +949,12 @@ export class Emitter {
 
   /** Emit the server-level atomic capability constant (`{ path }` or `null`). */
   private atomicConst(): string {
+    const atomicScopes = scopeDoc(this.atomic?.scopes)
     const doc = [
       '/**',
       ' * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`',
       ' * when this server exposes none. The runtime `client.atomic` builder posts the batch here.',
+      ...(atomicScopes === undefined ? [] : [' *', ` * ${atomicScopes}`]),
       ' */',
     ].join('\n')
     const value = this.atomic === null ? 'null' : `${this.literal(this.atomic, 0)} as const`

@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   76cc26c59c597b07
+ * Spec hash:   ce3a668ffbd33fc8
  */
 
 import {
@@ -418,12 +418,22 @@ export const resourceMap = {
       wordCount: "integer"
     },
     relations: {
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read`
+       * - `fetchRelationship` needs `articles:read`
+       * - `updateRelationship` needs `articles:write`
+       * - `addRelationship` needs `articles:write`
+       * - `removeRelationship` needs `articles:write`
+       */
       attachments: {
         cardinality: "many",
         types: [
           "images",
           "videos"
         ],
+        polymorphic: true,
         pivot: false,
         mutations: {
           add: true,
@@ -431,6 +441,13 @@ export const resourceMap = {
           replace: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read` and `people:read`
+       * - `fetchRelationship` needs `articles:read` and `people:read`
+       * - `updateRelationship` needs `articles:write`
+       */
       author: {
         cardinality: "one",
         types: [
@@ -441,6 +458,12 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelationship` needs `articles:read`
+       * - `updateRelationship` needs `articles:write`
+       */
       cover: {
         cardinality: "one",
         types: [
@@ -452,6 +475,13 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read` and `people:read`
+       * - `fetchRelationship` needs `articles:read` and `people:read`
+       * - `updateRelationship` needs `articles:write`
+       */
       editor: {
         cardinality: "one",
         types: [
@@ -462,6 +492,34 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read`
+       * - `fetchRelationship` needs `articles:read`
+       * - `updateRelationship` needs `articles:write`
+       * - `addRelationship` needs `articles:write`
+       * - `removeRelationship` needs `articles:write`
+       */
+      gallery: {
+        cardinality: "many",
+        types: [
+          "images"
+        ],
+        polymorphic: true,
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        }
+      },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read`
+       * - `fetchRelationship` needs `articles:read`
+       */
       locked: {
         cardinality: "many",
         types: [
@@ -470,6 +528,13 @@ export const resourceMap = {
         pivot: false,
         mutations: {}
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read` and `people:read`
+       * - `fetchRelationship` needs `articles:read` and `people:read`
+       * - `updateRelationship` needs `articles:write`
+       */
       publisher: {
         cardinality: "one",
         types: [
@@ -481,6 +546,11 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `articles:write`
+       */
       reviewer: {
         cardinality: "one",
         types: [
@@ -493,6 +563,33 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read` and `people:read`
+       * - `fetchRelationship` needs `articles:read` and `people:read`
+       * - `updateRelationship` needs `articles:write`
+       */
+      subject: {
+        cardinality: "one",
+        types: [
+          "people"
+        ],
+        polymorphic: true,
+        pivot: false,
+        mutations: {
+          set: true
+        }
+      },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read`
+       * - `fetchRelationship` needs `articles:read`
+       * - `updateRelationship` needs `articles:write`
+       * - `addRelationship` needs `articles:write`
+       * - `removeRelationship` needs `articles:write`
+       */
       tags: {
         cardinality: "many",
         types: [
@@ -534,6 +631,13 @@ export const resourceMap = {
         },
         paginator: "page"
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `articles:write`
+       * - `addRelationship` needs `articles:write`
+       * - `removeRelationship` needs `articles:write`
+       */
       watchers: {
         cardinality: "many",
         types: [
@@ -550,12 +654,17 @@ export const resourceMap = {
       }
     },
     paths: {
+      /** Needs the OAuth scope `articles:write`. */
       create: "/articles",
+      /** Needs the OAuth scope `articles:write`. */
       delete: "/articles/{id}",
+      /** Needs the OAuth scope `articles:read`. */
       fetchMany: "/articles",
+      /** Needs the OAuth scope `articles:read`. */
       fetchOne: "/articles/{id}",
       fetchRelated: "/articles/{id}/{rel}",
       fetchRelationship: "/articles/{id}/relationships/{rel}",
+      /** Needs the OAuth scope `articles:write`. */
       update: "/articles/{id}"
     },
     paginator: "page",
@@ -673,14 +782,21 @@ export const resourceMap = {
         destructive: false,
         idempotent: true
       },
-      /** Publish the article */
+      /**
+       * Publish the article
+       *
+       * Needs the OAuth scope `articles:publish`.
+       */
       publish: {
         scope: "resource",
         path: "/articles/{id}/-actions/publish",
         input: "none",
         output: "document",
         outputType: "articles",
-        outputCardinality: "one"
+        outputCardinality: "one",
+        scopes: [
+          "articles:publish"
+        ]
       },
       /** The server declares this action destructive. */
       purge: {
@@ -735,6 +851,136 @@ export const resourceMap = {
         output: "meta",
         method: "GET"
       }
+    },
+    scopes: {
+      "addRelationship.attachments": [
+        "articles:write"
+      ],
+      "addRelationship.gallery": [
+        "articles:write"
+      ],
+      "addRelationship.tags": [
+        "articles:write"
+      ],
+      "addRelationship.watchers": [
+        "articles:write"
+      ],
+      create: [
+        "articles:write"
+      ],
+      delete: [
+        "articles:write"
+      ],
+      fetchCollection: [
+        "articles:read"
+      ],
+      fetchOne: [
+        "articles:read"
+      ],
+      "fetchRelated.attachments": [
+        "articles:read"
+      ],
+      "fetchRelated.author": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelated.editor": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelated.gallery": [
+        "articles:read"
+      ],
+      "fetchRelated.locked": [
+        "articles:read"
+      ],
+      "fetchRelated.publisher": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelated.subject": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelated.tags": [
+        "articles:read"
+      ],
+      "fetchRelationship.attachments": [
+        "articles:read"
+      ],
+      "fetchRelationship.author": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelationship.cover": [
+        "articles:read"
+      ],
+      "fetchRelationship.editor": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelationship.gallery": [
+        "articles:read"
+      ],
+      "fetchRelationship.locked": [
+        "articles:read"
+      ],
+      "fetchRelationship.publisher": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelationship.subject": [
+        "articles:read",
+        "people:read"
+      ],
+      "fetchRelationship.tags": [
+        "articles:read"
+      ],
+      "removeRelationship.attachments": [
+        "articles:write"
+      ],
+      "removeRelationship.gallery": [
+        "articles:write"
+      ],
+      "removeRelationship.tags": [
+        "articles:write"
+      ],
+      "removeRelationship.watchers": [
+        "articles:write"
+      ],
+      update: [
+        "articles:write"
+      ],
+      "updateRelationship.attachments": [
+        "articles:write"
+      ],
+      "updateRelationship.author": [
+        "articles:write"
+      ],
+      "updateRelationship.cover": [
+        "articles:write"
+      ],
+      "updateRelationship.editor": [
+        "articles:write"
+      ],
+      "updateRelationship.gallery": [
+        "articles:write"
+      ],
+      "updateRelationship.publisher": [
+        "articles:write"
+      ],
+      "updateRelationship.reviewer": [
+        "articles:write"
+      ],
+      "updateRelationship.subject": [
+        "articles:write"
+      ],
+      "updateRelationship.tags": [
+        "articles:write"
+      ],
+      "updateRelationship.watchers": [
+        "articles:write"
+      ]
     }
   },
   healthcheck: {
@@ -785,6 +1031,11 @@ export const resourceMap = {
       role: "string"
     },
     relations: {
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelationship` needs `companies:read`
+       */
       company: {
         cardinality: "one",
         types: [
@@ -801,6 +1052,7 @@ export const resourceMap = {
       create: "/people",
       delete: "/people/{id}",
       fetchMany: "/people",
+      /** Needs the OAuth scope `people:read`. */
       fetchOne: "/people/{id}",
       fetchRelationship: "/people/{id}/relationships/{rel}",
       update: "/people/{id}"
@@ -816,13 +1068,27 @@ export const resourceMap = {
     clientId: "optional",
     filterable: [
       "name"
-    ]
+    ],
+    scopes: {
+      fetchOne: [
+        "people:read"
+      ],
+      "fetchRelationship.company": [
+        "companies:read"
+      ]
+    }
   },
   tags: {
     attributes: {
       label: "string"
     },
     relations: {
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelated` needs `articles:read`
+       * - `fetchRelationship` needs `articles:read`
+       */
       articles: {
         cardinality: "many",
         types: [
@@ -861,7 +1127,15 @@ export const resourceMap = {
       "color",
       "excludeId",
       "label"
-    ]
+    ],
+    scopes: {
+      "fetchRelated.articles": [
+        "articles:read"
+      ],
+      "fetchRelationship.articles": [
+        "articles:read"
+      ]
+    }
   },
   videos: {
     attributes: {
@@ -890,9 +1164,14 @@ export type ResourceMap = typeof resourceMap
 /**
  * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`
  * when this server exposes none. The runtime `client.atomic` builder posts the batch here.
+ *
+ * Needs the OAuth scope `batch`.
  */
 export const atomic = {
-  path: "/operations"
+  path: "/operations",
+  scopes: [
+    "batch"
+  ]
 } as const
 
 /**
@@ -1102,6 +1381,12 @@ export const ErrorCodes = {
    * @example Inclusion is not supported by the endpoint!
    */
   INCLUSION_UNSUPPORTED: "INCLUSION_UNSUPPORTED",
+  /**
+   * The access token is valid but does not grant every scope the request needs. `meta.missingScopes` names the ones it lacks; request a token that grants them, or drop the `include` path named in `meta.include`.
+   *
+   * @example The access token does not grant every scope this request needs.
+   */
+  INSUFFICIENT_SCOPE: "INSUFFICIENT_SCOPE",
   /**
    * Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`.
    *
@@ -1373,6 +1658,7 @@ export interface ErrorCodeByStatus {
     | "CLIENT_GENERATED_ID_NOT_SUPPORTED"
     | "CLIENT_GENERATED_ID_REQUIRED"
     | "FULL_REPLACEMENT_PROHIBITED"
+    | "INSUFFICIENT_SCOPE"
     | "REMOVAL_PROHIBITED"
   404: "RELATIONSHIP_NOT_EXISTS" | "RESOURCE_NOT_FOUND"
   406: "MEDIA_TYPE_UNACCEPTABLE"

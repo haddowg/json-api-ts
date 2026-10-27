@@ -38,7 +38,7 @@ function withMultiTypeImport(): OpenApiDocument {
 describe('generator contract 10 (raw action responses)', () => {
   it('reads the witness without a warning', () => {
     // Core's witness carries every scoped structure, so it is stamped with the highest contract.
-    expect(witness.info?.['x-generator']?.contract).toBe(15)
+    expect(witness.info?.['x-generator']?.contract).toBe(16)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -68,7 +68,9 @@ describe('generator contract 10 (raw action responses)', () => {
 
   it("carries an author's summary and description into the action's JSDoc", () => {
     const source = emit(witness, buildDescriptor(witness))
-    expect(source).toContain('      /** Publish the article */\n      publish: {')
+    expect(source).toContain(
+      '      /**\n       * Publish the article\n       *\n       * Needs the OAuth scope `articles:publish`.\n       */\n      publish: {',
+    )
     expect(source).toContain('      /** Save a draft revision. */\n      draft: {')
     // The projector's stand-in prose for an undescribed action adds nothing, so it is left out.
     expect(source).not.toContain('Invoke the `report` action')
