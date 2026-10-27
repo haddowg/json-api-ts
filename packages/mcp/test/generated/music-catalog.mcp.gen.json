@@ -1,10 +1,10 @@
 {
   "format": 3,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 16,
+  "contract": 17,
   "source": {
     "title": "Music Catalog API 1.0.0",
-    "hash": "6d1632b7866439fb"
+    "hash": "bd5a487e37ef7d25"
   },
   "credentialSchemes": [
     "oauth2"
@@ -117,6 +117,17 @@
             "catalog:write",
             "catalog:media"
           ]
+        },
+        "download": {
+          "scope": "resource",
+          "path": "/albums/{id}/-actions/download",
+          "input": "none",
+          "output": "location",
+          "method": "GET",
+          "readOnly": true,
+          "location": {
+            "mediaType": "text/csv"
+          }
         },
         "export": {
           "scope": "collection",
@@ -1777,6 +1788,84 @@
       },
       "plan": {},
       "result": "deleted"
+    },
+    {
+      "operation": {
+        "operationId": "action.albums.download",
+        "toolName": "albums_download",
+        "kind": "action",
+        "type": "albums",
+        "method": "GET",
+        "path": "/albums/{id}/-actions/download",
+        "operation": {
+          "tags": [
+            "Catalog"
+          ],
+          "summary": "Invoke the `download` action",
+          "description": "Invokes the `download` custom action on an album.",
+          "operationId": "action.albums.download",
+          "x-safety": {
+            "readOnly": true
+          }
+        },
+        "action": "download",
+        "actionKey": "download"
+      },
+      "tool": {
+        "name": "albums_download",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the `albums` resource to run download on."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "title": "Invoke the `download` action",
+        "description": "Invokes the `download` custom action on an album.",
+        "outputSchema": {
+          "type": "object",
+          "description": "The URL the action produced, such as a short-lived download link. The tool does not fetch it.",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri-reference",
+              "description": "The URL."
+            },
+            "type": {
+              "type": "string",
+              "description": "The media type the URL serves. The action declares `text/csv`."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When the URL stops working. Absent when it does not expire."
+            }
+          },
+          "required": [
+            "url",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        },
+        "_meta": {
+          "operationId": "action.albums.download"
+        }
+      },
+      "plan": {
+        "action": {
+          "kind": "none"
+        }
+      },
+      "result": "location"
     },
     {
       "operation": {

@@ -131,3 +131,34 @@ describe('generator contract 17', () => {
     expect(tool('articles_archive').outputSchema).toBeUndefined()
   })
 })
+
+describe('the music catalogue at contract 17', () => {
+  it('returns the URL from albums_download', async () => {
+    const { transport, requests } = fakeTransport(() => ({
+      json: {
+        links: {
+          location: {
+            href: 'https://storage.example.com/downloads/1.csv?signature=abc',
+            type: 'text/csv',
+            meta: { expiresAt: '2030-01-01T00:00:00+00:00' },
+          },
+        },
+        meta: { expiresAt: '2030-01-01T00:00:00+00:00' },
+      },
+    }))
+    const mcp = createJsonApiMcp({ ...fixture('music-catalog'), transport })
+    expect(mcp.contract).toBe(17)
+    const download = mcp.tools.find((t) => t.name === 'albums_download')!
+    expect(download.annotations).toEqual({ readOnlyHint: true })
+    expect(download.outputSchema?.['required']).toEqual(['url', 'type'])
+    const session = await mcp.forRequest({ context: {} })
+    const result = await session.callTool('albums_download', { id: '1' })
+    expect(result.structuredContent).toEqual({
+      url: 'https://storage.example.com/downloads/1.csv?signature=abc',
+      type: 'text/csv',
+      expiresAt: '2030-01-01T00:00:00+00:00',
+    })
+    expect(requests[0]!.method).toBe('GET')
+    expect(requests[0]!.url).toMatch(/\/albums\/1\/-actions\/download$/)
+  })
+})
