@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.8.0...json-api-client-v1.9.0) (2026-10-27)
+
+
+### Features
+
+* **client:** return the URL an action answers with instead of following it ([44cc7ae](https://github.com/haddowg/json-api-ts/commit/44cc7ae65b62726e06e4cf4fa2d781d2571f7d53))
+
 ## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.7.0...json-api-client-v1.8.0) (2026-10-27)
 
 

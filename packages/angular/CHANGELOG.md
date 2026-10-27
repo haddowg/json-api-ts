@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.6](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.2.5...json-api-angular-v1.2.6) (2026-10-27)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.9.0
+
 ## [1.2.5](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.2.4...json-api-angular-v1.2.5) (2026-10-27)
 
 

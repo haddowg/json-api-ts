@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.12.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.11.0...json-api-codegen-v1.12.0) (2026-10-27)
+
+
+### Features
+
+* **codegen:** read contract 17 and mark actions that answer with a URL ([b250de7](https://github.com/haddowg/json-api-ts/commit/b250de7f637c74e8b2d6492d1b0cf7673ac289ad))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.9.0
+
 ## [1.11.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.10.0...json-api-codegen-v1.11.0) (2026-10-27)
 
 

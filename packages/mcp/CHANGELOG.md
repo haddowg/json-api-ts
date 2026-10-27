@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.0.0...json-api-mcp-v1.1.0) (2026-10-27)
+
+
+### Features
+
+* **mcp:** cap tool include depth and store security once ([#94](https://github.com/haddowg/json-api-ts/issues/94)) ([28a4e40](https://github.com/haddowg/json-api-ts/commit/28a4e40b65373e4cb04cae42532be0b5371ff13a))
+* **mcp:** read contract 17 and return the URL an action answers with ([4ce83a4](https://github.com/haddowg/json-api-ts/commit/4ce83a43f18b2e64c11192d82246abaf9c5bfbc9))
+
+
+### Bug Fixes
+
+* **mcp:** filter scopes only by credentials the caller can present ([#90](https://github.com/haddowg/json-api-ts/issues/90)) ([31dd290](https://github.com/haddowg/json-api-ts/commit/31dd2901898588ef164b5e1e509aeb3264dbb8e4))
+* **mcp:** treat a null scope grant as no scopes granted ([#92](https://github.com/haddowg/json-api-ts/issues/92)) ([0b3a943](https://github.com/haddowg/json-api-ts/commit/0b3a943503557b10359a2f7d7a96c7d4d3050ab0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.9.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.12.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.12.0
+
 ## 1.0.0 (2026-10-27)
 
 
