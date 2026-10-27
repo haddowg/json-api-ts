@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   68cfec0bfbf28d9b
+ * Spec hash:   6d1632b7866439fb
  */
 
 import {
@@ -638,6 +638,11 @@ export const resourceMap = {
       title: "string"
     },
     relations: {
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `catalog:write`
+       */
       artist: {
         cardinality: "one",
         types: [
@@ -648,6 +653,13 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `catalog:write`
+       * - `addRelationship` needs `catalog:write`
+       * - `removeRelationship` needs `catalog:write`
+       */
       tracks: {
         cardinality: "many",
         types: [
@@ -670,12 +682,15 @@ export const resourceMap = {
       }
     },
     paths: {
+      /** Needs the OAuth scope `catalog:write`. */
       create: "/albums",
+      /** Needs the OAuth scope `catalog:write`. */
       delete: "/albums/{id}",
       fetchMany: "/albums",
       fetchOne: "/albums/{id}",
       fetchRelated: "/albums/{id}/{rel}",
       fetchRelationship: "/albums/{id}/relationships/{rel}",
+      /** Needs the OAuth scope `catalog:write`. */
       update: "/albums/{id}"
     },
     paginator: "page",
@@ -710,6 +725,11 @@ export const resourceMap = {
       "tracks"
     ],
     actions: {
+      /**
+       * The server declares this action idempotent.
+       *
+       * Needs the OAuth scopes `catalog:write` and `catalog:media`.
+       */
       artwork: {
         scope: "resource",
         path: "/albums/{id}/-actions/artwork",
@@ -725,12 +745,19 @@ export const resourceMap = {
             mediaType: "image/*",
             kind: "binary"
           }
+        ],
+        idempotent: true,
+        scopes: [
+          "catalog:write",
+          "catalog:media"
         ]
       },
       /**
        * Export the album catalogue
        *
        * Exports every album in the format the Accept header asks for: a JSON:API meta document with counts, a CSV of ids and titles, a PDF report, or the counts as plain JSON.
+       *
+       * The server declares this action read-only.
        *
        * @example Response `200` as `text/csv`
        * ```
@@ -757,12 +784,15 @@ export const resourceMap = {
             mediaType: "application/json",
             kind: "json"
           }
-        ]
+        ],
+        readOnly: true
       },
       /**
        * Import albums from a file
        *
        * Creates albums from a CSV export, a scanned sleeve image, a multipart form upload or a JSON list of rows. The response reports the media type the server read.
+       *
+       * Needs the OAuth scope `catalog:write`.
        */
       import: {
         scope: "collection",
@@ -787,9 +817,14 @@ export const resourceMap = {
             mediaType: "application/json",
             kind: "json"
           }
+        ],
+        scopes: [
+          "catalog:write"
         ]
       },
       /**
+       * Needs the OAuth scope `catalog:write`.
+       *
        * @example Request body
        * ```json
        * {
@@ -834,9 +869,14 @@ export const resourceMap = {
         output: "document",
         inputType: "albums",
         outputType: "albums",
-        outputCardinality: "one"
+        outputCardinality: "one",
+        scopes: [
+          "catalog:write"
+        ]
       },
       /**
+       * The server declares this action read-only.
+       *
        * @example Response `200`
        * ```json
        * {
@@ -854,8 +894,32 @@ export const resourceMap = {
         scope: "collection",
         path: "/albums/-actions/summary",
         input: "none",
-        output: "meta"
+        output: "meta",
+        readOnly: true
       }
+    },
+    scopes: {
+      "addRelationship.tracks": [
+        "catalog:write"
+      ],
+      create: [
+        "catalog:write"
+      ],
+      delete: [
+        "catalog:write"
+      ],
+      "removeRelationship.tracks": [
+        "catalog:write"
+      ],
+      update: [
+        "catalog:write"
+      ],
+      "updateRelationship.artist": [
+        "catalog:write"
+      ],
+      "updateRelationship.tracks": [
+        "catalog:write"
+      ]
     }
   },
   artists: {
@@ -1091,6 +1155,13 @@ export const resourceMap = {
       title: "string"
     },
     relations: {
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `library:write`
+       * - `addRelationship` needs `library:write`
+       * - `removeRelationship` needs `library:write`
+       */
       orderedTracks: {
         cardinality: "many",
         types: [
@@ -1129,6 +1200,11 @@ export const resourceMap = {
         },
         paginator: "page"
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `library:write`
+       */
       owner: {
         cardinality: "one",
         types: [
@@ -1140,6 +1216,11 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `library:write`
+       */
       publicOwner: {
         cardinality: "one",
         types: [
@@ -1151,6 +1232,13 @@ export const resourceMap = {
           set: true
         }
       },
+      /**
+       * OAuth scopes:
+       *
+       * - `updateRelationship` needs `library:write`
+       * - `addRelationship` needs `library:write`
+       * - `removeRelationship` needs `library:write`
+       */
       tracks: {
         cardinality: "many",
         types: [
@@ -1173,12 +1261,15 @@ export const resourceMap = {
       }
     },
     paths: {
+      /** Needs the OAuth scope `library:write`. */
       create: "/playlists",
+      /** Needs the OAuth scopes `library:write` and `library:admin`. */
       delete: "/playlists/{id}",
       fetchMany: "/playlists",
       fetchOne: "/playlists/{id}",
       fetchRelated: "/playlists/{id}/{rel}",
       fetchRelationship: "/playlists/{id}/relationships/{rel}",
+      /** Needs the OAuth scope `library:write`. */
       update: "/playlists/{id}"
     },
     paginator: "page",
@@ -1197,7 +1288,43 @@ export const resourceMap = {
       "orderedTracks",
       "orderedTracks.album",
       "orderedTracks.playlists"
-    ]
+    ],
+    scopes: {
+      "addRelationship.orderedTracks": [
+        "library:write"
+      ],
+      "addRelationship.tracks": [
+        "library:write"
+      ],
+      create: [
+        "library:write"
+      ],
+      delete: [
+        "library:write",
+        "library:admin"
+      ],
+      "removeRelationship.orderedTracks": [
+        "library:write"
+      ],
+      "removeRelationship.tracks": [
+        "library:write"
+      ],
+      update: [
+        "library:write"
+      ],
+      "updateRelationship.orderedTracks": [
+        "library:write"
+      ],
+      "updateRelationship.owner": [
+        "library:write"
+      ],
+      "updateRelationship.publicOwner": [
+        "library:write"
+      ],
+      "updateRelationship.tracks": [
+        "library:write"
+      ]
+    }
   },
   products: {
     attributes: {
@@ -1381,9 +1508,14 @@ export type ResourceMap = typeof resourceMap
 /**
  * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`
  * when this server exposes none. The runtime `client.atomic` builder posts the batch here.
+ *
+ * Needs the OAuth scope `batch`.
  */
 export const atomic = {
-  path: "/operations"
+  path: "/operations",
+  scopes: [
+    "batch"
+  ]
 } as const
 
 /**
@@ -1771,6 +1903,12 @@ export const ErrorCodes = {
    */
   INCLUSION_UNSUPPORTED: "INCLUSION_UNSUPPORTED",
   /**
+   * The access token is valid but does not grant every scope the request needs. `meta.missingScopes` names the ones it lacks; request a token that grants them, or drop the `include` path named in `meta.include`.
+   *
+   * @example The access token does not grant every scope this request needs.
+   */
+  INSUFFICIENT_SCOPE: "INSUFFICIENT_SCOPE",
+  /**
    * Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`.
    *
    * @example Local id 'new-article' is already registered for type 'articles'!
@@ -2035,6 +2173,7 @@ export interface ErrorCodeByStatus {
     | "CLIENT_GENERATED_ID_NOT_SUPPORTED"
     | "CLIENT_GENERATED_ID_REQUIRED"
     | "FULL_REPLACEMENT_PROHIBITED"
+    | "INSUFFICIENT_SCOPE"
     | "REMOVAL_PROHIBITED"
   404: "RELATIONSHIP_NOT_EXISTS" | "RESOURCE_NOT_FOUND"
   406: "MEDIA_TYPE_UNACCEPTABLE"

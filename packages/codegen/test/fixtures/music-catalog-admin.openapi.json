@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 14
+            "contract": 16
         }
     },
     "servers": [
@@ -703,7 +703,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             }
         },
         "/albums/{id}": {
@@ -980,7 +987,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -1263,7 +1277,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             }
         },
         "/albums/{id}/artist": {
@@ -1666,7 +1687,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             }
         },
         "/albums/{id}/tracks": {
@@ -2413,7 +2441,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             },
             "delete": {
                 "tags": [
@@ -2502,7 +2537,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             },
             "patch": {
                 "tags": [
@@ -2591,7 +2633,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "catalog:write"
+                        ]
+                    }
+                ]
             }
         },
         "/artists": {
@@ -7128,7 +7177,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "library:write"
+                        ]
+                    }
+                ]
             }
         },
         "/playlists/{id}": {
@@ -7475,7 +7531,10 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write",
+                            "library:admin"
+                        ]
                     }
                 ]
             },
@@ -7842,7 +7901,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             }
@@ -8003,7 +8064,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             }
@@ -8264,7 +8327,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             }
@@ -8998,7 +9063,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             },
@@ -9092,7 +9159,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             },
@@ -9186,7 +9255,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             }
@@ -9946,7 +10017,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             },
@@ -10053,7 +10126,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             },
@@ -10160,7 +10235,9 @@
                 },
                 "security": [
                     {
-                        "bearer": []
+                        "oauth2": [
+                            "library:write"
+                        ]
                     }
                 ]
             }
@@ -15353,7 +15430,14 @@
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "batch"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -18456,6 +18540,9 @@
                                     "$ref": "#/components/schemas/InclusionUnsupportedError"
                                 },
                                 {
+                                    "$ref": "#/components/schemas/InsufficientScopeError"
+                                },
+                                {
                                     "$ref": "#/components/schemas/LocalIdConflictError"
                                 },
                                 {
@@ -18763,6 +18850,9 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/FullReplacementProhibitedError"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InsufficientScopeError"
                                 },
                                 {
                                     "$ref": "#/components/schemas/RemovalProhibitedError"
@@ -19327,6 +19417,36 @@
                             "code",
                             "status",
                             "source"
+                        ]
+                    }
+                ]
+            },
+            "InsufficientScopeError": {
+                "title": "Insufficient scope",
+                "description": "The access token is valid but does not grant every scope the request needs. `meta.missingScopes` names the ones it lacks; request a token that grants them, or drop the `include` path named in `meta.include`.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "INSUFFICIENT_SCOPE"
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "403"
+                            },
+                            "detail": {
+                                "type": "string",
+                                "example": "The access token does not grant every scope this request needs."
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status"
                         ]
                     }
                 ]
@@ -26869,6 +26989,22 @@
                 "description": "A Bearer access token (the user identifier in this example).",
                 "scheme": "bearer",
                 "bearerFormat": "JWT"
+            },
+            "oauth2": {
+                "type": "oauth2",
+                "description": "An OAuth 2.0 access token. Its scopes gate the catalogue and library writes.",
+                "flows": {
+                    "clientCredentials": {
+                        "tokenUrl": "https://music.example/oauth/token",
+                        "scopes": {
+                            "catalog:write": "Create, change and delete albums and their relationships.",
+                            "catalog:media": "Upload album artwork.",
+                            "library:write": "Create and change playlists and their tracks.",
+                            "library:admin": "Delete playlists.",
+                            "batch": "Send Atomic Operations batches."
+                        }
+                    }
+                }
             }
         }
     },
