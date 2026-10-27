@@ -1,10 +1,10 @@
 {
   "format": 3,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 17,
+  "contract": 18,
   "source": {
     "title": "Music Catalog API 1.0.0",
-    "hash": "bd5a487e37ef7d25"
+    "hash": "836e3cf3907824d9"
   },
   "credentialSchemes": [
     "oauth2"
