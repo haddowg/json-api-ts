@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.7.0...json-api-client-v1.8.0) (2026-10-27)
+
+
+### Features
+
+* **client:** describe operation scopes and polymorphic relations ([c97f566](https://github.com/haddowg/json-api-ts/commit/c97f566a7788ff944cd6656b26193b271fd6f79d))
+
 ## [1.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.6.0...json-api-client-v1.7.0) (2026-10-26)
 
 
