@@ -4,7 +4,7 @@
   "description": "MCP tool definitions and a call handler for a JSON:API server, served from a model generated at build time from its OpenAPI document.",
   "license": "MIT",
   "author": "Gregory Haddow (https://github.com/haddowg)",
-  "homepage": "https://haddowg.github.io/json-api-ts/",
+  "homepage": "https://haddowg.github.io/json-api-ts/mcp/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haddowg/json-api-ts.git",
