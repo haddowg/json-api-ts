@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.2.0...json-api-mcp-v1.2.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **mcp:** point the package homepage at its guide ([#100](https://github.com/haddowg/json-api-ts/issues/100)) ([9fea540](https://github.com/haddowg/json-api-ts/commit/9fea5408c7f16bf01f6eafbad251bf5013b67900))
+
 ## [1.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.1.0...json-api-mcp-v1.2.0) (2026-10-27)
 
 
