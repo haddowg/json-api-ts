@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.2.1...json-api-mcp-v1.3.0) (2026-10-30)
+
+
+### Features
+
+* **mcp:** wrap results in a data envelope and keep resource links ([#102](https://github.com/haddowg/json-api-ts/issues/102)) ([a1288a3](https://github.com/haddowg/json-api-ts/commit/a1288a33d5efea962f405acab2e1f819c608838a))
+
 ## [1.2.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.2.0...json-api-mcp-v1.2.1) (2026-10-28)
 
 
