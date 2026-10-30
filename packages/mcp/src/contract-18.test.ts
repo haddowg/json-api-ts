@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createJsonApiMcp } from './mcp'
 import { fixture } from './test-fixtures'
+import type { JsonSchema } from './openapi'
 
 describe('generator contract 18 (shared links components)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
@@ -16,13 +17,15 @@ describe('generator contract 18 (shared links components)', () => {
     }
   })
 
-  it('keeps links out of a resource, and only pagination links on a collection', () => {
+  it('keeps only named links on a resource, and only pagination links on a collection', () => {
     const get = mcp.tools.find((t) => t.name === 'images_get')!
-    expect(JSON.stringify(get.outputSchema)).not.toMatch(/"(download|thumbnail|self)"/)
+    const images = (get.outputSchema!['$defs'] as Record<string, JsonSchema>)['images']!
+    const links = (images['properties'] as Record<string, JsonSchema>)['links']!
+    expect(Object.keys(links['properties'] as object)).toEqual(['download', 'thumbnail'])
     const list = mcp.tools.find((t) => t.name === 'images_list')!
-    const links = (list.outputSchema!['properties'] as Record<string, { properties: object }>)[
+    const pages = (list.outputSchema!['properties'] as Record<string, { properties: object }>)[
       'links'
     ]!
-    expect(Object.keys(links.properties)).toEqual(['first', 'prev', 'next', 'last'])
+    expect(Object.keys(pages.properties)).toEqual(['first', 'prev', 'next', 'last'])
   })
 })

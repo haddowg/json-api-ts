@@ -54,7 +54,7 @@ const mcp = createJsonApiMcp({
 ;(async () => {
   const session = await mcp.forRequest({ context: undefined })
   const result = await session.callTool('albums_get', { id: '1' })
-  assert.deepEqual(result.structuredContent, { item: { id: '1', type: 'albums', title: 'Help!' } })
+  assert.deepEqual(result.structuredContent, { data: { id: '1', type: 'albums', title: 'Help!' } })
   console.log(
     '[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK, and the mcp runtime served a committed model',
   )

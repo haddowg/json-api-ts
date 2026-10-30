@@ -15,6 +15,8 @@ const locationDocument = {
   meta: { expiresAt: '2030-01-01T00:00:00+00:00' },
 }
 
+const data = (branch: JsonSchema) => (branch['properties'] as Record<string, JsonSchema>)['data']!
+
 describe('generator contract 17', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
   const tool = (name: string) => mcp.tools.find((t) => t.name === name)!
@@ -27,22 +29,28 @@ describe('generator contract 17', () => {
     it('outputs the URL, its type and its expiry', () => {
       expect(tool('articles_download').outputSchema).toEqual({
         type: 'object',
-        description:
-          'The URL the action produced, such as a short-lived download link. The tool does not fetch it.',
         properties: {
-          url: { type: 'string', format: 'uri-reference', description: 'The URL.' },
-          type: {
-            type: 'string',
-            description: 'The media type the URL serves. The action declares `text/csv`.',
-          },
-          expiresAt: {
-            type: 'string',
-            format: 'date-time',
-            description: 'When the URL stops working. Absent when it does not expire.',
+          data: {
+            type: 'object',
+            description:
+              'The URL the action produced, such as a short-lived download link. The tool does not fetch it.',
+            properties: {
+              url: { type: 'string', format: 'uri-reference', description: 'The URL.' },
+              type: {
+                type: 'string',
+                description: 'The media type the URL serves. The action declares `text/csv`.',
+              },
+              expiresAt: {
+                type: 'string',
+                format: 'date-time',
+                description: 'When the URL stops working. Absent when it does not expire.',
+              },
+            },
+            required: ['url', 'type'],
+            additionalProperties: false,
           },
         },
-        required: ['url', 'type'],
-        additionalProperties: false,
+        required: ['data'],
       })
     })
 
@@ -59,9 +67,11 @@ describe('generator contract 17', () => {
       const result = await session.callTool('articles_download', { id: 'art-1' })
       expect(result.isError).toBeUndefined()
       expect(result.structuredContent).toEqual({
-        url: 'https://storage.example.com/1.csv?signature=abc',
-        type: 'text/csv',
-        expiresAt: '2030-01-01T00:00:00+00:00',
+        data: {
+          url: 'https://storage.example.com/1.csv?signature=abc',
+          type: 'text/csv',
+          expiresAt: '2030-01-01T00:00:00+00:00',
+        },
       })
       expect(requests).toHaveLength(1)
       expect(requests[0]!.url).toBe('https://api.example.com/articles/art-1/-actions/download')
@@ -81,8 +91,7 @@ describe('generator contract 17', () => {
       }).forRequest({ context: {} })
       const result = await session.callTool('articles_download', { id: 'art-1' })
       expect(result.structuredContent).toEqual({
-        url: 'https://storage.example.com/1.csv',
-        type: 'text/csv',
+        data: { url: 'https://storage.example.com/1.csv', type: 'text/csv' },
       })
     })
   })
@@ -94,8 +103,11 @@ describe('generator contract 17', () => {
       }
       expect(output['type']).toBe('object')
       expect(output.anyOf).toHaveLength(2)
-      expect(output.anyOf[0]!['required']).toEqual(['id', 'type'])
-      expect(output.anyOf[1]!['required']).toEqual(['url', 'type'])
+      expect(data(output.anyOf[0]!)['anyOf']).toEqual([
+        { $ref: '#/$defs/articles' },
+        { type: 'null' },
+      ])
+      expect(data(output.anyOf[1]!)['required']).toEqual(['url', 'type'])
       expect(Object.keys(output['$defs'] as object)).toContain('articles')
     })
 
@@ -116,13 +128,15 @@ describe('generator contract 17', () => {
         ).map((key) => [key, null]),
       ) as Record<string, unknown>
       const resource = await session.callTool('articles_revision', { ...args, id: 'art-1' })
-      expect(resource.structuredContent).toMatchObject({ id: 'art-1', type: 'articles' })
+      expect(resource.structuredContent).toMatchObject({ data: { id: 'art-1', type: 'articles' } })
       body = locationDocument
       const url = await session.callTool('articles_revision', { ...args, id: 'art-1' })
       expect(url.structuredContent).toEqual({
-        url: 'https://storage.example.com/1.csv?signature=abc',
-        type: 'text/csv',
-        expiresAt: '2030-01-01T00:00:00+00:00',
+        data: {
+          url: 'https://storage.example.com/1.csv?signature=abc',
+          type: 'text/csv',
+          expiresAt: '2030-01-01T00:00:00+00:00',
+        },
       })
     })
   })
@@ -150,13 +164,15 @@ describe('the music catalogue at contract 17', () => {
     expect(mcp.contract).toBeGreaterThanOrEqual(17)
     const download = mcp.tools.find((t) => t.name === 'albums_download')!
     expect(download.annotations).toEqual({ readOnlyHint: true })
-    expect(download.outputSchema?.['required']).toEqual(['url', 'type'])
+    expect(download.outputSchema?.['required']).toEqual(['data'])
     const session = await mcp.forRequest({ context: {} })
     const result = await session.callTool('albums_download', { id: '1' })
     expect(result.structuredContent).toEqual({
-      url: 'https://storage.example.com/downloads/1.csv?signature=abc',
-      type: 'text/csv',
-      expiresAt: '2030-01-01T00:00:00+00:00',
+      data: {
+        url: 'https://storage.example.com/downloads/1.csv?signature=abc',
+        type: 'text/csv',
+        expiresAt: '2030-01-01T00:00:00+00:00',
+      },
     })
     expect(requests[0]!.method).toBe('GET')
     expect(requests[0]!.url).toMatch(/\/albums\/1\/-actions\/download$/)

@@ -177,9 +177,11 @@ describe('contract', () => {
   it('refuses something that is not a model, or a model of another format', () => {
     const { model } = fixture('music-catalog')
     expect(() => createJsonApiMcp({ model: {} })).toThrow(/isn't a model written by/)
-    expect(() => createJsonApiMcp({ model: { ...model, format: 4 } })).toThrow(
-      /format 4 and this runtime reads formats 1, 2 and 3/,
+    expect(() => createJsonApiMcp({ model: { ...model, format: 5 } })).toThrow(
+      /format 5 and this runtime reads formats 1, 2, 3 and 4/,
     )
+    const { resourceLinks: _links, ...linkless } = model
+    expect(() => createJsonApiMcp({ model: linkless })).toThrow(/no resourceLinks/)
     const { credentialSchemes: _schemes, ...listless } = model
     expect(() => createJsonApiMcp({ model: listless })).toThrow(/no credentialSchemes list/)
   })

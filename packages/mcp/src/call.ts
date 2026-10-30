@@ -11,13 +11,14 @@ import {
   type JsonApiTransport,
   materialise,
   type ReadQuery,
+  type TransportResponse,
 } from '@haddowg/json-api-client'
 import type { ResultShape } from './catalogue'
 import type { McpModelPlan } from './model'
 import { type QueryPlan, SELF_COUNT, type WritePlan } from './inputs'
 import { isObject } from './openapi'
 import { ArgumentError, decode } from './portable'
-import { flattenCollection, flattenResource } from './flatten'
+import { collectionEnvelope, type FlattenContext, resourceEnvelope } from './flatten'
 import type { McpCallToolResult, McpContent, McpOperation, McpTool, McpToolError } from './types'
 
 /** One tool the runtime serves: its operation, definition, call plan and result shape. */
@@ -66,12 +67,71 @@ export interface CallEnvironment {
   signal: AbortSignal | undefined
   /** How many relationships deep a result nests included resources; null for no cap. */
   includeDepth: number | null
+  /** The links each type names, which a flattened resource keeps. */
+  resourceLinks: Readonly<Record<string, readonly string[]>>
+  /**
+   * Shape results as models before format 4 describe them: `{ item }`, `{ items, links, meta }`,
+   * a bare resource or meta object, and a delete as text.
+   */
+  legacyResults: boolean
 }
 
 const text = (value: string): McpContent => ({ type: 'text', text: value })
 
 function structured(value: Record<string, unknown>): McpCallToolResult {
   return { content: [text(JSON.stringify(value))], structuredContent: value }
+}
+
+/** The `meta` of a JSON:API response body, when it has one. */
+function responseMeta(
+  response: TransportResponse | undefined,
+): Record<string, unknown> | undefined {
+  if (response === undefined || response.body === '') {
+    return undefined
+  }
+  try {
+    const body: unknown = JSON.parse(response.body)
+    return isObject(body) && isObject(body['meta']) ? body['meta'] : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * A result in the shape a model before format 4 describes: `{ item }` for a single read,
+ * `{ items, links, meta }` for a collection, the bare resource, meta object or URL otherwise,
+ * and a delete as text.
+ */
+function legacyResult(
+  entry: ToolEntry,
+  envelope: Record<string, unknown>,
+  location: boolean,
+  id: string | undefined,
+): McpCallToolResult {
+  const data = envelope['data']
+  if (location || entry.result === 'resource' || entry.result === 'loose') {
+    if (Array.isArray(data)) {
+      const { data: items, ...rest } = envelope
+      return structured({ items, ...rest })
+    }
+    return isObject(data)
+      ? structured(data)
+      : { content: [text('The action returned no resource.')] }
+  }
+  switch (entry.result) {
+    case 'item':
+      return structured({ item: data ?? null })
+    case 'collection': {
+      const { data: items, ...rest } = envelope
+      return structured({ items, ...rest })
+    }
+    case 'deleted':
+      return { content: [text(`Deleted ${entry.op.type} ${String(id)}.`)] }
+    case 'meta':
+      return structured(isObject(envelope['meta']) ? envelope['meta'] : {})
+    default:
+      return structured(envelope)
+  }
 }
 
 function requireId(args: Record<string, unknown>): string {
@@ -314,12 +374,55 @@ export async function runCall(
       'No base URL: pass baseUrl, return one from requestInit, or give the document a server',
     )
   }
+  // The last response, for a document's meta when the client returns no resource to carry it.
+  let last: TransportResponse | undefined
+  const inner = env.transport ?? fetchTransport
+  const transport: JsonApiTransport = async (request) => {
+    last = await inner(request)
+    return last
+  }
+  const outcome = await callApi(entry, args, { ...env, baseUrl: env.baseUrl, transport })
+  const id = entry.op.kind === 'delete' ? requireId(args) : undefined
+  if (outcome.kind === 'content') {
+    return outcome.result
+  }
+  const location = outcome.kind === 'envelope' && outcome.location === true
+  const envelope =
+    outcome.kind === 'envelope'
+      ? outcome.envelope
+      : withFallbackMeta(outcome.envelope, responseMeta(last))
+  return env.legacyResults ? legacyResult(entry, envelope, location, id) : structured(envelope)
+}
+
+type Outcome =
+  | { kind: 'content'; result: McpCallToolResult }
+  | { kind: 'envelope'; envelope: Record<string, unknown>; location?: boolean }
+  /** An envelope that takes the response's meta when it has none of its own. */
+  | { kind: 'bare'; envelope: Record<string, unknown> }
+
+function withFallbackMeta(
+  envelope: Record<string, unknown>,
+  meta: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  return meta === undefined || envelope['meta'] !== undefined ? envelope : { ...envelope, meta }
+}
+
+const envelope = (value: Record<string, unknown>): Outcome => ({
+  kind: 'envelope',
+  envelope: value,
+})
+
+async function callApi(
+  entry: ToolEntry,
+  args: Record<string, unknown>,
+  env: CallEnvironment & { transport: JsonApiTransport; baseUrl: string },
+): Promise<Outcome> {
   const { op } = entry
   const descriptor = op.kind === 'action' ? withAction(env.descriptor, entry) : env.descriptor
   const headers = env.headers
   const client = createClient(descriptor, {
     baseUrl: env.baseUrl,
-    ...(env.transport !== undefined ? { transport: env.transport } : {}),
+    transport: env.transport,
     ...(headers !== undefined ? { headers: () => headers } : {}),
   })
   const accessor = (client as unknown as Record<string, LooseAccessor>)[op.type]!
@@ -327,17 +430,18 @@ export async function runCall(
   if (query !== undefined && env.signal !== undefined) {
     query.signal = env.signal
   }
+  const flat: FlattenContext = {
+    descriptor: env.descriptor,
+    includeDepth: env.includeDepth,
+    resourceLinks: env.resourceLinks,
+  }
 
   switch (op.kind) {
     case 'list':
     case 'related': {
       if (entry.result === 'item') {
         const related = await accessor.id(requireId(args)).rel(op.relation!).related(query)
-        return structured({
-          item: isObject(related)
-            ? flattenResource(related, env.descriptor, [], env.includeDepth)
-            : null,
-        })
+        return { kind: 'bare', envelope: resourceEnvelope(related, flat) }
       }
       let collection: unknown
       if (
@@ -349,7 +453,7 @@ export async function runCall(
         const doc = await execute(
           {
             baseUrl: env.baseUrl,
-            transport: env.transport ?? fetchTransport,
+            transport: env.transport,
             ...(headers !== undefined ? { headers: () => headers } : {}),
           },
           {
@@ -375,47 +479,38 @@ export async function runCall(
       } else {
         collection = await accessor.id(requireId(args)).rel(op.relation!).related(query)
       }
-      return structured(
-        flattenCollection(
-          Array.isArray(collection) ? collection : [],
-          env.descriptor,
-          env.includeDepth,
-        ),
-      )
+      return envelope(collectionEnvelope(Array.isArray(collection) ? collection : [], flat))
     }
-    case 'get': {
-      const resource = await accessor.get(requireId(args), query)
-      return structured({
-        item: isObject(resource)
-          ? flattenResource(resource, env.descriptor, [], env.includeDepth)
-          : null,
-      })
-    }
+    case 'get':
+      return {
+        kind: 'bare',
+        envelope: resourceEnvelope(await accessor.get(requireId(args), query), flat),
+      }
     case 'create': {
       const input = writeInput(args, entry.input.write!)
       const created = await accessor.create(input)
-      return structured(
-        isObject(created)
-          ? flattenResource(created, env.descriptor, [], env.includeDepth)
-          : { id: String(input['id'] ?? ''), type: op.type },
-      )
+      // A 204 to a client-generated id sends nothing back but the id the caller chose.
+      return {
+        kind: 'bare',
+        envelope: resourceEnvelope(
+          isObject(created) ? created : { id: String(input['id'] ?? ''), type: op.type },
+          flat,
+        ),
+      }
     }
     case 'update': {
       const id = requireId(args)
       const updated = await accessor.id(id).update(writeInput(args, entry.input.write!))
-      return structured(
-        isObject(updated)
-          ? flattenResource(updated, env.descriptor, [], env.includeDepth)
-          : { id, type: op.type },
-      )
+      return {
+        kind: 'bare',
+        envelope: resourceEnvelope(isObject(updated) ? updated : { id, type: op.type }, flat),
+      }
     }
-    case 'delete': {
-      const id = requireId(args)
-      await accessor.id(id).delete()
-      return { content: [text(`Deleted ${op.type} ${id}.`)] }
-    }
+    case 'delete':
+      await accessor.id(requireId(args)).delete()
+      return { kind: 'bare', envelope: { data: null } }
     case 'action':
-      return runAction(entry, args, accessor, env)
+      return runAction(entry, args, accessor, env, flat)
   }
 }
 
@@ -423,8 +518,9 @@ async function runAction(
   entry: ToolEntry,
   args: Record<string, unknown>,
   accessor: LooseAccessor,
-  env: CallEnvironment,
-): Promise<McpCallToolResult> {
+  env: CallEnvironment & { baseUrl: string },
+  flat: FlattenContext,
+): Promise<Outcome> {
   const { op } = entry
   const action = op.actionDescriptor!
   const actions =
@@ -450,42 +546,47 @@ async function runAction(
 
   // A URL the action produced goes back as data; the tool never fetches it.
   if (action.location !== undefined && isActionLocation(result)) {
-    return structured({ ...result })
+    return { kind: 'envelope', envelope: { data: { ...result } }, location: true }
   }
 
+  const content = (value: string): Outcome => ({
+    kind: 'content',
+    result: { content: [text(value)] },
+  })
   switch (entry.result) {
     case 'collection':
-      return structured(
-        flattenCollection(Array.isArray(result) ? result : [], env.descriptor, env.includeDepth),
-      )
+      return envelope(collectionEnvelope(Array.isArray(result) ? result : [], flat))
     case 'resource':
     case 'loose':
       if (Array.isArray(result)) {
-        return structured(flattenCollection(result, env.descriptor, env.includeDepth))
+        return envelope(collectionEnvelope(result, flat))
       }
-      return isObject(result)
-        ? structured(flattenResource(result, env.descriptor, [], env.includeDepth))
-        : { content: [text('The action returned no resource.')] }
+      return { kind: 'bare', envelope: resourceEnvelope(isObject(result) ? result : null, flat) }
     case 'meta':
-      return structured(isObject(result) ? result : {})
+      return envelope({ meta: isObject(result) ? result : {} })
     case 'raw': {
       const mimeType = action.rawOutput?.[0]?.mediaType ?? 'application/octet-stream'
       if (result === undefined) {
-        return { content: [text('Done.')] }
+        return content('Done.')
       }
       if (typeof result === 'string') {
-        return { content: [text(result)] }
+        return content(result)
       }
       if (
         result instanceof ArrayBuffer ||
         (typeof Blob !== 'undefined' && result instanceof Blob)
       ) {
-        return { content: [await binaryContent(result, `${env.baseUrl}${action.path}`, mimeType)] }
+        return {
+          kind: 'content',
+          result: {
+            content: [await binaryContent(result, `${env.baseUrl}${action.path}`, mimeType)],
+          },
+        }
       }
-      return { content: [text(JSON.stringify(result))] }
+      return content(JSON.stringify(result))
     }
     default:
-      return { content: [text('Done.')] }
+      return content('Done.')
   }
 }
 

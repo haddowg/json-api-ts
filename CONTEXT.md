@@ -271,7 +271,7 @@ ADR 0006. `@haddowg/json-api-angular` is signal-based. RxJS stays at the edges
 
 ### MCP tools (definitions and a handler, not a server)
 
-ADRs 0014 and 0015. `@haddowg/json-api-mcp` builds one MCP tool per collection, resource,
+ADRs 0014, 0015, 0020 and 0021. `@haddowg/json-api-mcp` builds one MCP tool per collection, resource,
 related and custom action operation. It returns tool definitions and a call handler; the host
 owns the MCP server. It's generic: scopes are opaque, and vendor extensions such as
 `x-feature` reach the host's hooks untouched.
@@ -290,11 +290,17 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
 - **Inputs are portable:** valid under OpenAI's strict function calling and Anthropic's strict
   tool use. Every property is required and the API's optional ones are nullable, so `null`
   means "not given"; an update's `clear` names the fields to null. No `oneOf`/`if`/`then`.
-- **Outputs** flatten resources to `{ id, type, ...attributes, relation: id | ids }`, the
-  related resource in place of the id when included. A get or to-one related read returns
-  `{ item }`; collections are `{ items, links, meta }` with only the pagination links.
-  `pageLink` is followed only on the tool's own base URL and path. A list on an endpoint that
-  counts itself under the Countable profile takes `withCount`, sent as `withCount=_self_`.
+- **Outputs** (ADR 0021) are a JSON:API-like envelope: `{ data, meta? }` for one resource (get,
+  create, update, to-one related, an action returning one), `{ data, links, meta? }` for a
+  collection with only the pagination links, `{ data: null, meta? }` for a delete and `{ meta }`
+  for a meta-only action. Resources flatten to `{ id, type, ...attributes, relation: id | ids,
+links? }`, the related resource in place of the id when included. `pageLink` is followed only
+  on the tool's own base URL and path. A list on an endpoint that counts itself under the
+  Countable profile takes `withCount`, sent as `withCount=_self_`.
+- **Resource links** (ADR 0020): a flattened resource keeps the links its type names, declared
+  and action links, under `links`, each `{ href, type?, title?, meta? }` with a bare URL
+  normalised to `{ href }`. `self`, `related` and `describedby` are dropped, as is resource
+  meta. The generator fails on a type that names links and has a field called `links`.
 - **Per caller:** `forRequest({ grantedScopes, context })` filters by the operation's
   `security` through `scopeMatcher`, then `capabilities`, then `includeOperation`;
   `decorateTool`, `requestInit` and `mapError` are the other hooks. They're public API.
@@ -314,9 +320,9 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
   even over one type, so adding a second type doesn't change a tool's input. Every other
   relation takes a bare id. Each operation carries the descriptor's `scopes` for its hooks,
   read at load time.
-- **URLs:** an action that answers with a URL returns `{ url, type, expiresAt? }` as structured
-  content, and its `outputSchema` describes it, or an `anyOf` of it and the action's document
-  when it answers with either. The tool never fetches the URL.
+- **URLs:** an action that answers with a URL returns `{ data: { url, type, expiresAt? } }` as
+  structured content, and its `outputSchema` describes it, or an `anyOf` of it and the action's
+  usual envelope when it answers with either. The tool never fetches the URL.
 - **Include depth** (ADR 0019): the generator caps `include` at a depth, 1 by default,
   `null` (`--include-depth all`) for every declared path. A tool's `include` is an enum of the
   declared paths within it, absent when there are none, and its `$defs` cover only the types
@@ -326,6 +332,10 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
   document's at the top level, and drops `scopes`, which the runtime reads from the descriptor.
   Hooks see the operation object with its `security` as before. Formats 1 and 2 still load,
   with no include cap.
+- **Model format 4:** records `resourceLinks`, each type's named links, and output schemas for
+  the envelope. A format 1 to 3 model still loads and gets the 1.2 result shapes its schemas
+  describe: `{ item }`, `{ items, links, meta }`, a bare resource, meta or URL, and a delete as
+  text.
 - **Contract:** reads 13 to 18 and throws outside it. Contract 18 only moves the links
   components, and no tool schema copies them.
 

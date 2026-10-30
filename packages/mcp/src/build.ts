@@ -77,6 +77,7 @@ export function buildMcpModel(
     },
     credentialSchemes: oauthSchemes(document),
     includeDepth,
+    resourceLinks: catalogue.resourceLinks,
     descriptor,
     tools: catalogue.entries.map((entry) => {
       const { op } = entry

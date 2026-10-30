@@ -19,6 +19,7 @@ import {
 } from './openapi'
 import {
   collectionOutput,
+  deletedOutput,
   LOOSE_OUTPUT,
   locationOutput,
   metaOutput,
@@ -26,7 +27,7 @@ import {
   type OutputContext,
   capIncludePaths,
   includePaths,
-  itemOutput,
+  resourceLinkNames,
   resourceOutput,
   resourceSchemas,
 } from './outputs'
@@ -62,6 +63,8 @@ export interface CatalogueEntry {
 export interface Catalogue {
   entries: CatalogueEntry[]
   skipped: SkippedOperation[]
+  /** The names of the links each type names, for the types that name any. */
+  resourceLinks: Record<string, string[]>
 }
 
 function annotations(op: McpOperation): McpToolAnnotations | undefined {
@@ -145,7 +148,7 @@ function documentOutput(ctx: OutputContext, action: ActionDescriptor): JsonSchem
     case 'collection':
       return collectionOutput(ctx, [action.outputType!])
     case 'resource':
-      return resourceOutput(ctx, action.outputType!)
+      return resourceOutput(ctx, [action.outputType!], 'The resource the action returned.')
     case 'meta':
       return metaOutput(ctx)
     case 'loose':
@@ -165,6 +168,7 @@ export function buildCatalogue(
   const entries: CatalogueEntry[] = []
   const skipped: SkippedOperation[] = []
   const schemas = resourceSchemas(doc)
+  const resourceLinks = resourceLinkNames(doc, descriptor, schemas)
 
   for (const [path, item] of Object.entries(doc.paths ?? {})) {
     for (const method of HTTP_METHODS) {
@@ -220,7 +224,7 @@ export function buildCatalogue(
   checkToolNames(entries.map((e) => ({ name: e.tool.name, operationId: e.op.operationId })))
   // oxlint-disable-next-line no-array-sort -- sorting the freshly built array
   entries.sort((a, b) => a.tool.name.localeCompare(b.tool.name))
-  return { entries, skipped }
+  return { entries, skipped, resourceLinks }
 }
 
 function buildEntry(
@@ -243,21 +247,22 @@ function buildEntry(
       break
     case 'get':
       input = singleInput(inputCtx, `The id of the \`${op.type}\` resource to get.`)
-      output = itemOutput(outputCtx, [op.type], false)
+      output = resourceOutput(outputCtx, [op.type])
       result = 'item'
       break
     case 'create':
       input = createInput(inputCtx, op.type)
-      output = resourceOutput(outputCtx, op.type)
+      output = resourceOutput(outputCtx, [op.type])
       result = 'resource'
       break
     case 'update':
       input = updateInput(inputCtx, op.type)
-      output = resourceOutput(outputCtx, op.type)
+      output = resourceOutput(outputCtx, [op.type])
       result = 'resource'
       break
     case 'delete':
       input = deleteInput(op.type)
+      output = deletedOutput(outputCtx)
       result = 'deleted'
       break
     case 'related': {
@@ -283,7 +288,11 @@ function buildEntry(
           inputCtx,
           `The id of the \`${op.type}\` resource whose ${parsed.relation} to get.`,
         )
-        output = itemOutput(outputCtx, relation.types, true)
+        output = resourceOutput(
+          outputCtx,
+          relation.types,
+          'The related resource, or null when there is none.',
+        )
         result = 'item'
       }
       break

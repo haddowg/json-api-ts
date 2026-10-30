@@ -140,9 +140,11 @@ describe('generator contract 16', () => {
         gallery: { data: [{ type: 'images', id: '3' }] },
       })
       expect(result.structuredContent).toMatchObject({
-        author: '7',
-        subject: { type: 'people', id: '9' },
-        gallery: [{ type: 'images', id: '3' }],
+        data: {
+          author: '7',
+          subject: { type: 'people', id: '9' },
+          gallery: [{ type: 'images', id: '3' }],
+        },
       })
     })
 

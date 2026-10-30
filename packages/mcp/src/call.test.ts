@@ -67,7 +67,7 @@ describe('list tools', () => {
     )
     expect(result.isError).toBeUndefined()
     expect(result.structuredContent).toEqual({
-      items: [
+      data: [
         {
           id: '1',
           type: 'albums',
@@ -75,6 +75,7 @@ describe('list tools', () => {
           explicit: false,
           artist: '7',
           tracks: ['1', '2'],
+          links: { store: { href: 'https://store.example.com' } },
         },
       ],
       links: { next: 'https://music.example/albums?page%5Bnumber%5D=2&page%5Bsize%5D=5' },
@@ -114,7 +115,7 @@ describe('list tools', () => {
       sort: ['title'],
     })
     expect(requests[0]!.url).toBe(link)
-    expect(result.structuredContent).toMatchObject({ items: [{ id: '2' }] })
+    expect(result.structuredContent).toMatchObject({ data: [{ id: '2' }] })
   })
 
   it('follows a pageLink for a related collection with any parent id', async () => {
@@ -177,13 +178,14 @@ describe('reads', () => {
       'https://music.example/albums/1?include=artist,artist.albums&fields[albums]=title,artist',
     )
     expect(result.structuredContent).toEqual({
-      item: {
+      data: {
         id: '1',
         type: 'albums',
         title: 'Album 1',
         explicit: false,
         artist: { id: '7', type: 'artists', name: 'The Beatles', albums: ['1', '2'] },
         tracks: ['1', '2'],
+        links: { store: { href: 'https://store.example.com' } },
       },
     })
   })
@@ -209,13 +211,14 @@ describe('reads', () => {
       fields: null,
     })
     expect(result.structuredContent).toEqual({
-      item: {
+      data: {
         id: '1',
         type: 'albums',
         title: 'Album 1',
         explicit: false,
         artist: { id: '7', type: 'artists', name: 'The Beatles', albums: ['2'] },
         tracks: ['1', '2'],
+        links: { store: { href: 'https://store.example.com' } },
       },
     })
   })
@@ -250,7 +253,7 @@ describe('reads', () => {
   it('wraps a to-one related read, null when nothing is related', async () => {
     const { tools } = await session(() => ({ json: { data: null } }))
     const result = await tools.callTool('albums_artist_get', { id: '1' })
-    expect(result.structuredContent).toEqual({ item: null })
+    expect(result.structuredContent).toEqual({ data: null })
   })
 
   it('reads a polymorphic relation as type and id', async () => {
@@ -275,7 +278,7 @@ describe('reads', () => {
     const result = await (
       await mcp.forRequest({ context: undefined })
     ).callTool('articles_get', { id: '1' })
-    expect(result.structuredContent!['item']).toMatchObject({
+    expect(result.structuredContent!['data']).toMatchObject({
       attachments: [
         { type: 'images', id: '3' },
         { type: 'videos', id: '4' },
@@ -305,7 +308,7 @@ describe('writes', () => {
         },
       },
     })
-    expect(result.structuredContent).toMatchObject({ id: '9', type: 'albums' })
+    expect(result.structuredContent).toMatchObject({ data: { id: '9', type: 'albums' } })
   })
 
   it('clears the fields an update names in clear', async () => {
@@ -338,7 +341,8 @@ describe('writes', () => {
     const { requests, tools } = await session(() => ({ status: 204 }))
     const result = await tools.callTool('albums_delete', { id: '1' })
     expect(requests[0]!.method).toBe('DELETE')
-    expect(result).toEqual({ content: [{ type: 'text', text: 'Deleted albums 1.' }] })
+    expect(result.structuredContent).toEqual({ data: null })
+    expect(json(result)).toEqual({ data: null })
   })
 })
 
@@ -355,7 +359,7 @@ describe('actions', () => {
   it('returns a meta-only result as structured content', async () => {
     const { tools } = await session(() => ({ json: { meta: { albums: { total: 15 } } } }))
     const result = await tools.callTool('albums_summary', {})
-    expect(result.structuredContent).toEqual({ albums: { total: 15 } })
+    expect(result.structuredContent).toEqual({ meta: { albums: { total: 15 } } })
   })
 
   it('sends a JSON body in the media type it picked', async () => {
@@ -372,7 +376,7 @@ describe('actions', () => {
     const result = await tools.callTool('albums_export', {})
     expect(requests[0]!.method).toBe('GET')
     expect(requests[0]!.headers['Accept']).toBe('application/vnd.api+json')
-    expect(result.structuredContent).toEqual({ count: 3 })
+    expect(result.structuredContent).toEqual({ meta: { count: 3 } })
   })
 })
 
