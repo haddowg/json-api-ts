@@ -11,13 +11,15 @@ import { isObject, type OperationObject, type SecurityRequirement } from './open
 import type { McpOperationKind, McpTool, SkippedOperation } from './types'
 
 /** The artefact's own format. A runtime refuses a format it doesn't know. */
-export const MODEL_FORMAT = 3
+export const MODEL_FORMAT = 4
 
 /**
  * Every format this runtime reads. Format 1 has no `credentialSchemes`. Formats 1 and 2 have no
  * `includeDepth`, and store each operation's `scopes` and the `security` of its operation object.
+ * Formats 1 to 3 have no `resourceLinks`, and their output schemas describe the results before
+ * the envelope, which the runtime still returns for them.
  */
-const READABLE_FORMATS: readonly number[] = [1, 2, MODEL_FORMAT]
+const READABLE_FORMATS: readonly number[] = [1, 2, 3, MODEL_FORMAT]
 
 /** The package that writes the artefact. */
 export const MODEL_GENERATOR = '@haddowg/json-api-mcp'
@@ -69,7 +71,7 @@ export interface McpModelTool {
 
 /** The generated artefact. */
 export interface McpModel {
-  format: 1 | 2 | typeof MODEL_FORMAT
+  format: 1 | 2 | 3 | typeof MODEL_FORMAT
   generator: typeof MODEL_GENERATOR
   /** The generator contract the source document declared. */
   contract: number
@@ -92,6 +94,11 @@ export interface McpModel {
    * declares. Formats 1 and 2 don't carry it and set no cap.
    */
   includeDepth?: number | null
+  /**
+   * Format 4: the links each type names, its declared links and action links, for the types that
+   * name any. A flattened resource carries these under `links`.
+   */
+  resourceLinks?: Record<string, string[]>
   /** The json-api-ts descriptor the client calls through. */
   descriptor: ApiDescriptor
   tools: McpModelTool[]
@@ -136,11 +143,23 @@ export function assertModel(value: unknown): McpModel {
   }
   const includeDepth = value['includeDepth']
   if (
-    value['format'] === MODEL_FORMAT &&
+    (value['format'] as number) >= 3 &&
     includeDepth !== null &&
     !(typeof includeDepth === 'number' && Number.isInteger(includeDepth) && includeDepth >= 0)
   ) {
     throw new McpModelError('The model has no includeDepth; regenerate it.')
+  }
+  const resourceLinks = value['resourceLinks']
+  if (
+    value['format'] === MODEL_FORMAT &&
+    !(
+      isObject(resourceLinks) &&
+      Object.values(resourceLinks).every(
+        (names) => Array.isArray(names) && names.every((name) => typeof name === 'string'),
+      )
+    )
+  ) {
+    throw new McpModelError('The model has no resourceLinks; regenerate it.')
   }
   return value as unknown as McpModel
 }

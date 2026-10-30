@@ -125,6 +125,9 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
   const defaultBaseUrl = options.baseUrl ?? model.baseUrl
   const credentialSchemes = resolveCredentialSchemes(model, options.credentialSchemes)
   const includeDepth = model.includeDepth ?? null
+  const resourceLinks = model.resourceLinks ?? {}
+  // A model before format 4 describes the results before the envelope, so it gets those.
+  const legacyResults = model.format < 4
 
   async function forRequest(request: McpRequest<Ctx>): Promise<McpToolSession> {
     const ctx = request.context
@@ -179,6 +182,8 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
           headers: init.headers,
           signal: callOptions.signal,
           includeDepth,
+          resourceLinks,
+          legacyResults,
         })
       } catch (error) {
         const toolError = toToolError(error)

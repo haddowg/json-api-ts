@@ -85,34 +85,53 @@ describe('input schemas', () => {
 describe('output schemas', () => {
   it('flattens a resource with optional attributes and id-or-resource relations', () => {
     const get = find(tools, 'albums_get').outputSchema!
-    expect(get['required']).toEqual(['item'])
-    expect(props(get)['item']).toEqual({ $ref: '#/$defs/albums', description: 'The resource.' })
+    expect(get['required']).toEqual(['data'])
+    expect(props(get)['data']).toEqual({ $ref: '#/$defs/albums', description: 'The resource.' })
     const output = find(tools, 'albums_update').outputSchema!
-    expect(output['required']).toEqual(['id', 'type'])
-    expect(new Set(Object.keys(output['$defs'] as object))).toEqual(
-      new Set(['albums', 'artists', 'tracks']),
-    )
-    expect(props(output)['title']).toMatchObject({ type: 'string' })
-    expect(props(output)['artist']).toEqual({
+    expect(output['required']).toEqual(['data'])
+    const defs = output['$defs'] as Record<string, JsonSchema>
+    expect(new Set(Object.keys(defs))).toEqual(new Set(['albums', 'artists', 'tracks']))
+    expect(defs['albums']!['required']).toEqual(['id', 'type'])
+    expect(props(defs['albums']!)['title']).toMatchObject({ type: 'string' })
+    expect(props(defs['albums']!)['artist']).toEqual({
       anyOf: [{ type: 'string' }, { $ref: '#/$defs/artists' }, { type: 'null' }],
       description: 'The related artists: its id, or the resource itself when included.',
     })
     expect(JSON.stringify(tools.map((t) => t.outputSchema))).not.toMatch(/"examples?"/)
   })
 
-  it('describes a collection as items, pagination links and meta', () => {
+  it('wraps a create in data', () => {
+    const output = find(tools, 'albums_create').outputSchema!
+    expect(output['required']).toEqual(['data'])
+    expect(props(output)['data']).toEqual({ $ref: '#/$defs/albums', description: 'The resource.' })
+  })
+
+  it('describes a collection as data, pagination links and meta', () => {
     const output = find(tools, 'albums_list').outputSchema!
-    expect(output['required']).toEqual(['items', 'links'])
-    expect(props(output)['items']).toEqual({ type: 'array', items: { $ref: '#/$defs/albums' } })
+    expect(output['required']).toEqual(['data', 'links'])
+    expect(props(output)['data']).toMatchObject({
+      type: 'array',
+      items: { $ref: '#/$defs/albums' },
+    })
     expect(Object.keys(props(props(output)['links']!))).toEqual(['first', 'prev', 'next', 'last'])
   })
 
-  it('leaves out an output schema where nothing structured comes back', () => {
-    expect(find(tools, 'albums_delete').outputSchema).toBeUndefined()
+  it('describes a delete as null data', () => {
+    const output = find(tools, 'albums_delete').outputSchema!
+    expect(output['required']).toEqual(['data'])
+    expect(props(output)['data']).toMatchObject({ type: 'null' })
   })
 
-  it('wraps a to-one related read in item', () => {
-    expect(find(tools, 'albums_artist_get').outputSchema!['required']).toEqual(['item'])
+  it('describes a meta-only action as meta with no data', () => {
+    const output = find(tools, 'albums_summary').outputSchema!
+    expect(output['required']).toEqual(['meta'])
+    expect(props(output)['data']).toBeUndefined()
+  })
+
+  it('wraps a to-one related read in data, nullable', () => {
+    const output = find(tools, 'albums_artist_get').outputSchema!
+    expect(output['required']).toEqual(['data'])
+    expect(props(output)['data']!['anyOf']).toEqual([{ $ref: '#/$defs/artists' }, { type: 'null' }])
   })
 })
 
