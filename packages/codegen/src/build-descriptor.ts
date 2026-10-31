@@ -452,7 +452,7 @@ export class DescriptorBuilder {
   /**
    * Attach the per-relation endpoint-exposure signal to a relation descriptor (D24). The bundle
    * can suppress a relation's related or relationship endpoint (`withoutRelatedEndpoint()` /
-   * `withoutRelationshipEndpoint()`, bundle ADR 0016), which the OpenAPI reflects by simply omitting that
+   * `withoutRelationshipEndpoint()`), which the OpenAPI reflects by simply omitting that
    * relation's path — but codegen synthesizes generic `{rel}` templates, erasing the per-relation
    * distinction. So mark `related: false` / `relationship: false` when this relation's specific
    * path is absent, and ALWAYS emit an explicit `mutations` object (the verb flags when the
