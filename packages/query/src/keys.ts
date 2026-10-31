@@ -141,7 +141,7 @@ export function resourceKey(type: string, id: string): readonly [string, string,
  * `fetchRelationship` — matches one parent's reads of one relation, regardless of query params.
  * Pairs with {@link keyFor} (which places `id` then `rel` at fixed positions), so it is a true
  * prefix of every related/relationship key for that `(id, rel)`. Used for TARGETED invalidation of
- * a parent's relation after a relationship mutation (never the type's collection lists — ADR 0003).
+ * a parent's relation after a relationship mutation (never the type's collection lists).
  */
 export function relationKey(
   type: string,

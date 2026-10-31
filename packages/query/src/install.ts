@@ -1,5 +1,5 @@
 /**
- * Auto-subscribe the Strategy-2 normalizer to a QueryClient (ADR 0003).
+ * Auto-subscribe the Strategy-2 normalizer to a QueryClient.
  *
  * {@link installNormalization} wires {@link normalize} to fire on every successful query AND
  * mutation, so a fresh response patches the same `type:id` everywhere it is cached with no
