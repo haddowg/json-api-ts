@@ -24,8 +24,8 @@ npm install --save-dev @haddowg/json-api-codegen
 ## Generate the model
 
 ```bash
-npx json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json
-npx json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json --check # in CI
+npx @haddowg/json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json
+npx @haddowg/json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json --check # in CI
 ```
 
 Tools include one relationship deep by default, so each tool's schema carries only the types its

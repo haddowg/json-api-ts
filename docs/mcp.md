@@ -16,7 +16,7 @@ The runtime has no dependency on `@modelcontextprotocol/sdk`. Its tool and resul
 Run the generator against your committed spec and commit what it writes, the same way you commit a generated client:
 
 ```bash
-npx json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json
+npx @haddowg/json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json
 ```
 
 Add the same command with `--check` to CI. It exits 1 when the committed model no longer matches the spec, and passes when only whitespace differs, so your formatter can touch the file. `--default-page-size <n>` sets the page size a list tool asks for when the model gives none, 10 by default.
