@@ -1,25 +1,7 @@
-# 0003 — Cache normalization is bespoke, dep-free, `type:id` write-through patching (Strategy 2)
+# The TanStack cache is normalised by patching cached results in place by `type:id`
 
-- **Status:** Accepted
-- **Date:** 2026-06-27
+TanStack Query caches per query key, and JSON:API's `type` and `id` on every resource allow normalisation with no configuration, which a generic library such as normy can't assume. So `json-api-query` keeps TanStack's results denormalised, which keeps its devtools, SSR and structural sharing working, indexes every resource by `type:id`, and patches each cached query holding a changed resource in place. A normalised store as the source of truth, denormalised on read, handles overlapping and late queries better but fights TanStack's model and is much more machinery, so it stays the upgrade path.
 
-TanStack Query is not a normalized cache — it stores results per query-key. JSON:API's
-guarantee that every resource carries `type`+`id` lets us normalize with **zero
-configuration** (the concrete reason to be JSON:API-specific rather than use a generic
-library like normy). We keep TanStack's results denormalized (so its devtools, SSR, and
-structural sharing all just work) and, on every successful response, index each resource
-(`data` + `included`) by `type:id → query keys`; when a resource changes we **patch
-every cached query that contains that `type:id` in place** — "edit once, updates
-everywhere". Patching replaces a node's _attributes_ (the descriptor knows attributes vs
-relations) while **preserving edge-local `$pivot`/`$edge`**.
+## Consequences
 
-This is Strategy 2 (write-through patching). The alternative, Strategy 1 (a normalized
-store as the source of truth with denormalize-on-read), is more powerful for overlaps
-and late queries but fights TanStack's model and is materially more machinery; it is the
-documented upgrade path, deliberately not built now.
-
-Consequence: node-patching only covers **updates to existing resources**. A create or
-delete changes collection membership, which is not a node patch, so those **invalidate
-(or optimistically insert/remove from) the relevant list/relationship queries** instead.
-The `json-api-client` core remains framework-agnostic and usable standalone; all of this
-lives in the optional `json-api-query` binding.
+A patch only updates existing resources, and preserves edge-local `$pivot` and `$edge`. A create or delete changes collection membership, so it invalidates, or optimistically edits, the affected list and relationship queries instead.

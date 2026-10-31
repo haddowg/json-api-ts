@@ -1,22 +1,7 @@
-# 0015 — MCP tools are served from a model generated at build time
+# MCP tools are served from a model generated at build time
 
-- **Status:** Accepted
-- **Date:** 2026-10-27
+Building tools at runtime made every host load the ESM-only codegen, which a CommonJS host such as a NestJS app can't do cleanly. So a build-time generator writes one JSON model (the tools, each call's plan, the descriptor, and the document's contract and hash) that the host commits and checks in CI, and the runtime, dual ESM and CommonJS with only the client as a dependency, serves that and refuses a model format or contract it can't read rather than serve tools it misreads.
 
-`@haddowg/json-api-mcp` first built its tools at runtime from the OpenAPI document and a
-descriptor. That made every host load the codegen to build the descriptor, and the codegen is
-ESM only and reads the document's components, so a CommonJS server such as a NestJS app had to
-pull an ESM-only package into its runtime. The package now has a build-time generator, the
-`json-api-mcp` CLI and the `@haddowg/json-api-mcp/generate` entry point, that writes one JSON
-model, and the runtime serves only that. The host commits the model beside its spec and checks
-it in CI, as it does a generated client.
+## Consequences
 
-The model carries the tools, the plan each call follows, and the descriptor, because the
-client's `createClient` can't make a call without one. It records the document's generator
-contract and content hash, and the runtime throws on a model format or contract it can't read
-rather than serve tools it misreads. It's JSON, not a TypeScript module, so a CommonJS host can
-`require` it and the runtime entry stays dual ESM and CommonJS with the client as its only
-dependency. The codegen is an optional peer of the generator only. What we gave up is reading a
-live document: a host whose API changes needs a regenerated, recommitted model to see it, and
-the model repeats some schema between tools, which makes it larger than the document's own
-schemas.
+Nothing reads a live document: an API change needs a regenerated model, and the model repeats some schema between tools.

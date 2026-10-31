@@ -24,7 +24,8 @@ file or a code comment. The server's changelog records when it arrived.
 ## Commits, PRs and merges
 
 release-please files each commit on `main` under every package whose files it changes, so how a PR
-lands decides which changelogs its entries reach (ADR 0008).
+lands decides which changelogs its entries reach. A squashed multi-package PR would put every line in
+every package's notes, and a `BEGIN_COMMIT_OVERRIDE` block can't scope them per package.
 
 - **One package changed:** squash-merge. The PR title is the Conventional Commit.
 - **Several packages changed:** rebase-merge (`gh pr merge --rebase`). Make every commit a

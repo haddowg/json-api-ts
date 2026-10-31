@@ -271,7 +271,7 @@ ADR 0006. `@haddowg/json-api-angular` is signal-based. RxJS stays at the edges
 
 ### MCP tools (definitions and a handler, not a server)
 
-ADRs 0014, 0015, 0020 and 0021. `@haddowg/json-api-mcp` builds one MCP tool per collection, resource,
+ADRs 0014, 0015 and 0020. `@haddowg/json-api-mcp` builds one MCP tool per collection, resource,
 related and custom action operation. It returns tool definitions and a call handler; the host
 owns the MCP server. It's generic: scopes are opaque, and vendor extensions such as
 `x-feature` reach the host's hooks untouched.
@@ -290,7 +290,7 @@ owns the MCP server. It's generic: scopes are opaque, and vendor extensions such
 - **Inputs are portable:** valid under OpenAI's strict function calling and Anthropic's strict
   tool use. Every property is required and the API's optional ones are nullable, so `null`
   means "not given"; an update's `clear` names the fields to null. No `oneOf`/`if`/`then`.
-- **Outputs** (ADR 0021) are a JSON:API-like envelope: `{ data, meta? }` for one resource (get,
+- **Outputs** (ADR 0020) are a JSON:API-like envelope: `{ data, meta? }` for one resource (get,
   create, update, to-one related, an action returning one), `{ data, links, meta? }` for a
   collection with only the pagination links, `{ data: null, meta? }` for a delete and `{ meta }`
   for a meta-only action. Resources flatten to `{ id, type, ...attributes, relation: id | ids,
@@ -417,7 +417,7 @@ migrate to `vp` once it's ≥1.0 (trivial — same tools).
 ### Commits, merges and releases
 
 release-please files each commit on `main` under the packages whose files it changed
-(ADR 0008), so how a PR lands decides which changelogs its entries reach.
+so how a PR lands decides which changelogs its entries reach.
 
 - A PR that changes one package is **squash-merged**, titled as a Conventional Commit.
 - A PR that changes several packages is **rebase-merged** (`gh pr merge --rebase`), with
