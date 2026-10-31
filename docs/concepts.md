@@ -31,7 +31,7 @@ required to read it:
   `relationships.properties`; the relationship component's `data` gives **cardinality**
   (an array = to-many; `anyOf [ident, null]` = to-one) and the **related type** (follow the
   `$ref` to the identifier, read its `type.const`). A nested `anyOf` = **polymorphic**, even
-  with one member, which generator contract 16 writes for a polymorphic relation over one type.
+  with one member, which is how a polymorphic relation over one type is written.
 - **The allowed `?include` paths** are handed over literally, **pre-expanded** as a bounded
   enum per endpoint (`artist`, `artist.albums`, `tracks.album`, …) — so include-driven typing
   is a union over a *finite* set, never open recursion.

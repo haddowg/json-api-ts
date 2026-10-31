@@ -134,7 +134,7 @@ Every input schema is accepted by both OpenAI's strict function calling and Anth
 - `pageSize` maps to the paginator's size key, whichever strategy answers, so it's `page[size]` for page and cursor pagination and `page[limit]` for offset. It's capped at the operation's maximum, and defaults to 10 (`defaultPageSize`).
 - `withCount` is offered when the endpoint advertises the Countable profile with `_self_`, a count of the collection itself. `true` sends `withCount=_self_` with the profile negotiated, and the total comes back in `meta`. Counting can be slow on a large collection, which is why it's off unless asked for.
 - `pageLink` takes a link from a previous result's `links`. The handler follows it only when it has the base URL's origin and the tool's own path, and ignores every other argument when it does. Anything else is a tool error, sent nowhere.
-- A relationship takes an id, or a list of ids for a to-many. A polymorphic relationship takes the type and id of each resource. That includes a polymorphic relationship over one type, which the descriptor marks `polymorphic` from generator contract 16, so adding a second type later doesn't change the tool's input.
+- A relationship takes an id, or a list of ids for a to-many. A polymorphic relationship takes the type and id of each resource. That includes a polymorphic relationship over one type, which the descriptor marks `polymorphic`, so adding a second type later doesn't change the tool's input.
 - On an update, `null` keeps a field's value. `clear` names the nullable fields to set to `null`.
 - A custom action whose body is a JSON:API document for a known type takes it flat, like a create. Any other body is one `body` argument, in the first of these the action accepts: JSON:API, JSON, text, then a form or multipart body whose fields are documented.
 
@@ -176,7 +176,7 @@ A flattened resource keeps the links its type names under `links`: its declared 
 
 Each tool has an `outputSchema` built from the descriptor and the document's resource schemas, with attributes optional because of sparse fieldsets, and descriptions kept but examples left out. Its `$defs` hold only the result's own types and the types its include paths reach, so a relation to any other type is described as an id. Each named link is typed from the document's link schema, meta members included. An action without a body in its response, or one answering in a raw media type, returns content only: text, an image, or an embedded resource for other binary bodies.
 
-An action that answers with a URL (generator contract 17), such as a short-lived download link, returns it as `data`, with `expiresAt` left out when the URL doesn't expire. The tool never fetches the URL; the model or the host decides what to do with it. An action that answers with either its own document or a URL gets an `outputSchema` whose `anyOf` holds both envelopes, and returns whichever the server sent.
+An action that answers with a URL, such as a short-lived download link, returns it as `data`, with `expiresAt` left out when the URL doesn't expire. The tool never fetches the URL; the model or the host decides what to do with it. An action that answers with either its own document or a URL gets an `outputSchema` whose `anyOf` holds both envelopes, and returns whichever the server sent.
 
 ### Migrating from 1.2
 
@@ -254,4 +254,4 @@ Omitting `grantedScopes` from `forRequest` skips this filter entirely, credentia
 
 Passing `null` grants no scopes, the same as `[]`. The filter fails closed, so the caller sees only public operations and those whose applicable alternative lists no scopes. This differs from core's `GrantedScopesProviderInterface`, where a null grant means the caller is unrestricted. Here, leaving `grantedScopes` out or passing `undefined` is the only way to switch filtering off.
 
-From generator contract 16 the server writes the scopes it enforces into each operation's `security` under its `oauth2` scheme, so a related read lists the scopes of the type it returns as well. The operation's `scopes` holds the same list for a hook to read, and is absent when it needs none.
+The server writes the scopes it enforces into each operation's `security` under its `oauth2` scheme, so a related read lists the scopes of the type it returns as well. The operation's `scopes` holds the same list for a hook to read, and is absent when it needs none.
