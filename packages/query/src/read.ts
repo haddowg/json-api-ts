@@ -34,7 +34,7 @@ import { keyFor, type QueryKey } from './keys'
  * The precise materialised result of `.rel(R).related()` / `.get()` — extracted (via `infer`)
  * from the client's own {@link RelationshipAccessor} so the read factories carry the client's
  * full per-relation narrowing (a `Collection` of hydrated members / identifier members, typed
- * `$pivot`, polymorphic unions) instead of a loose `unknown` (D34). A suppressed endpoint (whose
+ * `$pivot`, polymorphic unions) instead of a loose `unknown`. A suppressed endpoint (whose
  * method the client types `never`) falls back to `unknown`.
  */
 type RelatedResult<

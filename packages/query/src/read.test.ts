@@ -258,7 +258,7 @@ describe('relationship + related options', () => {
     expect(related[0]?.title).toBe('One')
   })
 
-  it('resolves the precise per-relation result type, not unknown (D34)', () => {
+  it('resolves the precise per-relation result type, not unknown', () => {
     const { client } = makeClient({})
     const related = relatedQueryOptions(client, 'albums', '1', 'tracks')
     type Related = Awaited<ReturnType<typeof related.queryFn>>
