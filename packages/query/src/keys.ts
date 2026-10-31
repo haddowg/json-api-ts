@@ -1,5 +1,5 @@
 /**
- * The deterministic query-key factory (CONTEXT.md "Cache & normalization (TanStack layer)").
+ * The deterministic query-key factory (docs/tanstack-query.md).
  *
  * A key is a stable, hierarchical readonly tuple `[type, operation, ...id?, ...rel?, params?]`.
  * The hierarchy is the contract the normalization layer + targeted invalidation lean on: a

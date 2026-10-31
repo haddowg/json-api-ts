@@ -207,7 +207,7 @@ export interface InputMedia {
  * A custom action declared on a type (`#[AsJsonApiAction]`). The runtime reaches it via
  * `client.<type>.actions.<name>(...)` (collection scope) or
  * `client.<type>.id(id).actions.<name>(...)` (resource scope); `input`/`output` drive how the body
- * is sent and the response shaped (see CONTEXT.md "Write surface").
+ * is sent and the response shaped (see docs/writes.md).
  */
 export interface ActionDescriptor {
   scope: ActionScope

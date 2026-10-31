@@ -120,7 +120,8 @@ The full set of options the generated `createClient` takes:
     `req.responseType` if you call [custom actions with raw
     bodies](custom-actions.md#raw-responses). See the
     [`@haddowg/json-api-client` README](../packages/client/README.md) for the
-    full transport contract.
+    full transport contract. The client doesn't retry; a transport, or TanStack Query, does that
+    if you want it.
 
 ## 4. First read
 

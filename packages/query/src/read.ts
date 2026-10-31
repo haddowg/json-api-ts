@@ -1,5 +1,5 @@
 /**
- * Read OPTION FACTORIES over the typed client (CONTEXT.md: "option factories, not hooks").
+ * Read OPTION FACTORIES over the typed client (option factories, not hooks; docs/tanstack-query.md).
  *
  * Each factory returns a plain `{ queryKey, queryFn }` object compatible with
  * `@tanstack/query-core` — the user passes it to their framework's `useQuery` or to a

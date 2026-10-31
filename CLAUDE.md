@@ -2,8 +2,10 @@
 
 TypeScript client suite for `haddowg/json-api` servers: a pnpm/Turborepo monorepo with
 `packages/client`, `packages/codegen`, `packages/query`, `packages/angular` and `packages/mcp`,
-released to npm by release-please. `CONTEXT.md` holds the design decisions and glossary, `docs/adr/` the ADRs
-(format in `docs/adr/ADR-FORMAT.md`).
+released to npm by release-please. `CONTEXT.md` is the glossary, `docs/` describes the behaviour,
+and `docs/adr/` holds the decisions (format in `docs/adr/ADR-FORMAT.md`). The toolchain is Vite+'s
+underlying tools wired directly (pnpm, Turborepo, tsdown, Vitest, oxlint, oxfmt); move to the `vp`
+wrapper only once it reaches 1.0.
 
 ## Gates
 

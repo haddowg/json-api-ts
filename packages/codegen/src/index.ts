@@ -4,7 +4,7 @@
  * `createClient` (ADR 0001). Optionally reads the bundle's JSON Schemas to wire the
  * opt-in validation seam.
  *
- * The spec is fully self-describing for our needs (see CONTEXT.md): type identity is
+ * The spec is fully self-describing for our needs (see docs/concepts.md): type identity is
  * `properties.type.const`; relationships, cardinality and related types come from the
  * relationship components' `data`; allowed `?include` paths are a bounded, pre-expanded
  * enum per endpoint; the create client-id policy is encoded in the create request

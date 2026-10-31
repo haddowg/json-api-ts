@@ -31,7 +31,9 @@ albums.length    // a real array — map/filter/find all work
 Because the data is stored as own **enumerable** properties, `{ ...ok }` and
 `JSON.stringify(ok)` are clean — they contain exactly `type`, `id`, and the attributes
 and relations, and nothing else. All the envelope machinery is hidden (see
-[Going deeper: the `$`-accessors](#going-deeper-the--accessors) below).
+[Going deeper: the `$`-accessors](#going-deeper-the--accessors) below). The data survives serialisation; the
+`$`-accessors and the navigation they carry (`$next()`, `$rel()`) do not, so serialise the
+data and read it again when you need to navigate.
 
 !!! tip "Types follow the data"
     The result is precisely typed from the generated descriptor: `ok.title` is a
