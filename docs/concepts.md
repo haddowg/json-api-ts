@@ -174,7 +174,7 @@ shift. See [codegen](codegen.md) for the CLI and config.
 
 ## Where to go next
 
-- **[architecture](architecture.md)** — the three packages, the transport seam, and how a
+- **[architecture](architecture.md)** — the published packages, the transport seam, and how a
   request flows through the runtime.
 - **[codegen](codegen.md)** — pointing the CLI at your spec and what it emits.
 - **[materialisation](materialisation.md)** — the resource-object shape, `$`-accessors,

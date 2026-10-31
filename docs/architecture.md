@@ -20,7 +20,7 @@ haddowg/json-api-ts         this repo — reads the spec, generates the typed TS
 
 The OpenAPI document is the contract. It carries machine-readable type identity, relationship cardinality and related types, the allowed `?include` paths, the per-type client-id policy, and paginator kinds — everything the runtime needs to be fully generic. See [concepts](concepts.md) for the vocabulary those pieces map onto.
 
-## The three published packages
+## The published packages
 
 The core idea is a single split: a **build-time reader** that turns your spec into a descriptor, and a **runtime** that is parameterised by that descriptor and does all the real work. Nothing is templated per endpoint — see [ADR 0001](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0001-generate-a-runtime-descriptor-not-per-endpoint-clients.md) for why.
 
@@ -36,7 +36,7 @@ The core idea is a single split: a **build-time reader** that turns your spec in
 
 The generic engine. It is parameterised by a descriptor and knows nothing about your specific API until one is baked in. It owns:
 
-- the **transport seam** — a tiny `fetch`-shaped function `(req) => Promise<res>`, with a `fetch` adapter as the default, plus content negotiation and the `headers`/`onError`/`onResponse` hooks;
+- the **transport seam** — a tiny `fetch`-shaped function `(req) => Promise<res>`, with a `fetch` adapter as the default, plus content negotiation, the per-request `headers` provider and request cancellation through an `AbortSignal`;
 - **`materialise()`** — turning a compound wire document into the hydrated, flat resource graph (attributes and hydrated relations as own enumerable props, envelope on non-enumerable `$`-accessors, to-many values as augmented arrays);
 - the **serialize-write** path — flat input in, JSON:API envelope out, with pointer remapping back to your flat paths on error;
 - a **typed error model** (`JsonApiError` with status matchers);

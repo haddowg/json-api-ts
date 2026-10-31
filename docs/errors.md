@@ -92,7 +92,7 @@ if (hasErrorCode(error, 'LEGACY_ACCOUNT_LOCKED')) {
 
 Reaching for it is a visible decision at the call site, which is the point. A typo in a documented code is the bug the bound guard catches, and a loose overload would let it straight back in.
 
-The generated `createClient` also carries `ErrorCode` on the client type, so bindings that only see the client can type the errors they surface. The [Angular](angular.md#errors) refs do this, so `jsonApiError()` is a `JsonApiError<ErrorCode>`. A `catch` clause can't be typed in TypeScript, so outside those bindings the guard is how a caught error gets its codes.
+The generated `createClient` also carries `ErrorCode` on the client type, so bindings that only see the client can type the errors they surface. The [Angular](angular.md#errors) refs do this, so `jsonApiError()` is a `JsonApiError<ErrorCode>`. Your own wrapper can read the union back off a client type with `ErrorCodeOf<typeof client>`, which is `string` for a client that carries none. A `catch` clause can't be typed in TypeScript, so outside those bindings the guard is how a caught error gets its codes.
 
 ## `byPath()` — map a 422 back to your input
 

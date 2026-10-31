@@ -50,9 +50,15 @@ A local spec is convenient for CI (see [below](#drift-checking-in-ci)); a URL is
 convenient during development against a running API. Either resolves to the same
 generated output for the same spec content.
 
+The CLI prints a `wrote <path>` line for each file it writes. Warnings go to
+stderr with a `[json-api-codegen]` prefix, such as a newer contract than it
+reads, a relation that collides with a verb, a paginator it can't read, or a
+document with no JSON:API resource types at all, which generates an empty client.
+
 The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 18. An older document is an error, and a newer one
-generates with a warning that the client may miss what the server added.
+codegen reads contracts 1 to 18. A document with no contract, from a server before
+`haddowg/json-api` 1.1.0, is read as it is, and a newer one generates with a warning
+that the client may miss what the server added.
 
 Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
 with an example URL, and `describedby` points at the operation in the served spec.
@@ -251,6 +257,13 @@ runtime's needs, and all the real machinery lives in the generic
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema
 2020-12 map. With `--examples`, another exports `examples`, each operation's
 worked examples.
+
+```ts
+import { createClient, type ResourceMap, resourceMap } from './api/music.gen'
+import { schemas } from './api/music.schemas.gen'
+
+const client = createClient({ baseUrl: 'https://music.example' })
+```
 
 ### Attribute types
 
@@ -488,13 +501,6 @@ The bound `createClient` passes `ErrorCode` to the runtime, so the client type
 carries it too. A document with no error catalogue gets an empty `ErrorCodes` and
 `ErrorCode = string`, and the guard then takes any code.
 
-```ts
-import { createClient, type ResourceMap, resourceMap } from './api/music.gen'
-import { schemas } from './api/music.schemas.gen'
-
-const client = createClient({ baseUrl: 'https://music.example' })
-```
-
 ### Inside the descriptor
 
 Each wire type in `resourceMap` carries a compact `ResourceDescriptor`. Here is
@@ -625,9 +631,12 @@ The server-level Atomic Operations capability is emitted separately as an
     ```
 
     Lower-level building blocks are exported too — `readDocument` / `readSchemas`,
-    `buildDescriptor`, `buildExamples`, `emit` / `emitSchemas` / `emitExamples`,
-    `detectVerbCollisions`, `schemasOutputPath` / `examplesOutputPath`, and the provenance helpers `deriveProvenance` /
-    `provenanceLines` / `hashJson`.
+    `buildDescriptor`, `buildExamples` / `operationExamples`, `emit` / `emitSchemas` /
+    `emitExamples`, `readErrorCatalogue` / `emitErrorCodes`, `detectVerbCollisions`,
+    `schemasOutputPath` / `examplesOutputPath`, the provenance helpers
+    `deriveProvenance` / `provenanceLines` / `hashJson`, and `checkContract` with
+    `MINIMUM_CONTRACT` / `MAXIMUM_CONTRACT`, which throws for a document older than
+    the codegen reads and returns a warning for a newer one.
 
 ## Provenance and drift
 
