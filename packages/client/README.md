@@ -39,13 +39,14 @@ const client = createClient({
 
 `ClientOptions`:
 
-| Option      | Type                                        | Notes                                                        |
-| ----------- | ------------------------------------------- | ------------------------------------------------------------ |
-| `baseUrl`   | `string`                                    | Base URL the generated path templates resolve against.       |
-| `transport` | `(req) => Promise<res>`                     | The transport seam; defaults to a `fetch` adapter.           |
-| `headers`   | `() => HeadersInit \| Promise<HeadersInit>` | Per-request header provider (bearer auth, etc.).             |
-| `atomic`    | `AtomicDescriptor \| null`                  | Atomic endpoint; the generated `createClient` threads it in. |
-| `validate`  | `ValidationOption`                          | Opt-in per-field validation seam (off by default).           |
+| Option                  | Type                                        | Notes                                                                                        |
+| ----------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `baseUrl`               | `string`                                    | Base URL the generated path templates resolve against.                                       |
+| `transport`             | `(req) => Promise<res>`                     | The transport seam; defaults to a `fetch` adapter.                                           |
+| `headers`               | `() => HeadersInit \| Promise<HeadersInit>` | Per-request header provider (bearer auth, etc.).                                             |
+| `allowCrossOriginLinks` | `boolean`                                   | Follow a `$next()`/`$prev()` link to another origin, sent without `headers`. Off by default. |
+| `atomic`                | `AtomicDescriptor \| null`                  | Atomic endpoint; the generated `createClient` threads it in.                                 |
+| `validate`              | `ValidationOption`                          | Opt-in per-field validation seam (off by default).                                           |
 
 ## Reads
 
@@ -65,7 +66,7 @@ const albums = await client.albums.list({
 
 albums[0]!.title // string
 albums[0]!.artist?.name // hydrated artist resource (its attributes are typed)
-albums.$page.kind // 'page' | 'offset' | 'cursor' | 'none'
+albums.$page.kind // 'page' (typed from the descriptor's paginator)
 albums.$meta?.['page'] // raw top-level meta
 ```
 
