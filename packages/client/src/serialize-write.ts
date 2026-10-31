@@ -1,6 +1,6 @@
 /**
- * The write serialisation layer (docs/writes.md and docs/errors.md;
- * ADR 0001/0002). Two descriptor-aware inverses of the wire shape:
+ * The write serialisation layer (docs/writes.md and docs/errors.md).
+ * Two descriptor-aware inverses of the wire shape:
  *
  * - {@link toDocument} builds the JSON:API write document from the caller's FLAT input
  *   (the client owns the envelope), routing each key to `attributes` or `relationships`

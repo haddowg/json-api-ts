@@ -1,6 +1,6 @@
 /**
- * The Atomic Operations transaction builder (docs/atomic-operations.md;
- * ADR 0001). `client.atomic(tx => { … })` records a batch of operations and
+ * The Atomic Operations transaction builder (docs/atomic-operations.md).
+ * `client.atomic(tx => { … })` records a batch of operations and
  * posts them all-or-nothing to the server's `/operations` endpoint (the atomic ext media type),
  * returning the positional, materialised results.
  *

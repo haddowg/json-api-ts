@@ -101,7 +101,7 @@ export interface MaterialiseContext {
     signal?: AbortSignal,
   ) => Promise<unknown>
   /**
-   * The opt-in per-resource validator (ADR 0004), resolved from `ClientOptions.validate`. When
+   * The opt-in per-resource validator, resolved from `ClientOptions.validate`. When
    * present, every wire resource in `data`/`included` is validated against its per-type schema
    * before the document is materialised. Absent => no per-field validation (the default).
    */
@@ -169,7 +169,7 @@ export function materialise(
 ): unknown {
   // Always-on light structural guards: prove the envelope invariant the runtime relies on (a
   // JSON:API document; each data/included member carries type+id). Then, only when configured,
-  // run the opt-in per-field validation over each wire resource by its type (ADR 0004).
+  // run the opt-in per-field validation over each wire resource by its type.
   assertJsonApiDocument(doc)
   if (ctx.validate !== undefined) {
     validateDocument(doc, ctx.validate)

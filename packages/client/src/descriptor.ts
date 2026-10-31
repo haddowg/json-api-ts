@@ -13,7 +13,7 @@ export type Cardinality = 'one' | 'many'
  * methods it exposes). These are NOT uniform across relations — the bundle gates them
  * per relation (`cannotAdd`/`cannotRemove`/`cannotReplace`, per-relation endpoint
  * exposure) — so the descriptor carries the capability per relation and the fluent
- * surface gates `add`/`remove`/`replace`/`set` on it (see ADR 0001 follow-up).
+ * surface gates `add`/`remove`/`replace`/`set` on it.
  *
  * For a to-many: `add` <- POST, `remove` <- DELETE, `replace` <- PATCH.
  * For a to-one: `set` <- PATCH. A flag is `true` iff the endpoint advertises the verb.
@@ -356,7 +356,7 @@ export function isPolymorphic(
 }
 
 /**
- * The server-level Atomic Operations capability (ADR 0001): the single `/operations`
+ * The server-level Atomic Operations capability: the single `/operations`
  * endpoint, detected when its requestBody uses the atomic ext media type. `null` when the
  * server exposes no atomic endpoint. Carried alongside the per-type descriptor (not inside
  * it — atomic is server-level, not per-type) so the runtime `client.atomic` builder can
