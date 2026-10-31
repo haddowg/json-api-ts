@@ -1,6 +1,6 @@
 # Architecture
 
-A map of the `json-api-ts` monorepo: what each package is for, where the seams are, and where the generated code you commit actually lives. If you want the reasoning behind these boundaries rather than the shape of them, the [ADRs](https://github.com/haddowg/json-api-ts/tree/main/docs/adr) are the record.
+A map of the `json-api-ts` monorepo: what each package is for, where the seams are, and where the generated code you commit actually lives.
 
 ## The lineage
 
@@ -22,7 +22,7 @@ The OpenAPI document is the contract. It carries machine-readable type identity,
 
 ## The published packages
 
-The core idea is a single split: a **build-time reader** that turns your spec into a descriptor, and a **runtime** that is parameterised by that descriptor and does all the real work. Nothing is templated per endpoint — see [ADR 0001](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0001-generate-a-runtime-descriptor-not-per-endpoint-clients.md) for why.
+The core idea is a single split: a **build-time reader** that turns your spec into a descriptor, and a **runtime** that is parameterised by that descriptor and does all the real work. Nothing is templated per endpoint, so the generated output stays small and uniform and one generic runtime serves any API.
 
 | Package | Role |
 | --- | --- |
@@ -84,7 +84,7 @@ export const createClient = /* bound to resourceMap */
 
 The descriptor carries what types alone cannot express at runtime — attribute-vs-relation, cardinality, related type(s), per-operation path templates (`uriType`/server-prefix aware), paginator kind, the create client-id policy, and per-relation mutation and endpoint-exposure flags. The runtime reads all of this generically.
 
-Because the descriptor is the contract between the two packages, **its shape is load-bearing**: changing it is a breaking change across both. That coupling is the deliberate trade for a tiny, uniform, fully-generic runtime ([ADR 0001](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0001-generate-a-runtime-descriptor-not-per-endpoint-clients.md)).
+Because the descriptor is the contract between the two packages, **its shape is load-bearing**: changing it is a breaking change across both. That coupling is the deliberate trade for a tiny, uniform, fully-generic runtime.
 
 ## Where generated code lives
 
@@ -106,7 +106,7 @@ You can see exactly what the codegen produces in both example workspaces: [`pack
 
 ## The dependency posture
 
-The rule is **minimal, shallow-tree, and either tiny or very actively maintained** — not dogmatic zero-dep ([ADR 0004](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0004-validation-and-dependency-posture.md)). The result is a shallow tree per package:
+The rule is **minimal, shallow-tree, and either tiny or very actively maintained** — not dogmatic zero-dep. The result is a shallow tree per package:
 
 - **client** — no hard runtime deps; `ajv` is an *optional* peer for the opt-in validation seam.
 - **codegen** — `yaml` plus the client (for descriptor types), build-time only.

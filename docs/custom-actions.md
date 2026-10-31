@@ -52,7 +52,7 @@ reissued.title // 'OK Computer'
 Because the input envelope is built the same way `create` builds it, validation errors come back the same way too: a `422` is remapped from server pointers (`/data/attributes/title`) to your flat input keys, so `error.byPath()['title']` finds them. See [writes](writes.md) for the flat-input / `byPath()` model in full, and [errors](errors.md) for the `JsonApiError` API.
 
 !!! tip "Where the shapes come from"
-    A document-output action's result is typed as the materialised `ReadResult` of its `outputType` — identical to what a read of that type returns. A document-input action's argument is the flat `CreateInput` of its `inputType`. Both are read off the descriptor, not invented per action, so the typed contract matches exactly what the client sends and receives ([ADR 0001](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0001-generate-a-runtime-descriptor-not-per-endpoint-clients.md)).
+    A document-output action's result is typed as the materialised `ReadResult` of its `outputType` — identical to what a read of that type returns. A document-input action's argument is the flat `CreateInput` of its `inputType`. Both are read off the descriptor, not invented per action, so the typed contract matches exactly what the client sends and receives.
 
 ## Going deeper
 
@@ -197,7 +197,7 @@ Required fields follow the schema's `required`, and the rest are optional. A `fo
 
 ## See it in the example app
 
-The tested reference lives in [`example.test.ts`](../packages/example/src/example.test.ts) under `describe('custom actions', …)`: the resource-scoped `reissue` (document in, document out) and the collection-scoped `summary` (no input, meta out) are both real typed calls run under `pnpm test`. The rationale for deriving the whole surface from the descriptor is in [ADR 0001](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0001-generate-a-runtime-descriptor-not-per-endpoint-clients.md).
+The tested reference lives in [`example.test.ts`](../packages/example/src/example.test.ts) under `describe('custom actions', …)`: the resource-scoped `reissue` (document in, document out) and the collection-scoped `summary` (no input, meta out) are both real typed calls run under `pnpm test`. Deriving the whole surface from the descriptor is what keeps those calls typed with no per-action generated code; see [concepts](concepts.md).
 
 ## Next
 

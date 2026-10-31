@@ -22,7 +22,7 @@ tree until you add one.
     We own both ends: the server serves the spec, the codegen consumes it. Full
     per-field validation by default would add cost for little benefit. It's there
     when you need it — e.g. validating against a server you don't control — and free
-    when you don't (ADR 0004). See [errors](errors.md) for how a failure surfaces.
+    when you don't. See [errors](errors.md) for how a failure surfaces.
 
 ## Turning it on
 

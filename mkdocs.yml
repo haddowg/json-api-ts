@@ -60,6 +60,9 @@ plugins:
 hooks:
   - mkdocs_hooks.py
 
+exclude_docs: |
+  adr/
+
 validation:
   nav:
     omitted_files: ignore

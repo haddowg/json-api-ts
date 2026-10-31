@@ -372,8 +372,7 @@ image.$links?.['other']                // unknown: undeclared links stay reachab
 `self` and any link the type doesn't declare keep the loose `ResourceLinks` types, and
 a type that declares no links isn't in `Links` and keeps `ResourceLinks` as it was. If
 you spell out a result type by hand, pass `WithLinks<Attributes, Links>` where you would
-pass `Attributes`, or `$links` falls back to `ResourceLinks`
-([ADR 0012](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0012-declared-links-ride-the-attributes-type-argument.md)).
+pass `Attributes`, or `$links` falls back to `ResourceLinks`.
 
 ### Page defaults and caps
 
