@@ -237,7 +237,7 @@ When calls overlap, the signals follow the latest one. The function can be any c
 
 ## No shared cache
 
-Each resource holds its own value. There is no normalised cache and no automatic invalidation, so after a write you `reload()` the resources you know it affects. That is a deliberate first step (see [ADR 0006](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0006-signal-based-angular-bindings.md)). If several screens need to share fetched resources, the [TanStack Query bindings](tanstack-query.md) have the `type:id` write-through cache.
+Each resource holds its own value. There is no normalised cache and no automatic invalidation, so after a write you `reload()` the resources you know it affects. That is a deliberate first step. If several screens need to share fetched resources, the [TanStack Query bindings](tanstack-query.md) have the `type:id` write-through cache.
 
 ## RxJS
 

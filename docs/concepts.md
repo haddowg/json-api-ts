@@ -54,7 +54,7 @@ type catalogue. So the codegen does **not** template a client method per OpenAPI
 JSON:API's regularity).
 
 Instead it emits a single **runtime descriptor** — a plain `as const` object describing
-each type — and **derives the TypeScript types from it** ([ADR 0001](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0001-generate-a-runtime-descriptor-not-per-endpoint-clients.md)).
+each type — and **derives the TypeScript types from it**.
 The generated file looks like this (abridged):
 
 ```ts
@@ -85,7 +85,7 @@ attribute types. This is one source of truth: the value drives the runtime, the 
 from it.
 
 The payoff: **tiny, uniform generated output** and a single generic runtime that works for any
-API without change. The trade-off, recorded in the ADR, is that the descriptor shape is the
+API without change. The trade-off is that the descriptor shape is the
 contract between the codegen and the runtime, so changing it is a breaking change across both
 packages.
 
@@ -122,7 +122,7 @@ relationship verb is typed `never`, a suppressed related endpoint is a compile e
 A JSON:API read returns a normalised wire document — primary `data` plus a flat `included`
 array, with relationships expressed as `{ type, id }` identifiers you'd have to stitch back
 together yourself. The client does that stitching for you and **materialises** the envelope
-into a self-contained hydrated graph ([ADR 0002](https://github.com/haddowg/json-api-ts/blob/main/docs/adr/0002-resource-and-hydration-model.md)):
+into a self-contained hydrated graph:
 
 ```ts
 const album = await client.albums.id('1').get({ include: ['artist', 'tracks'] })
@@ -180,8 +180,7 @@ shift. See [codegen](codegen.md) for the CLI and config.
 - **[materialisation](materialisation.md)** — the resource-object shape, `$`-accessors,
   hydration, and augmented arrays in detail.
 
-For the full design rationale and glossary, read [`CONTEXT.md`](../CONTEXT.md) and the
-[ADRs](https://github.com/haddowg/json-api-ts/tree/main/docs/adr).
+For the glossary, read [`CONTEXT.md`](../CONTEXT.md).
 
 ## See it in the example app
 

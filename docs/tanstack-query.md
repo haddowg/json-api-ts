@@ -107,7 +107,7 @@ You rarely build a key yourself — the factories embed the right key, and norma
 
 ## Normalisation: `type:id` write-through patching
 
-TanStack Query is not a normalised cache — it keeps each result denormalised under its own key. JSON:API's guarantee that every resource carries `type`+`id` lets this package normalise with **zero configuration** (ADR 0003, Strategy 2). On every successful response it indexes each resource (`data` + `included`) by `type:id` and **patches every cached query holding that `type:id` in place**. Edit an album's title once, and every cached list, single-get, and included copy reflects it — no refetch.
+TanStack Query is not a normalised cache — it keeps each result denormalised under its own key. JSON:API's guarantee that every resource carries `type`+`id` lets this package normalise with **zero configuration**. On every successful response it indexes each resource (`data` + `included`) by `type:id` and **patches every cached query holding that `type:id` in place**. Edit an album's title once, and every cached list, single-get, and included copy reflects it — no refetch.
 
 `installNormalization` wires this to fire automatically on every successful query and mutation:
 
@@ -123,7 +123,7 @@ A patch replaces a node's **attributes** (the descriptor knows attributes from r
 
 ### The patch-vs-invalidate split
 
-Not every write is a node patch. The binding splits by what the write changes (ADR 0003):
+Not every write is a node patch. The binding splits by what the write changes:
 
 - an **update** (or a relationship `set` / `replace`) only changes a node's attributes / linkage → on success it **patches** via `normalize`, no refetch;
 - a **create** / **delete** (or a relationship `add` / `remove`) changes collection membership → on settle it **invalidates** the relevant list / relationship subtrees so they refetch (a patch can't insert or remove a member).
