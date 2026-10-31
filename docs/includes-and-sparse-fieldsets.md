@@ -177,7 +177,8 @@ carries), see [filtering and sorting](filtering-and-sorting.md).
   list-with-include-and-fields read and the compound `get`.
 - [the generated client](../examples/spotify-clone/src/generated/music-catalog.gen.ts) — see each
   type's `includable` enum (including the nested `tracks.album` / `artist.albums` paths) that
-  constrains what `include` accepts.
+  constrains what `include` accepts, and its `included` list of the types a compound document
+  can carry, which types the generated `Included<T>` union.
 
 ## Next
 

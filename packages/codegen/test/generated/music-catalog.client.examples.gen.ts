@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   836e3cf3907824d9
+ * Spec hash:   2ffcd846b8ef8c63
  */
 
 import type { ApiExamples } from '@haddowg/json-api-client'

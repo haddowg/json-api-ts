@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   836e3cf3907824d9
+ * Spec hash:   2ffcd846b8ef8c63
  */
 
 import {
@@ -13,7 +13,12 @@ import {
   createClient as createClientRuntime,
   type ErrorCodeGuard,
   hasErrorCode as hasErrorCodeRuntime,
+  type IncludedResource,
+  type RelatedIncludedResource,
+  type RelationName,
   type ResourceLinks,
+  type TypeName,
+  type WithLinks,
 } from '@haddowg/json-api-client'
 
 /**
@@ -643,7 +648,12 @@ export const resourceMap = {
         pivot: false,
         mutations: {
           set: true
-        }
+        },
+        included: [
+          "albums",
+          "artists",
+          "tracks"
+        ]
       },
       /**
        * OAuth scopes:
@@ -663,6 +673,13 @@ export const resourceMap = {
           remove: true,
           replace: true
         },
+        included: [
+          "albums",
+          "artists",
+          "tracks",
+          "playlists",
+          "public-profiles"
+        ],
         countable: {
           tokens: [
             "_self_",
@@ -699,6 +716,12 @@ export const resourceMap = {
       "tracks",
       "tracks.album",
       "tracks.playlists"
+    ],
+    included: [
+      "artists",
+      "albums",
+      "tracks",
+      "playlists"
     ],
     sortable: [
       "title",
@@ -979,6 +1002,12 @@ export const resourceMap = {
           remove: true,
           replace: true
         },
+        included: [
+          "artists",
+          "albums",
+          "tracks",
+          "playlists"
+        ],
         countable: {
           tokens: [
             "tracks"
@@ -1002,6 +1031,11 @@ export const resourceMap = {
       "albums",
       "albums.artist",
       "albums.tracks"
+    ],
+    included: [
+      "albums",
+      "artists",
+      "tracks"
     ],
     sortable: [
       "name",
@@ -1120,6 +1154,9 @@ export const resourceMap = {
     clientId: "forbidden",
     includable: [
       "user"
+    ],
+    included: [
+      "public-profiles"
     ]
   },
   genres: {
@@ -1181,6 +1218,12 @@ export const resourceMap = {
     includable: [
       "owner",
       "items"
+    ],
+    included: [
+      "public-profiles",
+      "tracks",
+      "albums",
+      "artists"
     ]
   },
   playlists: {
@@ -1228,6 +1271,13 @@ export const resourceMap = {
           remove: true,
           replace: true
         },
+        included: [
+          "albums",
+          "artists",
+          "tracks",
+          "playlists",
+          "public-profiles"
+        ],
         countable: {
           tokens: [
             "playlists"
@@ -1286,6 +1336,13 @@ export const resourceMap = {
           remove: true,
           replace: true
         },
+        included: [
+          "albums",
+          "artists",
+          "tracks",
+          "playlists",
+          "public-profiles"
+        ],
         countable: {
           tokens: [
             "_self_",
@@ -1324,6 +1381,12 @@ export const resourceMap = {
       "orderedTracks",
       "orderedTracks.album",
       "orderedTracks.playlists"
+    ],
+    included: [
+      "public-profiles",
+      "tracks",
+      "albums",
+      "playlists"
     ],
     scopes: {
       "addRelationship.orderedTracks": [
@@ -1375,7 +1438,10 @@ export const resourceMap = {
         pivot: false,
         mutations: {
           set: true
-        }
+        },
+        included: [
+          "products"
+        ]
       }
     },
     paths: {
@@ -1391,6 +1457,9 @@ export const resourceMap = {
     clientId: "forbidden",
     includable: [
       "parent"
+    ],
+    included: [
+      "products"
     ]
   },
   "public-profiles": {
@@ -1426,7 +1495,13 @@ export const resourceMap = {
         pivot: false,
         mutations: {
           set: true
-        }
+        },
+        included: [
+          "artists",
+          "albums",
+          "tracks",
+          "playlists"
+        ]
       }
     },
     paths: {
@@ -1444,6 +1519,11 @@ export const resourceMap = {
       "album",
       "album.artist",
       "album.tracks"
+    ],
+    included: [
+      "albums",
+      "artists",
+      "tracks"
     ],
     sortable: [
       "catalogNumber",
@@ -1469,7 +1549,13 @@ export const resourceMap = {
         pivot: false,
         mutations: {
           set: true
-        }
+        },
+        included: [
+          "artists",
+          "albums",
+          "tracks",
+          "playlists"
+        ]
       },
       playlists: {
         cardinality: "many",
@@ -1481,6 +1567,12 @@ export const resourceMap = {
           add: true,
           remove: true
         },
+        included: [
+          "public-profiles",
+          "tracks",
+          "albums",
+          "playlists"
+        ],
         countable: {
           tokens: [
             "_self_",
@@ -1524,6 +1616,13 @@ export const resourceMap = {
       "playlists.tracks",
       "playlists.orderedTracks"
     ],
+    included: [
+      "albums",
+      "artists",
+      "tracks",
+      "playlists",
+      "public-profiles"
+    ],
     sortable: [
       "title",
       "-title",
@@ -1540,6 +1639,25 @@ export const resourceMap = {
 } as const satisfies ApiDescriptor
 
 export type ResourceMap = typeof resourceMap
+
+/**
+ * One resource of a compound document's `included` for a read of type `T`, discriminated by
+ * `type` over the types its `include` paths reach.
+ */
+export type Included<T extends TypeName<ResourceMap>> = IncludedResource<
+  ResourceMap,
+  WithLinks<Attributes, Links>,
+  T
+>
+
+/**
+ * One resource of the `included` of relation `R`'s related read on type `T`, discriminated by
+ * `type` over the types its `include` paths reach.
+ */
+export type RelatedIncluded<
+  T extends TypeName<ResourceMap>,
+  R extends RelationName<ResourceMap, T>,
+> = RelatedIncludedResource<ResourceMap, WithLinks<Attributes, Links>, T, R>
 
 /**
  * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`

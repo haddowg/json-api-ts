@@ -36,6 +36,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       pivot: false,
       // to-one: PATCH advertised -> `set`.
       mutations: { set: true },
+      // the types the related read's typed `included` lists.
+      included: ['albums', 'artists', 'tracks'],
     })
     expect(albums.relations['tracks']).toEqual({
       cardinality: 'many',
@@ -43,6 +45,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       pivot: false,
       // to-many: POST/DELETE/PATCH advertised -> add/remove/replace.
       mutations: { add: true, remove: true, replace: true },
+      included: ['albums', 'artists', 'tracks', 'playlists', 'public-profiles'],
       // the related endpoint pages by number while the tracks collection offers a menu (D6a).
       paginator: 'page',
       // the related to-many GET advertises its own withCount (`_self_` + tracks' countable
@@ -52,6 +55,9 @@ describe('buildDescriptor (music-catalog default server)', () => {
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
       },
     })
+
+    // the types an albums compound document's typed `included` lists.
+    expect(albums.included).toEqual(['artists', 'albums', 'tracks', 'playlists'])
 
     expect(albums.clientId).toBe('forbidden')
     expect(albums.paginator).toBe('page')
@@ -83,6 +89,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
         required: ['position'],
       },
       mutations: { add: true, remove: true, replace: true },
+      included: ['albums', 'artists', 'tracks', 'playlists', 'public-profiles'],
       paginator: 'page',
       // the related to-many GET advertises its own withCount + Countable profile.
       countable: {
@@ -470,6 +477,7 @@ describe('buildDescriptor (music-catalog admin server)', () => {
       types: ['playlists'],
       pivot: false,
       mutations: { add: true, remove: true, replace: true },
+      included: ['users', 'playlists', 'libraries', 'public-profiles', 'tracks', 'albums'],
       countable: {
         tokens: ['tracks'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
@@ -1195,12 +1203,13 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(16))).toBeUndefined()
     expect(checkContract(contractDoc(17))).toBeUndefined()
     expect(checkContract(contractDoc(18))).toBeUndefined()
-    expect(MAXIMUM_CONTRACT).toBe(18)
+    expect(checkContract(contractDoc(19))).toBeUndefined()
+    expect(MAXIMUM_CONTRACT).toBe(19)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(19))).toContain(
-      'declares contract 19 and this codegen reads up to 18',
+    expect(checkContract(contractDoc(20))).toContain(
+      'declares contract 20 and this codegen reads up to 19',
     )
     expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
