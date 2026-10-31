@@ -298,6 +298,58 @@ export type IncludePath<D extends ApiDescriptor, T extends TypeName<D>> = D[T] e
   : never
 
 /**
+ * The types a compound document of type `T` can carry in `included`: the descriptor's
+ * `included` list, or every type `D` declares when the descriptor doesn't list them.
+ */
+export type IncludedType<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  included: infer I
+}
+  ? I extends readonly (infer U)[]
+    ? Extract<U, TypeName<D>>
+    : TypeName<D>
+  : TypeName<D>
+
+/**
+ * One resource of a type `T` compound document's `included`, a union discriminated by `type`
+ * over {@link IncludedType}.
+ */
+export type IncludedResource<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  F = unknown,
+> = IncludedOf<D, A, IncludedType<D, T>, F>
+
+/**
+ * The types the related read of relation `R` on type `T` can carry in `included`: the relation
+ * descriptor's `included` list, or every type `D` declares when it doesn't list them.
+ */
+export type RelatedIncludedType<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { included: infer I }
+  ? I extends readonly (infer U)[]
+    ? Extract<U, TypeName<D>>
+    : TypeName<D>
+  : TypeName<D>
+
+/**
+ * One resource of the `included` of relation `R`'s related read on type `T`, a union discriminated
+ * by `type` over {@link RelatedIncludedType}.
+ */
+export type RelatedIncludedResource<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  F = unknown,
+> = IncludedOf<D, A, RelatedIncludedType<D, T, R>, F>
+
+type IncludedOf<D extends ApiDescriptor, A, U extends TypeName<D>, F> =
+  U extends TypeName<D> ? ResourceObjectView<D, A, U, never, F> : never
+
+/**
  * The union of top-level relation names present in an `include` tuple (drops dotted children).
  * Mapped element-wise over the tuple (`{ [K in keyof Inc]: ... }[number]`) rather than
  * distributed over `Inc[number]` — a distributive template-literal `infer` collapses the union to
