@@ -30,19 +30,23 @@ pnpm add -D @haddowg/json-api-codegen
 
 Two bin names are installed: `json-api-codegen` and the short alias `japi`.
 
+The codegen reads documents up to generator contract 18 (`info.x-generator.contract`). A newer
+document still generates, with a warning that the client may miss what the server added.
+
 ## CLI
 
 ```bash
-json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--check]
+json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--examples] [--check]
 ```
 
-| Flag        | Required | Description                                                                           |
-| ----------- | -------- | ------------------------------------------------------------------------------------- |
-| `--input`   | yes      | OpenAPI document source — an http(s) URL or a local file path (JSON or YAML).         |
-| `--output`  | yes      | Output file for the generated client (e.g. `src/api/music.gen.ts`).                   |
-| `--server`  | no       | Server name to target. Metadata-only — the served document is already per-server.     |
-| `--schemas` | no       | JSON Schema source (URL or path) for the validation seam. Omit to skip schema output. |
-| `--check`   | no       | Drift gate — regenerate in memory and exit non-zero if the committed output differs.  |
+| Flag         | Required | Description                                                                           |
+| ------------ | -------- | ------------------------------------------------------------------------------------- |
+| `--input`    | yes      | OpenAPI document source — an http(s) URL or a local file path (JSON or YAML).         |
+| `--output`   | yes      | Output file for the generated client (e.g. `src/api/music.gen.ts`).                   |
+| `--server`   | no       | Server name to target. Metadata-only — the served document is already per-server.     |
+| `--schemas`  | no       | JSON Schema source (URL or path) for the validation seam. Omit to skip schema output. |
+| `--examples` | no       | Also write the operations' worked examples to a sibling `.examples.gen.ts` module.    |
+| `--check`    | no       | Drift gate — regenerate in memory and exit non-zero if the committed output differs.  |
 
 Example — generate against a served API, with the validation schemas:
 
@@ -57,6 +61,8 @@ This writes:
 
 - `src/api/music.gen.ts` — the typed client (descriptor + types + bound `createClient`);
 - `src/api/music.schemas.gen.ts` — the per-type JSON Schema map (only with `--schemas`).
+- `src/api/music.examples.gen.ts` — each operation's worked examples (only with `--examples`, and
+  only when the document declares some).
 
 The schema artifact path is derived from `--output`: a `.gen.ts` suffix becomes `.schemas.gen.ts`,
 a plain `.ts` becomes `.schemas.ts`.
@@ -118,6 +124,10 @@ The output module exports:
 - `Attributes` / `WriteAttributes` — the per-type attribute maps (read vs create/update).
 - Per-type `…Attributes` / `…CreateAttributes` / `…UpdateAttributes` interfaces, enum types
   (e.g. `AlbumStatus`), and action input/output types.
+- `Links` — the typed declared links of each type that declares any.
+- `ErrorCodes` / `ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode` — the server's documented
+  error codes and a type guard bound to them.
+- `pageLimits` — each collection's page defaults and page-size caps.
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema 2020-12 map.
 
@@ -162,8 +172,10 @@ if (!result.ok) process.exit(1)
 ```
 
 Lower-level building blocks are also exported for advanced use: `readDocument` / `readSchemas`,
-`buildDescriptor`, `emit`, `emitSchemas`, `detectVerbCollisions`, `schemasOutputPath`, and the
-provenance helpers `deriveProvenance` / `provenanceLines` / `hashJson`.
+`buildDescriptor`, `buildExamples`, `emit`, `emitSchemas`, `emitExamples`, `readErrorCatalogue`,
+`emitErrorCodes`, `checkContract`, `detectVerbCollisions`, `schemasOutputPath`,
+`examplesOutputPath`, and the provenance helpers `deriveProvenance` / `provenanceLines` /
+`hashJson`. `generateFiles(config)` generates like `generate` and returns the paths it wrote.
 
 ## License
 
