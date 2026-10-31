@@ -1,20 +1,7 @@
-# 0013 — A multi-method action keeps its name for the preferred method
+# A multi-method action keeps its name for the preferred method
 
-- **Status:** Accepted
-- **Date:** 2026-10-26
+Each method of a multi-method action has its own operation id, but suffixing every method would rename the method existing clients already call. So the preferred method (`POST`, else the first advertised) keeps the bare name, and only the others get a key with the method appended (`exportGet`, or `bulk-import-get` when the name joins its words with a dash or underscore); the server refuses action names that differ only in case or punctuation, so that key can't land on another action.
 
-Generator contract 15 gives each method of a multi-method action its own operation id,
-`action.<type>.<path>.<method>`. Before it, the codegen read one operation per action path,
-`POST` when advertised and otherwise the first method, and exposed it under the action's name.
-Suffixing every method would have matched the ids, but it would rename that existing method and
-break every client that calls it. So the preferred method keeps the bare name, and only the
-other methods get a new key: the name plus the method, `exportGet`, or `bulk-import-get` when
-the name joins its words with a dash or underscore. Core refuses two action ids that differ
-only in case or punctuation, so the new key can't land on another action's name. A document
-whose methods share one id is read as before, with only the preferred method, so an older
-document generates the same client.
+## Consequences
 
-The naming is asymmetric. `export` sends `POST` while `exportGet` sends `GET`, and nothing in
-the name says the first one is a `POST`. An action's safety flags go on its descriptor entry
-as optional `readOnly`, `destructive` and `idempotent`, mirroring `x-safety` key for key, so a
-tool reading the descriptor and one reading the document see the same names.
+The naming is asymmetric: `export` sends `POST` and nothing in its name says so.
