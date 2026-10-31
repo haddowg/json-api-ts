@@ -46,7 +46,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       // the related endpoint pages by number while the tracks collection offers a menu (D6a).
       paginator: 'page',
       // the related to-many GET advertises its own withCount (`_self_` + tracks' countable
-      // relations) with the Countable profile (D3).
+      // relations) with the Countable profile.
       countable: {
         tokens: ['_self_', 'playlists'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
@@ -84,7 +84,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       },
       mutations: { add: true, remove: true, replace: true },
       paginator: 'page',
-      // the related to-many GET advertises its own withCount + Countable profile (D3).
+      // the related to-many GET advertises its own withCount + Countable profile.
       countable: {
         tokens: ['playlists'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
@@ -488,7 +488,7 @@ describe('buildDescriptor — related collections', () => {
     // `/parents/{id}/widgets` refs WidgetsCollection, but it is a parent-scoped related endpoint,
     // not fetchMany for `widgets`. widgets is a real registered resource with no top-level
     // collection, so it stays in the descriptor with empty paths (only a type-only stub is
-    // dropped, see D27).
+    // dropped).
     const paged: ParameterObject[] = objectForm(['number', 'size'])
     const doc: OpenApiDocument = {
       openapi: '3.1.0',
@@ -548,7 +548,7 @@ const toManyRelationshipComponent = (idType: string): SchemaObject => ({
   },
 })
 
-describe('buildDescriptor — per-relation endpoint suppression (D24)', () => {
+describe('buildDescriptor — per-relation endpoint suppression', () => {
   // A `parts` relation exposes both endpoints; `gadgets` has its RELATED endpoint suppressed;
   // `labels` has its RELATIONSHIP endpoint suppressed.
   const rel = toManyRelationshipComponent
@@ -641,7 +641,7 @@ describe('buildDescriptor — per-relation endpoint suppression (D24)', () => {
   })
 })
 
-describe('buildDescriptor — drift warnings (D28)', () => {
+describe('buildDescriptor — drift warnings', () => {
   it('warns and drops a relationship whose linkage shape is unrecognized', () => {
     const doc: OpenApiDocument = {
       openapi: '3.1.0',
@@ -729,7 +729,7 @@ describe('buildDescriptor — drift warnings (D28)', () => {
   })
 })
 
-describe('buildDescriptor — synthetic stub skipping (D27)', () => {
+describe('buildDescriptor — synthetic stub skipping', () => {
   it('drops a type-only permissive stub, but keeps a real collection-less resource', () => {
     const doc: OpenApiDocument = {
       openapi: '3.1.0',
@@ -788,7 +788,7 @@ describe('buildDescriptor — synthetic stub skipping (D27)', () => {
   })
 })
 
-describe('buildDescriptor — cursor paginator detection (D44)', () => {
+describe('buildDescriptor — cursor paginator detection', () => {
   it('detects cursor pagination from page[after]/page[before] (the CursorPaginator wire form)', () => {
     const doc: OpenApiDocument = {
       openapi: '3.1.0',
