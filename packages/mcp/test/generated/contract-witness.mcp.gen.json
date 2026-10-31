@@ -4,7 +4,7 @@
   "contract": 19,
   "source": {
     "title": "Contract Witness API 3.4.1",
-    "hash": "265c3e27367ba093"
+    "hash": "ec6b2eb1ec4388e9"
   },
   "credentialSchemes": [
     "oauth2"
@@ -142,6 +142,27 @@
             "set": true
           }
         },
+        "sponsors": {
+          "cardinality": "many",
+          "types": [
+            "people",
+            "images"
+          ],
+          "polymorphic": true,
+          "pivot": false,
+          "mutations": {
+            "add": true,
+            "remove": true,
+            "replace": true
+          },
+          "countable": {
+            "tokens": [
+              "_self_"
+            ],
+            "profile": "https://haddowg.github.io/json-api/profiles/countable/"
+          },
+          "paginator": "page"
+        },
         "subject": {
           "cardinality": "one",
           "types": [
@@ -226,7 +247,8 @@
       "countable": {
         "tokens": [
           "_self_",
-          "tags"
+          "tags",
+          "sponsors"
         ],
         "profile": "https://haddowg.github.io/json-api/profiles/countable/"
       },
@@ -422,6 +444,9 @@
         "addRelationship.gallery": [
           "articles:write"
         ],
+        "addRelationship.sponsors": [
+          "articles:write"
+        ],
         "addRelationship.tags": [
           "articles:write"
         ],
@@ -461,6 +486,9 @@
           "articles:read",
           "people:read"
         ],
+        "fetchRelated.sponsors": [
+          "articles:read"
+        ],
         "fetchRelated.subject": [
           "articles:read",
           "people:read"
@@ -492,6 +520,9 @@
           "articles:read",
           "people:read"
         ],
+        "fetchRelationship.sponsors": [
+          "articles:read"
+        ],
         "fetchRelationship.subject": [
           "articles:read",
           "people:read"
@@ -503,6 +534,9 @@
           "articles:write"
         ],
         "removeRelationship.gallery": [
+          "articles:write"
+        ],
+        "removeRelationship.sponsors": [
           "articles:write"
         ],
         "removeRelationship.tags": [
@@ -533,6 +567,9 @@
           "articles:write"
         ],
         "updateRelationship.reviewer": [
+          "articles:write"
+        ],
+        "updateRelationship.sponsors": [
           "articles:write"
         ],
         "updateRelationship.subject": [
@@ -653,7 +690,8 @@
           },
           "countable": {
             "tokens": [
-              "tags"
+              "tags",
+              "sponsors"
             ],
             "profile": "https://haddowg.github.io/json-api/profiles/countable/"
           }
@@ -1760,6 +1798,33 @@
               ],
               "description": "The editor relationship: the id of the related `people` resource."
             },
+            "sponsors": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "people",
+                      "images"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "description": "The sponsors relationship: every related resource, as its type (people or images) and id."
+            },
             "subject": {
               "type": [
                 "object",
@@ -1845,6 +1910,7 @@
             "reviewer",
             "watchers",
             "editor",
+            "sponsors",
             "subject",
             "gallery"
           ],
@@ -2292,6 +2358,36 @@
                     }
                   ],
                   "description": "The related people: its id, or the resource itself when included."
+                },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
                 },
                 "subject": {
                   "anyOf": [
@@ -2859,6 +2955,22 @@
                 "types": [
                   "people"
                 ]
+              },
+              "property": {
+                "decoder": {
+                  "kind": "value"
+                },
+                "nullMeansOmit": true
+              }
+            },
+            "sponsors": {
+              "relation": {
+                "cardinality": "many",
+                "types": [
+                  "people",
+                  "images"
+                ],
+                "polymorphic": true
               },
               "property": {
                 "decoder": {
@@ -3471,6 +3583,33 @@
               ],
               "description": "The editor relationship: the id of the related `people` resource."
             },
+            "sponsors": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "people",
+                      "images"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "description": "The sponsors relationship: every related resource, as its type (people or images) and id."
+            },
             "subject": {
               "type": [
                 "object",
@@ -3557,6 +3696,7 @@
             "reviewer",
             "watchers",
             "editor",
+            "sponsors",
             "subject",
             "gallery"
           ],
@@ -3950,6 +4090,22 @@
                   "types": [
                     "people"
                   ]
+                },
+                "property": {
+                  "decoder": {
+                    "kind": "value"
+                  },
+                  "nullMeansOmit": true
+                }
+              },
+              "sponsors": {
+                "relation": {
+                  "cardinality": "many",
+                  "types": [
+                    "people",
+                    "images"
+                  ],
+                  "polymorphic": true
                 },
                 "property": {
                   "decoder": {
@@ -5059,6 +5215,36 @@
                   ],
                   "description": "The related people: its id, or the resource itself when included."
                 },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
+                },
                 "subject": {
                   "anyOf": [
                     {
@@ -6021,6 +6207,36 @@
                     }
                   ],
                   "description": "The related people: its id, or the resource itself when included."
+                },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
                 },
                 "subject": {
                   "anyOf": [
@@ -7061,6 +7277,36 @@
                   ],
                   "description": "The related people: its id, or the resource itself when included."
                 },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
+                },
                 "subject": {
                   "anyOf": [
                     {
@@ -7744,6 +7990,36 @@
                     }
                   ],
                   "description": "The related people: its id, or the resource itself when included."
+                },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
                 },
                 "subject": {
                   "anyOf": [
@@ -8727,6 +9003,36 @@
                   ],
                   "description": "The related people: its id, or the resource itself when included."
                 },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
+                },
                 "subject": {
                   "anyOf": [
                     {
@@ -8914,6 +9220,340 @@
         }
       },
       "result": "resource"
+    },
+    {
+      "operation": {
+        "operationId": "fetchRelated.articles.sponsors",
+        "toolName": "articles_sponsors_list",
+        "kind": "related",
+        "type": "articles",
+        "method": "GET",
+        "path": "/articles/{id}/sponsors",
+        "operation": {
+          "tags": [
+            "Articles"
+          ],
+          "summary": "Fetch the related sponsors of an article",
+          "description": "Returns the related `sponsors` resources of an article.",
+          "operationId": "fetchRelated.articles.sponsors"
+        },
+        "security": [
+          {
+            "oauth2": [
+              "articles:read"
+            ]
+          }
+        ],
+        "relation": "sponsors"
+      },
+      "tool": {
+        "name": "articles_sponsors_list",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the `articles` resource whose sponsors to list."
+            },
+            "fields": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "people": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "images": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "people",
+                "images"
+              ],
+              "additionalProperties": false,
+              "description": "Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields."
+            },
+            "pageSize": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "How many results a page holds, 1 to 100. Leave null for 10."
+            },
+            "pageLink": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "A pagination link (first, prev, next or last) copied from the links of an earlier result of this same tool, to fetch that page. When given, every other argument is ignored."
+            },
+            "withCount": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "Set true to have the total number of results counted and returned in meta. Counting can be slow on a large collection, so leave it null unless the total is needed."
+            }
+          },
+          "required": [
+            "id",
+            "fields",
+            "pageSize",
+            "pageLink",
+            "withCount"
+          ],
+          "additionalProperties": false
+        },
+        "title": "Fetch the related sponsors of an article",
+        "description": "Returns the related `sponsors` resources of an article.",
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/people"
+                  },
+                  {
+                    "$ref": "#/$defs/images"
+                  }
+                ]
+              },
+              "description": "The resources on this page."
+            },
+            "links": {
+              "type": "object",
+              "description": "Pagination links. Pass one to this tool as `pageLink` to fetch that page; a missing link means there is no such page.",
+              "properties": {
+                "first": {
+                  "type": "string"
+                },
+                "prev": {
+                  "type": "string"
+                },
+                "next": {
+                  "type": "string"
+                },
+                "last": {
+                  "type": "string"
+                }
+              }
+            },
+            "meta": {
+              "type": "object",
+              "description": "The document meta, such as page totals.",
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "data",
+            "links"
+          ],
+          "$defs": {
+            "people": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "people"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "description": "| Value | Description |\n| --- | --- |\n| `draft` | Not yet visible to readers |\n| `published` | Live and public |\n| `archived` |  |",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "archived"
+                      ],
+                      "x-enum-descriptions": [
+                        "Not yet visible to readers",
+                        "Live and public",
+                        ""
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The related companies: its id, or the resource itself when included."
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "description": "A person resource object."
+            },
+            "images": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "images"
+                },
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uri"
+                },
+                "clips": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The related videos resources: ids, or the resources themselves when included."
+                },
+                "links": {
+                  "type": "object",
+                  "description": "The links the resource names, such as an upload or download URL or a custom action. A link that does not apply to this resource is absent.",
+                  "properties": {
+                    "download": {
+                      "type": "object",
+                      "properties": {
+                        "href": {
+                          "type": "string",
+                          "format": "uri-reference"
+                        },
+                        "type": {
+                          "type": "string",
+                          "const": "image/png"
+                        },
+                        "title": {
+                          "type": "string",
+                          "const": "Original"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "method": {
+                              "type": "string",
+                              "description": "The HTTP method to use.",
+                              "enum": [
+                                "GET"
+                              ]
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the URL stops working."
+                            },
+                            "headers": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": [
+                            "method",
+                            "expiresAt"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "href",
+                        "title",
+                        "type",
+                        "meta"
+                      ],
+                      "description": "Where to fetch the original file."
+                    },
+                    "thumbnail": {
+                      "type": "object",
+                      "properties": {
+                        "href": {
+                          "type": "string",
+                          "format": "uri-reference"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "meta": {
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "href"
+                      ],
+                      "description": "The `thumbnail` link, absent when it does not apply to the resource."
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "description": "An image resource object."
+            }
+          }
+        },
+        "annotations": {
+          "readOnlyHint": true
+        },
+        "_meta": {
+          "operationId": "fetchRelated.articles.sponsors"
+        }
+      },
+      "plan": {
+        "query": {
+          "sort": false,
+          "include": false,
+          "fields": [
+            "people",
+            "images"
+          ],
+          "paginated": true,
+          "sizeKey": "size",
+          "defaultPageSize": 10,
+          "maxPageSize": 100,
+          "countProfile": "https://haddowg.github.io/json-api/profiles/countable/"
+        }
+      },
+      "result": "collection"
     },
     {
       "operation": {
@@ -9780,6 +10420,29 @@
                   ],
                   "description": "The related people: its id, or the resource itself when included."
                 },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "people",
+                          "images"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
+                },
                 "subject": {
                   "anyOf": [
                     {
@@ -10332,6 +10995,33 @@
               ],
               "description": "The editor relationship: the id of the related `people` resource."
             },
+            "sponsors": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "people",
+                      "images"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "description": "The sponsors relationship: every related resource, as its type (people or images) and id."
+            },
             "subject": {
               "type": [
                 "object",
@@ -10438,6 +11128,7 @@
             "reviewer",
             "watchers",
             "editor",
+            "sponsors",
             "subject",
             "gallery",
             "clear"
@@ -10886,6 +11577,36 @@
                     }
                   ],
                   "description": "The related people: its id, or the resource itself when included."
+                },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "people",
+                              "images"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ]
+                      },
+                      {
+                        "$ref": "#/$defs/people"
+                      }
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
                 },
                 "subject": {
                   "anyOf": [
@@ -11431,6 +12152,22 @@
                 "types": [
                   "people"
                 ]
+              },
+              "property": {
+                "decoder": {
+                  "kind": "value"
+                },
+                "nullMeansOmit": true
+              }
+            },
+            "sponsors": {
+              "relation": {
+                "cardinality": "many",
+                "types": [
+                  "people",
+                  "images"
+                ],
+                "polymorphic": true
               },
               "property": {
                 "decoder": {
@@ -13673,6 +14410,29 @@
                     }
                   ],
                   "description": "The related people: its id, or the resource itself when included."
+                },
+                "sponsors": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "people",
+                          "images"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "description": "The related people or images resources: type and id, or the resources themselves when included."
                 },
                 "subject": {
                   "anyOf": [
