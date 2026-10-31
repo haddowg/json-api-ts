@@ -211,7 +211,7 @@ const describe = (value: unknown): string =>
  * - `/data/relationships/orderedTracks/data/0/meta/pivot/position` -> `orderedTracks[0].$pivot.position`
  *
  * Pivot values nest under a member's `meta.pivot` (symmetric with reads — see
- * `JsonPointerBuilder::forLinkageMeta` / bundle ADR 0103), so a `meta/pivot/<field>` tail on
+ * `JsonPointerBuilder::forLinkageMeta` / bundle ADR 0045), so a `meta/pivot/<field>` tail on
  * a member of a pivot-bearing to-many is surfaced as `.$pivot.<field>`.
  *
  * A query-side pointer is left untouched (those are already user-facing — see
@@ -270,7 +270,7 @@ function remapRelationship(
     if (/^\d+$/.test(seg)) {
       path += `[${seg}]`
     } else if (seg === 'meta' && hasPivot && rest[i + 1] === 'pivot') {
-      // Pivot values nest under `meta.pivot` (bundle ADR 0103) — collapse the
+      // Pivot values nest under `meta.pivot` (bundle ADR 0045) — collapse the
       // `meta/pivot` pair to `$pivot`; the offending field follows.
       path += '.$pivot'
       i++
