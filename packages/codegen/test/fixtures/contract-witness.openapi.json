@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 18
+            "contract": 19
         }
     },
     "servers": [
@@ -8985,14 +8985,21 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/ImagesResource"
                                 },
                                 {
                                     "$ref": "#/components/schemas/VideosResource"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "images": "#/components/schemas/ImagesResource",
+                                    "videos": "#/components/schemas/VideosResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -9018,14 +9025,21 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/ImagesResourceIdentifier"
                                 },
                                 {
                                     "$ref": "#/components/schemas/VideosResourceIdentifier"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "images": "#/components/schemas/ImagesResourceIdentifier",
+                                    "videos": "#/components/schemas/VideosResourceIdentifier"
+                                }
+                            }
                         }
                     },
                     "meta": {
@@ -9039,14 +9053,21 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/ImagesResourceIdentifier"
                                 },
                                 {
                                     "$ref": "#/components/schemas/VideosResourceIdentifier"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "images": "#/components/schemas/ImagesResourceIdentifier",
+                                    "videos": "#/components/schemas/VideosResourceIdentifier"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -9477,19 +9498,21 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TagsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleResource",
+                                    "tags": "#/components/schemas/TagsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -9829,19 +9852,21 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TagsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleResource",
+                                    "tags": "#/components/schemas/TagsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -9939,11 +9964,17 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/ImagesResource"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "images": "#/components/schemas/ImagesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -9969,11 +10000,17 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/ImagesResourceIdentifier"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "images": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            }
                         }
                     },
                     "meta": {
@@ -9987,11 +10024,17 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/ImagesResourceIdentifier"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "images": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -10299,11 +10342,17 @@
                     "data": {
                         "anyOf": [
                             {
-                                "anyOf": [
+                                "oneOf": [
                                     {
                                         "$ref": "#/components/schemas/PeopleResource"
                                     }
-                                ]
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "people": "#/components/schemas/PeopleResource"
+                                    }
+                                }
                             },
                             {
                                 "type": "null"
@@ -10333,11 +10382,17 @@
                     "data": {
                         "anyOf": [
                             {
-                                "anyOf": [
+                                "oneOf": [
                                     {
                                         "$ref": "#/components/schemas/PeopleResourceIdentifier"
                                     }
-                                ]
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "people": "#/components/schemas/PeopleResourceIdentifier"
+                                    }
+                                }
                             },
                             {
                                 "type": "null"
@@ -10355,11 +10410,17 @@
                     "data": {
                         "anyOf": [
                             {
-                                "anyOf": [
+                                "oneOf": [
                                     {
                                         "$ref": "#/components/schemas/PeopleResourceIdentifier"
                                     }
-                                ]
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "people": "#/components/schemas/PeopleResourceIdentifier"
+                                    }
+                                }
                             },
                             {
                                 "type": "null"
@@ -10422,19 +10483,17 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArticlesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "articles": "#/components/schemas/ArticlesResource"
+                                }
+                            }
                         }
                     },
                     "links": {

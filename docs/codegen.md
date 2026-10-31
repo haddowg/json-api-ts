@@ -57,7 +57,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 1 to 18. A document with no contract, from a server before
+contracts 1 to 19. A document with no contract, from a server before
 `haddowg/json-api` 1.1.0, is read as it is, and a newer one generates with a warning
 that the client may miss what the server added. What each server release added is in
 the `haddowg/json-api` changelog.
@@ -526,6 +526,12 @@ document's structure:
   signed sort fields; `filter[…]` keys). These drive typed narrowing on the read
   surface — see [includes and sparse fieldsets](includes-and-sparse-fieldsets.md)
   and [filtering and sorting](filtering-and-sorting.md).
+- **`included`** — the types a compound document of the type can carry, read from the
+  document's typed `included` (a `oneOf` over `<Type>Resource` components discriminated by
+  `type`). A relation's `included` lists the same for its related read. Absent when nothing is
+  includable, or when the document types `included` only as `{type, id}`. The generated
+  `Included<'albums'>` and `RelatedIncluded<'albums', 'tracks'>` types are the matching resource
+  unions, narrowed by `type`; without a list they cover every type.
 - **`countable`** — the collection's `withCount` tokens and the negotiation
   profile URI (read from the parameter's `x-profile`, never hardcoded).
 - **`actions`** — custom actions keyed by name, each carrying `scope`

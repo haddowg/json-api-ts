@@ -199,6 +199,12 @@ export class DescriptorBuilder {
       if (includable !== undefined) {
         descriptor.includable = includable
       }
+      const included = this.includedTypes(
+        collection === undefined ? undefined : this.operation(collection, 'get'),
+      )
+      if (included !== undefined) {
+        descriptor.included = included
+      }
       const sortable = this.sortable(collection)
       if (sortable !== undefined) {
         descriptor.sortable = sortable
@@ -488,6 +494,10 @@ export class DescriptorBuilder {
     // The related/relationship reads may advertise their own `withCount` (`_self_` + the relation's
     // countable relations) with a negotiation profile — capture it so a typed `.related()`/`.get()`
     // can send `withCount` and negotiate the profile the endpoint requires.
+    const included = this.includedTypes(relatedGet)
+    if (included !== undefined) {
+      out.included = included
+    }
     const countable =
       withCountParam(relatedGet) ?? withCountParam(this.operation(relationshipPath, 'get'))
     if (countable !== undefined) {
@@ -737,6 +747,21 @@ export class DescriptorBuilder {
     return isSchema(typeProp) && typeof typeProp.const === 'string' ? typeProp.const : undefined
   }
 
+  /**
+   * The wire types a read's compound document can carry in `included`: the members of its
+   * document's `included.items` union. `undefined` when the document has no `included`, or types
+   * its items only as a generic `{type, id}` object.
+   */
+  private includedTypes(op: OperationObject | undefined): readonly string[] | undefined {
+    const ref = op === undefined ? undefined : this.firstOkJsonApiRef(op)
+    const document = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
+    const included = document?.properties?.['included']
+    const items = isSchema(included) ? included.items : undefined
+    const types =
+      items === undefined || !Array.isArray(items.oneOf) ? undefined : this.unionTypes(items)
+    return types !== undefined && types.length > 0 ? types : undefined
+  }
+
   /** The `$ref` of the first 2xx JSON:API response body on an operation (the output document). */
   private firstOkJsonApiRef(op: OperationObject): string | undefined {
     for (const [code, response] of Object.entries(op.responses ?? {})) {
@@ -784,9 +809,9 @@ export class DescriptorBuilder {
         }
         return relation
       }
-      if (Array.isArray(items.anyOf)) {
-        // polymorphic to-many, a union even of one type (generator contract 16)
-        const types = this.constsFromRefs(items.anyOf)
+      const types = this.unionTypes(items)
+      if (types !== undefined) {
+        // polymorphic to-many, a union even of one type
         return types.length === 0
           ? undefined
           : { cardinality: 'many', types, polymorphic: true, pivot: false }
@@ -795,7 +820,7 @@ export class DescriptorBuilder {
     }
 
     // to-one: data.anyOf with the non-null entries being $refs (or pivot allOfs);
-    // a polymorphic to-one nests its $refs one level deeper in another anyOf.
+    // a polymorphic to-one nests its $refs one level deeper in a oneOf or anyOf.
     if (Array.isArray(data.anyOf)) {
       const types: string[] = []
       let pivot = false
@@ -814,10 +839,13 @@ export class DescriptorBuilder {
             pivot = true
             readPivot = this.pivotDescriptor(pivotNodeFromAllOf(entry.allOf), 'read')
           }
-        } else if (Array.isArray(entry.anyOf)) {
-          // polymorphic to-one: the non-null entry is itself an anyOf of $refs, even of one
-          types.push(...this.constsFromRefs(entry.anyOf))
-          polymorphic = true
+        } else {
+          // polymorphic to-one: the non-null entry is itself a union of $refs, even of one
+          const union = this.unionTypes(entry)
+          if (union !== undefined) {
+            types.push(...union)
+            polymorphic = true
+          }
         }
       }
       if (types.length === 0) {
@@ -904,6 +932,29 @@ export class DescriptorBuilder {
       }
     }
     return undefined
+  }
+
+  /**
+   * The wire types of a union of `$ref`s: a `oneOf` discriminated by `type`, or the `anyOf` an
+   * older document writes. A member whose component carries no `type` const falls back to the
+   * discriminator mapping's key for its `$ref`. `undefined` when the schema is no union.
+   */
+  private unionTypes(schema: SchemaObject): string[] | undefined {
+    if (Array.isArray(schema.oneOf)) {
+      const byRef = discriminatorTypesByRef(schema)
+      const types: string[] = []
+      for (const entry of schema.oneOf) {
+        if (typeof entry.$ref !== 'string') {
+          continue
+        }
+        const type = this.resolveConst(entry.$ref) ?? byRef.get(entry.$ref)
+        if (type !== undefined) {
+          types.push(type)
+        }
+      }
+      return types
+    }
+    return Array.isArray(schema.anyOf) ? this.constsFromRefs(schema.anyOf) : undefined
   }
 
   /** Resolve every `$ref` entry in a list to its wire type. */
@@ -1210,6 +1261,25 @@ function pivotNodeOf(component: SchemaObject): SchemaObject | undefined {
     }
   }
   return undefined
+}
+
+/** A `type` discriminator's mapping, inverted to the wire type each `$ref` stands for. */
+function discriminatorTypesByRef(schema: SchemaObject): Map<string, string> {
+  const byRef = new Map<string, string>()
+  const discriminator = schema['discriminator']
+  if (typeof discriminator !== 'object' || discriminator === null) {
+    return byRef
+  }
+  const { propertyName, mapping } = discriminator as { propertyName?: unknown; mapping?: unknown }
+  if (propertyName !== 'type' || typeof mapping !== 'object' || mapping === null) {
+    return byRef
+  }
+  for (const [type, ref] of Object.entries(mapping)) {
+    if (typeof ref === 'string') {
+      byRef.set(ref, type)
+    }
+  }
+  return byRef
 }
 
 /** Whether a schema admits `null`: a `null` type, or a `null` branch in `anyOf`/`oneOf`. */

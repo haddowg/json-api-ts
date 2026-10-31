@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   c2e8557b1f287c13
+ * Spec hash:   265c3e27367ba093
  */
 
 import {
@@ -13,7 +13,12 @@ import {
   createClient as createClientRuntime,
   type ErrorCodeGuard,
   hasErrorCode as hasErrorCodeRuntime,
+  type IncludedResource,
+  type RelatedIncludedResource,
+  type RelationName,
   type ResourceLinks,
+  type TypeName,
+  type WithLinks,
 } from '@haddowg/json-api-client'
 
 export type Priority = "1" | "2"
@@ -615,6 +620,9 @@ export const resourceMap = {
           remove: true,
           replace: true
         },
+        included: [
+          "articles"
+        ],
         countable: {
           tokens: [
             "_self_"
@@ -672,6 +680,10 @@ export const resourceMap = {
       "author",
       "tags",
       "author.company"
+    ],
+    included: [
+      "people",
+      "tags"
     ],
     sortable: [
       "title",
@@ -1216,6 +1228,25 @@ export const resourceMap = {
 } as const satisfies ApiDescriptor
 
 export type ResourceMap = typeof resourceMap
+
+/**
+ * One resource of a compound document's `included` for a read of type `T`, discriminated by
+ * `type` over the types its `include` paths reach.
+ */
+export type Included<T extends TypeName<ResourceMap>> = IncludedResource<
+  ResourceMap,
+  WithLinks<Attributes, Links>,
+  T
+>
+
+/**
+ * One resource of the `included` of relation `R`'s related read on type `T`, discriminated by
+ * `type` over the types its `include` paths reach.
+ */
+export type RelatedIncluded<
+  T extends TypeName<ResourceMap>,
+  R extends RelationName<ResourceMap, T>,
+> = RelatedIncludedResource<ResourceMap, WithLinks<Attributes, Links>, T, R>
 
 /**
  * The server-level Atomic Operations endpoint (the atomic ext media type), or `null`

@@ -14,16 +14,16 @@ function load(name: string): OpenApiDocument {
 
 const witness = load('contract-witness.openapi.json')
 
-/** A descriptor without the members contract 16 adds. */
+/** A descriptor without the members contract 16 adds, nor the typed `included` it can't read. */
 const strip = (value: unknown): unknown =>
   JSON.parse(
     JSON.stringify(value, (key, member: unknown) =>
-      key === 'scopes' || key === 'polymorphic' ? undefined : member,
+      key === 'scopes' || key === 'polymorphic' || key === 'included' ? undefined : member,
     ),
   )
 const descriptor = buildDescriptor(witness)
 
-/** Replace every one-member `anyOf` of `$ref`s with the bare `$ref`, as contract 15 wrote it. */
+/** Replace every one-member union of `$ref`s with the bare `$ref`, as contract 15 wrote it. */
 function collapseSingleUnions(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(collapseSingleUnions)
@@ -32,20 +32,29 @@ function collapseSingleUnions(node: unknown): unknown {
     return node
   }
   const schema = node as SchemaObject
-  if (
-    Array.isArray(schema.anyOf) &&
-    schema.anyOf.length === 1 &&
-    typeof schema.anyOf[0]!.$ref === 'string'
-  ) {
-    const { anyOf, ...rest } = schema
-    return { ...rest, $ref: anyOf[0]!.$ref }
+  const included = schema.properties?.['included']
+  if (typeof included === 'object' && Array.isArray(included.items?.oneOf)) {
+    // Before typed `included`, its items were an untyped `{type, id}`.
+    const item = { type: 'object', required: ['type', 'id'] }
+    return collapseSingleUnions({
+      ...schema,
+      properties: { ...schema.properties, included: { ...included, items: item } },
+    })
+  }
+  const union = schema.oneOf ?? schema.anyOf
+  if (Array.isArray(union) && union.length === 1 && typeof union[0]!.$ref === 'string') {
+    const { anyOf: _anyOf, oneOf: _oneOf, discriminator: _discriminator, ...rest } = schema
+    return { ...rest, $ref: union[0]!.$ref }
   }
   return Object.fromEntries(
     Object.entries(node).map(([key, value]) => [key, collapseSingleUnions(value)]),
   )
 }
 
-/** The witness as a server before contract 16 projects it: no scopes, no one-type unions. */
+/**
+ * The witness as a server before contract 16 projects it: no scopes, no one-type unions, and no
+ * typed `included`.
+ */
 function beforeContract16(): OpenApiDocument {
   const doc = collapseSingleUnions(load('contract-witness.openapi.json')) as OpenApiDocument
   doc.info = { ...doc.info, 'x-generator': { contract: 15 } }
@@ -62,7 +71,7 @@ function beforeContract16(): OpenApiDocument {
 
 describe('generator contract 16 (operation scopes, one-type polymorphic relations)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(18)
+    expect(witness.info?.['x-generator']?.contract).toBe(19)
     expect(checkContract(witness)).toBeUndefined()
   })
 

@@ -563,6 +563,7 @@ export class Emitter {
       this.actionTypesMap(),
       this.resourceMap(),
       'export type ResourceMap = typeof resourceMap',
+      this.includedAliases(),
       this.atomicConst(),
       this.pageLimitsConst(),
       emitErrorCodes(readErrorCatalogue(this.doc)),
@@ -590,8 +591,40 @@ export class Emitter {
       '  createClient as createClientRuntime,',
       '  type ErrorCodeGuard,',
       '  hasErrorCode as hasErrorCodeRuntime,',
+      '  type IncludedResource,',
+      '  type RelatedIncludedResource,',
+      '  type RelationName,',
       ...(this.declaredLinks.size > 0 ? ['  type ResourceLinks,'] : []),
+      '  type TypeName,',
+      '  type WithLinks,',
       "} from '@haddowg/json-api-client'",
+    ].join('\n')
+  }
+
+  /**
+   * The typed `included` of each read: a resource union discriminated by `type` over the types
+   * the document's typed `included` lists, or over every type when the document doesn't type it.
+   */
+  private includedAliases(): string {
+    return [
+      '/**',
+      " * One resource of a compound document's `included` for a read of type `T`, discriminated by",
+      ' * `type` over the types its `include` paths reach.',
+      ' */',
+      'export type Included<T extends TypeName<ResourceMap>> = IncludedResource<',
+      '  ResourceMap,',
+      '  WithLinks<Attributes, Links>,',
+      '  T',
+      '>',
+      '',
+      '/**',
+      " * One resource of the `included` of relation `R`'s related read on type `T`, discriminated by",
+      ' * `type` over the types its `include` paths reach.',
+      ' */',
+      'export type RelatedIncluded<',
+      '  T extends TypeName<ResourceMap>,',
+      '  R extends RelationName<ResourceMap, T>,',
+      '> = RelatedIncludedResource<ResourceMap, WithLinks<Attributes, Links>, T, R>',
     ].join('\n')
   }
 

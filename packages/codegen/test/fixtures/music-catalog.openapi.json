@@ -12,7 +12,7 @@
         },
         "version": "1.0.0",
         "x-generator": {
-            "contract": 18
+            "contract": 19
         }
     },
     "servers": [
@@ -19623,19 +19623,25 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -19901,19 +19907,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -20044,19 +20060,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -20167,19 +20193,33 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource",
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -20383,19 +20423,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -20598,19 +20648,25 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -20708,19 +20764,25 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -23080,19 +23142,17 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -23163,19 +23223,17 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -23198,7 +23256,7 @@
                     "data": {
                         "anyOf": [
                             {
-                                "anyOf": [
+                                "oneOf": [
                                     {
                                         "$ref": "#/components/schemas/TracksResource"
                                     },
@@ -23208,7 +23266,15 @@
                                     {
                                         "$ref": "#/components/schemas/ArtistsResource"
                                     }
-                                ]
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "tracks": "#/components/schemas/TracksResource",
+                                        "albums": "#/components/schemas/AlbumsResource",
+                                        "artists": "#/components/schemas/ArtistsResource"
+                                    }
+                                }
                             },
                             {
                                 "type": "null"
@@ -23238,7 +23304,7 @@
                     "data": {
                         "anyOf": [
                             {
-                                "anyOf": [
+                                "oneOf": [
                                     {
                                         "$ref": "#/components/schemas/TracksResourceIdentifier"
                                     },
@@ -23248,7 +23314,15 @@
                                     {
                                         "$ref": "#/components/schemas/ArtistsResourceIdentifier"
                                     }
-                                ]
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "tracks": "#/components/schemas/TracksResourceIdentifier",
+                                        "albums": "#/components/schemas/AlbumsResourceIdentifier",
+                                        "artists": "#/components/schemas/ArtistsResourceIdentifier"
+                                    }
+                                }
                             },
                             {
                                 "type": "null"
@@ -23266,7 +23340,7 @@
                     "data": {
                         "anyOf": [
                             {
-                                "anyOf": [
+                                "oneOf": [
                                     {
                                         "$ref": "#/components/schemas/TracksResourceIdentifier"
                                     },
@@ -23276,7 +23350,15 @@
                                     {
                                         "$ref": "#/components/schemas/ArtistsResourceIdentifier"
                                     }
-                                ]
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "tracks": "#/components/schemas/TracksResourceIdentifier",
+                                        "albums": "#/components/schemas/AlbumsResourceIdentifier",
+                                        "artists": "#/components/schemas/ArtistsResourceIdentifier"
+                                    }
+                                }
                             },
                             {
                                 "type": "null"
@@ -24236,19 +24318,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -24312,19 +24404,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -24347,7 +24449,7 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/TracksResource"
                                 },
@@ -24357,7 +24459,15 @@
                                 {
                                     "$ref": "#/components/schemas/ArtistsResource"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -24383,7 +24493,7 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/TracksResourceIdentifier"
                                 },
@@ -24393,7 +24503,15 @@
                                 {
                                     "$ref": "#/components/schemas/ArtistsResourceIdentifier"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "tracks": "#/components/schemas/TracksResourceIdentifier",
+                                    "albums": "#/components/schemas/AlbumsResourceIdentifier",
+                                    "artists": "#/components/schemas/ArtistsResourceIdentifier"
+                                }
+                            }
                         }
                     },
                     "meta": {
@@ -24407,7 +24525,7 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "anyOf": [
+                            "oneOf": [
                                 {
                                     "$ref": "#/components/schemas/TracksResourceIdentifier"
                                 },
@@ -24417,7 +24535,15 @@
                                 {
                                     "$ref": "#/components/schemas/ArtistsResourceIdentifier"
                                 }
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "tracks": "#/components/schemas/TracksResourceIdentifier",
+                                    "albums": "#/components/schemas/AlbumsResourceIdentifier",
+                                    "artists": "#/components/schemas/ArtistsResourceIdentifier"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -25230,19 +25356,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -25334,19 +25470,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -25403,19 +25549,33 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource",
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -25794,19 +25954,33 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource",
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -26036,19 +26210,17 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ProductsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "products": "#/components/schemas/ProductsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -26119,19 +26291,17 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ProductsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "products": "#/components/schemas/ProductsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -26164,19 +26334,17 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ProductsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "products": "#/components/schemas/ProductsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -26793,19 +26961,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -27173,19 +27351,25 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -27436,19 +27620,25 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -28528,19 +28718,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -28758,19 +28958,33 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource",
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -28879,19 +29093,33 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/ArtistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "artists": "#/components/schemas/ArtistsResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource",
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource"
+                                }
+                            }
                         }
                     },
                     "links": {
@@ -28920,19 +29148,29 @@
                     "included": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesResource"
                                 },
-                                "id": {
-                                    "type": "string"
+                                {
+                                    "$ref": "#/components/schemas/TracksResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsResource"
                                 }
-                            },
-                            "required": [
-                                "type",
-                                "id"
-                            ]
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "public-profiles": "#/components/schemas/PublicProfilesResource",
+                                    "tracks": "#/components/schemas/TracksResource",
+                                    "albums": "#/components/schemas/AlbumsResource",
+                                    "playlists": "#/components/schemas/PlaylistsResource"
+                                }
+                            }
                         }
                     },
                     "links": {

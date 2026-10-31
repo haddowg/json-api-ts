@@ -1,0 +1,3 @@
+# Included types ride the descriptor and the client types them by type
+
+The document types each read's `included` as a `oneOf` over the resources its include paths reach, discriminated by `type`, so the codegen copies those types into the descriptor as an `included` list per type and per relation, and the client derives `Included` and `RelatedIncluded` resource unions from it. Keeping the list in the descriptor rather than only in generated types means the MCP model and hand-written descriptors carry the same answer, and an older document that types `included` as `{type, id}` simply leaves the list out, so the unions fall back to every type and nothing breaks.
