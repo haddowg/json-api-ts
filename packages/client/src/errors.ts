@@ -28,7 +28,7 @@ export interface JsonApiErrorObject<C extends string = string> {
 }
 
 /**
- * Thrown by the always-on light structural guards (ADR 0004) when a parsed response is not a
+ * Thrown by the always-on light structural guards when a parsed response is not a
  * JSON:API document, or a `data`/`included` member is not a resource object carrying `type`+`id`.
  * Distinct from {@link JsonApiError} (a non-2xx server response): this signals the wire shape the
  * runtime relies on was violated, not an application error the server reported. The opt-in

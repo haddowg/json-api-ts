@@ -1,7 +1,7 @@
 /**
  * @haddowg/json-api-client — the generic, framework-agnostic runtime.
  *
- * Parameterised by the generated descriptor (see ./descriptor.ts and ADR 0001):
+ * Parameterised by the generated descriptor (see ./descriptor.ts):
  * createClient builds the fluent, id-scoped read/write surface; materialise turns a
  * compound document into the hydrated graph (flatten + $-accessors + per-edge views +
  * augmented arrays); errors/transport/serialize-write/validate/atomic are the seams it

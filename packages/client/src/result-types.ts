@@ -5,7 +5,7 @@
  * runtime that produces these values lives in materialise.ts; this file is the
  * compile-time projection of that runtime onto descriptor + attribute types.
  *
- * Naming mirrors the runtime `$`-accessors (ADR 0002): the data is
+ * Naming mirrors the runtime `$`-accessors: the data is
  * flattened as own enumerable props (`type`, `id`, attributes, relations) and the
  * envelope rides non-enumerable `$`-accessors.
  */

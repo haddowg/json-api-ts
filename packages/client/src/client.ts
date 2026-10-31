@@ -67,7 +67,7 @@ export interface ClientOptions {
    */
   atomic?: AtomicDescriptor | null
   /**
-   * The opt-in per-field validation seam (ADR 0004). Off by default — the client always runs
+   * The opt-in per-field validation seam. Off by default — the client always runs
    * light structural guards (is this a JSON:API document? does each `data`/`included` member
    * carry `type`+`id`?) but otherwise trusts the wire. Supply either the schema-driven config
    * `{ schemas, validator }` — the codegen-emitted per-type `schemas` map plus a validation
