@@ -1,10 +1,10 @@
 {
   "format": 4,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 18,
+  "contract": 19,
   "source": {
     "title": "Music Catalog API 1.0.0",
-    "hash": "836e3cf3907824d9"
+    "hash": "2ffcd846b8ef8c63"
   },
   "credentialSchemes": [
     "oauth2"
@@ -42,7 +42,12 @@
           "pivot": false,
           "mutations": {
             "set": true
-          }
+          },
+          "included": [
+            "albums",
+            "artists",
+            "tracks"
+          ]
         },
         "tracks": {
           "cardinality": "many",
@@ -55,6 +60,13 @@
             "remove": true,
             "replace": true
           },
+          "included": [
+            "albums",
+            "artists",
+            "tracks",
+            "playlists",
+            "public-profiles"
+          ],
           "countable": {
             "tokens": [
               "_self_",
@@ -88,6 +100,12 @@
         "tracks",
         "tracks.album",
         "tracks.playlists"
+      ],
+      "included": [
+        "artists",
+        "albums",
+        "tracks",
+        "playlists"
       ],
       "sortable": [
         "title",
@@ -254,6 +272,12 @@
             "remove": true,
             "replace": true
           },
+          "included": [
+            "artists",
+            "albums",
+            "tracks",
+            "playlists"
+          ],
           "countable": {
             "tokens": [
               "tracks"
@@ -277,6 +301,11 @@
         "albums",
         "albums.artist",
         "albums.tracks"
+      ],
+      "included": [
+        "albums",
+        "artists",
+        "tracks"
       ],
       "sortable": [
         "name",
@@ -395,6 +424,9 @@
       "clientId": "forbidden",
       "includable": [
         "user"
+      ],
+      "included": [
+        "public-profiles"
       ]
     },
     "genres": {
@@ -456,6 +488,12 @@
       "includable": [
         "owner",
         "items"
+      ],
+      "included": [
+        "public-profiles",
+        "tracks",
+        "albums",
+        "artists"
       ]
     },
     "playlists": {
@@ -496,6 +534,13 @@
             "remove": true,
             "replace": true
           },
+          "included": [
+            "albums",
+            "artists",
+            "tracks",
+            "playlists",
+            "public-profiles"
+          ],
           "countable": {
             "tokens": [
               "playlists"
@@ -537,6 +582,13 @@
             "remove": true,
             "replace": true
           },
+          "included": [
+            "albums",
+            "artists",
+            "tracks",
+            "playlists",
+            "public-profiles"
+          ],
           "countable": {
             "tokens": [
               "_self_",
@@ -572,6 +624,12 @@
         "orderedTracks",
         "orderedTracks.album",
         "orderedTracks.playlists"
+      ],
+      "included": [
+        "public-profiles",
+        "tracks",
+        "albums",
+        "playlists"
       ],
       "scopes": {
         "addRelationship.orderedTracks": [
@@ -623,7 +681,10 @@
           "pivot": false,
           "mutations": {
             "set": true
-          }
+          },
+          "included": [
+            "products"
+          ]
         }
       },
       "paths": {
@@ -639,6 +700,9 @@
       "clientId": "forbidden",
       "includable": [
         "parent"
+      ],
+      "included": [
+        "products"
       ]
     },
     "public-profiles": {
@@ -674,7 +738,13 @@
           "pivot": false,
           "mutations": {
             "set": true
-          }
+          },
+          "included": [
+            "artists",
+            "albums",
+            "tracks",
+            "playlists"
+          ]
         }
       },
       "paths": {
@@ -692,6 +762,11 @@
         "album",
         "album.artist",
         "album.tracks"
+      ],
+      "included": [
+        "albums",
+        "artists",
+        "tracks"
       ],
       "sortable": [
         "catalogNumber",
@@ -717,7 +792,13 @@
           "pivot": false,
           "mutations": {
             "set": true
-          }
+          },
+          "included": [
+            "artists",
+            "albums",
+            "tracks",
+            "playlists"
+          ]
         },
         "playlists": {
           "cardinality": "many",
@@ -729,6 +810,12 @@
             "add": true,
             "remove": true
           },
+          "included": [
+            "public-profiles",
+            "tracks",
+            "albums",
+            "playlists"
+          ],
           "countable": {
             "tokens": [
               "_self_",
@@ -771,6 +858,13 @@
         "playlists.publicOwner",
         "playlists.tracks",
         "playlists.orderedTracks"
+      ],
+      "included": [
+        "albums",
+        "artists",
+        "tracks",
+        "playlists",
+        "public-profiles"
       ],
       "sortable": [
         "title",
