@@ -16,6 +16,11 @@ CI runs all of them on every PR. The pre-commit hook runs oxfmt, oxlint, mkdocs 
 typecheck of only the workspaces a commit touches, so CI is what proves the whole repo compiles.
 Don't run oxfmt over `docs/`: it breaks MkDocs admonitions.
 
+Don't record generator-contract history. `info.x-generator.contract` is a compatibility check for
+the codegen, not a changelog: describe what the codegen reads and the client does now, and never
+write which contract introduced it ("from generator contract 17…") in `docs/`, `CONTEXT.md`, this
+file or a code comment. The server's changelog records when it arrived.
+
 ## Commits, PRs and merges
 
 release-please files each commit on `main` under every package whose files it changes, so how a PR
