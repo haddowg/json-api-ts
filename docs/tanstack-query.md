@@ -63,6 +63,16 @@ There are four read factories per type, mirroring the client's read surface:
 
 Every factory has a standalone form too (`listQueryOptions(client, 'albums', query)`, `getQueryOptions`, `relatedQueryOptions`, `relationshipQueryOptions`) — the bound API is just sugar with `client`/`type` pre-applied.
 
+`list` takes the same typed `page` argument as the client, so the result's `$page` is typed by the strategy that answers, including the arm a [MultiPaginator](pagination.md#choosing-a-strategy-multipaginator) read picks:
+
+```ts
+const albumsPage = useQuery(reads.albums.list({ page: { number: 2, size: 20 } }))
+albumsPage.data?.$page.kind              // 'page'
+albumsPage.data?.$page.meta?.currentPage // number
+
+reads.albums.list({ page: { numbr: 2 } }) // compile error: not a page key
+```
+
 See [reads.md](reads.md), [includes-and-sparse-fieldsets.md](includes-and-sparse-fieldsets.md), and [pagination.md](pagination.md) for the underlying read surface these factories wrap.
 
 ## A basic mutation

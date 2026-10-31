@@ -55,6 +55,7 @@ declare module '@haddowg/json-api-angular' {
 `provideJsonApiClient` builds the client with `httpClientTransport(inject(HttpClient))`. You can also use it directly with `createClient({ baseUrl, transport: httpClientTransport(http) })`. It implements the same [transport contract](reads.md#cancelling-a-read) as `fetchTransport`:
 
 - Requests go through `http.request(method, url, { body, headers, observe: 'response', responseType: 'text' })`. Every interceptor in the chain sees them: auth, tenant host rewriting, credentials, a progress bar.
+- A [custom action](custom-actions.md#raw-responses) with a binary response asks for a `Blob` or `ArrayBuffer` instead of text, and a binary, multipart or form request body (`rawBody`) goes to `HttpClient` as is. A failed binary request's error body is read back as text, so it still throws a typed `JsonApiError`.
 - A non-2xx response **resolves** with its status, headers and body. The client then throws its usual typed `JsonApiError`, so error handling is the same as with `fetch`.
 - Only a request that got no response at all (status 0: a network failure, CORS, a blocked request) rejects, with Angular's `HttpErrorResponse`.
 - Response headers are copied into a plain record with lowercase names.

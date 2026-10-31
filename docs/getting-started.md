@@ -31,6 +31,9 @@ npm install @haddowg/json-api-query
 
 # optional: Angular bindings (HttpClient transport, DI, signals)
 npm install @haddowg/json-api-angular
+
+# optional: MCP tools for an AI agent, served from a generated model
+npm install @haddowg/json-api-mcp
 ```
 
 ## 2. Generate the client
@@ -96,13 +99,28 @@ const client = createClient({
 })
 ```
 
+The full set of options the generated `createClient` takes:
+
+| Option | Notes |
+| --- | --- |
+| `baseUrl` | The base URL the generated path templates resolve against. Required. |
+| `headers` | A per-request header provider (bearer auth, CSRF); may be async. |
+| `transport` | The transport seam; the global `fetch` adapter when omitted. |
+| `allowCrossOriginLinks` | Follow a pagination link to another origin, without your `headers`. Off by default; see [pagination](pagination.md#links-on-another-origin). |
+| `validate` | The opt-in per-field [validation](validation.md) seam. Off by default. |
+| `atomic` | The [atomic](atomic-operations.md) endpoint. The generated `createClient` passes it for you. |
+
 ??? note "Going deeper: swapping the transport"
     The `transport` seam is a tiny `fetch`-shaped function, so undici, an axios
     adapter, or a test mock all drop in. The [example.test.ts](../packages/example/src/example.test.ts)
     reference wires a mock transport that replays captured fixtures; in a real app
-    you omit `transport` entirely and let the client use global `fetch`. See the
+    you omit `transport` entirely and let the client use global `fetch`. A
+    custom transport should forward `req.signal` so [reads can be
+    cancelled](reads.md#cancelling-a-read), and send `req.rawBody` and honour
+    `req.responseType` if you call [custom actions with raw
+    bodies](custom-actions.md#raw-responses). See the
     [`@haddowg/json-api-client` README](../packages/client/README.md) for the
-    transport contract and the full `ClientOptions` table.
+    full transport contract.
 
 ## 4. First read
 
