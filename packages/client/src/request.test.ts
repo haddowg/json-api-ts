@@ -43,7 +43,7 @@ describe('serializeQuery', () => {
     ).toBe('filter[title]=OK%20Computer&filter[status]=released%2Cdraft')
   })
 
-  it('serialises a structured (deepObject) filter value into nested bracketed keys (D23)', () => {
+  it('serialises a structured (deepObject) filter value into nested bracketed keys', () => {
     // A Range/DateRange value is `{ min, max }` — it must reach the wire as nested keys
     // (`filter[duration][min]=60&filter[duration][max]=300`), not `filter[duration]=[object Object]`
     // (which the server silently ignores, returning the unfiltered collection).

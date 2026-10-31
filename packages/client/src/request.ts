@@ -155,7 +155,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
  * value — a `Range`/`DateRange` deepObject (`{ min, max }`) — and recurses into nested bracketed
  * keys (`filter[k][min]=`), matching the server's deepObject wire shape; an array joins with `,`;
  * a scalar is appended directly. Without the object branch a `{ min, max }` value would reach the
- * wire as `filter[k]=[object Object]` and be silently ignored by the server (D23).
+ * wire as `filter[k]=[object Object]` and be silently ignored by the server.
  */
 const appendFilterValue = (parts: string[], key: string, value: unknown): void => {
   if (isPlainObject(value)) {

@@ -57,7 +57,7 @@ export interface RelationDescriptor {
   pivot?: boolean
   /**
    * The pivot fields carried on each member's `meta.pivot`, as a field-name → wire-format-hint
-   * map, typed as always present and never `null` on both reads and writes (D33).
+   * map, typed as always present and never `null` on both reads and writes.
    *
    * @deprecated Describe each side with {@link readPivot} and {@link writePivot}. Read only when
    * those are absent.
@@ -103,7 +103,7 @@ export interface RelationDescriptor {
    * The `withCount` count tokens + negotiation profile this relation's related/relationship reads
    * advertise (`_self_` + the relation's own countable relations). Lets `.related()`/`.get()` send
    * `withCount` and negotiate the right profile; absent when the relation advertises no Countable
-   * profile (D3).
+   * profile.
    */
   countable?: CountableDescriptor
   /**

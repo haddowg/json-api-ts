@@ -33,7 +33,7 @@ const descriptor = {
         cardinality: 'many',
         types: ['tracks'],
         pivot: false,
-        // the related to-many GET advertises its own withCount + Countable profile (D3).
+        // the related to-many GET advertises its own withCount + Countable profile.
         countable: {
           tokens: ['_self_'],
           profile: 'https://haddowg.github.io/json-api/profiles/countable/',
@@ -86,14 +86,14 @@ const descriptor = {
         outputType: 'albums',
         outputCardinality: 'one',
       },
-      // collection-scoped, no input -> meta-only document out (D2)
+      // collection-scoped, no input -> meta-only document out
       stats: {
         scope: 'collection',
         path: '/albums/-actions/stats',
         input: 'none',
         output: 'meta',
       },
-      // collection-scoped, declared over PATCH (a non-POST method, D25) -> no output (204)
+      // collection-scoped, declared over PATCH (a non-POST method) -> no output (204)
       recalculate: {
         scope: 'collection',
         path: '/albums/-actions/recalculate',
@@ -205,7 +205,7 @@ describe('createClient — collection reads', () => {
     expect(requests[0]!.url).toBe(`${BASE}/albums`)
   })
 
-  it('reports the real $page.kind on an EMPTY collection page (D6)', async () => {
+  it('reports the real $page.kind on an EMPTY collection page', async () => {
     // An empty page can't be sniffed from `data[0]`; the statically-known primary type keeps
     // `$page.kind` accurate (was degraded to `none`, breaking kind-conditional UI).
     const client = createClient(descriptor, {
@@ -567,7 +567,7 @@ describe('createClient — relationship + related accessors', () => {
     expect(requests[0]!.url).toBe(`${BASE}/albums/1/tracks`)
   })
 
-  it('negotiates the RELATION Countable profile for a withCount related read (D3)', async () => {
+  it('negotiates the RELATION Countable profile for a withCount related read', async () => {
     const { transport, requests } = mockTransport({
       [`${BASE}/albums/1/tracks?withCount=_self_`]: fixtureBody('album-tracks-related.json'),
     })
@@ -581,7 +581,7 @@ describe('createClient — relationship + related accessors', () => {
     )
   })
 
-  it('omits a suppressed relation read at runtime rather than sending a doomed request (D24)', () => {
+  it('omits a suppressed relation read at runtime rather than sending a doomed request', () => {
     const suppressed = {
       widgets: {
         attributes: { name: 'string' },
@@ -1126,7 +1126,7 @@ describe('createClient — custom actions', () => {
     const { transport, requests } = writeTransport(() => resourceResponse('albums', '1'))
     const client = createClient(descriptor, { baseUrl: BASE, transport })
 
-    // D37: a document action names its inputType, so the caller passes FLAT attributes (like
+    // A document action names its inputType, so the caller passes FLAT attributes (like
     // create) and the client builds the envelope — no hand-built `{ data: { type, attributes } }`.
     const reissued = asRecord(
       await client.albums.id('1').actions.reissue({ title: 'OK Computer (Reissue)' }),
@@ -1139,12 +1139,12 @@ describe('createClient — custom actions', () => {
     expect(bodyOf(req)).toEqual({
       data: { type: 'albums', attributes: { title: 'OK Computer (Reissue)' } },
     })
-    // D1: the 2xx document is materialised the same as a read — result.type/id, not result.data.
+    // The 2xx document is materialised the same as a read — result.type/id, not result.data.
     expect(reissued['type']).toBe('albums')
     expect(reissued['id']).toBe('1')
   })
 
-  it('resource action (reissue): remaps a 422 pointer to the flat input path (D37)', async () => {
+  it('resource action (reissue): remaps a 422 pointer to the flat input path', async () => {
     const { transport } = writeTransport(() => ({
       status: 422,
       headers: {},
@@ -1176,7 +1176,7 @@ describe('createClient — custom actions', () => {
     expect(byPath['title']![0]!.detail).toBe('must not be blank')
   })
 
-  it('collection action (stats): a meta-only output returns the document meta (D2)', async () => {
+  it('collection action (stats): a meta-only output returns the document meta', async () => {
     const { transport, requests } = writeTransport(() => ({
       status: 200,
       headers: { 'content-type': 'application/vnd.api+json' },
@@ -1191,7 +1191,7 @@ describe('createClient — custom actions', () => {
     expect(asRecord(meta['albums'])['total']).toBe(4)
   })
 
-  it('collection action (recalculate): dispatches over its declared non-POST method (D25)', async () => {
+  it('collection action (recalculate): dispatches over its declared non-POST method', async () => {
     const { transport, requests } = writeTransport(() => ({ status: 204, headers: {}, body: '' }))
     const client = createClient(descriptor, { baseUrl: BASE, transport })
 
