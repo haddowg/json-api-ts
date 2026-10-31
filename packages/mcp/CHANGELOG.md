@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.3.0...json-api-mcp-v1.4.0) (2026-10-31)
+
+
+### Features
+
+* **mcp:** read documents with discriminated unions and typed included ([538396c](https://github.com/haddowg/json-api-ts/commit/538396cf78bbfa335d321da88400a69f029154c0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.10.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.14.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.14.0
+
 ## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.2.1...json-api-mcp-v1.3.0) (2026-10-30)
 
 

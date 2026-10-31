@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.9.0...json-api-client-v1.10.0) (2026-10-31)
+
+
+### Features
+
+* **client:** type a compound document's included by the types it can carry ([6e6bfef](https://github.com/haddowg/json-api-ts/commit/6e6bfef46044fd37f1bbceaaf5a6e725fc1f231e))
+
 ## [1.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.8.0...json-api-client-v1.9.0) (2026-10-27)
 
 
