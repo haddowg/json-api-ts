@@ -19725,10 +19725,42 @@
                         "type": "object",
                         "properties": {
                             "artist": {
-                                "$ref": "#/components/schemas/AlbumsArtistRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "tracks": {
-                                "$ref": "#/components/schemas/AlbumsTracksRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -19796,10 +19828,42 @@
                         "type": "object",
                         "properties": {
                             "artist": {
-                                "$ref": "#/components/schemas/AlbumsArtistRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "tracks": {
-                                "$ref": "#/components/schemas/AlbumsTracksRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -20557,7 +20621,21 @@
                         "type": "object",
                         "properties": {
                             "albums": {
-                                "$ref": "#/components/schemas/ArtistsAlbumsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -20625,7 +20703,21 @@
                         "type": "object",
                         "properties": {
                             "albums": {
-                                "$ref": "#/components/schemas/ArtistsAlbumsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -23566,10 +23658,64 @@
                         "type": "object",
                         "properties": {
                             "user": {
-                                "$ref": "#/components/schemas/FavoritesUserRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "favoritable": {
-                                "$ref": "#/components/schemas/FavoritesFavoritableRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "oneOf": [
+                                                    {
+                                                        "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                                    },
+                                                    {
+                                                        "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                                    },
+                                                    {
+                                                        "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                    }
+                                                ],
+                                                "discriminator": {
+                                                    "propertyName": "type",
+                                                    "mapping": {
+                                                        "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                                        "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                                        "artists": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -23601,10 +23747,64 @@
                         "type": "object",
                         "properties": {
                             "user": {
-                                "$ref": "#/components/schemas/FavoritesUserRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "favoritable": {
-                                "$ref": "#/components/schemas/FavoritesFavoritableRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "oneOf": [
+                                                    {
+                                                        "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                                    },
+                                                    {
+                                                        "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                                    },
+                                                    {
+                                                        "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                    }
+                                                ],
+                                                "discriminator": {
+                                                    "propertyName": "type",
+                                                    "mapping": {
+                                                        "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                                        "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                                        "artists": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -24755,10 +24955,60 @@
                         "type": "object",
                         "properties": {
                             "owner": {
-                                "$ref": "#/components/schemas/LibrariesOwnerRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "items": {
-                                "$ref": "#/components/schemas/LibrariesItemsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                                    "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                                    "artists": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -24790,10 +25040,60 @@
                         "type": "object",
                         "properties": {
                             "owner": {
-                                "$ref": "#/components/schemas/LibrariesOwnerRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "items": {
-                                "$ref": "#/components/schemas/LibrariesItemsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                                    "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                                    "artists": "#/components/schemas/ArtistsAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -25751,16 +26051,97 @@
                         "type": "object",
                         "properties": {
                             "owner": {
-                                "$ref": "#/components/schemas/PlaylistsOwnerRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/UsersAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "publicOwner": {
-                                "$ref": "#/components/schemas/PlaylistsPublicOwnerRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "tracks": {
-                                "$ref": "#/components/schemas/PlaylistsTracksRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "orderedTracks": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksWriteRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "meta": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "pivot": {
+                                                                    "$ref": "#/components/schemas/PlaylistsOrderedTracksWritePivot"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -25828,16 +26209,97 @@
                         "type": "object",
                         "properties": {
                             "owner": {
-                                "$ref": "#/components/schemas/PlaylistsOwnerRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/UsersAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "publicOwner": {
-                                "$ref": "#/components/schemas/PlaylistsPublicOwnerRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "tracks": {
-                                "$ref": "#/components/schemas/PlaylistsTracksRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "orderedTracks": {
-                                "$ref": "#/components/schemas/PlaylistsOrderedTracksWriteRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "meta": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "pivot": {
+                                                                    "$ref": "#/components/schemas/PlaylistsOrderedTracksWritePivot"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -26679,7 +27141,25 @@
                         "type": "object",
                         "properties": {
                             "parent": {
-                                "$ref": "#/components/schemas/ProductsParentRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/ProductsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -26747,7 +27227,25 @@
                         "type": "object",
                         "properties": {
                             "parent": {
-                                "$ref": "#/components/schemas/ProductsParentRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/ProductsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -27696,7 +28194,25 @@
                         "type": "object",
                         "properties": {
                             "album": {
-                                "$ref": "#/components/schemas/ReleasesAlbumRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -27728,7 +28244,25 @@
                         "type": "object",
                         "properties": {
                             "album": {
-                                "$ref": "#/components/schemas/ReleasesAlbumRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -29453,10 +29987,42 @@
                         "type": "object",
                         "properties": {
                             "album": {
-                                "$ref": "#/components/schemas/TracksAlbumRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "playlists": {
-                                "$ref": "#/components/schemas/TracksPlaylistsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -29524,7 +30090,25 @@
                         "type": "object",
                         "properties": {
                             "album": {
-                                "$ref": "#/components/schemas/TracksAlbumRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }

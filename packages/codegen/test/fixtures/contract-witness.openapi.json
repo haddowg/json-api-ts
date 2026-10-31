@@ -9463,42 +9463,300 @@
                         "type": "object",
                         "properties": {
                             "author": {
-                                "$ref": "#/components/schemas/ArticlesAuthorRelationship"
+                                "type": "object",
+                                "description": "Who wrote it.",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "tags": {
-                                "$ref": "#/components/schemas/ArticlesTagsWriteRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/TagsAtomicIdentifier"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "meta": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "pivot": {
+                                                                    "$ref": "#/components/schemas/ArticlesTagsWritePivot"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "publisher": {
-                                "$ref": "#/components/schemas/ArticlesPublisherRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "cover": {
-                                "$ref": "#/components/schemas/ArticlesCoverRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "locked": {
-                                "$ref": "#/components/schemas/ArticlesLockedRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "attachments": {
-                                "$ref": "#/components/schemas/ArticlesAttachmentsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/VideosAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "images": "#/components/schemas/ImagesAtomicIdentifier",
+                                                    "videos": "#/components/schemas/VideosAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "reviewer": {
-                                "$ref": "#/components/schemas/ArticlesReviewerRelationship",
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ],
                                 "writeOnly": true
                             },
                             "watchers": {
-                                "$ref": "#/components/schemas/ArticlesWatchersRelationship",
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ],
                                 "writeOnly": true
                             },
                             "editor": {
-                                "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "sponsors": {
-                                "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "people": "#/components/schemas/PeopleAtomicIdentifier",
+                                                    "images": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "subject": {
-                                "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "oneOf": [
+                                                    {
+                                                        "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                                    }
+                                                ],
+                                                "discriminator": {
+                                                    "propertyName": "type",
+                                                    "mapping": {
+                                                        "people": "#/components/schemas/PeopleAtomicIdentifier"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "gallery": {
-                                "$ref": "#/components/schemas/ArticlesGalleryRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "images": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -9566,39 +9824,283 @@
                         "type": "object",
                         "properties": {
                             "author": {
-                                "$ref": "#/components/schemas/ArticlesAuthorRelationship"
+                                "type": "object",
+                                "description": "Who wrote it.",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "tags": {
-                                "$ref": "#/components/schemas/ArticlesTagsWriteRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/TagsAtomicIdentifier"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "meta": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "pivot": {
+                                                                    "$ref": "#/components/schemas/ArticlesTagsWritePivot"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "publisher": {
-                                "$ref": "#/components/schemas/ArticlesPublisherRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "cover": {
-                                "$ref": "#/components/schemas/ArticlesCoverRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "attachments": {
-                                "$ref": "#/components/schemas/ArticlesAttachmentsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/VideosAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "images": "#/components/schemas/ImagesAtomicIdentifier",
+                                                    "videos": "#/components/schemas/VideosAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "reviewer": {
-                                "$ref": "#/components/schemas/ArticlesReviewerRelationship",
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ],
                                 "writeOnly": true
                             },
                             "watchers": {
-                                "$ref": "#/components/schemas/ArticlesWatchersRelationship",
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ],
                                 "writeOnly": true
                             },
                             "editor": {
-                                "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "sponsors": {
-                                "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                                },
+                                                {
+                                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "people": "#/components/schemas/PeopleAtomicIdentifier",
+                                                    "images": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "subject": {
-                                "$ref": "#/components/schemas/ArticlesSubjectRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "oneOf": [
+                                                    {
+                                                        "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                                    }
+                                                ],
+                                                "discriminator": {
+                                                    "propertyName": "type",
+                                                    "mapping": {
+                                                        "people": "#/components/schemas/PeopleAtomicIdentifier"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             },
                             "gallery": {
-                                "$ref": "#/components/schemas/ArticlesGalleryRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            ],
+                                            "discriminator": {
+                                                "propertyName": "type",
+                                                "mapping": {
+                                                    "images": "#/components/schemas/ImagesAtomicIdentifier"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -14750,7 +15252,25 @@
                         "type": "object",
                         "properties": {
                             "company": {
-                                "$ref": "#/components/schemas/PeopleCompanyRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/CompaniesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -14841,7 +15361,25 @@
                         "type": "object",
                         "properties": {
                             "company": {
-                                "$ref": "#/components/schemas/PeopleCompanyRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/CompaniesAtomicIdentifier"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
@@ -16335,7 +16873,21 @@
                         "type": "object",
                         "properties": {
                             "articles": {
-                                "$ref": "#/components/schemas/TagsArticlesRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/ArticlesAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     },
@@ -16426,7 +16978,21 @@
                         "type": "object",
                         "properties": {
                             "articles": {
-                                "$ref": "#/components/schemas/TagsArticlesRelationship"
+                                "type": "object",
+                                "properties": {
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/ArticlesAtomicIdentifier"
+                                        }
+                                    },
+                                    "meta": {
+                                        "$ref": "#/components/schemas/Meta"
+                                    }
+                                },
+                                "required": [
+                                    "data"
+                                ]
                             }
                         }
                     }
