@@ -474,7 +474,7 @@ export interface RelationReadQuery<Pg = Readonly<Record<string, unknown>>> {
   /**
    * Relationship-count tokens (`_self_` + the relation's countable relations) — the related/
    * relationship endpoints advertise their own `withCount`, and the client negotiates the
-   * relation's Countable profile so a strict server accepts it (D3).
+   * relation's Countable profile so a strict server accepts it.
    */
   withCount?: readonly string[]
   /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
@@ -536,7 +536,7 @@ type LegacyPivot<P> = { readonly [K in keyof P]: FormatToTs<P[K]> }
  * The typed `meta.pivot` a response renders on each member of relation `R`, from the descriptor's
  * `readPivot`, e.g. `{ position: number; weight: number | null; addedAt: string }`. A descriptor
  * with only `pivotFields` types every field present and non-null; one with neither falls back to
- * a loose record (D33).
+ * a loose record.
  */
 type PivotFieldsOf<
   D extends ApiDescriptor,
@@ -567,7 +567,7 @@ type WritePivotOf<
  * A hydrated related VALUE for relation `R` of type `T`, resolved by cardinality over the
  * (possibly polymorphic) related type(s): a `Collection` of hydrated members for to-many,
  * the hydrated member (or `null`) for to-one. Each member's `$pivot` is typed from the
- * relation's `readPivot` (D33).
+ * relation's `readPivot`.
  */
 type RelatedValue<
   D extends ApiDescriptor,
@@ -586,7 +586,7 @@ type RelatedValue<
 /**
  * A linkage VALUE for relation `R` (the `/relationships/{rel}` endpoint, identifiers only):
  * a `Collection` of identifier members for to-many, a single identifier (or `null`) for to-one.
- * Each member's `$pivot` is typed from the relation's `readPivot` (D33).
+ * Each member's `$pivot` is typed from the relation's `readPivot`.
  */
 type LinkageValue<
   D extends ApiDescriptor,
@@ -642,7 +642,7 @@ export interface RelationshipAccessor<
 /**
  * A linkage ref for a to-many membership WRITE on relation `R` (`add`/`replace`, or a create or
  * update input), with `$pivot` typed from the relation's `writePivot` — so a `belongsToMany` add
- * carries the precise pivot shape (`{ position, weight?, … }`) instead of a loose record (D33).
+ * carries the precise pivot shape (`{ position, weight?, … }`) instead of a loose record.
  */
 type WriteRef<
   D extends ApiDescriptor,

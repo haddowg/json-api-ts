@@ -136,7 +136,7 @@ async function run(
   }
   const doc = await execute(ctx.request, req)
   // Resolve the strategy that answers from the endpoint's paginator and the `page` sent, so an
-  // EMPTY page still reports the real `$page.kind` (D6) and a menu read reports the arm it picked.
+  // EMPTY page still reports the real `$page.kind` and a menu read reports the arm it picked.
   // A related/relationship read uses the RELATION's paginator, which may diverge from the related
   // type's collection (D6a).
   const relation =
@@ -174,7 +174,7 @@ function negotiateProfiles(
     return
   }
   // A related/relationship read negotiates the RELATION's Countable profile (its tokens differ
-  // from the collection's); a top-level collection read uses the type's (D3).
+  // from the collection's); a top-level collection read uses the type's.
   const profile =
     relationForCount !== undefined
       ? ctx.descriptor[type]?.relations[relationForCount]?.countable?.profile
@@ -573,7 +573,7 @@ function relationshipAccessor(
   // A read is present only when the relation exposes that endpoint (the descriptor's
   // `relationship`/`related` flags, from the bundle's `withoutRelationshipEndpoint()` /
   // `withoutRelatedEndpoint()`). A suppressed read is omitted (a JS caller gets "not a function"
-  // rather than a 404); the static types gate it to `never` for a typed caller (D24).
+  // rather than a 404); the static types gate it to `never` for a typed caller.
   // A write-only relation is never rendered, so it has neither read.
   const accessor: Record<string, unknown> = {}
   const readable = relation?.writeOnly !== true

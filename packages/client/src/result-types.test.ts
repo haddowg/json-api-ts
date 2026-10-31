@@ -489,7 +489,7 @@ describe('per-relation mutation-verb gating', () => {
     expectTypeOf<Handle['readonlyOwner']['replace']>().toBeNever()
   })
 
-  it('gates a suppressed related endpoint off `.related()` while keeping `.get()` (D24)', () => {
+  it('gates a suppressed related endpoint off `.related()` while keeping `.get()`', () => {
     type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
     // `related: false` -> `.related()` is a compile error; the relationship read stays.
     expectTypeOf<Handle['noRelated']['related']>().toBeNever()
@@ -497,7 +497,7 @@ describe('per-relation mutation-verb gating', () => {
     expectTypeOf<Handle['noRelated']['add']>().toBeFunction()
   })
 
-  it('gates a suppressed relationship endpoint off `.get()` and every verb (D24)', () => {
+  it('gates a suppressed relationship endpoint off `.get()` and every verb', () => {
     type Handle = ReturnType<Client<VerbMap, Attributes, never>['tracks']['id']>
     // `relationship: false` -> `.get()` is `never`; the related read stays; no mutation verb.
     expectTypeOf<Handle['noRelationship']['get']>().toBeNever()
@@ -960,7 +960,7 @@ describe('custom action typing — resolved input/output types (no alias map)', 
   type Handle = ReturnType<Client<ResolvedActionMap, Attributes, WriteAttributes>['albums']['id']>
   type Accessor = Client<ResolvedActionMap, Attributes, WriteAttributes>['albums']
 
-  it('materialises a document output into the resource view of its outputType (D1)', () => {
+  it('materialises a document output into the resource view of its outputType', () => {
     type Reissued = Awaited<ReturnType<Handle['actions']['reissue']>>
     // The result is the MATERIALISED resource (result.title / result.type), not the raw envelope.
     expectTypeOf<Reissued['type']>().toEqualTypeOf<'albums'>()
@@ -970,19 +970,19 @@ describe('custom action typing — resolved input/output types (no alias map)', 
     expectTypeOf<Reissued>().not.toHaveProperty('data')
   })
 
-  it('accepts FLAT input for a document action naming its inputType (D37)', () => {
+  it('accepts FLAT input for a document action naming its inputType', () => {
     // The argument is the resource's create input (flat attributes), not a hand-built envelope.
     expectTypeOf<Parameters<Handle['actions']['reissue']>[0]>().toHaveProperty('title')
   })
 
-  it('returns the document meta for a meta-output action (D2)', () => {
+  it('returns the document meta for a meta-output action', () => {
     expectTypeOf<ReturnType<Accessor['actions']['stats']>>().resolves.toEqualTypeOf<
       Record<string, unknown>
     >()
     expectTypeOf<Parameters<Accessor['actions']['stats']>>().toEqualTypeOf<[]>()
   })
 
-  it('a non-POST, none-output action takes no argument and resolves void (D25)', () => {
+  it('a non-POST, none-output action takes no argument and resolves void', () => {
     expectTypeOf<Parameters<Accessor['actions']['recalculate']>>().toEqualTypeOf<[]>()
     expectTypeOf<ReturnType<Accessor['actions']['recalculate']>>().resolves.toBeVoid()
   })
@@ -1163,7 +1163,7 @@ describe('atomic per-op positional call-site', () => {
   })
 })
 
-// ── Pivot typing (D33) ───────────────────────────────────────────────────────────────────
+// ── Pivot typing ───────────────────────────────────────────────────────────────────
 
 const pivotMap = {
   playlists: {
@@ -1199,7 +1199,7 @@ interface PivotAttributes {
   tracks: { title: string }
 }
 
-describe('pivot typing (D33)', () => {
+describe('pivot typing', () => {
   type Handle = ReturnType<Client<typeof pivotMap, PivotAttributes>['playlists']['id']>
 
   it('types $pivot on a related to-many member from the relation pivotFields', () => {
