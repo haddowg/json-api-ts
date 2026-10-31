@@ -392,7 +392,8 @@ describe('atomic operations', () => {
         type: 'albums',
         id: '100',
         title: 'Geogaddi',
-        artist: { type: 'artists', id: '7' },
+        // Linked by the lid of the artist the add creates, which the document must accept.
+        artist: newArtist,
       })
       tx.delete({ type: 'albums', id: '101' })
       return [newArtist] as const
@@ -406,7 +407,13 @@ describe('atomic operations', () => {
       'spec',
     )
     const request = ajv.getSchema('spec#/components/schemas/AtomicOperationsRequest')!
-    expect(request(JSON.parse(requests[0]!.body!)), JSON.stringify(request.errors)).toBe(true)
+    const sent = JSON.parse(requests[0]!.body!) as {
+      'atomic:operations': Array<{ data?: { relationships?: unknown } }>
+    }
+    expect(sent['atomic:operations'][1]!.data?.relationships).toEqual({
+      artist: { data: { type: 'artists', lid: 'atomic-0' } },
+    })
+    expect(request(sent), JSON.stringify(request.errors)).toBe(true)
     const response = ajv.getSchema('spec#/components/schemas/AtomicResultsResponse')!
     expect(response(results), JSON.stringify(response.errors)).toBe(true)
   })

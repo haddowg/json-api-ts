@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   2b367065d01c752f
+ * Spec hash:   470bc0621d0612cc
  */
 
 import {
