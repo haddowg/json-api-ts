@@ -243,7 +243,7 @@ export function normalize(
  * NOT a blanket `setQueriesData({}, ...)`. The blanket form writes data back to every cached
  * query, and TanStack's `setQueryData` unconditionally clears `isInvalidated` on the written
  * query: a normalize pass over one type would silently un-invalidate untouched queries of other
- * types, undoing the create/delete membership invalidation (ADR 0003). Gating the write on the
+ * types, undoing the create/delete membership invalidation. Gating the write on the
  * `changed` flag keeps touched queries' in-place identity (so their observers notify) while
  * leaving untouched queries — and their `isInvalidated` flags — completely alone.
  */

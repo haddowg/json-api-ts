@@ -1,6 +1,6 @@
 /**
  * Mutation OPTION FACTORIES over the client write surface (optimistic updates routed
- * through the normalized patch; docs/tanstack-query.md, ADR 0003).
+ * through the normalized patch; docs/tanstack-query.md).
  *
  * Each factory returns a plain `{ mutationFn, onMutate?, onError?, onSuccess?, onSettled? }`
  * object structurally compatible with `@tanstack/query-core` — the user passes it to their
@@ -133,7 +133,7 @@ function invalidateResource(queryClient: QueryClient, type: string, id: string):
 
 /**
  * Invalidate one parent resource's reads of one relation after a set/replace/add/remove changes
- * that relation's linkage/membership (ADR 0003's TARGETED invalidation). We invalidate exactly:
+ * that relation's linkage/membership (a TARGETED invalidation). We invalidate exactly:
  *  - the relation's related-collection reads (`[type, 'fetchRelated', id, rel]`),
  *  - the relation's linkage reads (`[type, 'fetchRelationship', id, rel]`),
  *  - the parent resource's own reads (`[type, 'fetchOne', id]`) — whose `?include` of the relation
@@ -160,7 +160,7 @@ function invalidateParentRelations(
 /**
  * The create mutation (`POST /{type}`): `mutationFn` runs `client.<type>.create(input, opts)`;
  * on settle the type's list subtree is invalidated (a new member changes collection membership —
- * a patch can't insert it, ADR 0003). The fresh resource is also normalized on success so any
+ * a patch can't insert it). The fresh resource is also normalized on success so any
  * query already holding the (server-assigned-id) resource reflects it.
  *
  * No optimistic insert by default: inserting into the right cached lists requires knowing each
@@ -251,7 +251,7 @@ export function updateMutationOptions<
 /**
  * The delete mutation (`DELETE /{type}/{id}`): `mutationFn` runs `client.<type>.id(id).delete()`
  * (resolves `void`). On settle the type's list subtree AND that resource's reads are invalidated
- * (a delete changes collection membership and orphans the resource's `get`, ADR 0003).
+ * (a delete changes collection membership and orphans the resource's `get`).
  */
 export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
   queryClient: QueryClient,
