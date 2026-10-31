@@ -47,7 +47,7 @@ export interface RelationDescriptor {
   types: readonly string[]
   /**
    * `true` when the relation is polymorphic: its linkage is a union of identifier types, even a
-   * union of one (generator contract 16). Read this rather than counting {@link types}, so a
+   * union of one. Read this rather than counting {@link types}, so a
    * relation declared polymorphic over one type keeps its shape when a second type is added. A
    * descriptor without the flag, such as one generated from an older document or written by
    * hand, is polymorphic when it lists more than one type; see {@link isPolymorphic}.
@@ -116,6 +116,12 @@ export interface RelationDescriptor {
    * to the related type's collection paginator (D6a). Absent when the two agree (the common case).
    */
   paginator?: PaginatorDescriptor
+  /**
+   * The types the related endpoint's compound document can carry in `included`, read from the
+   * document's typed `included`. Absent when nothing is includable there, or the document types
+   * `included` only as `{type, id}`.
+   */
+  included?: readonly string[]
 }
 
 /** A built-in pagination strategy. */
@@ -316,6 +322,12 @@ export interface ResourceDescriptor {
    * a compile error, matching the server's `400 INCLUSION_NOT_ALLOWED`).
    */
   includable?: readonly string[]
+  /**
+   * The types this type's compound documents can carry in `included`: the types its
+   * {@link includable} paths reach, read from the document's typed `included`. Absent when nothing
+   * is includable, or the document types `included` only as `{type, id}`.
+   */
+  included?: readonly string[]
   /**
    * The sort tokens the COLLECTION read accepts in `sort` — signed field names (`title`,
    * `-title`). Drives `sort` narrowing. Absent when the collection advertises no sorting (so
