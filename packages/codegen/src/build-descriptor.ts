@@ -218,7 +218,7 @@ export class DescriptorBuilder {
       // emits a `<Rel>Resource` carrying ONLY a `type` const (no `id`/`attributes`) so linkage
       // refs resolve — is reachable only through a parent's `.related()` (which works via the
       // parent's own paths). Admitting it would surface a fully-typed top-level `client.<stub>`
-      // whose every method throws, so drop it (D27). A REAL registered resource carries the full
+      // whose every method throws, so drop it. A REAL registered resource carries the full
       // `type/id/attributes/…` object shape and stays, even with no attributes/collection of its
       // own; only the type-const-only stub (with no operation paths) is dropped.
       const isTypeOnlyStub = Object.keys(schema.properties ?? {}).every((prop) => prop === 'type')
@@ -311,7 +311,7 @@ export class DescriptorBuilder {
       if (parsed === undefined) {
         // A relationship component the codegen can't parse (an unknown linkage shape) is
         // dropped silently otherwise — a drift class (the grammar has grown pivot/polymorphic/
-        // nested forms), so warn rather than emit a client missing the relation (D28).
+        // nested forms), so warn rather than emit a client missing the relation.
         // eslint-disable-next-line no-console
         console.warn(
           `json-api codegen: relationship "${name}" has an unrecognized linkage shape; dropping it from the descriptor.`,
@@ -450,7 +450,7 @@ export class DescriptorBuilder {
   }
 
   /**
-   * Attach the per-relation endpoint-exposure signal to a relation descriptor (D24). The bundle
+   * Attach the per-relation endpoint-exposure signal to a relation descriptor. The bundle
    * can suppress a relation's related or relationship endpoint (`withoutRelatedEndpoint()` /
    * `withoutRelationshipEndpoint()`), which the OpenAPI reflects by simply omitting that
    * relation's path — but codegen synthesizes generic `{rel}` templates, erasing the per-relation
@@ -487,7 +487,7 @@ export class DescriptorBuilder {
     }
     // The related/relationship reads may advertise their own `withCount` (`_self_` + the relation's
     // countable relations) with a negotiation profile — capture it so a typed `.related()`/`.get()`
-    // can send `withCount` and negotiate the profile the endpoint requires (D3).
+    // can send `withCount` and negotiate the profile the endpoint requires.
     const countable =
       withCountParam(relatedGet) ?? withCountParam(this.operation(relationshipPath, 'get'))
     if (countable !== undefined) {
@@ -1049,7 +1049,7 @@ export class DescriptorBuilder {
       }
     }
     // A page parameter matching no single known kind is a drift the client would silently treat
-    // as unpaginated; warn rather than swallow it (D28).
+    // as unpaginated; warn rather than swallow it.
     if (menu !== undefined) {
       return warn(
         `advertises a selectable page strategy menu (${menu
@@ -1458,7 +1458,7 @@ export function buildAtomic(doc: OpenApiDocument): AtomicDescriptor | null {
 
 /**
  * Classify a page member set: `number`+`size` = `page`; `offset`+`limit` = `offset`; either
- * cursor bound (`after`/`before`) = `cursor` (link-driven, D44); `number` alone = `fixed` (the
+ * cursor bound (`after`/`before`) = `cursor` (link-driven); `number` alone = `fixed` (the
  * server fixes the size); no members = `none`; anything else = `undefined` (unrecognised).
  */
 function kindOfMembers(members: ReadonlySet<string>): PaginatorKind | undefined {
