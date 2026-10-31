@@ -82,13 +82,13 @@ export interface RelationDescriptor {
   uriField?: string
   /**
    * `false` when the related endpoint (`GET /{type}/{id}/{rel}`) is suppressed for this relation
-   * (the bundle's `withoutRelatedEndpoint()`, bundle ADR 0016) — `.related()` is then a compile error /
+   * (the bundle's `withoutRelatedEndpoint()`) — `.related()` is then a compile error /
    * runtime guard rather than a 404. Absent means exposed (the default).
    */
   related?: boolean
   /**
    * `false` when the relationship endpoint (`.../relationships/{rel}`) is suppressed for this
-   * relation (the bundle's `withoutRelationshipEndpoint()`, bundle ADR 0016) — `.get()` (and every
+   * relation (the bundle's `withoutRelationshipEndpoint()`) — `.get()` (and every
    * mutation) is then gated off. Absent means exposed (the default).
    */
   relationship?: boolean

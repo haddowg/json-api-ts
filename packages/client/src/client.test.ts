@@ -1481,7 +1481,7 @@ describe('createClient — write error remapping', () => {
             status: '422',
             detail: 'invalid pivot',
             // The exact pointer json-api-symfony emits at the relationship endpoint: a pivot
-            // field nests under `meta.pivot` — DoctrinePivotWriteTest / bundle ADR 0045.
+            // field nests under `meta.pivot` — DoctrinePivotWriteTest.
             source: { pointer: '/data/0/meta/pivot/position' },
           },
         ],

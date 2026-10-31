@@ -611,7 +611,7 @@ export type RelationPageParams<
  * `.add`/`.remove`/`.replace([refs])` (POST/DELETE/PATCH) and to-one `.set(ref|null)`
  * (PATCH). A read is present only when the relation exposes that endpoint (the descriptor's
  * `related`/`relationship` flags, from the bundle's `withoutRelatedEndpoint()` /
- * `withoutRelationshipEndpoint()`, bundle ADR 0016); a write is present only when the relationship
+ * `withoutRelationshipEndpoint()`); a write is present only when the relationship
  * endpoint advertises that verb (the per-relation `mutations` flags, from `cannotAdd`/
  * `cannotRemove`/`cannotReplace`). A suppressed read or forbidden verb is typed `never`, so
  * calling it is a compile error rather than a server round-trip. A write returns the materialised
