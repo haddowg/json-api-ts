@@ -19738,6 +19738,42 @@
                     "type"
                 ]
             },
+            "AlbumsAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "albums"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "AlbumsAtomicUpdate": {
                 "type": "object",
                 "description": "The album resource object an `update` operation writes.",
@@ -20531,6 +20567,42 @@
                     "type"
                 ]
             },
+            "ArtistsAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "artists"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "ArtistsAtomicUpdate": {
                 "type": "object",
                 "description": "The artist resource object an `update` operation writes.",
@@ -20920,60 +20992,50 @@
                     "data"
                 ]
             },
-            "AtomicOperation": {
+            "AtomicAddOperation": {
                 "type": "object",
-                "description": "One operation in the batch. The target is given by exactly one of `ref` or `href`.",
+                "description": "Adds a resource. The target is given by at most one of `ref` or `href`.",
                 "properties": {
                     "op": {
                         "type": "string",
-                        "description": "The operation code.",
-                        "enum": [
-                            "add",
-                            "update",
-                            "remove"
-                        ]
+                        "const": "add"
                     },
                     "ref": {
-                        "type": "object",
-                        "description": "A structural reference to the operation's target (an alternative to `href`). Identifies a resource by `type` plus exactly one of `id` or `lid`; `relationship` narrows the target to that relationship.",
-                        "properties": {
-                            "type": {
-                                "type": "string"
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
                             },
-                            "id": {
-                                "type": "string"
-                            },
-                            "lid": {
-                                "type": "string",
-                                "description": "A local id referencing a resource created earlier in the same batch."
-                            },
-                            "relationship": {
-                                "type": "string"
+                            {
+                                "not": {
+                                    "required": [
+                                        "relationship"
+                                    ]
+                                }
                             }
-                        },
-                        "required": [
-                            "type"
                         ]
                     },
                     "href": {
-                        "type": "string",
-                        "format": "uri-reference",
-                        "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "not": {
+                                    "type": "string",
+                                    "pattern": "(^|/)relationships/[^/?#]+/?$"
+                                }
+                            }
+                        ]
                     },
                     "data": {
-                        "description": "The operation payload. Its shape depends on `op` and the target: a resource object for an `add`/`update`; a resource identifier (or `null`) for a to-one relationship; an array of resource identifiers for a to-many relationship; absent for a resource `remove`.",
-                        "anyOf": [
+                        "oneOf": [
                             {
                                 "$ref": "#/components/schemas/AlbumsAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/AlbumsAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/ArtistsAtomicAdd"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ArtistsAtomicUpdate"
                             },
                             {
                                 "$ref": "#/components/schemas/CatalogExportsAtomicAdd"
@@ -20982,129 +21044,71 @@
                                 "$ref": "#/components/schemas/DevicesAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/DevicesAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/FavoritesAtomicAdd"
-                            },
-                            {
-                                "$ref": "#/components/schemas/FavoritesAtomicUpdate"
                             },
                             {
                                 "$ref": "#/components/schemas/GenresAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/GenresAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/LibrariesAtomicAdd"
-                            },
-                            {
-                                "$ref": "#/components/schemas/LibrariesAtomicUpdate"
                             },
                             {
                                 "$ref": "#/components/schemas/PlaylistsAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/PlaylistsAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/ProductsAtomicAdd"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ProductsAtomicUpdate"
                             },
                             {
                                 "$ref": "#/components/schemas/ReleasesAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/ReleasesAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/TracksAtomicAdd"
-                            },
-                            {
-                                "$ref": "#/components/schemas/TracksAtomicUpdate"
-                            },
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "type": {
-                                        "type": "string"
-                                    },
-                                    "id": {
-                                        "type": "string"
-                                    },
-                                    "lid": {
-                                        "type": "string"
-                                    },
-                                    "meta": {
-                                        "type": "object"
-                                    }
-                                },
-                                "required": [
-                                    "type"
-                                ],
-                                "oneOf": [
-                                    {
-                                        "title": "By id",
-                                        "required": [
-                                            "id"
-                                        ]
-                                    },
-                                    {
-                                        "title": "By local id (lid)",
-                                        "required": [
-                                            "lid"
-                                        ]
-                                    }
-                                ]
-                            },
-                            {
-                                "type": "null"
-                            },
-                            {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {
-                                            "type": "string"
-                                        },
-                                        "id": {
-                                            "type": "string"
-                                        },
-                                        "lid": {
-                                            "type": "string"
-                                        },
-                                        "meta": {
-                                            "type": "object"
-                                        }
-                                    },
-                                    "required": [
-                                        "type"
-                                    ],
-                                    "oneOf": [
-                                        {
-                                            "title": "By id",
-                                            "required": [
-                                                "id"
-                                            ]
-                                        },
-                                        {
-                                            "title": "By local id (lid)",
-                                            "required": [
-                                                "lid"
-                                            ]
-                                        }
-                                    ]
-                                }
                             }
-                        ]
+                        ],
+                        "discriminator": {
+                            "propertyName": "type",
+                            "mapping": {
+                                "albums": "#/components/schemas/AlbumsAtomicAdd",
+                                "artists": "#/components/schemas/ArtistsAtomicAdd",
+                                "catalog-exports": "#/components/schemas/CatalogExportsAtomicAdd",
+                                "devices": "#/components/schemas/DevicesAtomicAdd",
+                                "favorites": "#/components/schemas/FavoritesAtomicAdd",
+                                "genres": "#/components/schemas/GenresAtomicAdd",
+                                "libraries": "#/components/schemas/LibrariesAtomicAdd",
+                                "playlists": "#/components/schemas/PlaylistsAtomicAdd",
+                                "products": "#/components/schemas/ProductsAtomicAdd",
+                                "releases": "#/components/schemas/ReleasesAtomicAdd",
+                                "tracks": "#/components/schemas/TracksAtomicAdd"
+                            }
+                        }
                     }
                 },
                 "required": [
-                    "op"
+                    "op",
+                    "data"
+                ]
+            },
+            "AtomicOperation": {
+                "description": "One operation in the batch. Its `op` and its target, a relationship or a resource, decide its kind and the shape of its `data`.",
+                "oneOf": [
+                    {
+                        "$ref": "#/components/schemas/AtomicAddOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicUpdateOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRemoveOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRelationshipAddOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRelationshipUpdateOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRelationshipRemoveOperation"
+                    }
                 ]
             },
             "AtomicOperationsInvalidError": {
@@ -21170,102 +21174,527 @@
                     "atomic:operations"
                 ]
             },
+            "AtomicRef": {
+                "type": "object",
+                "description": "A structural reference to the operation's target (an alternative to `href`). Identifies a resource by `type` plus exactly one of `id` or `lid`; `relationship` narrows the target to that relationship.",
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "A local id referencing a resource created earlier in the same batch."
+                    },
+                    "relationship": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "type"
+                ]
+            },
+            "AtomicRelationshipAddOperation": {
+                "type": "object",
+                "description": "Adds members to a to-many relationship. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "add"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "required": [
+                                    "relationship"
+                                ]
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "(^|/)relationships/[^/?#]+/?$"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/UsersAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ProductsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsAtomicIdentifier",
+                                    "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                    "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                    "public-profiles": "#/components/schemas/PublicProfilesAtomicIdentifier",
+                                    "users": "#/components/schemas/UsersAtomicIdentifier",
+                                    "products": "#/components/schemas/ProductsAtomicIdentifier",
+                                    "playlists": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
+                ],
+                "anyOf": [
+                    {
+                        "required": [
+                            "ref"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "href"
+                        ]
+                    }
+                ]
+            },
+            "AtomicRelationshipRemoveOperation": {
+                "type": "object",
+                "description": "Removes members from a to-many relationship. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "remove"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "required": [
+                                    "relationship"
+                                ]
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "(^|/)relationships/[^/?#]+/?$"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/UsersAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ProductsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "artists": "#/components/schemas/ArtistsAtomicIdentifier",
+                                    "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                    "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                    "public-profiles": "#/components/schemas/PublicProfilesAtomicIdentifier",
+                                    "users": "#/components/schemas/UsersAtomicIdentifier",
+                                    "products": "#/components/schemas/ProductsAtomicIdentifier",
+                                    "playlists": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
+                ],
+                "anyOf": [
+                    {
+                        "required": [
+                            "ref"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "href"
+                        ]
+                    }
+                ]
+            },
+            "AtomicRelationshipUpdateOperation": {
+                "type": "object",
+                "description": "Replaces a relationship: an identifier or `null` for a to-one, an array of identifiers for a to-many. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "update"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "required": [
+                                    "relationship"
+                                ]
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "(^|/)relationships/[^/?#]+/?$"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "oneOf": [
+                            {
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/UsersAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ProductsAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "artists": "#/components/schemas/ArtistsAtomicIdentifier",
+                                        "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                        "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                        "public-profiles": "#/components/schemas/PublicProfilesAtomicIdentifier",
+                                        "users": "#/components/schemas/UsersAtomicIdentifier",
+                                        "products": "#/components/schemas/ProductsAtomicIdentifier",
+                                        "playlists": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                    }
+                                }
+                            },
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ArtistsAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TracksAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/AlbumsAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/PublicProfilesAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/UsersAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ProductsAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "artists": "#/components/schemas/ArtistsAtomicIdentifier",
+                                            "tracks": "#/components/schemas/TracksAtomicIdentifier",
+                                            "albums": "#/components/schemas/AlbumsAtomicIdentifier",
+                                            "public-profiles": "#/components/schemas/PublicProfilesAtomicIdentifier",
+                                            "users": "#/components/schemas/UsersAtomicIdentifier",
+                                            "products": "#/components/schemas/ProductsAtomicIdentifier",
+                                            "playlists": "#/components/schemas/PlaylistsAtomicIdentifier"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
+                ],
+                "anyOf": [
+                    {
+                        "required": [
+                            "ref"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "href"
+                        ]
+                    }
+                ]
+            },
+            "AtomicRemoveOperation": {
+                "type": "object",
+                "description": "Removes a resource. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "remove"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "not": {
+                                    "required": [
+                                        "relationship"
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "not": {
+                                    "type": "string",
+                                    "pattern": "(^|/)relationships/[^/?#]+/?$"
+                                }
+                            }
+                        ]
+                    },
+                    "data": false
+                },
+                "required": [
+                    "op"
+                ]
+            },
             "AtomicResult": {
                 "type": "object",
                 "description": "The result fragment of one operation. It carries only `data` and `meta`, and a `remove` returns it empty.",
                 "properties": {
                     "data": {
-                        "description": "The created or updated resource (or its identifier) the operation returns.",
+                        "description": "The created or updated resource, or the linkage a relationship operation returns.",
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/AlbumsResource"
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/AlbumsResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ArtistsResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/CatalogExportsResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/DevicesResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/FavoritesResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/GenresResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/LibrariesResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PlaylistsResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ProductsResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ReleasesResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/TracksResource"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "albums": "#/components/schemas/AlbumsResource",
+                                        "artists": "#/components/schemas/ArtistsResource",
+                                        "catalog-exports": "#/components/schemas/CatalogExportsResource",
+                                        "devices": "#/components/schemas/DevicesResource",
+                                        "favorites": "#/components/schemas/FavoritesResource",
+                                        "genres": "#/components/schemas/GenresResource",
+                                        "libraries": "#/components/schemas/LibrariesResource",
+                                        "playlists": "#/components/schemas/PlaylistsResource",
+                                        "products": "#/components/schemas/ProductsResource",
+                                        "releases": "#/components/schemas/ReleasesResource",
+                                        "tracks": "#/components/schemas/TracksResource"
+                                    }
+                                }
                             },
                             {
-                                "$ref": "#/components/schemas/AlbumsResourceIdentifier"
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/ArtistsResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/TracksResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/AlbumsResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PublicProfilesResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/UsersResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ProductsResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PlaylistsResourceIdentifier"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "artists": "#/components/schemas/ArtistsResourceIdentifier",
+                                        "tracks": "#/components/schemas/TracksResourceIdentifier",
+                                        "albums": "#/components/schemas/AlbumsResourceIdentifier",
+                                        "public-profiles": "#/components/schemas/PublicProfilesResourceIdentifier",
+                                        "users": "#/components/schemas/UsersResourceIdentifier",
+                                        "products": "#/components/schemas/ProductsResourceIdentifier",
+                                        "playlists": "#/components/schemas/PlaylistsResourceIdentifier"
+                                    }
+                                }
                             },
                             {
-                                "$ref": "#/components/schemas/ArtistsResource"
+                                "type": "array",
+                                "items": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ArtistsResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TracksResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/AlbumsResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/PublicProfilesResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/UsersResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ProductsResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/PlaylistsResourceIdentifier"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "artists": "#/components/schemas/ArtistsResourceIdentifier",
+                                            "tracks": "#/components/schemas/TracksResourceIdentifier",
+                                            "albums": "#/components/schemas/AlbumsResourceIdentifier",
+                                            "public-profiles": "#/components/schemas/PublicProfilesResourceIdentifier",
+                                            "users": "#/components/schemas/UsersResourceIdentifier",
+                                            "products": "#/components/schemas/ProductsResourceIdentifier",
+                                            "playlists": "#/components/schemas/PlaylistsResourceIdentifier"
+                                        }
+                                    }
+                                }
                             },
                             {
-                                "$ref": "#/components/schemas/ArtistsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/CatalogExportsResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/CatalogExportsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/DevicesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/DevicesResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ExportJobsResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ExportJobsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/FavoritesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/FavoritesResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/GenresResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/GenresResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/LibrariesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/LibrariesResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/PlaylistsResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/PlaylistsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ProductsResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ProductsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/PublicProfilesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/PublicProfilesResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ReleasesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ReleasesResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/TracksResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/TracksResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ChartsResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ChartsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/CountriesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/CountriesResourceIdentifier"
+                                "type": "null"
                             }
                         ]
                     },
@@ -21297,6 +21726,98 @@
                 },
                 "required": [
                     "atomic:results"
+                ]
+            },
+            "AtomicUpdateOperation": {
+                "type": "object",
+                "description": "Updates a resource. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "update"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "not": {
+                                    "required": [
+                                        "relationship"
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "not": {
+                                    "type": "string",
+                                    "pattern": "(^|/)relationships/[^/?#]+/?$"
+                                }
+                            }
+                        ]
+                    },
+                    "data": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/AlbumsAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ArtistsAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/DevicesAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/FavoritesAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/GenresAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/LibrariesAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/PlaylistsAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ProductsAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ReleasesAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/TracksAtomicUpdate"
+                            }
+                        ],
+                        "discriminator": {
+                            "propertyName": "type",
+                            "mapping": {
+                                "albums": "#/components/schemas/AlbumsAtomicUpdate",
+                                "artists": "#/components/schemas/ArtistsAtomicUpdate",
+                                "devices": "#/components/schemas/DevicesAtomicUpdate",
+                                "favorites": "#/components/schemas/FavoritesAtomicUpdate",
+                                "genres": "#/components/schemas/GenresAtomicUpdate",
+                                "libraries": "#/components/schemas/LibrariesAtomicUpdate",
+                                "playlists": "#/components/schemas/PlaylistsAtomicUpdate",
+                                "products": "#/components/schemas/ProductsAtomicUpdate",
+                                "releases": "#/components/schemas/ReleasesAtomicUpdate",
+                                "tracks": "#/components/schemas/TracksAtomicUpdate"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
                 ]
             },
             "AttributeValueInvalidError": {
@@ -25249,6 +25770,42 @@
                     "type"
                 ]
             },
+            "PlaylistsAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "playlists"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "PlaylistsAtomicUpdate": {
                 "type": "object",
                 "description": "The playlist resource object an `update` operation writes.",
@@ -26132,6 +26689,42 @@
                     "type"
                 ]
             },
+            "ProductsAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "products"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "ProductsAtomicUpdate": {
                 "type": "object",
                 "description": "The product resource object an `update` operation writes.",
@@ -26506,6 +27099,42 @@
                 },
                 "required": [
                     "data"
+                ]
+            },
+            "PublicProfilesAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "public-profiles"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
                 ]
             },
             "PublicProfilesAttributes": {
@@ -28837,6 +29466,42 @@
                     "type"
                 ]
             },
+            "TracksAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "tracks"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "TracksAtomicUpdate": {
                 "type": "object",
                 "description": "The track resource object an `update` operation writes.",
@@ -29418,6 +30083,42 @@
                 },
                 "required": [
                     "data"
+                ]
+            },
+            "UsersAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "users"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
                 ]
             },
             "UsersResourceIdentifier": {

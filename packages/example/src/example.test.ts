@@ -373,6 +373,43 @@ describe('atomic operations', () => {
       /ext="https:\/\/jsonapi\.org\/ext\/atomic"/,
     )
   })
+
+  it('sends batches and reads results the server document describes', async () => {
+    const results = {
+      'atomic:results': [
+        { data: { type: 'artists', id: '99', attributes: { name: 'Boards of Canada' } } },
+        { data: { type: 'albums', id: '100', attributes: { title: 'Geogaddi' } } },
+        {},
+      ],
+    }
+    const { transport, requests } = mockTransport({
+      [`POST ${BASE}/operations`]: JSON.stringify(results),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    await client.atomic((tx) => {
+      const newArtist = tx.create({ type: 'artists', name: 'Boards of Canada' })
+      tx.update({
+        type: 'albums',
+        id: '100',
+        title: 'Geogaddi',
+        artist: { type: 'artists', id: '7' },
+      })
+      tx.delete({ type: 'albums', id: '101' })
+      return [newArtist] as const
+    })
+
+    // The document's AtomicOperation is a oneOf per operation kind, so each recorded op must
+    // match exactly one of them.
+    const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false })
+    ajv.addSchema(
+      JSON.parse(fixture('../../codegen/test/fixtures/music-catalog.openapi.json')),
+      'spec',
+    )
+    const request = ajv.getSchema('spec#/components/schemas/AtomicOperationsRequest')!
+    expect(request(JSON.parse(requests[0]!.body!)), JSON.stringify(request.errors)).toBe(true)
+    const response = ajv.getSchema('spec#/components/schemas/AtomicResultsResponse')!
+    expect(response(results), JSON.stringify(response.errors)).toBe(true)
+  })
 })
 
 describe('TanStack Query bindings', () => {

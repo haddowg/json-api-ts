@@ -263,6 +263,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -348,7 +349,8 @@
                                 "type": "string",
                                 "enum": [
                                     "_self_",
-                                    "tags"
+                                    "tags",
+                                    "sponsors"
                                 ]
                             }
                         },
@@ -465,6 +467,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -659,6 +662,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -885,6 +889,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -1458,6 +1463,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -3667,6 +3673,603 @@
                 ]
             }
         },
+        "/articles/{id}/sponsors": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Fetch the related sponsors of an article",
+                "description": "Returns the related `sponsors` resources of an article.",
+                "operationId": "fetchRelated.articles.sponsors",
+                "parameters": [
+                    {
+                        "name": "fields[people]",
+                        "in": "query",
+                        "description": "A comma-separated list of `people` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "name",
+                                    "role",
+                                    "company"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "fields[images]",
+                        "in": "query",
+                        "description": "A comma-separated list of `images` fields to return (sparse fieldsets).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "url",
+                                    "clips"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Pagination parameters, e.g. `page[number]=2&page[size]=10`.",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "number": {
+                                    "type": "integer",
+                                    "description": "The page number to retrieve.",
+                                    "default": 1,
+                                    "minimum": 1
+                                },
+                                "size": {
+                                    "type": "integer",
+                                    "description": "The number of resources per page.",
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
+                                }
+                            }
+                        },
+                        "style": "deepObject",
+                        "explode": true
+                    },
+                    {
+                        "name": "withCount",
+                        "in": "query",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "_self_"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The related sponsors collection.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSponsorsRelatedCollection"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
+            }
+        },
+        "/articles/{id}/relationships/sponsors": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "The `id` of the article.",
+                    "required": true,
+                    "schema": {
+                        "type": "string",
+                        "pattern": "^(?:art-[0-9]+)$"
+                    }
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Fetch the sponsors relationship of an article",
+                "description": "Returns the `sponsors` relationship linkage of an article.",
+                "operationId": "fetchRelationship.articles.sponsors",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Pagination parameters, e.g. `page[number]=2&page[size]=10`.",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "number": {
+                                    "type": "integer",
+                                    "description": "The page number to retrieve.",
+                                    "default": 1,
+                                    "minimum": 1
+                                },
+                                "size": {
+                                    "type": "integer",
+                                    "description": "The number of resources per page.",
+                                    "default": 15,
+                                    "minimum": 1,
+                                    "maximum": 100
+                                }
+                            },
+                            "x-paginator": {
+                                "strategy": "page",
+                                "keys": {
+                                    "number": "number",
+                                    "size": "size"
+                                }
+                            }
+                        },
+                        "style": "deepObject",
+                        "explode": true
+                    },
+                    {
+                        "name": "withCount",
+                        "in": "query",
+                        "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated).",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "_self_"
+                                ]
+                            }
+                        },
+                        "style": "form",
+                        "explode": false,
+                        "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The sponsors relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "people",
+                                            "id": "per-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors?page%5Bnumber%5D=2&page%5Bsize%5D=15&withCount=_self_",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1sponsors/get"
+                                        },
+                                        "first": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors?page%5Bnumber%5D=1&page%5Bsize%5D=15&withCount=_self_",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "prev": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors?page%5Bnumber%5D=1&page%5Bsize%5D=15&withCount=_self_",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "next": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors?page%5Bnumber%5D=3&page%5Bsize%5D=15&withCount=_self_",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "last": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors?page%5Bnumber%5D=5&page%5Bsize%5D=15&withCount=_self_",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        }
+                                    },
+                                    "meta": {
+                                        "total": 75,
+                                        "page": {
+                                            "currentPage": 2,
+                                            "perPage": 15,
+                                            "from": 16,
+                                            "to": 30,
+                                            "total": 75,
+                                            "lastPage": 5
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1",
+                                        "profile": [
+                                            "https://haddowg.github.io/json-api/profiles/countable/"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:read"
+                        ]
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Add to the sponsors relationship of an article",
+                "description": "Adds the supplied members to the `sponsors` relationship of an article.",
+                "operationId": "addRelationship.articles.sponsors",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                            },
+                            "example": {
+                                "data": [
+                                    {
+                                        "type": "people",
+                                        "id": "per-1"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated sponsors relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "people",
+                                            "id": "per-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1sponsors/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Remove from the sponsors relationship of an article",
+                "description": "Removes the supplied members from the `sponsors` relationship of an article.",
+                "operationId": "removeRelationship.articles.sponsors",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                            },
+                            "example": {
+                                "data": [
+                                    {
+                                        "type": "people",
+                                        "id": "per-1"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated sponsors relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "people",
+                                            "id": "per-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1sponsors/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Articles"
+                ],
+                "summary": "Replace the sponsors relationship of an article",
+                "description": "Fully replaces the `sponsors` relationship of an article with the supplied linkage.",
+                "operationId": "updateRelationship.articles.sponsors",
+                "requestBody": {
+                    "content": {
+                        "application/vnd.api+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                            },
+                            "example": {
+                                "data": [
+                                    {
+                                        "type": "people",
+                                        "id": "per-1"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated sponsors relationship linkage.",
+                        "content": {
+                            "application/vnd.api+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArticlesSponsorsRelationshipDocument"
+                                },
+                                "example": {
+                                    "data": [
+                                        {
+                                            "type": "people",
+                                            "id": "per-1"
+                                        }
+                                    ],
+                                    "links": {
+                                        "self": {
+                                            "href": "https://api.example.com/articles/art-1/relationships/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        },
+                                        "related": {
+                                            "href": "https://api.example.com/articles/art-1/sponsors",
+                                            "describedby": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1sponsors/get"
+                                        },
+                                        "describedby": {
+                                            "href": "/docs/openapi.json#/paths/~1articles~1%7Bid%7D~1relationships~1sponsors/get"
+                                        }
+                                    },
+                                    "jsonapi": {
+                                        "version": "1.1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "406": {
+                        "$ref": "#/components/responses/NotAcceptable"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "415": {
+                        "$ref": "#/components/responses/UnsupportedMediaType"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2": [
+                            "articles:write"
+                        ]
+                    }
+                ]
+            }
+        },
         "/articles/{id}/subject": {
             "parameters": [
                 {
@@ -4518,6 +5121,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -5145,6 +5749,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -5556,6 +6161,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -7033,6 +7639,7 @@
                                     "locked",
                                     "attachments",
                                     "editor",
+                                    "sponsors",
                                     "subject",
                                     "gallery"
                                 ]
@@ -7050,7 +7657,8 @@
                             "items": {
                                 "type": "string",
                                 "enum": [
-                                    "tags"
+                                    "tags",
+                                    "sponsors"
                                 ]
                             }
                         },
@@ -8883,6 +9491,9 @@
                             "editor": {
                                 "$ref": "#/components/schemas/ArticlesEditorRelationship"
                             },
+                            "sponsors": {
+                                "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
+                            },
                             "subject": {
                                 "$ref": "#/components/schemas/ArticlesSubjectRelationship"
                             },
@@ -8895,6 +9506,42 @@
                 },
                 "required": [
                     "type"
+                ]
+            },
+            "ArticlesAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "articles"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
                 ]
             },
             "ArticlesAtomicUpdate": {
@@ -8943,6 +9590,9 @@
                             },
                             "editor": {
                                 "$ref": "#/components/schemas/ArticlesEditorRelationship"
+                            },
+                            "sponsors": {
+                                "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
                             },
                             "subject": {
                                 "$ref": "#/components/schemas/ArticlesSubjectRelationship"
@@ -9825,6 +10475,9 @@
                                     "editor": {
                                         "$ref": "#/components/schemas/ArticlesEditorRelationship"
                                     },
+                                    "sponsors": {
+                                        "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
+                                    },
                                     "subject": {
                                         "$ref": "#/components/schemas/ArticlesSubjectRelationship"
                                     },
@@ -10228,6 +10881,9 @@
                             "editor": {
                                 "$ref": "#/components/schemas/ArticlesEditorRelationship"
                             },
+                            "sponsors": {
+                                "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
+                            },
                             "subject": {
                                 "$ref": "#/components/schemas/ArticlesSubjectRelationship"
                             },
@@ -10321,6 +10977,111 @@
                                 "type": "null"
                             }
                         ]
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/RelationshipDocumentLinks"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "ArticlesSponsorsRelatedCollection": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleResource"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ImagesResource"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleResource",
+                                    "images": "#/components/schemas/ImagesResource"
+                                }
+                            }
+                        }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/RelatedDocumentLinks"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "ArticlesSponsorsRelationship": {
+                "type": "object",
+                "properties": {
+                    "links": {
+                        "$ref": "#/components/schemas/RelationshipLinks"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleResourceIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleResourceIdentifier",
+                                    "images": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            }
+                        }
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                }
+            },
+            "ArticlesSponsorsRelationshipDocument": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleResourceIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleResourceIdentifier",
+                                    "images": "#/components/schemas/ImagesResourceIdentifier"
+                                }
+                            }
+                        }
                     },
                     "links": {
                         "$ref": "#/components/schemas/RelationshipDocumentLinks"
@@ -10901,6 +11662,9 @@
                                     "editor": {
                                         "$ref": "#/components/schemas/ArticlesEditorRelationship"
                                     },
+                                    "sponsors": {
+                                        "$ref": "#/components/schemas/ArticlesSponsorsRelationship"
+                                    },
                                     "subject": {
                                         "$ref": "#/components/schemas/ArticlesSubjectRelationship"
                                     },
@@ -10960,152 +11724,95 @@
                     "data"
                 ]
             },
-            "AtomicOperation": {
+            "AtomicAddOperation": {
                 "type": "object",
-                "description": "One operation in the batch. The target is given by exactly one of `ref` or `href`.",
+                "description": "Adds a resource. The target is given by at most one of `ref` or `href`.",
                 "properties": {
                     "op": {
                         "type": "string",
-                        "description": "The operation code.",
-                        "enum": [
-                            "add",
-                            "update",
-                            "remove"
-                        ]
+                        "const": "add"
                     },
                     "ref": {
-                        "type": "object",
-                        "description": "A structural reference to the operation's target (an alternative to `href`). Identifies a resource by `type` plus exactly one of `id` or `lid`; `relationship` narrows the target to that relationship.",
-                        "properties": {
-                            "type": {
-                                "type": "string"
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
                             },
-                            "id": {
-                                "type": "string"
-                            },
-                            "lid": {
-                                "type": "string",
-                                "description": "A local id referencing a resource created earlier in the same batch."
-                            },
-                            "relationship": {
-                                "type": "string"
+                            {
+                                "not": {
+                                    "required": [
+                                        "relationship"
+                                    ]
+                                }
                             }
-                        },
-                        "required": [
-                            "type"
                         ]
                     },
                     "href": {
-                        "type": "string",
-                        "format": "uri-reference",
-                        "description": "A URI reference to the operation's target (an alternative to `ref`)."
-                    },
-                    "data": {
-                        "description": "The operation payload. Its shape depends on `op` and the target: a resource object for an `add`/`update`; a resource identifier (or `null`) for a to-one relationship; an array of resource identifiers for a to-many relationship; absent for a resource `remove`.",
-                        "anyOf": [
+                        "allOf": [
                             {
-                                "$ref": "#/components/schemas/ArticlesAtomicAdd"
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
                             },
                             {
-                                "$ref": "#/components/schemas/ArticlesAtomicUpdate"
+                                "not": {
+                                    "type": "string",
+                                    "pattern": "(^|/)relationships/[^/?#]+/?$"
+                                }
+                            }
+                        ]
+                    },
+                    "data": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticlesAtomicAdd"
                             },
                             {
                                 "$ref": "#/components/schemas/PeopleAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/PeopleAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/TagsAtomicAdd"
                             },
                             {
-                                "$ref": "#/components/schemas/TagsAtomicUpdate"
-                            },
-                            {
                                 "$ref": "#/components/schemas/VideosAtomicAdd"
-                            },
-                            {
-                                "$ref": "#/components/schemas/VideosAtomicUpdate"
-                            },
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "type": {
-                                        "type": "string"
-                                    },
-                                    "id": {
-                                        "type": "string"
-                                    },
-                                    "lid": {
-                                        "type": "string"
-                                    },
-                                    "meta": {
-                                        "type": "object"
-                                    }
-                                },
-                                "required": [
-                                    "type"
-                                ],
-                                "oneOf": [
-                                    {
-                                        "title": "By id",
-                                        "required": [
-                                            "id"
-                                        ]
-                                    },
-                                    {
-                                        "title": "By local id (lid)",
-                                        "required": [
-                                            "lid"
-                                        ]
-                                    }
-                                ]
-                            },
-                            {
-                                "type": "null"
-                            },
-                            {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {
-                                            "type": "string"
-                                        },
-                                        "id": {
-                                            "type": "string"
-                                        },
-                                        "lid": {
-                                            "type": "string"
-                                        },
-                                        "meta": {
-                                            "type": "object"
-                                        }
-                                    },
-                                    "required": [
-                                        "type"
-                                    ],
-                                    "oneOf": [
-                                        {
-                                            "title": "By id",
-                                            "required": [
-                                                "id"
-                                            ]
-                                        },
-                                        {
-                                            "title": "By local id (lid)",
-                                            "required": [
-                                                "lid"
-                                            ]
-                                        }
-                                    ]
-                                }
                             }
-                        ]
+                        ],
+                        "discriminator": {
+                            "propertyName": "type",
+                            "mapping": {
+                                "articles": "#/components/schemas/ArticlesAtomicAdd",
+                                "people": "#/components/schemas/PeopleAtomicAdd",
+                                "tags": "#/components/schemas/TagsAtomicAdd",
+                                "videos": "#/components/schemas/VideosAtomicAdd"
+                            }
+                        }
                     }
                 },
                 "required": [
-                    "op"
+                    "op",
+                    "data"
+                ]
+            },
+            "AtomicOperation": {
+                "description": "One operation in the batch. Its `op` and its target, a relationship or a resource, decide its kind and the shape of its `data`.",
+                "oneOf": [
+                    {
+                        "$ref": "#/components/schemas/AtomicAddOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicUpdateOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRemoveOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRelationshipAddOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRelationshipUpdateOperation"
+                    },
+                    {
+                        "$ref": "#/components/schemas/AtomicRelationshipRemoveOperation"
+                    }
                 ]
             },
             "AtomicOperationsInvalidError": {
@@ -11171,48 +11878,475 @@
                     "atomic:operations"
                 ]
             },
+            "AtomicRef": {
+                "type": "object",
+                "description": "A structural reference to the operation's target (an alternative to `href`). Identifies a resource by `type` plus exactly one of `id` or `lid`; `relationship` narrows the target to that relationship.",
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "A local id referencing a resource created earlier in the same batch."
+                    },
+                    "relationship": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "type"
+                ]
+            },
+            "AtomicRelationshipAddOperation": {
+                "type": "object",
+                "description": "Adds members to a to-many relationship. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "add"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "required": [
+                                    "relationship"
+                                ]
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "(^|/)relationships/[^/?#]+/?$"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TagsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/VideosAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CompaniesAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ArticlesAtomicIdentifier"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleAtomicIdentifier",
+                                    "tags": "#/components/schemas/TagsAtomicIdentifier",
+                                    "images": "#/components/schemas/ImagesAtomicIdentifier",
+                                    "videos": "#/components/schemas/VideosAtomicIdentifier",
+                                    "companies": "#/components/schemas/CompaniesAtomicIdentifier",
+                                    "articles": "#/components/schemas/ArticlesAtomicIdentifier"
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
+                ],
+                "anyOf": [
+                    {
+                        "required": [
+                            "ref"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "href"
+                        ]
+                    }
+                ]
+            },
+            "AtomicRelationshipRemoveOperation": {
+                "type": "object",
+                "description": "Removes members from a to-many relationship. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "remove"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "required": [
+                                    "relationship"
+                                ]
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "(^|/)relationships/[^/?#]+/?$"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TagsAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/VideosAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CompaniesAtomicIdentifier"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ArticlesAtomicIdentifier"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "people": "#/components/schemas/PeopleAtomicIdentifier",
+                                    "tags": "#/components/schemas/TagsAtomicIdentifier",
+                                    "images": "#/components/schemas/ImagesAtomicIdentifier",
+                                    "videos": "#/components/schemas/VideosAtomicIdentifier",
+                                    "companies": "#/components/schemas/CompaniesAtomicIdentifier",
+                                    "articles": "#/components/schemas/ArticlesAtomicIdentifier"
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
+                ],
+                "anyOf": [
+                    {
+                        "required": [
+                            "ref"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "href"
+                        ]
+                    }
+                ]
+            },
+            "AtomicRelationshipUpdateOperation": {
+                "type": "object",
+                "description": "Replaces a relationship: an identifier or `null` for a to-one, an array of identifiers for a to-many. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "update"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "required": [
+                                    "relationship"
+                                ]
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "(^|/)relationships/[^/?#]+/?$"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "oneOf": [
+                            {
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/TagsAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/VideosAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/CompaniesAtomicIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ArticlesAtomicIdentifier"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "people": "#/components/schemas/PeopleAtomicIdentifier",
+                                        "tags": "#/components/schemas/TagsAtomicIdentifier",
+                                        "images": "#/components/schemas/ImagesAtomicIdentifier",
+                                        "videos": "#/components/schemas/VideosAtomicIdentifier",
+                                        "companies": "#/components/schemas/CompaniesAtomicIdentifier",
+                                        "articles": "#/components/schemas/ArticlesAtomicIdentifier"
+                                    }
+                                }
+                            },
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/PeopleAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TagsAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ImagesAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/VideosAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompaniesAtomicIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ArticlesAtomicIdentifier"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "people": "#/components/schemas/PeopleAtomicIdentifier",
+                                            "tags": "#/components/schemas/TagsAtomicIdentifier",
+                                            "images": "#/components/schemas/ImagesAtomicIdentifier",
+                                            "videos": "#/components/schemas/VideosAtomicIdentifier",
+                                            "companies": "#/components/schemas/CompaniesAtomicIdentifier",
+                                            "articles": "#/components/schemas/ArticlesAtomicIdentifier"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
+                ],
+                "anyOf": [
+                    {
+                        "required": [
+                            "ref"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "href"
+                        ]
+                    }
+                ]
+            },
+            "AtomicRemoveOperation": {
+                "type": "object",
+                "description": "Removes a resource. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "remove"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "not": {
+                                    "required": [
+                                        "relationship"
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "not": {
+                                    "type": "string",
+                                    "pattern": "(^|/)relationships/[^/?#]+/?$"
+                                }
+                            }
+                        ]
+                    },
+                    "data": false
+                },
+                "required": [
+                    "op"
+                ]
+            },
             "AtomicResult": {
                 "type": "object",
                 "description": "The result fragment of one operation. It carries only `data` and `meta`, and a `remove` returns it empty.",
                 "properties": {
                     "data": {
-                        "description": "The created or updated resource (or its identifier) the operation returns.",
+                        "description": "The created or updated resource, or the linkage a relationship operation returns.",
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/ArticlesResource"
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/ArticlesResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PeopleResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/TagsResource"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/VideosResource"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "articles": "#/components/schemas/ArticlesResource",
+                                        "people": "#/components/schemas/PeopleResource",
+                                        "tags": "#/components/schemas/TagsResource",
+                                        "videos": "#/components/schemas/VideosResource"
+                                    }
+                                }
                             },
                             {
-                                "$ref": "#/components/schemas/ArticlesResourceIdentifier"
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PeopleResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/TagsResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ImagesResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/VideosResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/CompaniesResourceIdentifier"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ArticlesResourceIdentifier"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "type",
+                                    "mapping": {
+                                        "people": "#/components/schemas/PeopleResourceIdentifier",
+                                        "tags": "#/components/schemas/TagsResourceIdentifier",
+                                        "images": "#/components/schemas/ImagesResourceIdentifier",
+                                        "videos": "#/components/schemas/VideosResourceIdentifier",
+                                        "companies": "#/components/schemas/CompaniesResourceIdentifier",
+                                        "articles": "#/components/schemas/ArticlesResourceIdentifier"
+                                    }
+                                }
                             },
                             {
-                                "$ref": "#/components/schemas/PeopleResource"
+                                "type": "array",
+                                "items": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/PeopleResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TagsResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ImagesResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/VideosResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompaniesResourceIdentifier"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ArticlesResourceIdentifier"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "people": "#/components/schemas/PeopleResourceIdentifier",
+                                            "tags": "#/components/schemas/TagsResourceIdentifier",
+                                            "images": "#/components/schemas/ImagesResourceIdentifier",
+                                            "videos": "#/components/schemas/VideosResourceIdentifier",
+                                            "companies": "#/components/schemas/CompaniesResourceIdentifier",
+                                            "articles": "#/components/schemas/ArticlesResourceIdentifier"
+                                        }
+                                    }
+                                }
                             },
                             {
-                                "$ref": "#/components/schemas/PeopleResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/TagsResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/TagsResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ImagesResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ImagesResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/VideosResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/VideosResourceIdentifier"
-                            },
-                            {
-                                "$ref": "#/components/schemas/HealthcheckResource"
-                            },
-                            {
-                                "$ref": "#/components/schemas/HealthcheckResourceIdentifier"
+                                "type": "null"
                             }
                         ]
                     },
@@ -11244,6 +12378,74 @@
                 },
                 "required": [
                     "atomic:results"
+                ]
+            },
+            "AtomicUpdateOperation": {
+                "type": "object",
+                "description": "Updates a resource. The target is given by at most one of `ref` or `href`.",
+                "properties": {
+                    "op": {
+                        "type": "string",
+                        "const": "update"
+                    },
+                    "ref": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AtomicRef"
+                            },
+                            {
+                                "not": {
+                                    "required": [
+                                        "relationship"
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "href": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "format": "uri-reference",
+                                "description": "A URI reference to the operation's target (an alternative to `ref`)."
+                            },
+                            {
+                                "not": {
+                                    "type": "string",
+                                    "pattern": "(^|/)relationships/[^/?#]+/?$"
+                                }
+                            }
+                        ]
+                    },
+                    "data": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ArticlesAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/PeopleAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/TagsAtomicUpdate"
+                            },
+                            {
+                                "$ref": "#/components/schemas/VideosAtomicUpdate"
+                            }
+                        ],
+                        "discriminator": {
+                            "propertyName": "type",
+                            "mapping": {
+                                "articles": "#/components/schemas/ArticlesAtomicUpdate",
+                                "people": "#/components/schemas/PeopleAtomicUpdate",
+                                "tags": "#/components/schemas/TagsAtomicUpdate",
+                                "videos": "#/components/schemas/VideosAtomicUpdate"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "op",
+                    "data"
                 ]
             },
             "AttributeValueInvalidError": {
@@ -11468,6 +12670,42 @@
                 "additionalProperties": {
                     "$ref": "#/components/schemas/LinkObject"
                 }
+            },
+            "CompaniesAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "companies"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
             },
             "CompaniesResourceIdentifier": {
                 "type": "object",
@@ -12535,6 +13773,42 @@
                     "id"
                 ]
             },
+            "ImagesAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "images"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "ImagesAttributes": {
                 "type": "object",
                 "properties": {
@@ -13506,6 +14780,42 @@
                             "id": false,
                             "lid": false
                         }
+                    }
+                ]
+            },
+            "PeopleAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "people"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
                     }
                 ]
             },
@@ -15058,6 +16368,42 @@
                     }
                 ]
             },
+            "TagsAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "tags"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
+                ]
+            },
             "TagsAtomicUpdate": {
                 "type": "object",
                 "description": "The tag resource object an `update` operation writes.",
@@ -15396,6 +16742,42 @@
                 },
                 "required": [
                     "type"
+                ]
+            },
+            "VideosAtomicIdentifier": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "videos"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "lid": {
+                        "type": "string",
+                        "description": "The local id of a resource created earlier in the batch."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "oneOf": [
+                    {
+                        "title": "By id",
+                        "required": [
+                            "id"
+                        ]
+                    },
+                    {
+                        "title": "By local id (lid)",
+                        "required": [
+                            "lid"
+                        ]
+                    }
                 ]
             },
             "VideosAtomicUpdate": {

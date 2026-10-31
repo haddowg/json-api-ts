@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   265c3e27367ba093
+ * Spec hash:   ec6b2eb1ec4388e9
  */
 
 import {
@@ -563,6 +563,36 @@ export const resourceMap = {
       /**
        * OAuth scopes:
        *
+       * - `fetchRelated` needs `articles:read`
+       * - `fetchRelationship` needs `articles:read`
+       * - `updateRelationship` needs `articles:write`
+       * - `addRelationship` needs `articles:write`
+       * - `removeRelationship` needs `articles:write`
+       */
+      sponsors: {
+        cardinality: "many",
+        types: [
+          "people",
+          "images"
+        ],
+        polymorphic: true,
+        pivot: false,
+        mutations: {
+          add: true,
+          remove: true,
+          replace: true
+        },
+        countable: {
+          tokens: [
+            "_self_"
+          ],
+          profile: "https://haddowg.github.io/json-api/profiles/countable/"
+        },
+        paginator: "page"
+      },
+      /**
+       * OAuth scopes:
+       *
        * - `fetchRelated` needs `articles:read` and `people:read`
        * - `fetchRelationship` needs `articles:read` and `people:read`
        * - `updateRelationship` needs `articles:write`
@@ -672,7 +702,8 @@ export const resourceMap = {
     countable: {
       tokens: [
         "_self_",
-        "tags"
+        "tags",
+        "sponsors"
       ],
       profile: "https://haddowg.github.io/json-api/profiles/countable/"
     },
@@ -927,6 +958,9 @@ export const resourceMap = {
       "addRelationship.gallery": [
         "articles:write"
       ],
+      "addRelationship.sponsors": [
+        "articles:write"
+      ],
       "addRelationship.tags": [
         "articles:write"
       ],
@@ -966,6 +1000,9 @@ export const resourceMap = {
         "articles:read",
         "people:read"
       ],
+      "fetchRelated.sponsors": [
+        "articles:read"
+      ],
       "fetchRelated.subject": [
         "articles:read",
         "people:read"
@@ -997,6 +1034,9 @@ export const resourceMap = {
         "articles:read",
         "people:read"
       ],
+      "fetchRelationship.sponsors": [
+        "articles:read"
+      ],
       "fetchRelationship.subject": [
         "articles:read",
         "people:read"
@@ -1008,6 +1048,9 @@ export const resourceMap = {
         "articles:write"
       ],
       "removeRelationship.gallery": [
+        "articles:write"
+      ],
+      "removeRelationship.sponsors": [
         "articles:write"
       ],
       "removeRelationship.tags": [
@@ -1038,6 +1081,9 @@ export const resourceMap = {
         "articles:write"
       ],
       "updateRelationship.reviewer": [
+        "articles:write"
+      ],
+      "updateRelationship.sponsors": [
         "articles:write"
       ],
       "updateRelationship.subject": [
@@ -1170,7 +1216,8 @@ export const resourceMap = {
         },
         countable: {
           tokens: [
-            "tags"
+            "tags",
+            "sponsors"
           ],
           profile: "https://haddowg.github.io/json-api/profiles/countable/"
         }
