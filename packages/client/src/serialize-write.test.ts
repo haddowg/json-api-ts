@@ -177,7 +177,7 @@ describe('remapPointer', () => {
 
   it('remaps a pivot-array relationship pointer to [n].$pivot.field', () => {
     // Pivot values nest under `meta.pivot` — the exact wire shape from json-api-symfony
-    // DoctrinePivotWriteTest (whole-resource write; bundle ADR 0103).
+    // DoctrinePivotWriteTest (whole-resource write; bundle ADR 0045).
     expect(
       remapPointer(
         descriptor,
