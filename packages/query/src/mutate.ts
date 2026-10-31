@@ -1,6 +1,6 @@
 /**
- * Mutation OPTION FACTORIES over the client write surface (CONTEXT.md "Mutations: option
- * factories with optimistic updates routed through the normalized patch"; ADR 0003).
+ * Mutation OPTION FACTORIES over the client write surface (optimistic updates routed
+ * through the normalized patch; docs/tanstack-query.md, ADR 0003).
  *
  * Each factory returns a plain `{ mutationFn, onMutate?, onError?, onSuccess?, onSettled? }`
  * object structurally compatible with `@tanstack/query-core` — the user passes it to their

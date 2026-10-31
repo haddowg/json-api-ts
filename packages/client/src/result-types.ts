@@ -5,7 +5,7 @@
  * runtime that produces these values lives in materialise.ts; this file is the
  * compile-time projection of that runtime onto descriptor + attribute types.
  *
- * Naming mirrors the runtime `$`-accessors (ADR 0002 / CONTEXT.md): the data is
+ * Naming mirrors the runtime `$`-accessors (ADR 0002): the data is
  * flattened as own enumerable props (`type`, `id`, attributes, relations) and the
  * envelope rides non-enumerable `$`-accessors.
  */
@@ -32,7 +32,7 @@ import type { ExactPageParams, Page, PageOf, PageParams } from './pagination'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 
 /**
- * An augmented array (CONTEXT.md "To-many relationship values are augmented arrays"):
+ * An augmented array (docs/materialisation.md "Augmented arrays"):
  * a real, read-only `T[]` carrying the non-enumerable relationship-level envelope
  * (`$page`/`$links`/`$meta`) plus link-driven `$next()`/`$prev()` navigation. The same
  * model backs top-level collections, related-endpoint collections, and hydrated/linkage
@@ -730,7 +730,7 @@ type RelationshipAccessors<D extends ApiDescriptor, A, T extends TypeName<D>> = 
   [R in RelationName<D, T>]: RelationshipAccessor<D, A, T, R>
 }
 
-// ── Write input types (CONTEXT.md "Write surface — flat input + fluent builder") ──────
+// ── Write input types (docs/writes.md) ─────────────────────────────────────────────────────────
 
 /**
  * Writable pivot data carried on a to-many member as `$pivot` (a belongsToMany relation with
@@ -827,7 +827,7 @@ export interface WriteOptions<
   fields?: F
 }
 
-// ── Atomic results (CONTEXT.md "Atomic — typed transaction builder") ──────────────────
+// ── Atomic results (docs/atomic-operations.md) ─────────────────────────────────────────────────
 
 /**
  * The materialised positional result of a single atomic op handle:
@@ -853,7 +853,7 @@ export type AtomicResultOf<D extends ApiDescriptor, A, Handle> = Handle extends 
         : never
       : never
 
-// ── Custom actions (CONTEXT.md "Write surface" — `.actions.<name>`) ────────────────────
+// ── Custom actions (docs/custom-actions.md) ────────────────────────────────────────────────────
 
 /** The custom actions declared on type `T` (the descriptor's `actions` block, or `{}`). */
 type ActionsOf<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
@@ -877,8 +877,8 @@ type ActionNameAtScope<
 >
 
 /**
- * The generated per-action body/result types (CONTEXT.md "Write surface" — a typed action
- * surface). The codegen emits precise `<Type><Action>Input`/`Output` aliases (expanding the
+ * The generated per-action body/result types (docs/custom-actions.md — a typed
+ * action surface). The codegen emits precise `<Type><Action>Input`/`Output` aliases (expanding the
  * referenced JSON:API component) and threads them in keyed `type -> actionName -> { input?;
  * output? }` as the client's fourth type argument. Default `{}` (no codegen, or `createClient`
  * called directly): actions fall back to the loose `Record<string,unknown>` in / `unknown` out.
@@ -1247,7 +1247,7 @@ export type Client<
   [T in TypeName<D>]: TypeAccessor<D, WithLinks<A, L>, W, T, Act>
 } & {
   /**
-   * Run an Atomic Operations batch (CONTEXT.md "Atomic — typed transaction builder"): the
+   * Run an Atomic Operations batch (docs/atomic-operations.md): the
    * callback records `create`/`update`/`delete` ops on a non-type-scoped recorder (each carries
    * its `type`), posted all-or-nothing to the server's atomic endpoint. Present only when the
    * client was built with the server's `atomic` capability; calling it on an API without one

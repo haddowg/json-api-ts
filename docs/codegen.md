@@ -231,6 +231,9 @@ export interface TracksAttributes {
 
 A nullable enum (`anyOf` of the enum and `null`) becomes `AlbumStatus | null`.
 
+Values pass through as the wire carries them: a `date` or `date-time` is an ISO `string`
+and a decimal a `number`, with no coercion, so a result serialises and caches unchanged.
+
 An enum alias takes its component's name. When that name isn't a usable TypeScript type
 name (it has spaces or punctuation, starts with a digit, is a reserved word, or clashes
 with another name in the module), the codegen derives one from it, such as `ReleaseState`

@@ -20,7 +20,7 @@ export type Teardown = () => void
  * Which descriptor is currently installed on a given QueryClient. The normalizer patches a cached
  * query by walking it with the *patch's* descriptor and matching on `type:id`, so two descriptors
  * sharing one QueryClient (e.g. a `default` + an `admin` server whose `users` carry different
- * attribute sets — CONTEXT.md's multi-client case) would cross-contaminate: a read from one would
+ * attribute sets — one client per server) would cross-contaminate: a read from one would
  * overwrite the other's cached node with foreign attributes. The supported contract is therefore
  * ONE descriptor per QueryClient; this registry enforces it for the auto-install entry point.
  * A `WeakMap` so a discarded QueryClient (and its install record) is garbage-collected.

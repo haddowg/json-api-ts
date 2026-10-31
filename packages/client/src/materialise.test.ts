@@ -109,7 +109,7 @@ describe('materialise — single resource (album-compound)', () => {
     expect(artist['id']).toBe('1')
     expect(artist['name']).toBe('Radiohead')
     // $edge carries the relationship-instance envelope: the to-one's self/related links come
-    // from the relationship OBJECT (CONTEXT.md), so no need to go via the parent's $rel.
+    // from the relationship OBJECT (docs/materialisation.md), so no need to go via the parent's $rel.
     expect(artist.$edge?.links).toEqual({
       self: 'https://music.example/albums/1/relationships/artist',
       related: 'https://music.example/albums/1/artist',
@@ -377,7 +377,7 @@ describe('materialise — to-one / empty shapes', () => {
 
   it('carries the relationship object links/meta on a to-one $edge', () => {
     // A synthetic to-one whose relationship object has self/related links + meta: the per-edge
-    // $edge must surface them so there is no need to go via the parent $rel (CONTEXT.md).
+    // $edge must surface them so there is no need to go via the parent $rel (docs/materialisation.md).
     const doc: Document = {
       data: {
         type: 'albums',

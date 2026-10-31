@@ -136,7 +136,7 @@ const defineGetter = (target: object, key: string, get: () => unknown): void => 
 }
 
 /**
- * Materialise a JSON:API document into a hydrated graph (ADR 0002 / CONTEXT.md):
+ * Materialise a JSON:API document into a hydrated graph (ADR 0002):
  *
  * - single resource -> a flattened resource object (own enumerable type/id/attributes/
  *   relations + non-enumerable `$`-accessors);
@@ -311,7 +311,7 @@ function hydrateRelation(
 
   if (isObject(data)) {
     // A to-one's edge envelope carries the relationship object's self/related links/meta
-    // (CONTEXT.md: $edge = { links:{self,related}, meta }) so there's no need to go via
+    // ($edge = { links:{self,related}, meta }; docs/materialisation.md) so there's no need to go via
     // the parent's $rel for to-ones.
     return resolveMember(data as unknown as RawResource, env, index, nodes, ctx, {
       links: rel.links,
@@ -373,7 +373,7 @@ function attachResourceEnvelope(
  * edge-local `$edge`/`$pivot`. Identity is by `type:id`, never reference.
  *
  * `relationEdge` (set for a to-one) carries the relationship object's self/related links and
- * meta, which ride the value's `$edge` per CONTEXT.md.
+ * meta, which ride the value's `$edge` (docs/materialisation.md).
  */
 function buildEdgeView(node: object, member: RawResource, relationEdge?: RelationEdge): object {
   const view: Record<string, unknown> = {}

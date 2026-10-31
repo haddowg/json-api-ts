@@ -16,7 +16,7 @@ export interface JsonApiErrorObject<C extends string = string> {
   /**
    * The user-facing input path, remapped from `source.pointer` for write errors
    * (e.g. `/data/attributes/title` -> `title`). Populated by the runtime, which
-   * built the envelope and therefore knows the inverse mapping. See CONTEXT.md.
+   * built the envelope and therefore knows the inverse mapping. See docs/errors.md.
    */
   path?: string
   /**
