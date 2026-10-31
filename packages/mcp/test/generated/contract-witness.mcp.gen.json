@@ -1,10 +1,10 @@
 {
   "format": 4,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 18,
+  "contract": 19,
   "source": {
     "title": "Contract Witness API 3.4.1",
-    "hash": "c2e8557b1f287c13"
+    "hash": "265c3e27367ba093"
   },
   "credentialSchemes": [
     "oauth2"
@@ -186,6 +186,9 @@
             "remove": true,
             "replace": true
           },
+          "included": [
+            "articles"
+          ],
           "countable": {
             "tokens": [
               "_self_"
@@ -231,6 +234,10 @@
         "author",
         "tags",
         "author.company"
+      ],
+      "included": [
+        "people",
+        "tags"
       ],
       "sortable": [
         "title",
