@@ -1,7 +1,7 @@
 /**
  * @haddowg/json-api-codegen — reads the bundle's OpenAPI 3.1 document (from a URL or
  * a local file) and emits the runtime descriptor + derived types + a bound
- * `createClient` (ADR 0001). Optionally reads the bundle's JSON Schemas to wire the
+ * `createClient`. Optionally reads the bundle's JSON Schemas to wire the
  * opt-in validation seam.
  *
  * The spec is fully self-describing for our needs (see docs/concepts.md): type identity is
@@ -162,8 +162,8 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
  *
  * When `config.schemas` is set, also read the bundle's JSON Schema bundle and write a
  * separate per-type schema artifact (`<output>.schemas.gen.ts`) beside the client, wiring
- * the opt-in validation seam (ADR 0004). The main client output is unchanged either way.
- * `config.examples` writes the operation examples the same way (ADR 0011).
+ * the opt-in validation seam. The main client output is unchanged either way.
+ * `config.examples` writes the operation examples the same way.
  *
  * `config.server` is metadata-only for now: the served document is already per-server,
  * so the caller selects the server by pointing `input` at the right document.

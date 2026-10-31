@@ -11,7 +11,7 @@ import { jsonLiteral } from './source'
  *
  * The values are the raw, self-contained resource-object JSON Schema documents the bundle
  * serves at `GET /schemas.json` — suitable to hand straight to a validation engine via the
- * opt-in `validate?` seam (ADR 0004). This is a separate file from the client so the main
+ * opt-in `validate?` seam. This is a separate file from the client so the main
  * descriptor/client output is unaffected when `--schemas` is absent.
  *
  * The schemas are emitted as JSON (deterministic, key order preserved) so the artifact is
