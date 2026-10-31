@@ -86,7 +86,7 @@ Most actions are one of the shapes above. The remaining modes and edge cases are
 
 ## An action with several methods
 
-An action can answer to more than one method, say `export` over `GET` and `POST`. The server gives each method its own operation id from generator contract 15, and the client gets one method per HTTP method. The preferred one keeps the action's name. That's `POST` when the action allows it, otherwise the first of `GET`, `PUT`, `PATCH` and `DELETE`. Each other method is named after the action and the method, joined the way the action's name joins its words:
+An action can answer to more than one method, say `export` over `GET` and `POST`. The server gives each method its own operation id, and the client gets one method per HTTP method. The preferred one keeps the action's name. That's `POST` when the action allows it, otherwise the first of `GET`, `PUT`, `PATCH` and `DELETE`. Each other method is named after the action and the method, joined the way the action's name joins its words:
 
 ```ts
 await client.articles.actions.export() // POST /articles/-actions/export
@@ -97,11 +97,11 @@ await client.articles.actions['bulk-import'](rows)
 await client.articles.actions['bulk-import-put'](rows)
 ```
 
-A client generated before contract 15 had only the preferred method, under the same name, so regenerating adds methods and removes none. The server refuses action names that differ only in case or punctuation, so `exportGet` can't clash with another action.
+A client generated against an older server had only the preferred method, under the same name, so regenerating adds methods and removes none. The server refuses action names that differ only in case or punctuation, so `exportGet` can't clash with another action.
 
 ## Safety
 
-An action's method doesn't say whether it changes anything: a search sent as `POST` reads like a write. From generator contract 15 an action can declare it, and the descriptor carries each declared flag as `readOnly`, `destructive` or `idempotent`. A flag the server doesn't declare is absent, so `undefined` means unknown, not `false`. The action's JSDoc repeats them, so an editor hover on `client.articles.id(id).actions.purge` reads "The server declares this action destructive."
+An action's method doesn't say whether it changes anything: a search sent as `POST` reads like a write. An action can declare it, and the descriptor carries each declared flag as `readOnly`, `destructive` or `idempotent`. A flag the server doesn't declare is absent, so `undefined` means unknown, not `false`. The action's JSDoc repeats them, so an editor hover on `client.articles.id(id).actions.purge` reads "The server declares this action destructive."
 
 ```ts
 import { resourceMap } from './api/music.gen'
@@ -137,7 +137,7 @@ A custom [transport](getting-started.md) has to honour `responseType` for binary
 
 ## Actions that answer with a URL
 
-Some actions hand out a URL instead of a body, such as a presigned link to a CSV export in object storage. From generator contract 17 the server answers such an action with a location document when the request asks for JSON:API, and with a `303` redirect otherwise. The client always asks for JSON:API, so it gets the document and returns the URL as an `ActionLocation`, without fetching it:
+Some actions hand out a URL instead of a body, such as a presigned link to a CSV export in object storage. The server answers such an action with a location document when the request asks for JSON:API, and with a `303` redirect otherwise. The client always asks for JSON:API, so it gets the document and returns the URL as an `ActionLocation`, without fetching it:
 
 ```ts
 // GET /articles/{id}/-actions/download answers with a link to the article as text/csv.

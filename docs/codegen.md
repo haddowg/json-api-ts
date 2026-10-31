@@ -55,122 +55,62 @@ stderr with a `[json-api-codegen]` prefix, such as a newer contract than it
 reads, a relation that collides with a verb, a paginator it can't read, or a
 document with no JSON:API resource types at all, which generates an empty client.
 
-The document's `info.x-generator.contract` says which structures it carries. This
-codegen reads contracts 1 to 18. A document with no contract, from a server before
+The document's `info.x-generator.contract` is a compatibility number the projector
+stamps, which moves only when the document's structure does. This codegen reads
+contracts 1 to 18. A document with no contract, from a server before
 `haddowg/json-api` 1.1.0, is read as it is, and a newer one generates with a warning
-that the client may miss what the server added.
+that the client may miss what the server added. What each server release added is in
+the `haddowg/json-api` changelog.
 
-Contract 7 describes each `links` member as a link object (`{ href, describedby }`)
-with an example URL, and `describedby` points at the operation in the served spec.
-The codegen doesn't type `links`: the client reads `href` from a link object and
-accepts a plain string too, so a server that still renders string links works the
-same.
+A few things the codegen reads from the document that affect the generated client:
 
-Contract 8 changes three things the codegen reads:
-
-- A pivot relation's `meta.pivot` gets one schema for responses and one for
-  requests. See [Pivot fields](#pivot-fields).
-- A relation's related and relationship paths use its URI field name, which can
-  differ from its name (`/articles/{id}/published-by` for `publisher`). The codegen
-  finds each relation's endpoints by operationId (`fetchRelated.articles.publisher`)
-  and records the segment as the relation's `uriField`, which the client puts in
-  the path. Older documents fall back to the relation's name.
-- A write-only relation's property in the create, update and atomic bodies carries
-  `writeOnly: true`. See [Write-only relations](#write-only-relations).
-
-Contract 9 wraps a `$ref` that carries an `example`, `examples` or `default` in a
-single-entry `allOf`, because OpenAPI 3.0 tools ignore keywords beside a `$ref`. An
-enum attribute with an example arrives as
-`{ "allOf": [{ "$ref": "#/components/schemas/ArticleStatus" }], "example": "draft" }`.
-The codegen reads that wrapper as the `$ref` it holds, so the attribute is still
-typed `status: ArticleStatus`, and the wrapper's description, example and default
-become TSDoc on the member. The same contract gives each relation its own links
-components and answers a to-many related endpoint with a
-`<Type><Rel>RelatedCollection` document. The codegen finds those endpoints by
-operationId, so neither changes the generated client.
-
-Contract 10 is carried only by a document whose custom actions answer in media types
-other than JSON:API; every other document stays at 9. The codegen records each such
-media type on the action as `rawOutput`, with how the client reads it: `binary` for a
-`format: binary` schema, `text` for any other string schema, `json` for any other
-schema. A JSON schema is typed under its component's name (`ArticleSummary`) or, when
-inline, under `<Type><Action><MediaType>Output`.
-
-Contract 11 is carried only by a document with an action that accepts several request
-bodies, each a `requestBody.content` entry such as `text/csv`, `image/*` or
-`multipart/form-data`. The codegen records them on the action as `inputMedia`, read the
-same way as `rawOutput`, and a multipart entry becomes a `FormData` body. See
-[raw responses and request media types](custom-actions.md#raw-responses).
-
-An action's summary and description become the JSDoc of its method. The projector's
-stand-in text for an action its author didn't describe ("Invoke the `report` action")
-is left out.
-
-Contract 12 adds a whole worked `example` to each operation's request body and
-success responses, built by the server from the examples its fields declare. An
-action's method shows one as an `@example` in its JSDoc: the request body when the
-action takes one, otherwise its first success response. It is the wire document,
-pretty-printed, under a title such as "Request body" or "Response `200` as
-`text/csv`". A text body is shown as is. A body longer than 80 lines is named but
-not shown, so a hover stays readable; the [examples module](#operation-examples)
-still has it. A `*/` in the example is broken up and the code fence is made longer
-than any run of backticks inside it, so a value can't end the comment or the block.
-The CRUD and relationship methods come from the generic runtime, so their examples
-are only in the examples module.
-
-Contract 13 is on every document from core 1.13.1. Each core error code's component
-now gives its `detail` property an example, so every `ErrorCodes` key gets an
-`@example` with the message the server sends, as described under
-[error codes](#error-codes). Nothing else in the document changed.
-
-Contract 14 is carried only by a document whose types declare named links. Each declared
-link is a named property of the type's `<Type>ResourceLinks`, and the codegen types it, as
-described under [declared links](#declared-links).
-
-Contract 15 is carried only by a document with an action that answers to several methods,
-declares its safety or carries its own vendor extensions. Each method of a multi-method
-action now has its own operation id, and the codegen gives each one its own action method,
-as described under [several methods](custom-actions.md#an-action-with-several-methods). An
-action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and
-`idempotent`, and the action's JSDoc says which ones it declares. An action's own vendor
-extensions, such as `x-workflows`, are left out.
-
-Contract 16 is carried only by a document with an operation that needs OAuth scopes, or with
-a polymorphic relation over a single type. Such an operation's `security` lists its scopes
-under the server's `oauth2` scheme. The codegen finds the scheme by its `type` in
-`components.securitySchemes`, whatever it's named, and carries the scopes in the descriptor:
-per type in `scopes`, keyed by operation, on each action as `scopes`, and on the `atomic`
-const. An operation that needs none has no entry. The JSDoc of the descriptor's `paths`
-entries, relations, actions and `atomic` names the scopes too, so a hover on
-`resourceMap.articles.relations.author` lists what each of its endpoints needs.
-
-The same contract projects a `MorphTo` or `MorphToMany` over one type as a union with one
-member, where it used to be a plain `$ref` that looked like a `BelongsTo`. The codegen reads a
-union of any size as polymorphic and marks the relation `polymorphic: true`, so it no longer
-depends on counting `types`. The TypeScript client already takes `{ type, id }` for every
-relation, so its types don't change; the [MCP tools](mcp.md) do, since they take a bare id
-for a relation that isn't polymorphic. The relation's related and relationship endpoints
-also stop advertising the related type's `filter`, `sort` and `page` parameters, as they
-already did for a polymorphic relation over several types.
-
-Contract 17 is carried only by a document with an action that answers with a URL, such as a
-short-lived download link. Its `200` JSON:API response is a location document: an `allOf` of
-the shared `LocationDocument` with a `const` on `links.location.type`, the media type the URL
-serves, or a `oneOf` of that and the action's own document when it declares one. The codegen
-marks such an action with `location: { mediaType }` and, when the URL is all it answers with,
-`output: "location"`. The client then returns the URL instead of fetching it, as described
-under [actions that answer with a URL](custom-actions.md#actions-that-answer-with-a-url). An
-action that only documents a `303` has no `location`, and the transport follows the redirect
-as before.
-
-Contract 18 is on every document from core 1.20.0. The per-type and per-relation links
-components gave way to one shared component per context, `ResourceLinks`, `DocumentLinks`,
-`CollectionLinks`, `RelationshipLinks`, `RelationshipDocumentLinks` and
-`RelatedDocumentLinks`, and link schemas no longer carry examples. A type with declared or
-action links keeps a `<Type>ResourceLinks`, now an `allOf` of the shared `ResourceLinks` and
-an object listing its named links, and the codegen reads them from there. The generated
-types are the same as before, except that a declared link's JSDoc loses its `@example`,
-since the document no longer has one. The worked links are in the operation examples.
+- **Links** are typed loosely: the client reads `href` from a link object and accepts
+  a plain string too.
+- **Relation paths** use the relation's URI field name, which can differ from its name
+  (`/articles/{id}/published-by` for `publisher`). The codegen finds each relation's
+  endpoints by operationId (`fetchRelated.articles.publisher`) and records the segment
+  as the relation's `uriField`, which the client puts in the path.
+- **Wrapped `$ref`s.** A `$ref` that carries an `example`, `examples` or `default` is
+  written as a single-entry `allOf`. The codegen reads it as the `$ref` it holds, so an
+  enum attribute is still typed `status: ArticleStatus`, and the wrapper's description,
+  example and default become TSDoc on the member.
+- **Raw media types.** An action that answers in media types other than JSON:API gets
+  each one recorded as `rawOutput`, read as `binary` for a `format: binary` schema,
+  `text` for any other string schema and `json` otherwise. A JSON schema is typed under
+  its component's name (`ArticleSummary`) or, when inline, under
+  `<Type><Action><MediaType>Output`. An action that accepts several request bodies gets
+  them as `inputMedia`, read the same way, and a multipart entry becomes a `FormData`
+  body. See [raw responses and request media types](custom-actions.md#raw-responses).
+- **Action docs.** An action's summary and description become the JSDoc of its method.
+  The projector's stand-in text for an action its author didn't describe ("Invoke the
+  `report` action") is left out. When the document carries worked examples, the method
+  shows one as an `@example`: the request body when the action takes one, otherwise its
+  first success response, pretty-printed under a title such as "Request body" or
+  "Response `200` as `text/csv`". A body longer than 80 lines is named but not shown;
+  the [examples module](#operation-examples) still has it. The CRUD and relationship
+  methods come from the generic runtime, so their examples are only in the examples
+  module.
+- **Several methods.** Each method of a multi-method action gets its own action method,
+  as described under [several methods](custom-actions.md#an-action-with-several-methods).
+  An action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and
+  `idempotent`, and its JSDoc says which ones it declares. An action's own vendor
+  extensions, such as `x-workflows`, are left out.
+- **OAuth scopes** an operation lists in its `security` under the server's `oauth2`
+  scheme (found by `type`, whatever it's named) go into the descriptor: per type in
+  `scopes`, keyed by operation, on each action as `scopes`, and on the `atomic` const.
+  The JSDoc of the descriptor's `paths` entries, relations, actions and `atomic` names
+  them too, so a hover on `resourceMap.articles.relations.author` lists what each of its
+  endpoints needs.
+- **Polymorphic relations.** A relation whose linkage is a union is marked
+  `polymorphic: true` whatever its member count, so a `MorphTo` over a single type is
+  polymorphic too. Its related and relationship endpoints don't advertise the related
+  type's `filter`, `sort` and `page` parameters.
+- **Location documents.** An action that answers with a URL, such as a short-lived
+  download link, is marked `location: { mediaType }` and, when the URL is all it answers
+  with, `output: "location"`. The client then returns the URL instead of fetching it, as
+  described under [actions that answer with a URL](custom-actions.md#actions-that-answer-with-a-url).
+  An action that only documents a `303` has no `location`, and the transport follows the
+  redirect.
 
 ### The validation schemas
 
@@ -192,7 +132,7 @@ becomes `.schemas.gen.ts` (so the example above also writes
 
 ### Operation examples
 
-Add `--examples` to also write the worked examples a contract 12 document declares
+Add `--examples` to also write the worked examples the document declares
 to a sibling module, named the way the schema module is: `music.gen.ts` gets
 `music.examples.gen.ts`. It exports `examples`, typed as the client's
 `ApiExamples`, for a consumer that wants each operation's sample without reading
@@ -217,8 +157,7 @@ materialised result the client works with. Error responses are shared components
 in the document rather than per operation, so they are left out.
 
 Anything without an example is left out: a type, an operation, a request or a
-status. A document with no examples, which includes every document before
-contract 12, writes no module and warns that it has none. The module is off by
+status. A document with no examples writes no module and warns that it has none. The module is off by
 default because it is several times the size of the client and an app that only
 calls the API has no use for it.
 
@@ -271,8 +210,7 @@ Each attribute interface is generated from its own schema: `…Attributes` from 
 response schema, `…CreateAttributes` and `…UpdateAttributes` from the request
 bodies. The server can state different rules for each, so the three can differ.
 
-A read attribute is `| null` exactly when the response schema admits `null`. From
-generator contract 5 that is any attribute the server doesn't guarantee a value
+A read attribute is `| null` exactly when the response schema admits `null`. That is any attribute the server doesn't guarantee a value
 for, such as an optional field a create left out. Required fields, and fields the
 server marks as always filled, stay non-null:
 
@@ -298,7 +236,7 @@ name (it has spaces or punctuation, starts with a digit, is a reserved word, or 
 with another name in the module), the codegen derives one from it, such as `ReleaseState`
 for `release state`, and prints a warning naming both.
 
-A nested object follows the same rules member by member. From generator contract 6 a
+A nested object follows the same rules member by member. A
 response schema lists every member the server always renders in the object's
 `required`, so on reads those members lose their `?` and only nullability is left
 to decide. Write interfaces keep the request body's own `required`:
@@ -324,7 +262,7 @@ list the server would reject.
 
 A write-only relation is one the create and update bodies accept but no response
 renders. The codegen marks it `writeOnly: true` in the descriptor. It's found by the
-`writeOnly: true` keyword on its body property (contract 8) or, in an older
+`writeOnly: true` keyword on its body property or, in an older
 document, by being in the write bodies and missing from the response schema.
 
 The client keeps it settable on `create`, `update` and atomic operations, and its
@@ -362,7 +300,7 @@ orderedTracks: {
 }
 ```
 
-From contract 8 they come from the `<Type><Rel>Pivot` and `<Type><Rel>WritePivot`
+They come from the `<Type><Rel>Pivot` and `<Type><Rel>WritePivot`
 components, so a read-only field such as `addedAt` is on reads and never asked for
 on writes. That types `$pivot` like this:
 
@@ -380,7 +318,7 @@ rendered on reads, and drops the fields marked `readOnly` from writes.
 
 A server can declare named links on a type, such as a signed upload URL with the
 method, headers and expiry to use. The document lists each one under the type's
-`<Type>ResourceLinks` (generator contract 14), which from contract 18 extends the shared
+`<Type>ResourceLinks`, which extends the shared
 `ResourceLinks` through an `allOf`, and the codegen emits a `…Links` interface for every
 type that declares any:
 
@@ -436,7 +374,7 @@ pass `Attributes`, or `$links` falls back to `ResourceLinks`
 
 ### Page defaults and caps
 
-From generator contract 5 each page member states its `default` and the page-size
+Each page member states its `default` and the page-size
 cap as a `maximum`. The codegen collects them per collection, keyed by wire key and,
 for a [strategy menu](pagination.md#choosing-a-strategy-multipaginator), by arm:
 
@@ -485,8 +423,8 @@ export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
 ```
 
 - `ErrorCodes` has a key for every code any error document lists, sorted, each
-  holding its own code. A key gets TSDoc when its component has a `description`
-  (generator contract 4), plus an `@example` for each `example`/`examples` value on
+  holding its own code. A key gets TSDoc when its component has a `description`,
+  plus an `@example` for each `example`/`examples` value on
   the component's `detail` property. An older document has neither, so its keys
   carry no TSDoc. A code that isn't a valid identifier gets a quoted key.
 - `ErrorCode` is the union of those codes, derived from `ErrorCodes`. The TSDoc
@@ -559,7 +497,7 @@ document's structure:
   A read-only type simply has no `create`/`update`/`delete`.
 - **`paginator`** — how the collection paginates, read from its `page` query
   parameter:
-    - When the page schema carries `x-paginator` (generator contract 3), the stamp
+    - When the page schema carries `x-paginator`, the stamp
       decides the strategy (`page`, `offset`, `cursor` or `fixed`) and the wire key
       for each of its roles. With the default keys the descriptor holds the bare
       kind (`"page"`); with renamed keys it holds
@@ -595,8 +533,7 @@ document's structure:
   type aliases. See [custom actions](custom-actions.md). An action needing OAuth
   scopes carries them as `scopes`.
 - **`scopes`** — the OAuth scopes each operation needs, keyed by the operation id
-  without its type (`fetchOne`, `fetchRelated.author`, `addRelationship.tags`), from
-  generator contract 16. Absent when no operation of the type needs one.
+  without its type (`fetchOne`, `fetchRelated.author`, `addRelationship.tags`). Absent when no operation of the type needs one.
 
 The server-level Atomic Operations capability is emitted separately as an
 `atomic` const and threaded into `createClient` by default — see
