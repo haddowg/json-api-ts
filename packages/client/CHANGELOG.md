@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.10.0...json-api-client-v1.10.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **client:** require ajv 8.20.0 or later for response validation ([#111](https://github.com/haddowg/json-api-ts/issues/111)) ([cf22159](https://github.com/haddowg/json-api-ts/commit/cf221594883f11d5c39f60ce3d0437d1e4837ab8))
+
 ## [1.10.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.9.0...json-api-client-v1.10.0) (2026-10-31)
 
 

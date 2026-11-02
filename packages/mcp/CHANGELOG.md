@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.2](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.4.1...json-api-mcp-v1.4.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **client:** require ajv 8.20.0 or later for response validation ([#111](https://github.com/haddowg/json-api-ts/issues/111)) ([cf22159](https://github.com/haddowg/json-api-ts/commit/cf221594883f11d5c39f60ce3d0437d1e4837ab8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.10.1
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.15.1
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.15.1
+
 ## [1.4.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.4.0...json-api-mcp-v1.4.1) (2026-11-02)
 
 
