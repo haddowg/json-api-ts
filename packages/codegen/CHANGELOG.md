@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.14.0...json-api-codegen-v1.15.0) (2026-11-02)
+
+
+### Features
+
+* **codegen:** emit page limits and kinds for related collections ([#109](https://github.com/haddowg/json-api-ts/issues/109)) ([d451371](https://github.com/haddowg/json-api-ts/commit/d4513714884cbcf3863a0d59f3745fe00a54aabc))
+
 ## [1.14.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.13.0...json-api-codegen-v1.14.0) (2026-10-31)
 
 
