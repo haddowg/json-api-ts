@@ -190,8 +190,10 @@ runtime's needs, and all the real machinery lives in the generic
   [below](#declared-links).
 - **`ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode`** — the server's documented
   error codes and a type guard bound to them. See [below](#error-codes).
-- **`pageLimits`** — each collection's page defaults and caps. See
-  [below](#page-defaults-and-caps).
+- **`pageLimits` / `relatedPageLimits`** — the page defaults and caps of each
+  collection and each related collection. See [below](#page-defaults-and-caps).
+- **`pageKinds` / `relatedPageKinds`** — the pagination strategies each collection
+  and related collection offers. See [below](#pagination-strategies).
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema
 2020-12 map. With `--examples`, another exports `examples`, each operation's
@@ -397,6 +399,51 @@ export const pageLimits = {
 The client sends the `page` you pass as it is and never clamps it. Read
 `pageLimits` when you need the numbers, for example to bound a page-size picker. A
 collection whose page schema states none of them is left out.
+
+A related collection, such as `GET /albums/{id}/tracks`, can page differently from the
+related type's own collection. `relatedPageLimits` reads each one from its related
+endpoint and keys it by parent type, then by relation name. Below that it has the same
+shape as `pageLimits`:
+
+```ts
+export const relatedPageLimits = {
+  albums: {
+    tracks: {
+      number: { default: 1, minimum: 1 },
+      size: { default: 2, minimum: 1, maximum: 100 },
+    },
+  },
+} as const
+```
+
+A relation whose related endpoint states no bounds is left out, and so is a parent left
+with none. When no related collection states any, it is `{}`.
+
+### Pagination strategies
+
+`pageKinds` lists the strategies each paginated collection offers, keyed by type, and
+`relatedPageKinds` does the same for each related collection, keyed by parent type, then
+by relation name. A single strategy is a one-entry tuple. A
+[strategy menu](pagination.md#choosing-a-strategy-multipaginator) lists the `kind` of
+each arm, and the one the server uses when the request names none comes first:
+
+```ts
+export const pageKinds = {
+  albums: ['page'],
+  tracks: ['page', 'cursor', 'offset'],
+} as const
+
+export const relatedPageKinds = {
+  albums: { tracks: ['page'] },
+} as const
+```
+
+Every paginated collection is listed, whether or not its members state bounds. The
+codegen reads the strategy from the `x-paginator` stamp on the page schema, which names
+a single strategy or, for a menu, its default. Every built-in `haddowg/json-api`
+paginator stamps it. A collection whose page schema has no stamp, as a custom paginator
+may leave it, is left out of both consts, as is a menu whose stamped default isn't one
+of its arms.
 
 ### Error codes
 

@@ -35,8 +35,11 @@ client.albums.list({ page: { size: '20' } }) // error: a size is a number
 ```
 
 The generated `pageLimits` holds each collection's page defaults and largest page size, as
-`pageLimits.albums.size` → `{ default: 15, minimum: 1, maximum: 50 }`. The client doesn't clamp
-`page` to them; see [codegen](codegen.md#page-defaults-and-caps).
+`pageLimits.albums.size` → `{ default: 15, minimum: 1, maximum: 50 }`, and `relatedPageLimits`
+holds the same for each related collection, as `relatedPageLimits.albums.tracks.size`. The client
+doesn't clamp `page` to them; see [codegen](codegen.md#page-defaults-and-caps). `pageKinds` and
+`relatedPageKinds` name the strategies each one offers, the default first; see
+[codegen](codegen.md#pagination-strategies).
 
 !!! note "`$page` is non-enumerable"
     `$page`, `$next`, `$prev`, `$links` and `$meta` are non-enumerable accessors, so `[...albums]`, `albums.map(...)` and `JSON.stringify(albums)` stay clean — they see only the resource elements. See [materialisation](materialisation.md) for how the envelope is layered onto the array.

@@ -127,7 +127,10 @@ The output module exports:
 - `Links` — the typed declared links of each type that declares any.
 - `ErrorCodes` / `ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode` — the server's documented
   error codes and a type guard bound to them.
-- `pageLimits` — each collection's page defaults and page-size caps.
+- `pageLimits` / `relatedPageLimits` — the page defaults and page-size caps of each collection and
+  each related collection.
+- `pageKinds` / `relatedPageKinds` — the pagination strategies each collection and related
+  collection offers, the server's default first.
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema 2020-12 map.
 
