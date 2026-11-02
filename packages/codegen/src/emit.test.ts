@@ -528,6 +528,142 @@ describe('emit (generator contract 5)', () => {
   })
 })
 
+// The text of an emitted `export const` up to its `as const`.
+const constBody = (out: string, name: string): string => {
+  const start = out.indexOf(`export const ${name} = `)
+  return out.slice(start, out.indexOf(' as const', start))
+}
+
+describe('emit (related page limits and kinds)', () => {
+  // The fixture's related collections all page by number; swap in the other shapes per path.
+  const withPage = (paths: Record<string, SchemaObject | undefined>): string => {
+    const copy = structuredClone(doc)
+    for (const [path, schema] of Object.entries(paths)) {
+      const get = copy.paths![path]!.get!
+      const rest = (get.parameters ?? []).filter((param) => param.name !== 'page')
+      get.parameters =
+        schema === undefined ? rest : [...rest, { name: 'page', in: 'query', schema }]
+    }
+    return emit(copy, buildDescriptor(copy))
+  }
+  const cursorPage: SchemaObject = {
+    type: 'object',
+    properties: {
+      after: { type: 'string' },
+      before: { type: 'string' },
+      size: { type: 'integer', default: 25, minimum: 1, maximum: 100 },
+    },
+    'x-paginator': {
+      strategy: 'cursor',
+      keys: { after: 'after', before: 'before', size: 'size' },
+    },
+  }
+  const menuPage: SchemaObject = {
+    oneOf: [
+      {
+        type: 'object',
+        properties: {
+          after: { type: 'string' },
+          size: { type: 'integer', default: 20, maximum: 40 },
+          kind: { type: 'string', const: 'cursor' },
+        },
+        'x-paginator': { strategy: 'cursor', keys: { after: 'after', size: 'size' } },
+      },
+      {
+        type: 'object',
+        properties: {
+          number: { type: 'integer', default: 1, minimum: 1 },
+          size: { type: 'integer', default: 10, maximum: 30 },
+          kind: { type: 'string', const: 'page' },
+        },
+        'x-paginator': { strategy: 'page', keys: { number: 'number', size: 'size' } },
+      },
+    ],
+    'x-paginator': { strategy: 'multi', default: 'page' },
+  }
+  const unbounded: SchemaObject = {
+    type: 'object',
+    properties: { after: { type: 'string' }, size: { type: 'integer' } },
+    'x-paginator': { strategy: 'cursor', keys: { after: 'after', size: 'size' } },
+  }
+
+  it("emits each related collection's bounds keyed by parent type, then relation", () => {
+    const albums = constBody(source, 'relatedPageLimits')
+    expect(albums).toContain(
+      [
+        '  albums: {',
+        '    tracks: {',
+        '      /**',
+        '       * The page number to retrieve.',
+        '       *',
+        '       * @minimum 1',
+        '       * @defaultValue `1`',
+        '       */',
+        '      number: { default: 1, minimum: 1 },',
+      ].join('\n'),
+    )
+    expect(albums).toContain('      size: { default: 2, minimum: 1, maximum: 100 },')
+  })
+
+  it('emits a cursor-only related collection flat, leaving its unbounded cursors out', () => {
+    const out = withPage({ '/albums/{id}/tracks': cursorPage })
+    const limits = constBody(out, 'relatedPageLimits')
+    const start = limits.indexOf('  albums: {')
+    const albums = limits.slice(start, limits.indexOf('\n  },', start))
+    expect(albums).toContain('      size: { default: 25, minimum: 1, maximum: 100 },')
+    expect(albums).not.toContain('after:')
+    expect(albums).not.toContain('before:')
+    expect(constBody(out, 'relatedPageKinds')).toContain(
+      '  albums: {\n    tracks: ["cursor"],\n  },',
+    )
+  })
+
+  it('nests a related strategy menu by kind and lists the default kind first', () => {
+    const out = withPage({ '/playlists/{id}/tracks': menuPage })
+    const limits = constBody(out, 'relatedPageLimits')
+    const start = limits.indexOf('    tracks: {', limits.indexOf('  playlists: {'))
+    const tracks = limits.slice(start, limits.indexOf('\n    },', start))
+    expect(tracks).toContain('      cursor: {')
+    expect(tracks).toContain('        size: { default: 20, maximum: 40 },')
+    expect(tracks).not.toContain('after:')
+    expect(tracks).toContain('      page: {')
+    expect(tracks).toContain('        number: { default: 1, minimum: 1 },')
+    expect(tracks).toContain('        size: { default: 10, maximum: 30 },')
+    expect(constBody(out, 'relatedPageKinds')).toContain('    tracks: ["page", "cursor"],')
+  })
+
+  it("lists every paginated collection's kinds, bounded or not, with a menu's default first", () => {
+    const kinds = constBody(source, 'pageKinds')
+    expect(kinds).toContain('  albums: ["page"],')
+    expect(kinds).toContain('  tracks: ["page", "cursor", "offset"],')
+    const out = withPage({ '/albums': unbounded, '/albums/{id}/tracks': unbounded })
+    expect(constBody(out, 'pageKinds')).toContain('  albums: ["cursor"],')
+    expect(constBody(out, 'pageLimits')).not.toContain('\n  albums: {')
+    expect(constBody(out, 'relatedPageKinds')).toContain('    tracks: ["cursor"],')
+    expect(constBody(out, 'relatedPageLimits')).not.toContain('\n  albums: {')
+  })
+
+  it('leaves out an unstamped page schema and a menu whose default is not an arm', () => {
+    const unstamped = { ...unbounded, 'x-paginator': undefined }
+    const strayDefault = { ...menuPage, 'x-paginator': { strategy: 'multi', default: 'offset' } }
+    const out = withPage({ '/albums': unstamped, '/albums/{id}/tracks': strayDefault })
+    expect(constBody(out, 'pageKinds')).not.toContain('\n  albums:')
+    expect(constBody(out, 'relatedPageKinds')).not.toContain('\n  albums:')
+  })
+
+  it('emits empty related consts when no related collection paginates', () => {
+    const out = withPage(
+      Object.fromEntries(
+        Object.keys(doc.paths!)
+          .filter((path) => /^\/[^/]+\/\{id\}\/[^/]+$/.test(path) && doc.paths![path]!.get)
+          .map((path) => [path, undefined]),
+      ),
+    )
+    expect(out).toContain('export const relatedPageLimits = {} as const')
+    expect(out).toContain('export const relatedPageKinds = {} as const')
+  })
+})
+
 const ref = (name: string): SchemaObject => ({ $ref: `#/components/schemas/${name}` })
 // Contract 9 writes a `$ref` that carries an example or default as a single-entry `allOf`.
 const annotated = (wrap: boolean, name: string, annotations: SchemaObject): SchemaObject =>

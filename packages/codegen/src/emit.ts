@@ -75,6 +75,43 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
 }
 
+/** A `{ … }` object literal of pre-rendered entry lines, or `{}` when there are none. */
+function objectBody(lines: readonly string[]): string {
+  return lines.length === 0 ? '{}' : `{\n${lines.join('\n')}\n}`
+}
+
+/** The `kind` const a page strategy menu arm is selected by. */
+function armKind(arm: SchemaObject): string | undefined {
+  const kind = arm.properties?.['kind']
+  return isSchema(kind) && typeof kind.const === 'string' ? kind.const : undefined
+}
+
+/**
+ * The strategies a page schema offers, as a tuple literal, read from the `x-paginator` stamp: a
+ * single strategy's name, or a menu's arm kinds with its stamped default first. `undefined` when
+ * the schema is absent, unstamped, or a menu whose default is not one of its arms.
+ */
+function pageKinds(schema: SchemaObject | undefined): string | undefined {
+  const stamp = schema?.['x-paginator']
+  if (typeof stamp !== 'object' || stamp === null) {
+    return undefined
+  }
+  const { strategy, default: fallback } = stamp as Record<string, unknown>
+  let kinds: string[]
+  if (strategy === 'multi') {
+    const arms = (schema?.oneOf ?? []).flatMap((arm) => armKind(arm) ?? [])
+    if (typeof fallback !== 'string' || !arms.includes(fallback)) {
+      return undefined
+    }
+    kinds = [fallback, ...arms.filter((kind) => kind !== fallback)]
+  } else if (typeof strategy === 'string') {
+    kinds = [strategy]
+  } else {
+    return undefined
+  }
+  return `[${kinds.map((kind) => stringLiteral(kind)).join(', ')}]`
+}
+
 /** PascalCase a JSON:API wire type for use in a TS identifier (e.g. `public-profiles` -> `PublicProfiles`). */
 function pascalCase(value: string): string {
   return value
@@ -566,6 +603,9 @@ export class Emitter {
       this.includedAliases(),
       this.atomicConst(),
       this.pageLimitsConst(),
+      this.relatedPageLimitsConst(),
+      this.pageKindsConst(),
+      this.relatedPageKindsConst(),
       emitErrorCodes(readErrorCatalogue(this.doc)),
       this.boundFactory(),
     ]
@@ -1011,31 +1051,17 @@ export class Emitter {
 
   /**
    * The `pageLimits` const: per collection, the `default`, `minimum` and `maximum` each `page`
-   * member declares (generator contract 5 adds the paginator's default and page-size cap). A
-   * menu nests them under each arm's `kind`. Members declaring none, and collections with no
-   * such member, are left out. The client never clamps a `page` argument to these.
+   * member declares. A menu nests them under each arm's `kind`. Members declaring none, and
+   * collections with no such member, are left out. The client never clamps a `page` argument
+   * to these.
    */
   private pageLimitsConst(): string {
     const typeLines: string[] = []
     for (const type of Object.keys(this.descriptor)) {
-      const path = this.descriptor[type]!.paths['fetchMany']
-      const page = path === undefined ? undefined : this.doc.paths?.[path]?.get?.parameters
-      const schema = page?.find((param) => param.name === 'page')?.schema
-      if (schema === undefined) {
-        continue
-      }
-      let body: string[] = []
-      if (schema.oneOf !== undefined) {
-        for (const arm of schema.oneOf) {
-          const kind = isSchema(arm.properties?.['kind']) ? arm.properties['kind'].const : undefined
-          const members = this.pageMemberLimits(arm, '      ')
-          if (typeof kind === 'string' && members.length > 0) {
-            body.push(`    ${propertyKey(kind)}: {\n${members.join('\n')}\n    },`)
-          }
-        }
-      } else {
-        body = this.pageMemberLimits(schema, '    ')
-      }
+      const body = this.pageLimitLines(
+        this.pageSchema(this.descriptor[type]!.paths['fetchMany']),
+        2,
+      )
       if (body.length > 0) {
         typeLines.push(`  ${propertyKey(type)}: {\n${body.join('\n')}\n  },`)
       }
@@ -1048,8 +1074,122 @@ export class Emitter {
       ' * unchanged, so read these to bound a page-size picker.',
       ' */',
     ].join('\n')
-    const body = typeLines.length === 0 ? '{}' : `{\n${typeLines.join('\n')}\n}`
-    return `${doc}\nexport const pageLimits = ${body} as const`
+    return `${doc}\nexport const pageLimits = ${objectBody(typeLines)} as const`
+  }
+
+  /**
+   * The `relatedPageLimits` const: the `pageLimits` shape for each related collection
+   * (`GET /{type}/{id}/{rel}`), keyed by parent type, then by relation name. Relations with no
+   * bounded member, and parents left with none, are left out.
+   */
+  private relatedPageLimitsConst(): string {
+    const lines = this.byRelation((path) => {
+      const body = this.pageLimitLines(this.pageSchema(path), 3)
+      return body.length === 0 ? undefined : `{\n${body.join('\n')}\n    }`
+    })
+    const doc = [
+      '/**',
+      " * The bounds each related collection's `page` parameter declares, keyed by parent type, then by",
+      ' * relation name, then as in `pageLimits`: by strategy for a related collection offering several,',
+      ' * then by wire key. Relations whose related endpoint declares no bounds are left out.',
+      ' */',
+    ].join('\n')
+    return `${doc}\nexport const relatedPageLimits = ${objectBody(lines)} as const`
+  }
+
+  /**
+   * The `pageKinds` const: per paginated collection, the strategies its `page` parameter offers,
+   * the server's default first.
+   */
+  private pageKindsConst(): string {
+    const lines: string[] = []
+    for (const type of Object.keys(this.descriptor)) {
+      const kinds = pageKinds(this.pageSchema(this.descriptor[type]!.paths['fetchMany']))
+      if (kinds !== undefined) {
+        lines.push(`  ${propertyKey(type)}: ${kinds},`)
+      }
+    }
+    const doc = [
+      '/**',
+      ' * The pagination strategies each collection offers, keyed by type. A single strategy is a',
+      " * one-entry tuple; a menu lists its arms' `kind` values with the one the server uses when the",
+      ' * request names none first. Unpaginated collections are left out.',
+      ' */',
+    ].join('\n')
+    return `${doc}\nexport const pageKinds = ${objectBody(lines)} as const`
+  }
+
+  /**
+   * The `relatedPageKinds` const: `pageKinds` for each related collection, keyed by parent type,
+   * then by relation name.
+   */
+  private relatedPageKindsConst(): string {
+    const lines = this.byRelation((path) => pageKinds(this.pageSchema(path)))
+    const doc = [
+      '/**',
+      ' * The pagination strategies each related collection offers, keyed by parent type, then by',
+      ' * relation name, in the same form as `pageKinds`. Unpaginated relations are left out.',
+      ' */',
+    ].join('\n')
+    return `${doc}\nexport const relatedPageKinds = ${objectBody(lines)} as const`
+  }
+
+  /**
+   * One line per parent type holding `render`'s value for each relation whose related endpoint
+   * it answers for. Relations it skips, and parents left with none, are left out.
+   */
+  private byRelation(render: (path: string) => string | undefined): string[] {
+    const lines: string[] = []
+    for (const type of Object.keys(this.descriptor)) {
+      const resource = this.descriptor[type]!
+      const template = resource.paths['fetchRelated']
+      if (template === undefined) {
+        continue
+      }
+      const relLines: string[] = []
+      for (const [name, relation] of Object.entries(resource.relations)) {
+        if (relation.related === false) {
+          continue
+        }
+        const value = render(template.replace('{rel}', relation.uriField ?? name))
+        if (value !== undefined) {
+          relLines.push(`    ${propertyKey(name)}: ${value},`)
+        }
+      }
+      if (relLines.length > 0) {
+        lines.push(`  ${propertyKey(type)}: {\n${relLines.join('\n')}\n  },`)
+      }
+    }
+    return lines
+  }
+
+  /** The `page` parameter schema of the GET at `path`, if it has one. */
+  private pageSchema(path: string | undefined): SchemaObject | undefined {
+    const params = path === undefined ? undefined : this.doc.paths?.[path]?.get?.parameters
+    return params?.find((param) => param.name === 'page')?.schema
+  }
+
+  /**
+   * A page schema's bounded members as literal lines at `depth` (two spaces per level): flat for
+   * one strategy, nested under each arm's `kind` for a menu.
+   */
+  private pageLimitLines(schema: SchemaObject | undefined, depth: number): string[] {
+    if (schema === undefined) {
+      return []
+    }
+    const indent = '  '.repeat(depth)
+    if (schema.oneOf === undefined) {
+      return this.pageMemberLimits(schema, indent)
+    }
+    const lines: string[] = []
+    for (const arm of schema.oneOf) {
+      const kind = armKind(arm)
+      const members = this.pageMemberLimits(arm, `${indent}  `)
+      if (kind !== undefined && members.length > 0) {
+        lines.push(`${indent}${propertyKey(kind)}: {\n${members.join('\n')}\n${indent}},`)
+      }
+    }
+    return lines
   }
 
   /** One page schema's members that declare a `default`, `minimum` or `maximum`, as literal lines. */

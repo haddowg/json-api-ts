@@ -1391,6 +1391,73 @@ export const pageLimits = {
 } as const
 
 /**
+ * The bounds each related collection's `page` parameter declares, keyed by parent type, then by
+ * relation name, then as in `pageLimits`: by strategy for a related collection offering several,
+ * then by wire key. Relations whose related endpoint declares no bounds are left out.
+ */
+export const relatedPageLimits = {
+  articles: {
+    sponsors: {
+      /**
+       * The page number to retrieve.
+       *
+       * @minimum 1
+       * @defaultValue `1`
+       */
+      number: { default: 1, minimum: 1 },
+      /**
+       * The number of resources per page.
+       *
+       * @minimum 1
+       * @maximum 100
+       * @defaultValue `15`
+       */
+      size: { default: 15, minimum: 1, maximum: 100 },
+    },
+    tags: {
+      /**
+       * The page number to retrieve.
+       *
+       * @minimum 1
+       * @defaultValue `1`
+       */
+      number: { default: 1, minimum: 1 },
+      /**
+       * The number of resources per page.
+       *
+       * @minimum 1
+       * @maximum 100
+       * @defaultValue `15`
+       */
+      size: { default: 15, minimum: 1, maximum: 100 },
+    },
+  },
+} as const
+
+/**
+ * The pagination strategies each collection offers, keyed by type. A single strategy is a
+ * one-entry tuple; a menu lists its arms' `kind` values with the one the server uses when the
+ * request names none first. Unpaginated collections are left out.
+ */
+export const pageKinds = {
+  articles: ["page"],
+  images: ["page"],
+  people: ["page", "cursor"],
+  tags: ["cursor"],
+} as const
+
+/**
+ * The pagination strategies each related collection offers, keyed by parent type, then by
+ * relation name, in the same form as `pageKinds`. Unpaginated relations are left out.
+ */
+export const relatedPageKinds = {
+  articles: {
+    sponsors: ["page"],
+    tags: ["page"],
+  },
+} as const
+
+/**
  * Every error code this server documents, keyed by itself. Hover a key for what the code
  * means: `hasErrorCode(error, ErrorCodes.RESOURCE_NOT_FOUND)`.
  */
