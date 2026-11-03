@@ -119,6 +119,25 @@ describe('jsonApiResource', () => {
     expect(ref.value()?.map((a) => a.title)).toEqual(['Kid A'])
   })
 
+  it('sorts by a sort family key built from a signal', async () => {
+    const cap = signal('energy')
+    const ref = TestBed.runInInjectionContext(() =>
+      jsonApiResource({
+        params: () => ({ cap: cap() }),
+        loader: ({ client, params, abortSignal }) =>
+          client.albums.list({ sort: [`-value.${params.cap}`, 'title'], signal: abortSignal }),
+      }),
+    )
+
+    await flushEffects()
+    backend
+      .expectOne(`${BASE}/albums?sort=-value.energy%2Ctitle`)
+      .flush(albumsPage([album('1', 'OK Computer')]))
+    await settle()
+
+    expect(ref.value()?.map((a) => a.title)).toEqual(['OK Computer'])
+  })
+
   it('reload() fetches again with the same params', async () => {
     const ref = TestBed.runInInjectionContext(() =>
       jsonApiResource({

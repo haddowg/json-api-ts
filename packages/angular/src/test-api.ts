@@ -24,6 +24,7 @@ const descriptor = {
     clientId: 'forbidden',
     includable: ['artist'],
     sortable: ['title', '-title'],
+    sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['title'],
   },
   artists: {
