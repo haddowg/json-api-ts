@@ -128,7 +128,7 @@ Every input schema is accepted by both OpenAI's strict function calling and Anth
 | action | `id` at resource scope, then the body |
 
 - `filter` is one object with a member per filter the operation documents, each with its description. A range filter takes `min` and `max`.
-- `sort` is a list of the operation's sort tokens, `-` first for descending.
+- `sort` is a list of the operation's sort tokens, `-` first for descending. When the operation also accepts sort families, each item is an `anyOf` of the fixed tokens and one plain string per family, whose description gives the family's prefix and the regular expression its suffix must match. The pattern goes in the description because a `pattern` keyword isn't portable. The server checks the key.
 - `include` lists the paths the tool accepts as an enum, the ones the operation declares up to the include depth. A tool with none has no `include`. The handler refuses any other path as a tool error before it calls the API.
 - `fields` carries one generic description and no per-type lists of names. The output schema names the fields, and a wrong name comes back as the API's error.
 - `pageSize` maps to the paginator's size key, whichever strategy answers, so it's `page[size]` for page and cursor pagination and `page[limit]` for offset. It's capped at the operation's maximum, and defaults to 10 (`defaultPageSize`).
