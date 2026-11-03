@@ -191,7 +191,7 @@ export interface ReleasesAttributes {
   catalogNumber: string
   /** @example {"widthMm":315,"heightMm":315,"depthMm":4} */
   dimensions: Record<string, unknown> | null
-  format: { rpm: number; coloured: boolean | null; medium: string } | { discs: number; medium: string } | { codec: string; bitrateKbps: number | null; medium: string } | null
+  format: { rpm: number; coloured: boolean | null; medium: "vinyl" } | { discs: number; medium: "cd" } | { codec: string; bitrateKbps: number | null; medium: "digital" } | null
   packaging: { material: string; gatefold: boolean | null } | null
 }
 
@@ -467,7 +467,7 @@ export interface ReleasesCreateAttributes {
   catalogNumber: string
   /** @example {"widthMm":315,"heightMm":315,"depthMm":4} */
   dimensions?: Record<string, unknown> | null
-  format?: { rpm: number; coloured?: boolean; medium: string } | { discs: number; medium: string } | { codec: string; bitrateKbps?: number; medium: string } | null
+  format?: { rpm: number; coloured?: boolean; medium: "vinyl" } | { discs: number; medium: "cd" } | { codec: string; bitrateKbps?: number; medium: "digital" } | null
   packaging?: { material: string; gatefold?: boolean } | null
 }
 
@@ -482,7 +482,7 @@ export interface ReleasesUpdateAttributes {
   catalogNumber?: string
   /** @example {"widthMm":315,"heightMm":315,"depthMm":4} */
   dimensions?: Record<string, unknown> | null
-  format?: { rpm?: number; coloured?: boolean; medium?: string } | { discs?: number; medium?: string } | { codec?: string; bitrateKbps?: number; medium?: string } | null
+  format?: { rpm?: number; coloured?: boolean; medium?: "vinyl" } | { discs?: number; medium?: "cd" } | { codec?: string; bitrateKbps?: number; medium?: "digital" } | null
   packaging?: { material?: string; gatefold?: boolean } | null
 }
 

@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   8f8b9ca49c5dae7e
+ * Spec hash:   5a9e14976515b846
  */
 
 import {
@@ -36,7 +36,7 @@ export interface ArticlesAttributes {
   /** A date/time value written as `05/09/2024 09:08`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   archivedAt: string | null
   authorName: string | null
-  block: { text: string; kind: string } | { src: string | null; kind: string } | null
+  block: { text: string; kind: "heading" } | { src: string | null; kind: "image" } | null
   /** @format uri */
   canonicalUrl: string | null
   commentCount: number
@@ -77,12 +77,16 @@ export interface ArticlesAttributes {
    * @example example-slug
    */
   slug: string | null
+  /** @maxItems 5 */
+  sources: { href: string; retrievedAt: string | null }[] | null
   /**
    * Publication status.
    *
    * @example published
    */
   status: Status | null
+  /** @maxItems 50 */
+  steps: ({ operation: "trim" } | { params: { find: string; replace: string } | null; operation: "find_replace" })[] | null
   /** @format date-time */
   syncedAt: string | null
   /**
@@ -143,7 +147,7 @@ export interface ArticlesCreateAttributes {
   /** A date/time value written as `05/09/2024 09:08`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   archivedAt?: string
   authorName?: string
-  block?: { text: string; kind: string } | { src?: string; kind: string }
+  block?: { text: string; kind: "heading" } | { src?: string; kind: "image" }
   /** @format uri */
   canonicalUrl?: string
   contact?: { firstName?: string; nickname?: string; pin?: string; phone?: string; geo?: { lat?: number } } | null
@@ -181,12 +185,16 @@ export interface ArticlesCreateAttributes {
    * @example example-slug
    */
   slug?: string
+  /** @maxItems 5 */
+  sources?: { href: string; retrievedAt?: string }[]
   /**
    * Publication status.
    *
    * @example published
    */
   status?: Status
+  /** @maxItems 50 */
+  steps?: ({ operation: "trim" } | { params?: { find?: string; replace?: string }; operation: "find_replace" })[]
   /** @format date-time */
   syncedAt?: string
   /**
@@ -210,7 +218,7 @@ export interface ArticlesUpdateAttributes {
   /** A date/time value written as `05/09/2024 09:08`. No standard `format` keyword describes that shape, so parse it literally rather than as an RFC 3339 date-time. */
   archivedAt?: string
   authorName?: string
-  block?: { text?: string; kind?: string } | { src?: string; kind?: string }
+  block?: { text?: string; kind?: "heading" } | { src?: string; kind?: "image" }
   /** @format uri */
   canonicalUrl?: string
   contact?: { firstName?: string; nickname?: string; pin?: string; phone?: string; geo?: { lat?: number } } | null
@@ -245,12 +253,16 @@ export interface ArticlesUpdateAttributes {
    * @example example-slug
    */
   slug?: string
+  /** @maxItems 5 */
+  sources?: { href: string; retrievedAt?: string }[]
   /**
    * Publication status.
    *
    * @example published
    */
   status?: Status
+  /** @maxItems 50 */
+  steps?: ({ operation: "trim" } | { params?: { find?: string; replace?: string }; operation: "find_replace" })[]
   /** @format date-time */
   syncedAt?: string
   /**
@@ -409,7 +421,9 @@ export const resourceMap = {
       revision: "integer",
       score: "integer",
       slug: "string",
+      sources: "array",
       status: "string",
+      steps: "array",
       syncedAt: "date-time",
       title: "string",
       wordCount: "integer"

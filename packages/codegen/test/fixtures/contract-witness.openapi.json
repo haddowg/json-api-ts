@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 20
+            "contract": 21
         }
     },
     "servers": [
@@ -278,6 +278,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -482,6 +484,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -677,6 +681,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -904,6 +910,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -1478,6 +1486,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -5136,6 +5146,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -5764,6 +5776,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -6176,6 +6190,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -7676,6 +7692,8 @@
                                     "commentCount",
                                     "authorName",
                                     "score",
+                                    "sources",
+                                    "steps",
                                     "author",
                                     "tags",
                                     "publisher",
@@ -10596,6 +10614,91 @@
                             "integer",
                             "null"
                         ]
+                    },
+                    "sources": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "maxItems": 5,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "href": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "minLength": 1
+                                },
+                                "retrievedAt": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "format": "date-time"
+                                }
+                            },
+                            "required": [
+                                "href",
+                                "retrievedAt"
+                            ]
+                        }
+                    },
+                    "steps": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "maxItems": 50,
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "operation": {
+                                            "type": "string",
+                                            "const": "trim"
+                                        }
+                                    },
+                                    "required": [
+                                        "operation"
+                                    ]
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "params": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "find": {
+                                                    "type": "string"
+                                                },
+                                                "replace": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "find",
+                                                "replace"
+                                            ]
+                                        },
+                                        "operation": {
+                                            "type": "string",
+                                            "const": "find_replace"
+                                        }
+                                    },
+                                    "required": [
+                                        "params",
+                                        "operation"
+                                    ]
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "operation"
+                            }
+                        }
                     }
                 },
                 "required": [
@@ -10625,7 +10728,9 @@
                     "createdAt",
                     "legacyRef",
                     "commentCount",
-                    "authorName"
+                    "authorName",
+                    "sources",
+                    "steps"
                 ]
             },
             "ArticlesAuthorRelatedDocument": {
@@ -10991,6 +11096,73 @@
                     },
                     "score": {
                         "type": "integer"
+                    },
+                    "sources": {
+                        "type": "array",
+                        "maxItems": 5,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "href": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "minLength": 1
+                                },
+                                "retrievedAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                }
+                            },
+                            "required": [
+                                "href"
+                            ]
+                        }
+                    },
+                    "steps": {
+                        "type": "array",
+                        "maxItems": 50,
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "operation": {
+                                            "type": "string",
+                                            "const": "trim"
+                                        }
+                                    },
+                                    "required": [
+                                        "operation"
+                                    ]
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "params": {
+                                            "type": "object",
+                                            "properties": {
+                                                "find": {
+                                                    "type": "string"
+                                                },
+                                                "replace": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "operation": {
+                                            "type": "string",
+                                            "const": "find_replace"
+                                        }
+                                    },
+                                    "required": [
+                                        "operation"
+                                    ]
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "operation"
+                            }
+                        }
                     }
                 },
                 "required": [
@@ -12182,6 +12354,73 @@
                     },
                     "score": {
                         "type": "integer"
+                    },
+                    "sources": {
+                        "type": "array",
+                        "maxItems": 5,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "href": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "minLength": 1
+                                },
+                                "retrievedAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                }
+                            },
+                            "required": [
+                                "href"
+                            ]
+                        }
+                    },
+                    "steps": {
+                        "type": "array",
+                        "maxItems": 50,
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "operation": {
+                                            "type": "string",
+                                            "const": "trim"
+                                        }
+                                    },
+                                    "required": [
+                                        "operation"
+                                    ]
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "params": {
+                                            "type": "object",
+                                            "properties": {
+                                                "find": {
+                                                    "type": "string"
+                                                },
+                                                "replace": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "operation": {
+                                            "type": "string",
+                                            "const": "find_replace"
+                                        }
+                                    },
+                                    "required": [
+                                        "operation"
+                                    ]
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "operation"
+                            }
+                        }
                     }
                 }
             },
