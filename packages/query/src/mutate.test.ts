@@ -5,7 +5,7 @@ import {
   type TransportResponse,
 } from '@haddowg/json-api-client'
 import { QueryClient } from '@tanstack/query-core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { resourceKey } from './keys'
 import {
   addRelationshipMutationOptions,
@@ -588,5 +588,66 @@ describe('createMutationApi (bound)', () => {
     expect(typeof api.albums.id('1').delete().mutationFn).toBe('function')
     expect(typeof api.albums.id('1').rel('tracks').add().mutationFn).toBe('function')
     expect(typeof api.albums.id('1').rel('artist').set().mutationFn).toBe('function')
+  })
+})
+
+describe('a structured list attribute', () => {
+  type Step = { op: 'trim' } | { op: 'replace'; find: string; with?: string }
+  const editors = {
+    edits: {
+      attributes: { name: 'string', steps: 'array' },
+      relations: {},
+      paths: { fetchOne: '/edits/{id}', create: '/edits', update: '/edits/{id}' },
+      paginator: 'none',
+      clientId: 'forbidden',
+    },
+  } as const satisfies ApiDescriptor
+  interface Attributes {
+    edits: { name: string; steps: Step[] | null }
+  }
+  interface WriteAttributes {
+    edits: { create: { name: string; steps?: Step[] }; update: { name?: string; steps?: Step[] } }
+  }
+
+  function editsClient(routes: Record<string, unknown>) {
+    const requests: TransportRequest[] = []
+    const client = createClient<typeof editors, Attributes, WriteAttributes>(editors, {
+      baseUrl: BASE,
+      transport: async (req) => {
+        requests.push(req)
+        const route = routes[`${req.method} ${new URL(req.url).pathname}`]
+        return { status: 200, headers: {}, body: JSON.stringify(route) }
+      },
+    })
+    return { client, requests }
+  }
+
+  it('creates and optimistically replaces the whole list, typed from the write interface', async () => {
+    const stored = { name: 'Tidy', steps: [{ op: 'trim' }, { op: 'replace', find: 'a' }] }
+    const { client, requests } = editsClient({
+      'POST /edits': { data: resource('edits', '1', stored) },
+      'GET /edits/1': { data: resource('edits', '1', stored) },
+      'PATCH /edits/1': { data: resource('edits', '1', { ...stored, steps: [{ op: 'trim' }] }) },
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+
+    const created = await runMutation(qc, createMutationOptions(qc, client, editors, 'edits'), {
+      name: 'Tidy',
+      steps: [{ op: 'trim' }, { op: 'replace', find: 'a' }],
+    })
+    expectTypeOf(created.steps).toEqualTypeOf<Step[] | null>()
+
+    const getOpts = getQueryOptions(client, 'edits', '1')
+    await qc.fetchQuery(getOpts)
+    const update = updateMutationOptions(qc, client, editors, 'edits', '1', { optimistic: true })
+    const pending = runMutation(qc, update, { steps: [{ op: 'trim' }] })
+    expect(qc.getQueryData(getOpts.queryKey)).toMatchObject({ steps: [{ op: 'trim' }] })
+    await pending
+
+    expect(JSON.parse(String(requests[0]!.body))).toMatchObject({
+      data: { attributes: { steps: [{ op: 'trim' }, { op: 'replace', find: 'a' }] } },
+    })
+    // @ts-expect-error — `upper` is not a step.
+    void (() => runMutation(qc, update, { steps: [{ op: 'upper' }] }))
   })
 })
