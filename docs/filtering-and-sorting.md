@@ -20,6 +20,19 @@ await client.albums.list({ sort: ['-releasedAt', 'title'] })
 
 The runtime joins a tuple with `,` on the wire (`sort=-releasedAt,title`).
 
+### Sort families
+
+A server can accept a whole family of sort keys by prefix, such as `value.<cap>` where the caps are data and can't be listed. The OpenAPI document lists each family under the `sort` parameter's `x-sort-families`, and the codegen copies them into the descriptor as `sortFamilies`. Each family adds two template literal types to the type's sort union, `` `value.${string}` `` and `` `-value.${string}` ``, beside the fixed keys:
+
+```ts
+const cap = 'energy'
+await client.tracks.list({ sort: [`-value.${cap}`, 'title'] })
+```
+
+The type checks the prefix and the dot, so `valu.energy` and a bare `value` don't compile. It doesn't check the suffix. The descriptor carries each family's `suffixPattern`, the regular expression the server matches the suffix against, if you want to check a key yourself before sending it. A key that fails it comes back as the server's `400`.
+
+A template literal only keeps its type where TypeScript reads it against the sort union, as in the call above. One built earlier into a plain variable or a returned object widens to `string`, so build it at the call, or type the variable as `SortToken<ResourceMap, 'tracks'>`. `SortToken` comes from `@haddowg/json-api-client` and `ResourceMap` from the generated module.
+
 !!! note "No sorting advertised? `sort` is a compile error."
     If a type advertises no `sortable` set (the OpenAPI document declares no sort parameter), its `sort` value is typed `never` — the key cannot be supplied at all. That is a compile-time mirror of the server's `400 SORTING_UNSUPPORTED`. In the example app, `playlists` advertises no sort, so [BrowsePage.tsx](../examples/spotify-clone/src/pages/BrowsePage.tsx) lists them without a `sort`.
 

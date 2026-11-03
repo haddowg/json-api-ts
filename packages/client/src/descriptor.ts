@@ -302,6 +302,16 @@ export interface CountableDescriptor {
   profile: string
 }
 
+/**
+ * A family of sort keys matched by prefix: any key of the form `<prefix>.<suffix>`, ascending or
+ * with a leading `-`, whose suffix matches `suffixPattern` (a regular expression source, unanchored
+ * and without delimiters). The server accepts such keys although it can't list them.
+ */
+export interface SortFamilyDescriptor {
+  prefix: string
+  suffixPattern: string
+}
+
 export interface ResourceDescriptor {
   /** Attribute name -> wire format hint (drives optional value coercion). */
   attributes: Readonly<Record<string, string>>
@@ -334,6 +344,12 @@ export interface ResourceDescriptor {
    * `sort` is then a compile error, matching the server's `400 SORTING_UNSUPPORTED`).
    */
   sortable?: readonly string[]
+  /**
+   * The sort families the COLLECTION read accepts beside {@link sortable}: keys matched by
+   * prefix, such as `meta.<name>`. Each adds `<prefix>.${string}` and `-<prefix>.${string}` to the
+   * `sort` type. Absent when the collection declares none.
+   */
+  sortFamilies?: readonly SortFamilyDescriptor[]
   /**
    * The filter keys the COLLECTION read accepts in `filter[...]`. Drives `filter` key narrowing
    * (values stay `unknown` — value shapes/operators vary per filter, out of scope for v0.1).

@@ -7,6 +7,7 @@ import type {
   Client,
   Collection,
   CountToken,
+  SortToken,
   CreateInput,
   IdentifierMember,
   LinkageRef,
@@ -47,6 +48,8 @@ const resourceMap = {
     clientId: 'forbidden',
     includable: ['albums'],
     sortable: ['name', '-name'],
+    // A sort family: any `value.<suffix>` key, ascending or descending.
+    sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['name'],
   },
   tracks: {
@@ -584,6 +587,16 @@ async function queryParamsAreNarrowed() {
   // @ts-expect-error — `rating` is not an advertised sort token for albums.
   await client.albums.list({ sort: 'rating' })
 
+  // A sort family admits any key under its prefix, either direction, beside the fixed keys.
+  await client.artists.list({ sort: 'value.anything' })
+  await client.artists.list({ sort: ['-value.anything', 'name'] })
+  // @ts-expect-error — `valu` is not the family's prefix.
+  await client.artists.list({ sort: 'valu.x' })
+  // @ts-expect-error — the family needs a dot after its prefix.
+  await client.artists.list({ sort: 'value' })
+  // @ts-expect-error — albums declares no family.
+  await client.albums.list({ sort: 'value.anything' })
+
   // filter — advertised keys compile; an undeclared key errs.
   await client.albums.list({ filter: { title: 'OK', status: 'released' } })
   // @ts-expect-error — `rating` is not an advertised filter key for albums.
@@ -612,6 +625,35 @@ describe('read call-site fieldset + withCount narrowing', () => {
   })
   it('constrains include/sort/filter to the advertised capabilities', () => {
     expectTypeOf(queryParamsAreNarrowed).returns.resolves.toBeVoid()
+  })
+})
+
+// A type whose sorting is all families, with no fixed keys.
+const familyOnlyMap = {
+  readings: {
+    attributes: {},
+    relations: {},
+    paths: {},
+    paginator: 'none',
+    clientId: 'forbidden',
+    sortFamilies: [
+      { prefix: 'meta', suffixPattern: '[a-z][a-z_]*' },
+      { prefix: 'custom.fields', suffixPattern: '[^,]+' },
+    ],
+  },
+} as const satisfies ApiDescriptor
+
+describe('sort families', () => {
+  it('adds a template literal per family to the sort token union', () => {
+    expectTypeOf<SortToken<Map, 'artists'>>().toEqualTypeOf<
+      'name' | '-name' | `value.${string}` | `-value.${string}`
+    >()
+    expectTypeOf<SortToken<typeof familyOnlyMap, 'readings'>>().toEqualTypeOf<
+      `meta.${string}` | `-meta.${string}` | `custom.fields.${string}` | `-custom.fields.${string}`
+    >()
+    expectTypeOf<SortToken<Map, 'albums'>>().toEqualTypeOf<
+      'title' | '-title' | 'status' | '-status'
+    >()
   })
 })
 

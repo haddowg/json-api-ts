@@ -379,14 +379,27 @@ export type CountToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] ex
   : never
 
 /**
- * A sort token type `T`'s COLLECTION read accepts (its `sortable` literal union — signed
- * field names like `title`/`-title`), or `never` when the collection advertises no sorting.
+ * A sort token type `T`'s COLLECTION read accepts: its `sortable` literal union (signed field
+ * names like `title`/`-title`) plus, per sort family, `prefix.${string}` and `-prefix.${string}`.
+ * `never` when the collection advertises no sorting.
  */
-export type SortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+export type SortToken<D extends ApiDescriptor, T extends TypeName<D>> =
+  | FixedSortToken<D, T>
+  | FamilySortToken<D, T>
+
+type FixedSortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
   sortable: infer S
 }
   ? S extends readonly (infer Token)[]
     ? Token & string
+    : never
+  : never
+
+type FamilySortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  sortFamilies: infer F
+}
+  ? F extends readonly { prefix: infer P extends string }[]
+    ? `${P}.${string}` | `-${P}.${string}`
     : never
   : never
 
@@ -465,7 +478,7 @@ export interface TypedReadQuery<
   include?: Inc
   /** Filter the collection — keys constrained to the type's advertised `filter[...]` params. */
   filter?: FilterQuery<D, T>
-  /** Sort the collection — constrained to the type's advertised (signed) sort tokens. */
+  /** Sort the collection — constrained to the type's advertised (signed) sort tokens and families. */
   sort?: SortQuery<D, T>
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F
