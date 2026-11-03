@@ -420,6 +420,31 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** Whether a TS type has a `|` or `&` outside its braces, brackets and string literals. */
+function hasTopLevelOperator(type: string): boolean {
+  let depth = 0
+  let quoted = false
+  for (let i = 0; i < type.length; i++) {
+    const char = type[i]
+    if (quoted) {
+      if (char === '\\') {
+        i++
+      } else if (char === '"') {
+        quoted = false
+      }
+    } else if (char === '"') {
+      quoted = true
+    } else if (char === '{' || char === '[' || char === '(' || char === '<') {
+      depth++
+    } else if (char === '}' || char === ']' || char === ')' || char === '>') {
+      depth--
+    } else if (depth === 0 && (char === '|' || char === '&')) {
+      return true
+    }
+  }
+  return false
+}
+
 export class Emitter {
   private readonly schemas: Record<string, SchemaObject>
   /** Wire type -> the schema `Base` (the `<Base>Resource` name minus `Resource`). */
@@ -1298,6 +1323,14 @@ export class Emitter {
 
   /** The non-nullable TS type for the declared JSON type(s). */
   private baseTsType(schema: SchemaObject, types: readonly string[]): string {
+    // A `const`, such as the discriminator value on a branch of a structured union.
+    const constant = schema['const']
+    if (typeof constant === 'string') {
+      return stringLiteral(constant)
+    }
+    if (typeof constant === 'number' || typeof constant === 'boolean') {
+      return String(constant)
+    }
     // An inline enum (string literals without a $ref).
     if (Array.isArray(schema.enum) && schema.enum.length > 0) {
       return schema.enum.map((value) => stringLiteral(String(value))).join(' | ')
@@ -1359,7 +1392,7 @@ export class Emitter {
     const items = schema.items
     const element = isSchema(items) ? this.tsType(items) : 'unknown'
     // Wrap unions so `(A | B)[]` reads correctly.
-    const list = /[|&]/.test(element) ? `(${element})[]` : `${element}[]`
+    const list = hasTopLevelOperator(element) ? `(${element})[]` : `${element}[]`
     // `minItems` of 1 or more: the server never sends, or accepts, an empty list.
     const minItems = schema['minItems']
     return typeof minItems === 'number' && minItems >= 1 ? `[${element}, ...${list}]` : list

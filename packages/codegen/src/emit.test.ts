@@ -534,6 +534,64 @@ const constBody = (out: string, name: string): string => {
   return out.slice(start, out.indexOf(' as const', start))
 }
 
+describe('emit (const members and structured list elements)', () => {
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    info: { 'x-generator': { contract: 21 } },
+    paths: {},
+    components: {
+      schemas: {
+        WidgetsResource: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'widgets' },
+            id: { type: 'string' },
+            attributes: { $ref: '#/components/schemas/WidgetsAttributes' },
+          },
+        },
+        WidgetsAttributes: {
+          type: 'object',
+          properties: {
+            marker: {
+              type: 'object',
+              properties: {
+                version: { type: 'integer', const: 2 },
+                live: { type: 'boolean', const: true },
+              },
+              required: ['version', 'live'],
+            },
+            parts: {
+              type: 'array',
+              minItems: 1,
+              items: {
+                type: 'object',
+                properties: { sku: { type: 'string' }, qty: { type: ['integer', 'null'] } },
+                required: ['sku'],
+              },
+            },
+            modes: { type: 'array', items: { type: 'string', enum: ['a|b', 'c'] } },
+            pipe: { type: 'array', items: { type: 'string', const: 'x|{y' } },
+          },
+          required: ['marker', 'parts', 'modes', 'pipe'],
+        },
+      },
+    },
+  }
+  const out = emit(doc, buildDescriptor(doc))
+
+  it('types a const member as its literal', () => {
+    expect(out).toContain('  marker: { version: 2; live: true }\n')
+  })
+
+  it('leaves an object element unwrapped and wraps a union element', () => {
+    expect(out).toContain(
+      '  parts: [{ sku: string; qty?: number | null }, ...{ sku: string; qty?: number | null }[]]\n',
+    )
+    expect(out).toContain('  modes: ("a|b" | "c")[]\n')
+    expect(out).toContain('  pipe: "x|{y"[]\n')
+  })
+})
+
 describe('emit (related page limits and kinds)', () => {
   // The fixture's related collections all page by number; swap in the other shapes per path.
   const withPage = (paths: Record<string, SchemaObject | undefined>): string => {

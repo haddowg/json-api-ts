@@ -253,6 +253,23 @@ packaging: { material: string; gatefold: boolean | null } | null
 packaging?: { material: string; gatefold?: boolean } | null
 ```
 
+A discriminated union (a `oneOf` of objects with a `discriminator`) becomes a union of
+its branches, and each branch's discriminator member is the literal its `const` names, so
+checking it narrows to that branch. A list attribute types its elements from its `items`
+schema, so a list of objects or of a discriminated union keeps the members, `required`
+and nullability of each element, with read and write elements following their own
+schemas as above:
+
+```ts
+// read
+steps: ({ operation: "trim" } | { params: { find: string; replace: string } | null; operation: "find_replace" })[] | null
+// create and update
+steps?: ({ operation: "trim" } | { params?: { find?: string; replace?: string }; operation: "find_replace" })[]
+```
+
+A write replaces the whole list, so an update element requires what a create element
+does.
+
 Every constraint the schema declares becomes a TSDoc tag on the member, so it shows
 on hover: `@format`, `@pattern`, `@minLength`/`@maxLength`,
 `@minimum`/`@maximum`, `@exclusiveMinimum`/`@exclusiveMaximum`, `@multipleOf`,
