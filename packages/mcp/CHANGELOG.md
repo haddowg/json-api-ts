@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.5.0...json-api-mcp-v1.6.0) (2026-11-03)
+
+
+### Features
+
+* **mcp:** accept contract 21 for structured list elements ([5fafadf](https://github.com/haddowg/json-api-ts/commit/5fafadfdafc0ac8eac14abf643fa6887baba09a9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.17.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.17.0
+
 ## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.4.2...json-api-mcp-v1.5.0) (2026-11-03)
 
 
