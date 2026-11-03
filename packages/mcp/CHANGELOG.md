@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.4.2...json-api-mcp-v1.5.0) (2026-11-03)
+
+
+### Features
+
+* **mcp:** offer sort family keys in list tool input ([bf52007](https://github.com/haddowg/json-api-ts/commit/bf520078bcd25b6a3b08d4115eaca1e69da40737))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.11.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.16.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.16.0
+
 ## [1.4.2](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.4.1...json-api-mcp-v1.4.2) (2026-11-02)
 
 

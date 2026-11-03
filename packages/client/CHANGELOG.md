@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.10.1...json-api-client-v1.11.0) (2026-11-03)
+
+
+### Features
+
+* **client:** type sort family keys in the sort union ([a26fb3e](https://github.com/haddowg/json-api-ts/commit/a26fb3e1decc12834df86b851832d043032b3aef))
+
 ## [1.10.1](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.10.0...json-api-client-v1.10.1) (2026-11-02)
 
 
