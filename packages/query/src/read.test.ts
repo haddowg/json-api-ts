@@ -40,6 +40,7 @@ const descriptor = {
     clientId: 'forbidden',
     includable: ['artist', 'tracks'],
     sortable: ['title', '-title'],
+    sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['q'],
   },
   artists: {
@@ -140,6 +141,19 @@ describe('listQueryOptions', () => {
     // Bracketed family keys are kept literal by the client serializer; only values are encoded.
     expect(url).toContain('fields[albums]=title')
     expect(url).toContain('sort=title')
+  })
+
+  it('accepts a sort family key beside the fixed ones', async () => {
+    const { client, requests } = makeClient({
+      'GET /albums': { data: [resource('albums', '1', { title: 'A' })] },
+    })
+    const cap = 'energy'
+    await new QueryClient().fetchQuery(
+      listQueryOptions(client, 'albums', { sort: [`-value.${cap}`, 'title'] }),
+    )
+    expect(requests[0]?.url).toContain('sort=-value.energy%2Ctitle')
+    // @ts-expect-error — `valu` is not the family's prefix.
+    listQueryOptions(client, 'albums', { sort: 'valu.x' })
   })
 
   it('shares a key for param-reordered but equal queries (one cache entry)', async () => {
