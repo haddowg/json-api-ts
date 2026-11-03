@@ -20709,7 +20709,82 @@
             "format": {
               "property": {
                 "decoder": {
-                  "kind": "value"
+                  "kind": "union",
+                  "discriminator": "medium",
+                  "branches": [
+                    {
+                      "value": "vinyl",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "rpm": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          },
+                          "coloured": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "medium": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "value": "cd",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "discs": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          },
+                          "medium": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "value": "digital",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "codec": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          },
+                          "bitrateKbps": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "medium": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          }
+                        }
+                      }
+                    }
+                  ]
                 },
                 "nullMeansOmit": true
               }
@@ -22676,7 +22751,82 @@
             "format": {
               "property": {
                 "decoder": {
-                  "kind": "value"
+                  "kind": "union",
+                  "discriminator": "medium",
+                  "branches": [
+                    {
+                      "value": "vinyl",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "rpm": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "coloured": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "medium": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "value": "cd",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "discs": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "medium": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "value": "digital",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "codec": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "bitrateKbps": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "medium": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          }
+                        }
+                      }
+                    }
+                  ]
                 },
                 "nullMeansOmit": true
               }
