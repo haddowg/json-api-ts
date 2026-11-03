@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.16.0...json-api-codegen-v1.17.0) (2026-11-03)
+
+
+### Features
+
+* **codegen:** type structured list elements and accept contract 21 ([3b71ba0](https://github.com/haddowg/json-api-ts/commit/3b71ba03047990b86fc5c1c9fc969b7e2487fada))
+
 ## [1.16.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.15.1...json-api-codegen-v1.16.0) (2026-11-03)
 
 
