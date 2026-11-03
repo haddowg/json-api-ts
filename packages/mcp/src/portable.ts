@@ -32,6 +32,18 @@ export type Decoder =
   | { kind: 'json' }
   | { kind: 'object'; props: Readonly<Record<string, PropertyDecoder>> }
   | { kind: 'array'; items: Decoder }
+  | {
+      kind: 'union'
+      /** The member whose value picks the branch. */
+      discriminator: string
+      branches: readonly UnionBranch[]
+    }
+
+/** A union branch, picked when the discriminator member equals `value`. */
+export interface UnionBranch {
+  value: string | number | boolean
+  decoder: Decoder
+}
 
 export interface PropertyDecoder {
   decoder: Decoder
@@ -87,6 +99,13 @@ export function decode(value: unknown, decoder: Decoder, path = 'value'): unknow
         }
       }
       return out
+    }
+    case 'union': {
+      // A value no branch matches goes through as sent, so the server reports what's wrong.
+      const branch = isObject(value)
+        ? decoder.branches.find((b) => b.value === value[decoder.discriminator])
+        : undefined
+      return branch === undefined ? value : decode(value, branch.decoder, path)
     }
     default:
       return value
@@ -296,6 +315,55 @@ function follow(
   }
 }
 
+/** The one value a converted branch's member allows, such as a discriminator's const. */
+function constOf(branch: JsonSchema, member: string): string | number | boolean | undefined {
+  const props = branch['properties']
+  const prop = isObject(props) ? props[member] : undefined
+  if (!isObject(prop) || !Array.isArray(prop['enum'])) {
+    return undefined
+  }
+  const values = (prop['enum'] as unknown[]).filter((v) => v !== null)
+  const only = values[0]
+  return values.length === 1 &&
+    (typeof only === 'string' || typeof only === 'number' || typeof only === 'boolean')
+    ? only
+    : undefined
+}
+
+/**
+ * A decoder picking an object branch by its discriminator, so the nulls the conversion added
+ * inside the branch are dropped. The discriminator is the `discriminator.propertyName`, else a
+ * member every branch fixes to its own value. A pass-through when there's no such member.
+ */
+function unionDecoder(node: JsonSchema, converted: readonly Portable[]): Decoder {
+  const objects = converted.filter((c) => c.decoder.kind === 'object')
+  if (objects.length === 0) {
+    return VALUE
+  }
+  const declared = isObject(node['discriminator'])
+    ? node['discriminator']['propertyName']
+    : undefined
+  const candidates =
+    typeof declared === 'string'
+      ? [declared]
+      : Object.keys(
+          isObject(objects[0]!.schema['properties']) ? objects[0]!.schema['properties'] : {},
+        )
+  for (const member of candidates) {
+    const branches: UnionBranch[] = []
+    for (const c of objects) {
+      const value = constOf(c.schema, member)
+      if (value !== undefined && !branches.some((b) => b.value === value)) {
+        branches.push({ value, decoder: c.decoder })
+      }
+    }
+    if (branches.length === objects.length) {
+      return { kind: 'union', discriminator: member, branches }
+    }
+  }
+  return VALUE
+}
+
 const isNull = (b: unknown): boolean => isObject(b) && b['type'] === 'null'
 
 /** Convert one document schema into a portable input schema and its decoder. */
@@ -338,13 +406,14 @@ export function toPortable(
     if (depth >= MAX_DEPTH) {
       return jsonText(description)
     }
-    const converted = others.map((b) => toPortable(doc, b, path, depth + 1).schema)
-    const schema: JsonSchema = { anyOf: withNull ? [...converted, { type: 'null' }] : converted }
+    const converted = others.map((b) => toPortable(doc, b, path, depth + 1))
+    const schemas = converted.map((c) => c.schema)
+    const schema: JsonSchema = { anyOf: withNull ? [...schemas, { type: 'null' }] : schemas }
     const text = joinText(description, constraintNote(node))
     if (text !== '') {
       schema['description'] = text
     }
-    return { schema, decoder: VALUE }
+    return { schema, decoder: unionDecoder(node, converted) }
   }
 
   let { types, nullable: isNullable } = typeKeys(node)

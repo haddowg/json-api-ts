@@ -2960,7 +2960,50 @@
             "block": {
               "property": {
                 "decoder": {
-                  "kind": "value"
+                  "kind": "union",
+                  "discriminator": "kind",
+                  "branches": [
+                    {
+                      "value": "heading",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "text": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          },
+                          "kind": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "value": "image",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "src": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "kind": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": false
+                          }
+                        }
+                      }
+                    }
+                  ]
                 },
                 "nullMeansOmit": true
               }
@@ -3059,7 +3102,58 @@
                 "decoder": {
                   "kind": "array",
                   "items": {
-                    "kind": "value"
+                    "kind": "union",
+                    "discriminator": "operation",
+                    "branches": [
+                      {
+                        "value": "trim",
+                        "decoder": {
+                          "kind": "object",
+                          "props": {
+                            "operation": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "value": "find_replace",
+                        "decoder": {
+                          "kind": "object",
+                          "props": {
+                            "params": {
+                              "decoder": {
+                                "kind": "object",
+                                "props": {
+                                  "find": {
+                                    "decoder": {
+                                      "kind": "value"
+                                    },
+                                    "nullMeansOmit": true
+                                  },
+                                  "replace": {
+                                    "decoder": {
+                                      "kind": "value"
+                                    },
+                                    "nullMeansOmit": true
+                                  }
+                                }
+                              },
+                              "nullMeansOmit": true
+                            },
+                            "operation": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            }
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 "nullMeansOmit": true
@@ -4228,7 +4322,50 @@
               "block": {
                 "property": {
                   "decoder": {
-                    "kind": "value"
+                    "kind": "union",
+                    "discriminator": "kind",
+                    "branches": [
+                      {
+                        "value": "heading",
+                        "decoder": {
+                          "kind": "object",
+                          "props": {
+                            "text": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            },
+                            "kind": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "value": "image",
+                        "decoder": {
+                          "kind": "object",
+                          "props": {
+                            "src": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": true
+                            },
+                            "kind": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            }
+                          }
+                        }
+                      }
+                    ]
                   },
                   "nullMeansOmit": true
                 }
@@ -4327,7 +4464,58 @@
                   "decoder": {
                     "kind": "array",
                     "items": {
-                      "kind": "value"
+                      "kind": "union",
+                      "discriminator": "operation",
+                      "branches": [
+                        {
+                          "value": "trim",
+                          "decoder": {
+                            "kind": "object",
+                            "props": {
+                              "operation": {
+                                "decoder": {
+                                  "kind": "value"
+                                },
+                                "nullMeansOmit": false
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "value": "find_replace",
+                          "decoder": {
+                            "kind": "object",
+                            "props": {
+                              "params": {
+                                "decoder": {
+                                  "kind": "object",
+                                  "props": {
+                                    "find": {
+                                      "decoder": {
+                                        "kind": "value"
+                                      },
+                                      "nullMeansOmit": true
+                                    },
+                                    "replace": {
+                                      "decoder": {
+                                        "kind": "value"
+                                      },
+                                      "nullMeansOmit": true
+                                    }
+                                  }
+                                },
+                                "nullMeansOmit": true
+                              },
+                              "operation": {
+                                "decoder": {
+                                  "kind": "value"
+                                },
+                                "nullMeansOmit": false
+                              }
+                            }
+                          }
+                        }
+                      ]
                     }
                   },
                   "nullMeansOmit": true
@@ -13044,7 +13232,50 @@
             "block": {
               "property": {
                 "decoder": {
-                  "kind": "value"
+                  "kind": "union",
+                  "discriminator": "kind",
+                  "branches": [
+                    {
+                      "value": "heading",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "text": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "kind": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "value": "image",
+                      "decoder": {
+                        "kind": "object",
+                        "props": {
+                          "src": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          },
+                          "kind": {
+                            "decoder": {
+                              "kind": "value"
+                            },
+                            "nullMeansOmit": true
+                          }
+                        }
+                      }
+                    }
+                  ]
                 },
                 "nullMeansOmit": true
               }
@@ -13143,7 +13374,58 @@
                 "decoder": {
                   "kind": "array",
                   "items": {
-                    "kind": "value"
+                    "kind": "union",
+                    "discriminator": "operation",
+                    "branches": [
+                      {
+                        "value": "trim",
+                        "decoder": {
+                          "kind": "object",
+                          "props": {
+                            "operation": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "value": "find_replace",
+                        "decoder": {
+                          "kind": "object",
+                          "props": {
+                            "params": {
+                              "decoder": {
+                                "kind": "object",
+                                "props": {
+                                  "find": {
+                                    "decoder": {
+                                      "kind": "value"
+                                    },
+                                    "nullMeansOmit": true
+                                  },
+                                  "replace": {
+                                    "decoder": {
+                                      "kind": "value"
+                                    },
+                                    "nullMeansOmit": true
+                                  }
+                                }
+                              },
+                              "nullMeansOmit": true
+                            },
+                            "operation": {
+                              "decoder": {
+                                "kind": "value"
+                              },
+                              "nullMeansOmit": false
+                            }
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 "nullMeansOmit": true
