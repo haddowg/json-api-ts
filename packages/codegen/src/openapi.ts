@@ -21,6 +21,8 @@ export interface SchemaObject {
   oneOf?: readonly SchemaObject[]
   'x-enum-varnames'?: readonly string[]
   'x-enum-descriptions'?: readonly string[]
+  /** On a `sort` array: the families of keys it accepts by prefix beside its fixed enum. */
+  'x-sort-families'?: readonly { prefix?: unknown; suffixPattern?: unknown }[]
   [key: string]: unknown
 }
 

@@ -573,6 +573,13 @@ document's structure:
   signed sort fields; `filter[…]` keys). These drive typed narrowing on the read
   surface — see [includes and sparse fieldsets](includes-and-sparse-fieldsets.md)
   and [filtering and sorting](filtering-and-sorting.md).
+- **`sortFamilies`**: the sort families the collection read accepts beside `sortable`,
+  read from the `sort` parameter's `x-sort-families`. Each is a `prefix` and the
+  `suffixPattern` its keys' suffix must match, and adds `<prefix>.${string}` and
+  `-<prefix>.${string}` to the type's sort union. When the parameter has families its
+  items are an `anyOf` of the fixed-key enum and one pattern per family, and `sortable`
+  holds that enum's keys. Absent when the type declares no family. See
+  [sort families](filtering-and-sorting.md#sort-families).
 - **`included`** — the types a compound document of the type can carry, read from the
   document's typed `included` (a `oneOf` over `<Type>Resource` components discriminated by
   `type`). A relation's `included` lists the same for its related read. Absent when nothing is
