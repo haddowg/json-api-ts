@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   fe504cc680d55d5e
+ * Spec hash:   8f8b9ca49c5dae7e
  */
 
 import {
@@ -721,6 +721,16 @@ export const resourceMap = {
       "-title",
       "wordCount",
       "-wordCount"
+    ],
+    sortFamilies: [
+      {
+        prefix: "meta",
+        suffixPattern: "[a-z][a-z_]*"
+      },
+      {
+        prefix: "custom.fields",
+        suffixPattern: "[^,]+"
+      }
     ],
     filterable: [
       "archived",

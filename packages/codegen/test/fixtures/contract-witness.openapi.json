@@ -14,7 +14,7 @@
         },
         "version": "3.4.1",
         "x-generator": {
-            "contract": 19
+            "contract": 20
         }
     },
     "servers": [
@@ -189,14 +189,36 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string",
-                                "enum": [
-                                    "title",
-                                    "-title",
-                                    "wordCount",
-                                    "-wordCount"
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "enum": [
+                                            "title",
+                                            "-title",
+                                            "wordCount",
+                                            "-wordCount"
+                                        ]
+                                    },
+                                    {
+                                        "type": "string",
+                                        "pattern": "^-?meta\\.(?:[a-z][a-z_]*)$"
+                                    },
+                                    {
+                                        "type": "string",
+                                        "pattern": "^-?custom\\.fields\\.(?:[^,]+)$"
+                                    }
                                 ]
-                            }
+                            },
+                            "x-sort-families": [
+                                {
+                                    "prefix": "meta",
+                                    "suffixPattern": "[a-z][a-z_]*"
+                                },
+                                {
+                                    "prefix": "custom.fields",
+                                    "suffixPattern": "[^,]+"
+                                }
+                            ]
                         },
                         "style": "form",
                         "explode": false
@@ -7583,14 +7605,36 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string",
-                                "enum": [
-                                    "title",
-                                    "-title",
-                                    "wordCount",
-                                    "-wordCount"
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "enum": [
+                                            "title",
+                                            "-title",
+                                            "wordCount",
+                                            "-wordCount"
+                                        ]
+                                    },
+                                    {
+                                        "type": "string",
+                                        "pattern": "^-?meta\\.(?:[a-z][a-z_]*)$"
+                                    },
+                                    {
+                                        "type": "string",
+                                        "pattern": "^-?custom\\.fields\\.(?:[^,]+)$"
+                                    }
                                 ]
-                            }
+                            },
+                            "x-sort-families": [
+                                {
+                                    "prefix": "meta",
+                                    "suffixPattern": "[a-z][a-z_]*"
+                                },
+                                {
+                                    "prefix": "custom.fields",
+                                    "suffixPattern": "[^,]+"
+                                }
+                            ]
                         },
                         "style": "form",
                         "explode": false
@@ -7878,14 +7922,36 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string",
-                                "enum": [
-                                    "title",
-                                    "-title",
-                                    "wordCount",
-                                    "-wordCount"
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "enum": [
+                                            "title",
+                                            "-title",
+                                            "wordCount",
+                                            "-wordCount"
+                                        ]
+                                    },
+                                    {
+                                        "type": "string",
+                                        "pattern": "^-?meta\\.(?:[a-z][a-z_]*)$"
+                                    },
+                                    {
+                                        "type": "string",
+                                        "pattern": "^-?custom\\.fields\\.(?:[^,]+)$"
+                                    }
                                 ]
-                            }
+                            },
+                            "x-sort-families": [
+                                {
+                                    "prefix": "meta",
+                                    "suffixPattern": "[a-z][a-z_]*"
+                                },
+                                {
+                                    "prefix": "custom.fields",
+                                    "suffixPattern": "[^,]+"
+                                }
+                            ]
                         },
                         "style": "form",
                         "explode": false

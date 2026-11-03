@@ -17,6 +17,7 @@ import type {
   RelationDescriptor,
   RelationMutations,
   ResourceDescriptor,
+  SortFamilyDescriptor,
 } from '@haddowg/json-api-client'
 import { ATOMIC_EXT, CANONICAL_PAGE_KEYS } from '@haddowg/json-api-client'
 import type {
@@ -208,6 +209,10 @@ export class DescriptorBuilder {
       const sortable = this.sortable(collection)
       if (sortable !== undefined) {
         descriptor.sortable = sortable
+      }
+      const sortFamilies = this.sortFamilies(collection)
+      if (sortFamilies !== undefined) {
+        descriptor.sortFamilies = sortFamilies
       }
       const filterable = this.filterable(collection)
       if (filterable !== undefined) {
@@ -1185,16 +1190,47 @@ export class DescriptorBuilder {
   }
 
   /**
-   * The sort tokens the COLLECTION read accepts — the `sort` query parameter's
-   * `schema.items.enum` (signed field names) on the collection GET. Returns `undefined` when
-   * the collection advertises no `sort` parameter (sorting unsupported).
+   * The sort tokens the COLLECTION read accepts — the `sort` query parameter's fixed enum
+   * (signed field names) on the collection GET: `schema.items.enum`, or the enum branch of
+   * `schema.items.anyOf` when the parameter also accepts sort families. Returns `undefined` when
+   * the collection advertises no `sort` parameter or no fixed keys.
    */
   private sortable(collection: string | undefined): readonly string[] | undefined {
     if (collection === undefined) {
       return undefined
     }
-    const tokens = paramItemsEnum(this.operation(collection, 'get'), 'sort')
-    return tokens !== undefined && tokens.length > 0 ? tokens : undefined
+    const items = paramSchema(this.operation(collection, 'get'), 'sort')?.items
+    const branches = items?.anyOf ?? (items === undefined ? [] : [items])
+    const tokens = branches.flatMap((branch) =>
+      Array.isArray(branch.enum)
+        ? branch.enum.filter((v): v is string => typeof v === 'string')
+        : [],
+    )
+    return tokens.length > 0 ? tokens : undefined
+  }
+
+  /**
+   * The sort families the COLLECTION read accepts, from the `sort` parameter's
+   * `x-sort-families`: each a key prefix and the pattern its suffix must match. Returns
+   * `undefined` when the parameter lists none.
+   */
+  private sortFamilies(
+    collection: string | undefined,
+  ): readonly SortFamilyDescriptor[] | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const declared = paramSchema(this.operation(collection, 'get'), 'sort')?.['x-sort-families']
+    if (!Array.isArray(declared)) {
+      return undefined
+    }
+    const families: SortFamilyDescriptor[] = []
+    for (const family of declared) {
+      if (typeof family.prefix === 'string' && typeof family.suffixPattern === 'string') {
+        families.push({ prefix: family.prefix, suffixPattern: family.suffixPattern })
+      }
+    }
+    return families.length > 0 ? families : undefined
   }
 
   /**
@@ -1343,25 +1379,24 @@ function withCountParam(op: OperationObject | undefined): CountableDescriptor | 
   return undefined
 }
 
+/** The schema of the operation's parameter of that name, if it carries one. */
+function paramSchema(op: OperationObject | undefined, paramName: string): SchemaObject | undefined {
+  return op?.parameters?.find((param) => param.name === paramName)?.schema
+}
+
 /**
  * The string members of an array-valued query parameter's `schema.items.enum` (the shape the
- * `include` and `sort` parameters use). Returns `undefined` when the operation carries no
- * parameter of that name, or one whose schema declares no enum.
+ * `include` parameter uses). Returns `undefined` when the operation carries no parameter of
+ * that name, or one whose schema declares no enum.
  */
 function paramItemsEnum(
   op: OperationObject | undefined,
   paramName: string,
 ): readonly string[] | undefined {
-  for (const param of op?.parameters ?? []) {
-    if (param.name !== paramName) {
-      continue
-    }
-    const enumValues = param.schema?.items?.enum
-    return Array.isArray(enumValues)
-      ? enumValues.filter((v): v is string => typeof v === 'string')
-      : undefined
-  }
-  return undefined
+  const enumValues = paramSchema(op, paramName)?.items?.enum
+  return Array.isArray(enumValues)
+    ? enumValues.filter((v): v is string => typeof v === 'string')
+    : undefined
 }
 
 /**
