@@ -4,14 +4,13 @@ import {
   type ClientOptions,
   createClient,
   type DefaultActionTypes,
-  type DefaultWriteAttributes,
 } from '@haddowg/json-api-client'
 
 export const BASE = 'https://music.example'
 
 const descriptor = {
   albums: {
-    attributes: { title: 'string' },
+    attributes: { title: 'string', steps: 'array' },
     relations: { artist: { cardinality: 'one', types: ['artists'], pivot: false } },
     paths: {
       create: '/albums',
@@ -36,24 +35,29 @@ const descriptor = {
   },
 } as const satisfies ApiDescriptor
 
+/** A structured list element: a discriminated union, as the codegen types one. */
+export type Step = { op: 'trim' } | { op: 'replace'; find: string; with?: string }
+
 interface Attributes {
-  albums: { title: string }
+  albums: { title: string; steps: Step[] | null }
   artists: { name: string }
 }
 
+interface WriteAttributes {
+  albums: { create: { title: string; steps?: Step[] }; update: { title?: string; steps?: Step[] } }
+  artists: { create: Record<string, unknown>; update: Record<string, unknown> }
+}
+
 export const createMusicClient = (options: ClientOptions) =>
-  createClient<typeof descriptor, Attributes>(descriptor, options)
+  createClient<typeof descriptor, Attributes, WriteAttributes>(descriptor, options)
 /** The admin server documents error codes, as a generated client would carry them. */
 export type AdminErrorCode = 'ACCESS_DENIED' | 'RESOURCE_NOT_FOUND'
 
 export const createAdminClient = (options: ClientOptions) =>
-  createClient<
-    typeof descriptor,
-    Attributes,
-    DefaultWriteAttributes<typeof descriptor>,
-    DefaultActionTypes,
-    AdminErrorCode
-  >(descriptor, options)
+  createClient<typeof descriptor, Attributes, WriteAttributes, DefaultActionTypes, AdminErrorCode>(
+    descriptor,
+    options,
+  )
 
 export type MusicClient = ReturnType<typeof createMusicClient>
 export type MusicDescriptor = typeof descriptor
