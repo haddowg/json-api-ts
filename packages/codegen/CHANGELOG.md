@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.16.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.15.1...json-api-codegen-v1.16.0) (2026-11-03)
+
+
+### Features
+
+* **codegen:** read sort families and accept contract 20 ([cc3fa60](https://github.com/haddowg/json-api-ts/commit/cc3fa60cd586a4f21e4d76dfa55ffd28f735c093))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.11.0
+
 ## [1.15.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.15.0...json-api-codegen-v1.15.1) (2026-11-02)
 
 
