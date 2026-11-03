@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.6.0...json-api-mcp-v1.6.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **mcp:** drop added nulls inside a discriminated union branch ([#117](https://github.com/haddowg/json-api-ts/issues/117)) ([c8f270d](https://github.com/haddowg/json-api-ts/commit/c8f270de9011d230c33dcdf6a13057cdfcf6bc47))
+
 ## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.5.0...json-api-mcp-v1.6.0) (2026-11-03)
 
 
