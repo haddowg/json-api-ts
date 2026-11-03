@@ -180,6 +180,35 @@ function pageBounds(
   return out
 }
 
+/**
+ * The item schema of a `sort` argument: the enum of fixed keys, and per sort family a string
+ * branch whose description gives the prefix and the suffix pattern, since a pattern keyword isn't
+ * portable. `undefined` when the parameter offers neither.
+ */
+function sortItems(doc: OpenApiDocument, schema: JsonSchema | undefined): JsonSchema | undefined {
+  const items = deref<JsonSchema>(doc, schema?.['items'] as JsonSchema | undefined)
+  const branches = Array.isArray(items?.['anyOf'])
+    ? (items['anyOf'] as JsonSchema[]).map((branch) => deref<JsonSchema>(doc, branch))
+    : [items]
+  const tokens = branches.flatMap((branch) =>
+    Array.isArray(branch?.['enum'])
+      ? (branch['enum'] as unknown[]).filter((v): v is string => typeof v === 'string')
+      : [],
+  )
+  const out: JsonSchema[] = tokens.length > 0 ? [{ type: 'string', enum: tokens }] : []
+  const families = schema?.['x-sort-families']
+  for (const family of Array.isArray(families) ? (families as JsonSchema[]) : []) {
+    const { prefix, suffixPattern } = family
+    if (typeof prefix === 'string' && typeof suffixPattern === 'string') {
+      out.push({
+        type: 'string',
+        description: `\`${prefix}.\` followed by a name matching the regular expression \`${suffixPattern}\`, optionally with a leading \`-\`.`,
+      })
+    }
+  }
+  return out.length > 1 ? { anyOf: out } : out[0]
+}
+
 /** A read tool's query arguments, read from the operation's own parameters. */
 function queryInput(
   ctx: InputContext,
@@ -197,12 +226,11 @@ function queryInput(
       plan.filter = filter.decoder
     }
     const sort = params.find((p) => p.in === 'query' && p.name === 'sort')
-    const sortItems = deref<JsonSchema>(doc, sort?.schema?.['items'] as JsonSchema | undefined)
-    const tokens = Array.isArray(sortItems?.['enum']) ? (sortItems['enum'] as string[]) : []
-    if (tokens.length > 0) {
+    const items = sortItems(doc, deref<JsonSchema>(doc, sort?.schema))
+    if (items !== undefined) {
       properties['sort'] = nullable({
         type: 'array',
-        items: { type: 'string', enum: tokens },
+        items,
         description:
           'Fields to sort by, in order. A leading `-` sorts that field descending. Leave null for the default order.',
       })

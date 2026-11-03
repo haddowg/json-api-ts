@@ -1,10 +1,10 @@
 {
   "format": 4,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 19,
+  "contract": 20,
   "source": {
     "title": "Contract Witness API 3.4.1",
-    "hash": "fe504cc680d55d5e"
+    "hash": "8f8b9ca49c5dae7e"
   },
   "credentialSchemes": [
     "oauth2"
@@ -266,6 +266,16 @@
         "-title",
         "wordCount",
         "-wordCount"
+      ],
+      "sortFamilies": [
+        {
+          "prefix": "meta",
+          "suffixPattern": "[a-z][a-z_]*"
+        },
+        {
+          "prefix": "custom.fields",
+          "suffixPattern": "[^,]+"
+        }
       ],
       "filterable": [
         "archived",
@@ -5644,12 +5654,24 @@
                 "null"
               ],
               "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "-title",
-                  "wordCount",
-                  "-wordCount"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "title",
+                      "-title",
+                      "wordCount",
+                      "-wordCount"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "description": "`meta.` followed by a name matching the regular expression `[a-z][a-z_]*`, optionally with a leading `-`."
+                  },
+                  {
+                    "type": "string",
+                    "description": "`custom.fields.` followed by a name matching the regular expression `[^,]+`, optionally with a leading `-`."
+                  }
                 ]
               },
               "description": "Fields to sort by, in order. A leading `-` sorts that field descending. Leave null for the default order."
@@ -13905,12 +13927,24 @@
                 "null"
               ],
               "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "-title",
-                  "wordCount",
-                  "-wordCount"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "title",
+                      "-title",
+                      "wordCount",
+                      "-wordCount"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "description": "`meta.` followed by a name matching the regular expression `[a-z][a-z_]*`, optionally with a leading `-`."
+                  },
+                  {
+                    "type": "string",
+                    "description": "`custom.fields.` followed by a name matching the regular expression `[^,]+`, optionally with a leading `-`."
+                  }
                 ]
               },
               "description": "Fields to sort by, in order. A leading `-` sorts that field descending. Leave null for the default order."
