@@ -12,6 +12,7 @@ import {
   createAdminClient,
   createMusicClient,
   settle,
+  type Step,
 } from './test-api'
 
 let backend: HttpTestingController
@@ -93,6 +94,42 @@ describe('jsonApiMutation', () => {
     expect(rename.error()).toBeInstanceOf(JsonApiError)
     expect(rename.jsonApiError()?.isUnprocessable()).toBe(true)
     expect(Object.keys(rename.jsonApiError()?.byPath() ?? {})).toEqual(['title'])
+  })
+
+  it('replaces a structured list typed from the write interface', async () => {
+    const edit = TestBed.runInInjectionContext(() =>
+      jsonApiMutation((client, steps: Step[]) => client.albums.id('1').update({ steps })),
+    )
+
+    const done = edit.mutate([{ op: 'trim' }, { op: 'replace', find: 'colour', with: 'color' }])
+    await settle()
+    const req = backend.expectOne(`${BASE}/albums/1`)
+    expect(JSON.parse(req.request.body as string)).toEqual({
+      data: {
+        type: 'albums',
+        id: '1',
+        attributes: {
+          steps: [{ op: 'trim' }, { op: 'replace', find: 'colour', with: 'color' }],
+        },
+      },
+    })
+    req.flush(
+      JSON.stringify({
+        data: { type: 'albums', id: '1', attributes: { title: 'Kid A', steps: [{ op: 'trim' }] } },
+      }),
+    )
+
+    expect((await done).steps).toEqual([{ op: 'trim' }])
+    expectTypeOf<NonNullable<ReturnType<typeof edit.value>>['steps']>().toEqualTypeOf<
+      Step[] | null
+    >()
+    void (() =>
+      TestBed.runInInjectionContext(() =>
+        jsonApiMutation((client) =>
+          // @ts-expect-error — a replace step needs its find.
+          client.albums.id('1').update({ steps: [{ op: 'replace' }] }),
+        ),
+      ))
   })
 
   it('clears the previous error when a new call starts', async () => {
