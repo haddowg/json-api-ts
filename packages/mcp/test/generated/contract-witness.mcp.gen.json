@@ -1,10 +1,10 @@
 {
   "format": 4,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 20,
+  "contract": 21,
   "source": {
     "title": "Contract Witness API 3.4.1",
-    "hash": "8f8b9ca49c5dae7e"
+    "hash": "5a9e14976515b846"
   },
   "credentialSchemes": [
     "oauth2"
@@ -47,7 +47,9 @@
         "revision": "integer",
         "score": "integer",
         "slug": "string",
+        "sources": "array",
         "status": "string",
+        "steps": "array",
         "syncedAt": "date-time",
         "title": "string",
         "wordCount": "integer"
@@ -1716,6 +1718,101 @@
                 "null"
               ]
             },
+            "sources": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "description": "At least 1 characters. Format: uri."
+                  },
+                  "retrievedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "href",
+                  "retrievedAt"
+                ],
+                "additionalProperties": false
+              },
+              "description": "At most 5 items."
+            },
+            "steps": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "trim"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "params": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "find": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "replace": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "find",
+                          "replace"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "find_replace"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "params",
+                      "operation"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "description": "At most 50 items."
+            },
             "author": {
               "type": [
                 "string",
@@ -1911,6 +2008,8 @@
             "contact",
             "authorName",
             "score",
+            "sources",
+            "steps",
             "author",
             "tags",
             "publisher",
@@ -2256,6 +2355,91 @@
                     "integer",
                     "null"
                   ]
+                },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
                 },
                 "attachments": {
                   "type": "array",
@@ -2841,6 +3025,42 @@
               "property": {
                 "decoder": {
                   "kind": "value"
+                },
+                "nullMeansOmit": true
+              }
+            },
+            "sources": {
+              "property": {
+                "decoder": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "props": {
+                      "href": {
+                        "decoder": {
+                          "kind": "value"
+                        },
+                        "nullMeansOmit": false
+                      },
+                      "retrievedAt": {
+                        "decoder": {
+                          "kind": "value"
+                        },
+                        "nullMeansOmit": true
+                      }
+                    }
+                  }
+                },
+                "nullMeansOmit": true
+              }
+            },
+            "steps": {
+              "property": {
+                "decoder": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "value"
+                  }
                 },
                 "nullMeansOmit": true
               }
@@ -3501,6 +3721,101 @@
                 "null"
               ]
             },
+            "sources": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "description": "At least 1 characters. Format: uri."
+                  },
+                  "retrievedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "href",
+                  "retrievedAt"
+                ],
+                "additionalProperties": false
+              },
+              "description": "At most 5 items."
+            },
+            "steps": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "trim"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "params": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "find": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "replace": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "find",
+                          "replace"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "find_replace"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "params",
+                      "operation"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "description": "At most 50 items."
+            },
             "author": {
               "type": [
                 "string",
@@ -3697,6 +4012,8 @@
             "contact",
             "authorName",
             "score",
+            "sources",
+            "steps",
             "author",
             "tags",
             "publisher",
@@ -3976,6 +4293,42 @@
                 "property": {
                   "decoder": {
                     "kind": "value"
+                  },
+                  "nullMeansOmit": true
+                }
+              },
+              "sources": {
+                "property": {
+                  "decoder": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "props": {
+                        "href": {
+                          "decoder": {
+                            "kind": "value"
+                          },
+                          "nullMeansOmit": false
+                        },
+                        "retrievedAt": {
+                          "decoder": {
+                            "kind": "value"
+                          },
+                          "nullMeansOmit": true
+                        }
+                      }
+                    }
+                  },
+                  "nullMeansOmit": true
+                }
+              },
+              "steps": {
+                "property": {
+                  "decoder": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "value"
+                    }
                   },
                   "nullMeansOmit": true
                 }
@@ -5113,6 +5466,91 @@
                     "null"
                   ]
                 },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
+                },
                 "attachments": {
                   "type": "array",
                   "items": {
@@ -6117,6 +6555,91 @@
                     "integer",
                     "null"
                   ]
+                },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
                 },
                 "attachments": {
                   "type": "array",
@@ -7187,6 +7710,91 @@
                     "null"
                   ]
                 },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
+                },
                 "attachments": {
                   "type": "array",
                   "items": {
@@ -7900,6 +8508,91 @@
                     "integer",
                     "null"
                   ]
+                },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
                 },
                 "attachments": {
                   "type": "array",
@@ -8912,6 +9605,91 @@
                     "integer",
                     "null"
                   ]
+                },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
                 },
                 "attachments": {
                   "type": "array",
@@ -10346,6 +11124,91 @@
                     "null"
                   ]
                 },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
+                },
                 "attachments": {
                   "type": "array",
                   "items": {
@@ -10935,6 +11798,101 @@
                 "null"
               ]
             },
+            "sources": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "description": "At least 1 characters. Format: uri."
+                  },
+                  "retrievedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "href",
+                  "retrievedAt"
+                ],
+                "additionalProperties": false
+              },
+              "description": "At most 5 items."
+            },
+            "steps": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "trim"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "params": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "find": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "replace": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "find",
+                          "replace"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "find_replace"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "params",
+                      "operation"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "description": "At most 50 items."
+            },
             "author": {
               "type": [
                 "string",
@@ -11142,6 +12100,8 @@
             "contact",
             "authorName",
             "score",
+            "sources",
+            "steps",
             "author",
             "tags",
             "publisher",
@@ -11487,6 +12447,91 @@
                     "integer",
                     "null"
                   ]
+                },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
                 },
                 "attachments": {
                   "type": "array",
@@ -12064,6 +13109,42 @@
               "property": {
                 "decoder": {
                   "kind": "value"
+                },
+                "nullMeansOmit": true
+              }
+            },
+            "sources": {
+              "property": {
+                "decoder": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "props": {
+                      "href": {
+                        "decoder": {
+                          "kind": "value"
+                        },
+                        "nullMeansOmit": false
+                      },
+                      "retrievedAt": {
+                        "decoder": {
+                          "kind": "value"
+                        },
+                        "nullMeansOmit": true
+                      }
+                    }
+                  }
+                },
+                "nullMeansOmit": true
+              }
+            },
+            "steps": {
+              "property": {
+                "decoder": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "value"
+                  }
                 },
                 "nullMeansOmit": true
               }
@@ -14348,6 +15429,91 @@
                     "integer",
                     "null"
                   ]
+                },
+                "sources": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "href": {
+                        "type": "string",
+                        "format": "uri",
+                        "minLength": 1
+                      },
+                      "retrievedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "href",
+                      "retrievedAt"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 50,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "trim"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "params": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "find": {
+                                "type": "string"
+                              },
+                              "replace": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "find",
+                              "replace"
+                            ]
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "find_replace"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "operation"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  }
                 },
                 "attachments": {
                   "type": "array",
