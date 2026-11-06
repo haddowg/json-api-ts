@@ -34,7 +34,7 @@ const model = await generateMcpModel(document) // in memory
 
 `includeDepth` is the option's name in all three functions, with `null` for every declared path. `buildMcpModel(document, descriptor, { hash })` from the same entry point takes a descriptor you already have, such as a generated client's `resourceMap`, and needs no codegen.
 
-The generator throws when the document's generator contract is outside the range the package reads, 13 to 21 (`MINIMUM_CONTRACT`, `MAXIMUM_CONTRACT`). It throws too when a type that names links also has an attribute or relationship called `links`, since a flattened resource holds its links under that name. It also throws a `ToolNameError` listing every tool name over 64 characters, with a character outside `[a-zA-Z0-9_-]`, or shared by two operations, a name an [`x-mcp`](#leave-out-or-rename-a-tool) override sets included. It throws on an `x-mcp` it can't read, naming the operation. An action whose every request media type is one a model can't send, such as a binary upload, is left out and listed in the model's `skipped` with the reason.
+The generator throws when the document's generator contract is outside the range the package reads, 13 to 22 (`MINIMUM_CONTRACT`, `MAXIMUM_CONTRACT`). It throws too when a type that names links also has an attribute or relationship called `links`, since a flattened resource holds its links under that name. It also throws a `ToolNameError` listing every tool name over 64 characters, with a character outside `[a-zA-Z0-9_-]`, or shared by two operations, a name an [`x-mcp`](#leave-out-or-rename-a-tool) override sets included. It throws on an `x-mcp` it can't read, naming the operation. An action whose every request media type is one a model can't send, such as a binary upload, is left out and listed in the model's `skipped` with the reason.
 
 ### What the model holds
 
@@ -134,6 +134,10 @@ The object's members are all optional strings. `name` replaces the generated too
 
 The rule applies to every operation that becomes a tool: collection, resource and related reads, writes, and custom actions. Relationship endpoints are never tools, so `x-mcp` on one is ignored.
 
+### Deprecated operations
+
+A tool for an operation the server marks deprecated has a description starting with `Deprecated.`, so a model prefers another tool. That covers every operation of a deprecated type, a single deprecated operation and a deprecated action. The prefix goes on an `x-mcp` description too, because the override replaces the prose and the operation is still deprecated. The one exception is a description that already starts with the word "Deprecated", which is left as written. A deprecated operation with no description at all gets `Deprecated.` on its own. When the server gives a sunset date, the sentence naming it stays at the end of the operation's description.
+
 A Symfony or Laravel server declares it in PHP. On `#[AsJsonApiResource]`, `extensions` stamps it on every operation of the type and `operationExtensions` on one operation, merged over `extensions`. On `#[AsJsonApiAction]`, `extensions` sets it on the action's operation. Put `name` on one operation, since the same name on all of a type's operations clashes.
 
 ## Arguments
@@ -159,6 +163,7 @@ Every input schema is accepted by both OpenAI's strict function calling and Anth
 - An object attribute is a closed object of its members. A discriminated union becomes an `anyOf` of closed objects, and each branch's discriminator is an enum of its one value. A list attribute's items follow the same rules, so a list of objects or of a discriminated union keeps the shape of each element. Inside a branch, `null` on a member the API doesn't require means "not given" as well. The handler finds the branch by its discriminator value and drops that `null`, and keeps a `null` the member itself allows. A value whose discriminator matches no branch goes to the API as sent.
 - A relationship takes an id, or a list of ids for a to-many. A polymorphic relationship takes the type and id of each resource. That includes a polymorphic relationship over one type, which the descriptor marks `polymorphic`, so adding a second type later doesn't change the tool's input.
 - On an update, `null` keeps a field's value. `clear` names the nullable fields to set to `null`.
+- An attribute, at any depth, a relationship or a filter the server marks deprecated starts its description with `Deprecated.`. Deprecated sort keys, in both directions, sit in an enum branch of their own described as `Deprecated.`, and a deprecated sort family's branch description starts with it. The `deprecated` keyword itself stays out of input schemas, since neither strict mode accepts it, so the description is what tells a model to avoid the member. The server still accepts all of them.
 - A custom action whose body is a JSON:API document for a known type takes it flat, like a create. Any other body is one `body` argument, in the first of these the action accepts: JSON:API, JSON, text, then a form or multipart body whose fields are documented.
 
 ## Results

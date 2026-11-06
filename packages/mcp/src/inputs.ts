@@ -26,6 +26,8 @@ import {
   allowsNull,
   closedObject,
   type Decoder,
+  isDeprecated,
+  markDeprecated,
   nullable,
   type PropertyDecoder,
   toPortable,
@@ -138,7 +140,8 @@ function filterInput(
       schema['description'] = `${param.description} ${String(schema['description'])}`
     }
     const addNull = !allowsNull(schema)
-    properties[match[1]!] = addNull ? nullable(schema) : schema
+    const property = addNull ? nullable(schema) : schema
+    properties[match[1]!] = isDeprecated(param) ? markDeprecated(property) : property
     props[match[1]!] = { decoder: converted.decoder, nullMeansOmit: true }
   }
   if (Object.keys(properties).length === 0) {
@@ -183,7 +186,9 @@ function pageBounds(
 /**
  * The item schema of a `sort` argument: the enum of fixed keys, and per sort family a string
  * branch whose description gives the prefix and the suffix pattern, since a pattern keyword isn't
- * portable. `undefined` when the parameter offers neither.
+ * portable. The keys the API marks deprecated, in both directions, get an enum branch of their
+ * own, and a deprecated family's description says so. `undefined` when the parameter offers
+ * neither.
  */
 function sortItems(doc: OpenApiDocument, schema: JsonSchema | undefined): JsonSchema | undefined {
   const items = deref<JsonSchema>(doc, schema?.['items'] as JsonSchema | undefined)
@@ -195,15 +200,27 @@ function sortItems(doc: OpenApiDocument, schema: JsonSchema | undefined): JsonSc
       ? (branch['enum'] as unknown[]).filter((v): v is string => typeof v === 'string')
       : [],
   )
-  const out: JsonSchema[] = tokens.length > 0 ? [{ type: 'string', enum: tokens }] : []
+  const listed = schema?.['x-deprecated-sorts']
+  const deprecatedKeys = new Set(
+    (Array.isArray(listed) ? listed : []).filter((key): key is string => typeof key === 'string'),
+  )
+  const isDeprecatedToken = (token: string): boolean =>
+    deprecatedKeys.has(token.startsWith('-') ? token.slice(1) : token)
+  const current = tokens.filter((token) => !isDeprecatedToken(token))
+  const deprecated = tokens.filter(isDeprecatedToken)
+  const out: JsonSchema[] = current.length > 0 ? [{ type: 'string', enum: current }] : []
+  if (deprecated.length > 0) {
+    out.push(markDeprecated({ type: 'string', enum: deprecated }))
+  }
   const families = schema?.['x-sort-families']
   for (const family of Array.isArray(families) ? (families as JsonSchema[]) : []) {
     const { prefix, suffixPattern } = family
     if (typeof prefix === 'string' && typeof suffixPattern === 'string') {
-      out.push({
+      const branch: JsonSchema = {
         type: 'string',
         description: `\`${prefix}.\` followed by a name matching the regular expression \`${suffixPattern}\`, optionally with a leading \`-\`.`,
-      })
+      }
+      out.push(isDeprecated(family) ? markDeprecated(branch) : branch)
     }
   }
   return out.length > 1 ? { anyOf: out } : out[0]
@@ -383,8 +400,9 @@ function writeInput(
     const linkageAllowsNull =
       relation.cardinality === 'one' && JSON.stringify(deref(doc, linkage) ?? {}).includes('"null"')
     const isRequired = mode !== 'update' && relRequired.has(name)
-    const schema = relationArgument(name, relation, linkageAllowsNull)
-    properties[name] = isRequired || allowsNull(schema) ? schema : nullable(schema)
+    const argument = relationArgument(name, relation, linkageAllowsNull)
+    const schema = isRequired || allowsNull(argument) ? argument : nullable(argument)
+    properties[name] = isDeprecated(raw) ? markDeprecated(schema) : schema
     fields[name] = {
       relation: isPolymorphic(relation)
         ? { cardinality: relation.cardinality, types: relation.types, polymorphic: true }

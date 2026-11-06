@@ -36,6 +36,10 @@ An operation can drop or reshape its tool with the `x-mcp` vendor extension. `fa
 its tool out of the model, and an object of `name`, `title` and `description` replaces those
 parts of the tool.
 
+A deprecated operation's tool description starts with `Deprecated.`, an `x-mcp` description
+included, and so does the description of each deprecated attribute, relationship, filter and
+sort key in a tool's input.
+
 ## Serve it
 
 The runtime loads from ESM or CommonJS and needs only the client.

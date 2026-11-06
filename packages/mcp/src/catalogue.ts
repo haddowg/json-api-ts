@@ -334,8 +334,11 @@ function buildEntry(
   if (typeof title === 'string') {
     tool.title = title
   }
-  const description = overrides.description ?? operation.description ?? operation.summary
-  if (typeof description === 'string') {
+  const description = toolDescription(
+    overrides.description ?? operation.description ?? operation.summary,
+    operation.deprecated === true,
+  )
+  if (description !== undefined) {
     tool.description = description
   }
   if (output !== undefined) {
@@ -350,4 +353,17 @@ function buildEntry(
   return key === undefined
     ? { op, tool, input, result }
     : { op, tool, input, result, actionKey: key }
+}
+
+/**
+ * A tool's description, starting with `Deprecated.` when the API marks its operation deprecated.
+ * That holds for an `x-mcp` description too, since the override replaces the prose but not the
+ * fact, unless the author's text already opens with the word.
+ */
+function toolDescription(description: unknown, deprecated: boolean): string | undefined {
+  const text = typeof description === 'string' ? description : undefined
+  if (!deprecated || (text !== undefined && /^deprecated\b/i.test(text.trim()))) {
+    return text
+  }
+  return text === undefined || text.trim() === '' ? 'Deprecated.' : `Deprecated. ${text}`
 }
