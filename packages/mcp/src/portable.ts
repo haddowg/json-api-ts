@@ -134,6 +134,19 @@ export function nullable(schema: JsonSchema): JsonSchema {
   return out
 }
 
+/** Whether a document schema is marked deprecated. */
+export function isDeprecated(schema: unknown): boolean {
+  return isObject(schema) && schema['deprecated'] === true
+}
+
+/**
+ * Note in a portable schema's description that the API marks it deprecated, so a model avoids
+ * it. The `deprecated` keyword itself isn't portable, so the note is all a model sees.
+ */
+export function markDeprecated(schema: JsonSchema): JsonSchema {
+  return { ...schema, description: joinText('Deprecated.', schema['description'] as string) }
+}
+
 /** Whether a portable schema already allows `null`. */
 export function allowsNull(schema: JsonSchema): boolean {
   const type = schema['type']
@@ -468,7 +481,8 @@ export function toPortable(
       const converted = toPortable(doc, prop, path, depth + 1)
       const optional = !required.has(key)
       const addNull = optional && !allowsNull(converted.schema)
-      properties[key] = addNull ? nullable(converted.schema) : converted.schema
+      const schema = addNull ? nullable(converted.schema) : converted.schema
+      properties[key] = isDeprecated(prop) ? markDeprecated(schema) : schema
       decoders[key] = { decoder: converted.decoder, nullMeansOmit: addNull }
     }
     result = {
