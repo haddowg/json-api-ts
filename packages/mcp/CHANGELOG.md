@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.6.1...json-api-mcp-v1.7.0) (2026-11-06)
+
+
+### Features
+
+* **mcp:** honour the x-mcp extension ([#119](https://github.com/haddowg/json-api-ts/issues/119)) ([587c1e0](https://github.com/haddowg/json-api-ts/commit/587c1e04bec0e646088303e4c0eab02ba33f30d4))
+
 ## [1.6.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.6.0...json-api-mcp-v1.6.1) (2026-11-03)
 
 
