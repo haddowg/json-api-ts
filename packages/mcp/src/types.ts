@@ -211,7 +211,10 @@ export interface JsonApiMcp<Ctx> {
   readonly operations: readonly McpOperation[]
   /** Every tool, before any per-caller filtering or decoration. */
   readonly tools: readonly McpTool[]
-  /** Operations that couldn't become a tool, such as an action whose body only takes binary. */
+  /**
+   * Operations that didn't become a tool: one its `x-mcp` excludes, or one that couldn't, such as
+   * an action whose body only takes binary.
+   */
   readonly skipped: readonly SkippedOperation[]
   /** The generator contract of the document the model was built from. */
   readonly contract: number

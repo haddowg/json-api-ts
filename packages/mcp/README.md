@@ -32,6 +32,10 @@ Tools include one relationship deep by default, so each tool's schema carries on
 direct relations reach. Pass `--include-depth <n>`, or `all` for every path the document
 declares, to change that.
 
+An operation can drop or reshape its tool with the `x-mcp` vendor extension. `false` leaves
+its tool out of the model, and an object of `name`, `title` and `description` replaces those
+parts of the tool.
+
 ## Serve it
 
 The runtime loads from ESM or CommonJS and needs only the client.
