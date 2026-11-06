@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.7.0...json-api-mcp-v1.8.0) (2026-11-06)
+
+
+### Features
+
+* **mcp:** flag deprecated tools and inputs and accept contract 22 ([b4916e1](https://github.com/haddowg/json-api-ts/commit/b4916e198e7dfcf8538fedfeb19f7c955a8a0961))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.12.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.18.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.18.0
+
 ## [1.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.6.1...json-api-mcp-v1.7.0) (2026-11-06)
 
 

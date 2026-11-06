@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.13](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.1.12...json-api-query-v1.1.13) (2026-11-06)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.12.0
+
 ## [1.1.12](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.1.11...json-api-query-v1.1.12) (2026-11-03)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.11.0...json-api-client-v1.12.0) (2026-11-06)
+
+
+### Features
+
+* **client:** keep descriptor TSDoc on type and relation accessors ([a8c5bec](https://github.com/haddowg/json-api-ts/commit/a8c5becdcc810f120848563c336575c219c93867))
+
 ## [1.11.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.10.1...json-api-client-v1.11.0) (2026-11-03)
 
 

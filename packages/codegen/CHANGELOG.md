@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.17.0...json-api-codegen-v1.18.0) (2026-11-06)
+
+
+### Features
+
+* **codegen:** tag deprecated members and accept contract 22 ([22cdaa9](https://github.com/haddowg/json-api-ts/commit/22cdaa98aaffeb2fbe3104f53209af91c74ba0fa))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.12.0
+
 ## [1.17.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.16.0...json-api-codegen-v1.17.0) (2026-11-03)
 
 
