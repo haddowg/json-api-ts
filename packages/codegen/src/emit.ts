@@ -7,6 +7,7 @@ import {
 } from '@haddowg/json-api-client'
 import { buildAtomic } from './build-descriptor'
 import { type DeclaredLink, readDeclaredLinks } from './declared-links'
+import { codeList, Deprecations, splitSunset } from './deprecation'
 import { actionOperation, operationExamples } from './build-examples'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
@@ -263,7 +264,10 @@ function firstSuccessSchema(
  */
 function actionDoc(name: string, op: OperationObject | undefined): string | undefined {
   const summary = op?.summary?.trim()
-  const description = op?.description?.trim()
+  // A deprecated action's sunset sentence goes in its `@deprecated` tag instead.
+  const description = (
+    op?.deprecated === true ? splitSunset(op.description).description : op?.description
+  )?.trim()
   const parts: string[] = []
   if (summary && summary !== `Invoke the \`${name}\` action`) {
     parts.push(summary)
@@ -310,20 +314,18 @@ function locationDoc(action: ActionDescriptor): string | undefined {
     : `May return ${serving} instead, as an \`ActionLocation\`. The client doesn't follow it.`
 }
 
-/** A list of scopes as inline code joined into prose: `a`, `b` and `c`. */
-function scopeList(scopes: readonly string[]): string {
-  const quoted = scopes.map((scope) => `\`${scope}\``)
-  return quoted.length === 1
-    ? quoted[0]!
-    : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)!}`
-}
-
 /** The sentence naming the OAuth scopes an operation needs (generator contract 16). */
 function scopeDoc(scopes: readonly string[] | undefined): string | undefined {
   if (scopes === undefined || scopes.length === 0) {
     return undefined
   }
-  return `Needs the OAuth ${scopes.length === 1 ? 'scope' : 'scopes'} ${scopeList(scopes)}.`
+  return `Needs the OAuth ${scopes.length === 1 ? 'scope' : 'scopes'} ${codeList(scopes)}.`
+}
+
+/** JSDoc paragraphs joined, leaving out the missing ones; `undefined` when none is left. */
+function joinDoc(...parts: (string | undefined)[]): string | undefined {
+  const present = parts.filter((part) => part !== undefined)
+  return present.length === 0 ? undefined : present.join('\n\n')
 }
 
 /** The descriptor's `paths` keys, by the operation whose scopes they carry. */
@@ -353,7 +355,7 @@ function relationScopeDoc(
     const needed = scopes?.[`${operation}.${relation}`]
     return needed === undefined || needed.length === 0
       ? []
-      : [`- \`${operation}\` needs ${scopeList(needed)}`]
+      : [`- \`${operation}\` needs ${codeList(needed)}`]
   })
   return lines.length === 0 ? undefined : ['OAuth scopes:', '', ...lines].join('\n')
 }
@@ -493,6 +495,7 @@ export class Emitter {
     this.baseByType = this.indexBases()
     this.provenance = deriveProvenance(source)
     this.takenNames = new Set(MODULE_NAMES)
+    const deprecations = new Deprecations(this.doc, this.schemas, this.baseByType)
     for (const type of Object.keys(descriptor)) {
       const base = this.baseByType.get(type)
       const links =
@@ -530,6 +533,7 @@ export class Emitter {
           locationDoc(action),
           safetyDoc(action),
           scopeDoc(action.scopes),
+          deprecations.tag(op),
           exampleDoc(op),
         ].filter((part) => part !== undefined)
         const doc = parts.length === 0 ? undefined : parts.join('\n\n')
@@ -539,15 +543,35 @@ export class Emitter {
       }
       const scopes = descriptor[type]?.scopes
       for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
-        const doc = scopeDoc(scopes?.[operation])
+        const doc = joinDoc(scopeDoc(scopes?.[operation]), deprecations.operation(type, operation))
         if (doc !== undefined && descriptor[type]?.paths[key] !== undefined) {
           this.literalDocs.set(`${type}/paths/${key}`, doc)
         }
       }
       for (const relation of Object.keys(descriptor[type]?.relations ?? {})) {
-        const doc = relationScopeDoc(scopes, relation)
+        const doc = joinDoc(
+          relationScopeDoc(scopes, relation),
+          deprecations.relation(type, relation, RELATION_OPERATIONS),
+        )
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/relations/${relation}`, doc)
+        }
+      }
+      const typeDoc = deprecations.type(type)
+      if (typeDoc !== undefined) {
+        this.literalDocs.set(type, typeDoc)
+      }
+      const keyDocs: [string, string | undefined][] = [
+        ['filterable', deprecations.filters(type)],
+        ['sortable', deprecations.sorts(type)],
+        ['sortFamilies', deprecations.sortFamilies(type)],
+      ]
+      for (const [key, doc] of keyDocs) {
+        if (
+          doc !== undefined &&
+          descriptor[type]?.[key as keyof ResourceDescriptor] !== undefined
+        ) {
+          this.literalDocs.set(`${type}/${key}`, doc)
         }
       }
     }

@@ -56,14 +56,22 @@ function witnessClient() {
 
 describe('generator contract 20 (sort families)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(21)
+    expect(witness.info?.['x-generator']?.contract).toBe(22)
     expect(checkContract(witness)).toBeUndefined()
   })
 
   it('keeps the fixed keys and lists each family beside them', () => {
     const articles = descriptor['articles']!
-    expect(articles.sortable).toEqual(['title', '-title', 'wordCount', '-wordCount'])
+    expect(articles.sortable).toEqual([
+      'title',
+      '-title',
+      'wordCount',
+      '-wordCount',
+      'length',
+      '-length',
+    ])
     expect(articles.sortFamilies).toEqual([
+      { prefix: 'legacy', suffixPattern: '[^,]+' },
       { prefix: 'meta', suffixPattern: '[a-z][a-z_]*' },
       { prefix: 'custom.fields', suffixPattern: '[^,]+' },
     ])
@@ -75,20 +83,31 @@ describe('generator contract 20 (sort families)', () => {
     }))
     const articles = buildDescriptor(familiesOnly)['articles']!
     expect(articles.sortable).toBeUndefined()
-    expect(articles.sortFamilies?.map((family) => family.prefix)).toEqual(['meta', 'custom.fields'])
+    expect(articles.sortFamilies?.map((family) => family.prefix)).toEqual([
+      'legacy',
+      'meta',
+      'custom.fields',
+    ])
   })
 
   it('emits the same client as before for a plain sort enum', () => {
     const plain = withSortItems((items) => items.anyOf?.find((b) => b.enum !== undefined) ?? items)
     const articles = buildDescriptor(plain)['articles']!
-    expect(articles.sortable).toEqual(['title', '-title', 'wordCount', '-wordCount'])
+    expect(articles.sortable).toEqual([
+      'title',
+      '-title',
+      'wordCount',
+      '-wordCount',
+      'length',
+      '-length',
+    ])
     expect(articles.sortFamilies).toBeUndefined()
     expect(emit(plain, buildDescriptor(plain))).not.toContain('sortFamilies')
   })
 
   it('emits the families on the type descriptor', () => {
     expect(emit(witness, descriptor)).toContain(
-      'sortFamilies: [\n      {\n        prefix: "meta",\n        suffixPattern: "[a-z][a-z_]*"',
+      '      {\n        prefix: "meta",\n        suffixPattern: "[a-z][a-z_]*"',
     )
   })
 
@@ -98,6 +117,10 @@ describe('generator contract 20 (sort families)', () => {
       | '-title'
       | 'wordCount'
       | '-wordCount'
+      | 'length'
+      | '-length'
+      | `legacy.${string}`
+      | `-legacy.${string}`
       | `meta.${string}`
       | `-meta.${string}`
       | `custom.fields.${string}`

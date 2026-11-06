@@ -33,6 +33,10 @@ The type checks the prefix and the dot, so `valu.energy` and a bare `value` don'
 
 A template literal only keeps its type where TypeScript reads it against the sort union, as in the call above. One built earlier into a plain variable or a returned object widens to `string`, so build it at the call, or type the variable as `SortToken<ResourceMap, 'tracks'>`. `SortToken` comes from `@haddowg/json-api-client` and `ResourceMap` from the generated module.
 
+### Deprecated filters and sorts
+
+A server can mark a filter, a sort key or a sort family deprecated. It still accepts them, so they stay in the filter and sort types and compile as before. A member of a string literal union can't carry TSDoc, so your editor won't strike one through. The generated `resourceMap` names them in the TSDoc on the type's `filterable`, `sortable` and `sortFamilies` entries instead. See [deprecation](codegen.md#deprecation).
+
 !!! note "No sorting advertised? `sort` is a compile error."
     If a type advertises no `sortable` set (the OpenAPI document declares no sort parameter), its `sort` value is typed `never` — the key cannot be supplied at all. That is a compile-time mirror of the server's `400 SORTING_UNSUPPORTED`. In the example app, `playlists` advertises no sort, so [BrowsePage.tsx](../examples/spotify-clone/src/pages/BrowsePage.tsx) lists them without a `sort`.
 
