@@ -9,6 +9,7 @@ import {
   updateInput,
   type ToolInput,
 } from './inputs'
+import { type McpToolOverrides, readMcpExtension } from './extension'
 import { checkToolNames, parseOperationId, type ParsedOperationId, toolName } from './names'
 import {
   HTTP_METHODS,
@@ -181,6 +182,11 @@ export function buildCatalogue(
       if (parsed === undefined) {
         continue
       }
+      const overrides = readMcpExtension(operation, operationId)
+      if (overrides === false) {
+        skipped.push({ operationId, reason: 'excluded by x-mcp' })
+        continue
+      }
       const resource = descriptor[parsed.type]
       if (resource === undefined) {
         skipped.push({ operationId, reason: `the descriptor has no type "${parsed.type}"` })
@@ -188,7 +194,7 @@ export function buildCatalogue(
       }
       const op: McpOperation = {
         operationId,
-        toolName: toolName(parsed, descriptor),
+        toolName: overrides.name ?? toolName(parsed, descriptor),
         kind: parsed.kind,
         type: parsed.type,
         method: method.toUpperCase(),
@@ -212,7 +218,7 @@ export function buildCatalogue(
         operation,
         includes: capIncludePaths(includePaths(doc, operation), includeDepth),
       }
-      const built = buildEntry(op, parsed, inputCtx, outputCtx, descriptor)
+      const built = buildEntry(op, parsed, inputCtx, outputCtx, descriptor, overrides)
       if (typeof built === 'string') {
         skipped.push({ operationId, reason: built })
         continue
@@ -233,6 +239,7 @@ function buildEntry(
   inputCtx: InputContext,
   outputCtx: OutputContext,
   descriptor: ApiDescriptor,
+  overrides: McpToolOverrides,
 ): CatalogueEntry | string {
   let input: ToolInput | undefined
   let output: JsonSchema | undefined
@@ -323,10 +330,11 @@ function buildEntry(
 
   const tool: McpTool = { name: op.toolName, inputSchema: input.schema }
   const operation: OperationObject = op.operation
-  if (typeof operation.summary === 'string') {
-    tool.title = operation.summary
+  const title = overrides.title ?? operation.summary
+  if (typeof title === 'string') {
+    tool.title = title
   }
-  const description = operation.description ?? operation.summary
+  const description = overrides.description ?? operation.description ?? operation.summary
   if (typeof description === 'string') {
     tool.description = description
   }

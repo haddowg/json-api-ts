@@ -5,6 +5,8 @@
  * entry point loads only the client, from ESM or CommonJS.
  */
 export { MAXIMUM_CONTRACT, MINIMUM_CONTRACT, assertContract } from './contract'
+export { MCP_EXTENSION } from './extension'
+export type { McpToolOverrides } from './extension'
 export { createJsonApiMcp, exactScopeMatcher, satisfiesSecurity } from './mcp'
 export { assertModel, McpModelError, MODEL_FORMAT, MODEL_GENERATOR } from './model'
 export type { McpModel, McpModelOperation, McpModelPlan, McpModelTool } from './model'
