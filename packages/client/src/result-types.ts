@@ -792,7 +792,13 @@ type RelationMutation<
 
 /** The relationship accessors of type `T`, keyed by relation name. */
 type RelationshipAccessors<D extends ApiDescriptor, A, T extends TypeName<D>> = {
-  [R in RelationName<D, T>]: RelationshipAccessor<D, A, T, R>
+  // Mapped over the descriptor's own keys so each member keeps the JSDoc the codegen writes there.
+  -readonly [R in keyof D[T]['relations'] as Extract<R, string>]: RelationshipAccessor<
+    D,
+    A,
+    T,
+    Extract<R, string>
+  >
 }
 
 // ── Write input types (docs/writes.md) ─────────────────────────────────────────────────────────
@@ -834,7 +840,12 @@ type RelationInput<D extends ApiDescriptor, T extends TypeName<D>, R extends Rel
  * write-only ones included).
  */
 type RelationInputs<D extends ApiDescriptor, T extends TypeName<D>> = {
-  [R in RelationName<D, T>]?: RelationInput<D, T, R>
+  // Mapped over the descriptor's own keys so each member keeps the JSDoc the codegen writes there.
+  -readonly [R in keyof D[T]['relations'] as Extract<R, string>]?: RelationInput<
+    D,
+    T,
+    Extract<R, string>
+  >
 }
 
 /** The `{ create; update }` write-attribute pair for type `T` (or an open pair when `T` is absent from `W`). */
@@ -1309,7 +1320,14 @@ export type Client<
   E extends string = string,
   L = Record<never, never>,
 > = {
-  [T in TypeName<D>]: TypeAccessor<D, WithLinks<A, L>, W, T, Act>
+  // Mapped over the descriptor's own keys so each member keeps the JSDoc the codegen writes there.
+  -readonly [T in keyof D as Extract<T, string>]: TypeAccessor<
+    D,
+    WithLinks<A, L>,
+    W,
+    Extract<T, string>,
+    Act
+  >
 } & {
   /**
    * Run an Atomic Operations batch (docs/atomic-operations.md): the
