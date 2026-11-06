@@ -22,7 +22,9 @@ export interface SchemaObject {
   'x-enum-varnames'?: readonly string[]
   'x-enum-descriptions'?: readonly string[]
   /** On a `sort` array: the families of keys it accepts by prefix beside its fixed enum. */
-  'x-sort-families'?: readonly { prefix?: unknown; suffixPattern?: unknown }[]
+  'x-sort-families'?: readonly { prefix?: unknown; suffixPattern?: unknown; deprecated?: unknown }[]
+  /** On a `sort` array: the fixed keys the server marks deprecated, without the `-`. */
+  'x-deprecated-sorts'?: readonly unknown[]
   [key: string]: unknown
 }
 
@@ -51,6 +53,7 @@ export interface ParameterObject {
   schema?: SchemaObject
   style?: string
   explode?: boolean
+  deprecated?: boolean
   /** The negotiation profile a client must opt into to use this parameter (e.g. `withCount`). */
   'x-profile'?: string
 }
@@ -62,6 +65,7 @@ export interface OperationObject {
   parameters?: readonly ParameterObject[]
   requestBody?: RequestBodyObject
   responses?: Record<string, ResponseObject>
+  deprecated?: boolean
   /** What a custom action declares about its effects (generator contract 15). */
   'x-safety'?: { readOnly?: unknown; destructive?: unknown; idempotent?: unknown }
   /** The credentials the operation takes: scheme name to the scopes it needs, per alternative. */

@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   5a9e14976515b846
+ * Spec hash:   de12129172be6fec
  */
 
 import {
@@ -87,6 +87,8 @@ export interface ArticlesAttributes {
   status: Status | null
   /** @maxItems 50 */
   steps: ({ operation: "trim" } | { params: { find: string; replace: string } | null; operation: "find_replace" })[] | null
+  /** @deprecated */
+  subtitle: string | null
   /** @format date-time */
   syncedAt: string | null
   /**
@@ -195,6 +197,8 @@ export interface ArticlesCreateAttributes {
   status?: Status
   /** @maxItems 50 */
   steps?: ({ operation: "trim" } | { params?: { find?: string; replace?: string }; operation: "find_replace" })[]
+  /** @deprecated */
+  subtitle?: string
   /** @format date-time */
   syncedAt?: string
   /**
@@ -263,6 +267,8 @@ export interface ArticlesUpdateAttributes {
   status?: Status
   /** @maxItems 50 */
   steps?: ({ operation: "trim" } | { params?: { find?: string; replace?: string }; operation: "find_replace" })[]
+  /** @deprecated */
+  subtitle?: string
   /** @format date-time */
   syncedAt?: string
   /**
@@ -424,6 +430,7 @@ export const resourceMap = {
       sources: "array",
       status: "string",
       steps: "array",
+      subtitle: "string",
       syncedAt: "date-time",
       title: "string",
       wordCount: "integer"
@@ -458,6 +465,8 @@ export const resourceMap = {
        * - `fetchRelated` needs `articles:read` and `people:read`
        * - `fetchRelationship` needs `articles:read` and `people:read`
        * - `updateRelationship` needs `articles:write`
+       *
+       * The `fetchRelated` endpoint is deprecated.
        */
       author: {
         cardinality: "one",
@@ -499,6 +508,25 @@ export const resourceMap = {
           "people"
         ],
         pivot: false,
+        mutations: {
+          set: true
+        }
+      },
+      /**
+       * OAuth scopes:
+       *
+       * - `fetchRelationship` needs `articles:read` and `people:read`
+       * - `updateRelationship` needs `articles:write`
+       *
+       * @deprecated
+       */
+      formerAuthor: {
+        cardinality: "one",
+        types: [
+          "people"
+        ],
+        pivot: false,
+        related: false,
         mutations: {
           set: true
         }
@@ -730,13 +758,21 @@ export const resourceMap = {
       "people",
       "tags"
     ],
+    /** The server marks the `length` sort deprecated, in either direction. */
     sortable: [
       "title",
       "-title",
       "wordCount",
-      "-wordCount"
+      "-wordCount",
+      "length",
+      "-length"
     ],
+    /** The server marks the `legacy` sort family deprecated. */
     sortFamilies: [
+      {
+        prefix: "legacy",
+        suffixPattern: "[^,]+"
+      },
       {
         prefix: "meta",
         suffixPattern: "[a-z][a-z_]*"
@@ -746,6 +782,7 @@ export const resourceMap = {
         suffixPattern: "[^,]+"
       }
     ],
+    /** The server marks the `state` filter deprecated. */
     filterable: [
       "archived",
       "author.name",
@@ -756,6 +793,7 @@ export const resourceMap = {
       "rating",
       "releasedOn",
       "search",
+      "state",
       "status",
       "unpublished",
       "urgent",
@@ -944,6 +982,13 @@ export const resourceMap = {
           }
         ]
       },
+      /** @deprecated */
+      retract: {
+        scope: "resource",
+        path: "/articles/{id}/-actions/retract",
+        input: "none",
+        output: "none"
+      },
       /** May return a URL serving `application/octet-stream` instead, as an `ActionLocation`. The client doesn't follow it. */
       revision: {
         scope: "resource",
@@ -1048,6 +1093,10 @@ export const resourceMap = {
         "articles:read",
         "people:read"
       ],
+      "fetchRelationship.formerAuthor": [
+        "articles:read",
+        "people:read"
+      ],
       "fetchRelationship.gallery": [
         "articles:read"
       ],
@@ -1096,6 +1145,9 @@ export const resourceMap = {
         "articles:write"
       ],
       "updateRelationship.editor": [
+        "articles:write"
+      ],
+      "updateRelationship.formerAuthor": [
         "articles:write"
       ],
       "updateRelationship.gallery": [
@@ -1216,6 +1268,7 @@ export const resourceMap = {
       ]
     }
   },
+  /** @deprecated It may stop responding on or after 2027-06-30. */
   tags: {
     attributes: {
       label: "string"
@@ -1226,6 +1279,8 @@ export const resourceMap = {
        *
        * - `fetchRelated` needs `articles:read`
        * - `fetchRelationship` needs `articles:read`
+       *
+       * @deprecated It may stop responding on or after 2027-06-30.
        */
       articles: {
         cardinality: "many",
@@ -1248,12 +1303,17 @@ export const resourceMap = {
       }
     },
     paths: {
+      /** @deprecated It may stop responding on or after 2027-06-30. */
       create: "/tags",
+      /** @deprecated It may stop responding on or after 2027-06-30. */
       delete: "/tags/{id}",
+      /** @deprecated It may stop responding on or after 2027-06-30. */
       fetchMany: "/tags",
+      /** @deprecated It may stop responding on or after 2027-06-30. */
       fetchOne: "/tags/{id}",
       fetchRelated: "/tags/{id}/{rel}",
       fetchRelationship: "/tags/{id}/relationships/{rel}",
+      /** @deprecated It may stop responding on or after 2027-06-30. */
       update: "/tags/{id}"
     },
     paginator: "cursor",

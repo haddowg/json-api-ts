@@ -57,7 +57,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 1 to 19. A document with no contract, from a server before
+contracts 1 to 22. A document with no contract, from a server before
 `haddowg/json-api` 1.1.0, is read as it is, and a newer one generates with a warning
 that the client may miss what the server added. What each server release added is in
 the `haddowg/json-api` changelog.
@@ -504,6 +504,47 @@ export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
 The bound `createClient` passes `ErrorCode` to the runtime, so the client type
 carries it too. A document with no error catalogue gets an empty `ErrorCodes` and
 `ErrorCode = string`, and the guard then takes any code.
+
+### Deprecation
+
+The server can mark a type, an operation, an action, an attribute, a relation, a filter, a
+sort key or a sort family deprecated. A deprecated thing keeps working, so the client still
+types and sends it. The codegen turns each marker into TSDoc, and where the client surface
+reaches the tagged entry, your editor strikes the name through:
+
+- An attribute marked `deprecated` gets `@deprecated` on its member in `…Attributes`,
+  `…CreateAttributes` and `…UpdateAttributes`, at any depth. The read view's attribute is
+  struck through.
+- A relation marked deprecated in the read resource or a write body gets `@deprecated` on its
+  entry in `resourceMap`, so `client.articles.id('1').formerAuthor` is struck through.
+- A deprecated action gets `@deprecated` on its `actions` entry, so
+  `client.articles.id('1').actions.retract` is struck through.
+- A type whose every operation is deprecated gets `@deprecated` on its `resourceMap` entry,
+  so `client.tags` is struck through. Each deprecated CRUD operation also gets one on its
+  `paths` entry, and a relation whose every endpoint is deprecated gets one on its entry.
+
+When the server gives a sunset date, the tag names it:
+
+```ts
+/** @deprecated It may stop responding on or after 2027-06-30. */
+tags: {
+```
+
+Some markers have nowhere to strike through. A single deprecated endpoint of a relation, such
+as its related read, is named in the relation's TSDoc instead, because the relation itself
+still works. The sentence reads "The `fetchRelated` endpoint is deprecated." The `get`, `list`, `create`, `update`
+and `delete` methods are the same for every type, so they carry no per-type tag either; the
+type's `paths` entry does. Filter keys, sort keys and sort families are members of
+`filterable`, `sortable` and `sortFamilies`, and a member of a string literal union can't
+carry TSDoc. The codegen names the deprecated ones in the TSDoc on those three entries
+instead:
+
+```ts
+/** The server marks the `length` sort deprecated, in either direction. */
+sortable: [
+```
+
+A document with no markers generates no deprecation TSDoc at all.
 
 ### Inside the descriptor
 
