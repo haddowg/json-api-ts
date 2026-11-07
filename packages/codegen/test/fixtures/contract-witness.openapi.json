@@ -7409,6 +7409,12 @@
                     "400": {
                         "$ref": "#/components/responses/BadRequest"
                     },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "402": {
+                        "$ref": "#/components/responses/Status402WithPaymentRequired"
+                    },
                     "403": {
                         "$ref": "#/components/responses/Forbidden"
                     },
@@ -7429,9 +7435,6 @@
                     },
                     "500": {
                         "$ref": "#/components/responses/InternalServerError"
-                    },
-                    "401": {
-                        "$ref": "#/components/responses/Unauthorized"
                     }
                 },
                 "deprecated": true
@@ -14251,6 +14254,37 @@
                     }
                 ]
             },
+            "Error402PaymentRequired": {
+                "title": "Payment required",
+                "description": "A `402` error. Its `code` is one of the branches below, each describing what the code means and what a client should do about it.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "title": "Payment required",
+                                        "const": "PAYMENT_REQUIRED"
+                                    }
+                                ]
+                            },
+                            "status": {
+                                "type": "string",
+                                "const": "402"
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "status"
+                        ]
+                    }
+                ]
+            },
             "Error403": {
                 "title": "A 403 error",
                 "description": "A `403` error. Its `code` is one of the branches below, each describing what the code means and what a client should do about it.",
@@ -14814,6 +14848,9 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/Error409ArticleLocked"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/Error402PaymentRequired"
                                 }
                             ]
                         }
@@ -14887,6 +14924,41 @@
                                 },
                                 {
                                     "$ref": "#/components/schemas/Error401"
+                                }
+                            ]
+                        }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "jsonapi": {
+                        "$ref": "#/components/schemas/JsonApi"
+                    }
+                },
+                "required": [
+                    "errors"
+                ]
+            },
+            "ErrorDocument402WithPaymentRequired": {
+                "type": "object",
+                "properties": {
+                    "errors": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "description": "A JSON:API error object in a `402` document. The named shapes catalogue the codes this server documents at that status; the leading generic `Error` keeps the list open, so an error carrying an undocumented `code` — or one whose own `status` differs, which happens when a document of mixed statuses takes the status class they round down to — is still a valid error object.",
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/Error"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/Error402"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/Error402PaymentRequired"
                                 }
                             ]
                         }
@@ -17453,6 +17525,24 @@
                         }
                     }
                 }
+            },
+            "Status402WithPaymentRequired": {
+                "description": "Error",
+                "content": {
+                    "application/vnd.api+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorDocument402WithPaymentRequired"
+                        },
+                        "examples": {
+                            "SUBSCRIPTION_EXPIRED": {
+                                "$ref": "#/components/examples/SUBSCRIPTION_EXPIRED"
+                            },
+                            "PAYMENT_REQUIRED": {
+                                "$ref": "#/components/examples/PAYMENT_REQUIRED"
+                            }
+                        }
+                    }
+                }
             }
         },
         "parameters": {
@@ -18547,6 +18637,37 @@
                             "code": "ARTICLE_LOCKED",
                             "title": "Article locked",
                             "detail": "The article is locked by another editor."
+                        }
+                    ],
+                    "jsonapi": {
+                        "version": "1.1"
+                    }
+                }
+            },
+            "SUBSCRIPTION_EXPIRED": {
+                "summary": "Subscription expired",
+                "value": {
+                    "errors": [
+                        {
+                            "status": "402",
+                            "code": "SUBSCRIPTION_EXPIRED",
+                            "title": "Subscription expired",
+                            "detail": "The premium subscription has expired."
+                        }
+                    ],
+                    "jsonapi": {
+                        "version": "1.1"
+                    }
+                }
+            },
+            "PAYMENT_REQUIRED": {
+                "summary": "Payment required",
+                "value": {
+                    "errors": [
+                        {
+                            "status": "402",
+                            "code": "PAYMENT_REQUIRED",
+                            "title": "Payment required"
                         }
                     ],
                     "jsonapi": {
