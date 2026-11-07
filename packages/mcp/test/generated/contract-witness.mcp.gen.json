@@ -1,10 +1,10 @@
 {
   "format": 4,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 23,
+  "contract": 24,
   "source": {
     "title": "Contract Witness API 3.4.1",
-    "hash": "03039291edab3e2b"
+    "hash": "4049fe03e2deac5a"
   },
   "credentialSchemes": [
     "oauth2"

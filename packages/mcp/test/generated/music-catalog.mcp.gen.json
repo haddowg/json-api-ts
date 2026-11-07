@@ -1,10 +1,10 @@
 {
   "format": 4,
   "generator": "@haddowg/json-api-mcp",
-  "contract": 19,
+  "contract": 24,
   "source": {
     "title": "Music Catalog API 1.0.0",
-    "hash": "470bc0621d0612cc"
+    "hash": "ded654cc809706ff"
   },
   "credentialSchemes": [
     "oauth2"
@@ -8924,8 +8924,9 @@
             "Devices"
           ],
           "summary": "Create a device",
-          "description": "Creates a new device from the supplied attributes and relationships.",
-          "operationId": "create.devices"
+          "description": "Creates a new device from the supplied attributes and relationships.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
+          "operationId": "create.devices",
+          "deprecated": true
         }
       },
       "tool": {
@@ -8944,7 +8945,7 @@
           "additionalProperties": false
         },
         "title": "Create a device",
-        "description": "Creates a new device from the supplied attributes and relationships.",
+        "description": "Deprecated. Creates a new device from the supplied attributes and relationships.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
         "outputSchema": {
           "type": "object",
           "properties": {
@@ -9025,8 +9026,9 @@
             "Devices"
           ],
           "summary": "Delete a device",
-          "description": "Deletes the device identified by its `id`.",
-          "operationId": "delete.devices"
+          "description": "Deletes the device identified by its `id`.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
+          "operationId": "delete.devices",
+          "deprecated": true
         }
       },
       "tool": {
@@ -9045,7 +9047,7 @@
           "additionalProperties": false
         },
         "title": "Delete a device",
-        "description": "Deletes the device identified by its `id`.",
+        "description": "Deprecated. Deletes the device identified by its `id`.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
         "outputSchema": {
           "type": "object",
           "properties": {
@@ -9087,8 +9089,9 @@
             "Devices"
           ],
           "summary": "Fetch a device",
-          "description": "Returns a single device by its `id`.",
-          "operationId": "fetchOne.devices"
+          "description": "Returns a single device by its `id`.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
+          "operationId": "fetchOne.devices",
+          "deprecated": true
         }
       },
       "tool": {
@@ -9130,7 +9133,7 @@
           "additionalProperties": false
         },
         "title": "Fetch a device",
-        "description": "Returns a single device by its `id`.",
+        "description": "Deprecated. Returns a single device by its `id`.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
         "outputSchema": {
           "type": "object",
           "properties": {
@@ -9203,8 +9206,9 @@
             "Devices"
           ],
           "summary": "List devices",
-          "description": "Returns a paginated collection of devices.",
-          "operationId": "fetchCollection.devices"
+          "description": "Returns a paginated collection of devices.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
+          "operationId": "fetchCollection.devices",
+          "deprecated": true
         }
       },
       "tool": {
@@ -9257,7 +9261,7 @@
           "additionalProperties": false
         },
         "title": "List devices",
-        "description": "Returns a paginated collection of devices.",
+        "description": "Deprecated. Returns a paginated collection of devices.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
         "outputSchema": {
           "type": "object",
           "properties": {
@@ -9355,8 +9359,9 @@
             "Devices"
           ],
           "summary": "Update a device",
-          "description": "Updates an existing device, applying the supplied attributes and relationships.",
-          "operationId": "update.devices"
+          "description": "Updates an existing device, applying the supplied attributes and relationships.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
+          "operationId": "update.devices",
+          "deprecated": true
         }
       },
       "tool": {
@@ -9383,7 +9388,7 @@
           "additionalProperties": false
         },
         "title": "Update a device",
-        "description": "Updates an existing device, applying the supplied attributes and relationships.",
+        "description": "Deprecated. Updates an existing device, applying the supplied attributes and relationships.\n\nThis operation may stop responding on or after 2050-12-31, its sunset date.",
         "outputSchema": {
           "type": "object",
           "properties": {
@@ -20333,7 +20338,8 @@
                         "rpm",
                         "coloured",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -20350,7 +20356,8 @@
                       "required": [
                         "discs",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -20376,7 +20383,8 @@
                         "codec",
                         "bitrateKbps",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "null"
@@ -20407,7 +20415,8 @@
                   "required": [
                     "material",
                     "gatefold"
-                  ]
+                  ],
+                  "additionalProperties": false
                 },
                 "availability": {
                   "type": [
@@ -21088,7 +21097,8 @@
                         "rpm",
                         "coloured",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -21105,7 +21115,8 @@
                       "required": [
                         "discs",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -21131,7 +21142,8 @@
                         "codec",
                         "bitrateKbps",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "null"
@@ -21162,7 +21174,8 @@
                   "required": [
                     "material",
                     "gatefold"
-                  ]
+                  ],
+                  "additionalProperties": false
                 },
                 "availability": {
                   "type": [
@@ -21672,7 +21685,8 @@
                         "rpm",
                         "coloured",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -21689,7 +21703,8 @@
                       "required": [
                         "discs",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -21715,7 +21730,8 @@
                         "codec",
                         "bitrateKbps",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "null"
@@ -21746,7 +21762,8 @@
                   "required": [
                     "material",
                     "gatefold"
-                  ]
+                  ],
+                  "additionalProperties": false
                 },
                 "availability": {
                   "type": [
@@ -22375,7 +22392,8 @@
                         "rpm",
                         "coloured",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -22392,7 +22410,8 @@
                       "required": [
                         "discs",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "object",
@@ -22418,7 +22437,8 @@
                         "codec",
                         "bitrateKbps",
                         "medium"
-                      ]
+                      ],
+                      "additionalProperties": false
                     },
                     {
                       "type": "null"
@@ -22449,7 +22469,8 @@
                   "required": [
                     "material",
                     "gatefold"
-                  ]
+                  ],
+                  "additionalProperties": false
                 },
                 "availability": {
                   "type": [
