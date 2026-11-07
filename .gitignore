@@ -15,3 +15,9 @@ coverage/
 site/
 __pycache__/
 *.pyc
+
+# Generated from the pinned server documents by `pnpm generate`; never committed.
+packages/codegen/test/generated/
+packages/mcp/test/generated/
+packages/example/src/generated/
+examples/*/src/generated/

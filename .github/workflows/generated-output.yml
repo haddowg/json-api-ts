@@ -1,0 +1,74 @@
+name: Generated output
+
+# The clients and MCP models generated from the pinned server documents are not committed, so
+# no diff shows how a pull request changes them. This job generates them on the base and on
+# the head, keeps one comment on the pull request with the difference, and fails until the
+# `generated-output` label says someone read it. A release pull request only bumps versions
+# and changelogs, so it is skipped.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# No workflow-level permissions; the job requests only what it needs.
+permissions: {}
+
+concurrency:
+  group: generated-output-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  generated-output:
+    name: Generated output
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Authenticate to GitHub Packages
+        run: echo "NPM_CONFIG_USERCONFIG=$(.github/scripts/npm-auth)" >> "$GITHUB_ENV"
+
+      - name: Generate the head's output
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm generate --out "$RUNNER_TEMP/generated/head"
+
+      # A base from before the documents were pinned has its generated output committed, so
+      # it is copied instead.
+      - name: Generate the base's output
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add -q "$RUNNER_TEMP/base-src" "$BASE"
+          cd "$RUNNER_TEMP/base-src"
+          mkdir -p "$RUNNER_TEMP/generated/base"
+          if [ -f scripts/generate.mjs ]; then
+            pnpm install --frozen-lockfile
+            pnpm generate --out "$RUNNER_TEMP/generated/base"
+          else
+            for dir in packages/codegen/test/generated packages/mcp/test/generated; do
+              mkdir -p "$RUNNER_TEMP/generated/base/$dir"
+              cp -R "$dir/." "$RUNNER_TEMP/generated/base/$dir/"
+            done
+          fi
+
+      - name: Report the difference
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/generated-output-report "$RUNNER_TEMP/generated/base" "$RUNNER_TEMP/generated/head"
