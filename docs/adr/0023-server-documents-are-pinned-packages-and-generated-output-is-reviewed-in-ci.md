@@ -4,5 +4,5 @@ The documents this repo generates and tests against, the bundle's music-catalog 
 
 ## Consequences
 
-- Both packages are on GitHub Packages, so every install, locally and in CI, needs a token that can read packages. The `@haddowg` scope is mapped there in `.npmrc`, and since pnpm resolves a scoped package's registry from that mapping before its `publishConfig.registry`, the release workflow publishes with `--@haddowg:registry=https://registry.npmjs.org/` as well as each package naming npmjs in its `publishConfig`.
+- Both packages are on GitHub Packages, so every install, locally and in CI, needs a token that can read packages. The `@haddowg` scope is mapped there in `.npmrc`, and since npm resolves a scoped package's registry from that mapping before its `publishConfig.registry` or a `--@haddowg:registry` flag, the release workflow drops the mapping before it publishes, and each package also names npmjs in its `publishConfig`.
 - A pull request may pin a server pull request's prerelease to test against it, with a warning, but `main` and release pull requests refuse one (`pnpm check:pins`), because a prerelease is deleted when its pull request closes.
