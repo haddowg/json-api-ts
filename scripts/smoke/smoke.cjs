@@ -36,7 +36,7 @@ for (const [name, fn] of [
   assert.equal(typeof fn, 'function', `[cjs] expected ${name} to be a function`)
 }
 
-// The MCP runtime serves a committed model from CommonJS, with no codegen in its bundle.
+// The MCP runtime serves a generated model (written by `pnpm generate`) from CommonJS, with no codegen in its bundle.
 const { readFileSync } = require('node:fs')
 const mcpDist = require.resolve('@haddowg/json-api-mcp')
 assert.ok(mcpDist.endsWith('.cjs'), `[cjs] expected the mcp runtime's CJS build, got ${mcpDist}`)
@@ -56,7 +56,7 @@ const mcp = createJsonApiMcp({
   const result = await session.callTool('albums_get', { id: '1' })
   assert.deepEqual(result.structuredContent, { data: { id: '1', type: 'albums', title: 'Help!' } })
   console.log(
-    '[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK, and the mcp runtime served a committed model',
+    '[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK, and the mcp runtime served a generated model',
   )
 })().catch((error) => {
   console.error(error)
