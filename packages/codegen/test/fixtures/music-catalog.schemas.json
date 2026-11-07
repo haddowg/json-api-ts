@@ -123,7 +123,8 @@
                     "availableFrom",
                     "availableUntil",
                     "releaseInfo"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -204,7 +205,8 @@
                     "bio",
                     "trackCount",
                     "createdAt"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -252,7 +254,8 @@
                 "required": [
                     "format",
                     "status"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -295,7 +298,8 @@
                 },
                 "required": [
                     "label"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -336,7 +340,8 @@
                 },
                 "required": [
                     "state"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -381,7 +386,8 @@
                 },
                 "required": [
                     "favoritedAt"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -424,7 +430,8 @@
                 },
                 "required": [
                     "name"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -456,7 +463,8 @@
                 "example": "1"
             },
             "attributes": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -519,7 +527,8 @@
                     "slug",
                     "public",
                     "externalId"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -561,7 +570,8 @@
                 },
                 "required": [
                     "name"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -602,7 +612,8 @@
                 },
                 "required": [
                     "displayName"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -669,7 +680,8 @@
                                     "rpm",
                                     "coloured",
                                     "medium"
-                                ]
+                                ],
+                                "additionalProperties": false
                             },
                             {
                                 "type": "object",
@@ -686,7 +698,8 @@
                                 "required": [
                                     "discs",
                                     "medium"
-                                ]
+                                ],
+                                "additionalProperties": false
                             },
                             {
                                 "type": "object",
@@ -712,7 +725,8 @@
                                     "codec",
                                     "bitrateKbps",
                                     "medium"
-                                ]
+                                ],
+                                "additionalProperties": false
                             },
                             {
                                 "type": "null"
@@ -745,7 +759,8 @@
                         "required": [
                             "material",
                             "gatefold"
-                        ]
+                        ],
+                        "additionalProperties": false
                     },
                     "availability": {
                         "type": [
@@ -840,7 +855,8 @@
                     "packaging",
                     "availability",
                     "dimensions"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -925,7 +941,8 @@
                     "genres",
                     "previewOffset",
                     "displayTitle"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"

@@ -1188,32 +1188,16 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc())).toBeUndefined()
     expect(checkContract(contractDoc(MINIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
-    expect(checkContract(contractDoc(4))).toBeUndefined()
-    expect(checkContract(contractDoc(5))).toBeUndefined()
-    expect(checkContract(contractDoc(6))).toBeUndefined()
-    expect(checkContract(contractDoc(7))).toBeUndefined()
-    expect(checkContract(contractDoc(8))).toBeUndefined()
-    expect(checkContract(contractDoc(9))).toBeUndefined()
-    expect(checkContract(contractDoc(10))).toBeUndefined()
-    expect(checkContract(contractDoc(11))).toBeUndefined()
-    expect(checkContract(contractDoc(12))).toBeUndefined()
-    expect(checkContract(contractDoc(13))).toBeUndefined()
-    expect(checkContract(contractDoc(14))).toBeUndefined()
-    expect(checkContract(contractDoc(15))).toBeUndefined()
-    expect(checkContract(contractDoc(16))).toBeUndefined()
-    expect(checkContract(contractDoc(17))).toBeUndefined()
-    expect(checkContract(contractDoc(18))).toBeUndefined()
-    expect(checkContract(contractDoc(19))).toBeUndefined()
-    expect(checkContract(contractDoc(20))).toBeUndefined()
-    expect(checkContract(contractDoc(21))).toBeUndefined()
-    expect(checkContract(contractDoc(23))).toBeUndefined()
-    expect(MAXIMUM_CONTRACT).toBe(23)
+    expect(MINIMUM_CONTRACT).toBe(24)
+    expect(MAXIMUM_CONTRACT).toBe(24)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(24))).toContain(
-      'declares contract 24 and this codegen reads up to 23',
+    expect(checkContract(contractDoc(25))).toContain(
+      'declares contract 25 and this codegen reads up to 24',
     )
+    // A document from before error shapes describes its codes in a way this codegen no longer reads.
+    expect(() => checkContract(contractDoc(23))).toThrow('predates what this codegen reads')
     expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
 })

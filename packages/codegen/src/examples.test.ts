@@ -22,7 +22,10 @@ function withoutExamples<T>(node: T): T {
   if (node !== null && typeof node === 'object') {
     return Object.fromEntries(
       Object.entries(node)
-        .filter(([key]) => key !== 'example')
+        // Named Example Objects too, such as each error code's in `components.examples`.
+        .filter(
+          ([key, value]) => key !== 'example' && !(key === 'examples' && !Array.isArray(value)),
+        )
         .map(([key, value]) => [key, withoutExamples(value)]),
     ) as T
   }
@@ -44,7 +47,7 @@ describe('generator contract 12 (operation examples)', () => {
   const examples = buildExamples(witness, buildDescriptor(witness))
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(23)
+    expect(witness.info?.['x-generator']?.contract).toBe(24)
     expect(checkContract(witness)).toBeUndefined()
   })
 

@@ -1,0 +1,3 @@
+# Error codes are read from shapes and type their meta
+
+The server groups its error codes into shapes, each code a `const` branch carrying its own title and description, declares the `meta` a code carries, and narrows an operation's error response to the codes only it raises. The codegen reads that form alone and refuses an older document, rather than keeping a second reader for the per-code components it replaced, so the generated `ErrorCodes` stay one shape of output. It adds `ErrorMetaByCode` and a bound `findError` typed by it, because a guard can only say an error carries a code somewhere in the document, not which error object to read `meta` from, and `ErrorCodeByOperation`, the codes an operation adds to the ones every operation raises.

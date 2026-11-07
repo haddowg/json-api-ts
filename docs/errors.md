@@ -48,7 +48,10 @@ A status says what class of thing went wrong. The `code` says which thing. A `ha
 - `ErrorCodes`, a const object with a key per documented code. Hover a key, or pick one from completion, to read what the code means.
 - `ErrorCode`, the union of every documented code.
 - `ErrorCodeByStatus`, the codes each status's error document lists, e.g. `ErrorCodeByStatus[403]`.
+- `ErrorCodeByOperation`, the codes only some operations raise, by operation id.
+- `ErrorMetaByCode`, the `meta` each code declares.
 - `hasErrorCode(err, code)`, a type guard that only accepts a code from `ErrorCode`.
+- `findError(err, code)`, the first error object carrying the code, with its `meta` typed.
 
 ```ts
 import { hasErrorCode } from './api/music.gen'
@@ -77,6 +80,19 @@ if (hasErrorCode(error, ErrorCodes.RESOURCE_NOT_FOUND)) {
 ```
 
 The guard is true when the error is a `JsonApiError` and *any* of its error objects carries the code. A document can hold several errors, so the guard doesn't care where the match sits.
+
+When a code puts data in `meta`, `findError` hands back that error object with its `meta` typed from the server's declaration:
+
+```ts
+import { ErrorCodes, findError } from './api/music.gen'
+
+const scope = findError(error, ErrorCodes.INSUFFICIENT_SCOPE)
+if (scope) {
+  requestToken(scope.meta.missingScopes) // [string, ...string[]]
+}
+```
+
+It returns `undefined` when the error is not a `JsonApiError` or none of its errors carries the code. A code that declares no `meta` keeps the untyped `meta`.
 
 `JsonApiError` takes the code union as a type parameter, and each error object types `code` as `ErrorCode | (string & {})`. Your editor suggests the documented codes, and a code the server never documented still fits. The catalogue is open on purpose: an application can raise its own errors, and a server is never wrong to send a code its document didn't list. The type parameter defaults to `string`, so untyped code sees no change.
 
@@ -160,7 +176,7 @@ Distinct from `JsonApiError` (an application error the server *reported*) is `St
 
 - The tested 422 `byPath()` snippet lives in the `writes` group of [example.test.ts](../packages/example/src/example.test.ts) — every line runs under `pnpm test`.
 - The error type surface, matchers, `byPath()` grouping and `hasErrorCode` are defined in [errors.ts](../packages/client/src/errors.ts).
-- The generated `ErrorCodes`, `ErrorCode`, `ErrorCodeByStatus` and bound `hasErrorCode` sit near the end of [music-catalog.client.gen.ts](../packages/codegen/test/generated/music-catalog.client.gen.ts).
+- The generated `ErrorCodes`, `ErrorCode`, `ErrorCodeByStatus`, `ErrorCodeByOperation`, `ErrorMetaByCode` and the bound `hasErrorCode` and `findError` sit near the end of [music-catalog.client.gen.ts](../packages/codegen/test/generated/music-catalog.client.gen.ts).
 
 ## Next
 

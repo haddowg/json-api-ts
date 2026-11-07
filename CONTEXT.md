@@ -130,6 +130,10 @@ The opt-in `validate` client option that checks each resource against its type's
 The generated `hasErrorCode`, restricted to the documented `ErrorCode` union, as against the
 runtime's unbound one.
 
+**Bound finder**:
+The generated `findError`, restricted to the documented codes and typing each one's `meta` from
+`ErrorMetaByCode`, as against the runtime's unbound one.
+
 ### Query bindings
 
 **Normalisation**:
