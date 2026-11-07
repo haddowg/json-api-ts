@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.19.0...json-api-codegen-v2.0.0) (2026-11-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **codegen:** the codegen reads generator contract 24 only. A document from an older server describes its error codes in a form it no longer reads; generate it with an earlier codegen release.
+
+### Features
+
+* **codegen:** read error shapes, scoped codes and typed meta ([2a20e11](https://github.com/haddowg/json-api-ts/commit/2a20e112ea1e42fc92d19598fc4a67281a514fe8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.13.0
+
 ## [1.19.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.18.0...json-api-codegen-v1.19.0) (2026-11-07)
 
 
