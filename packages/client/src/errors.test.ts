@@ -1,6 +1,13 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { ApiDescriptor } from './descriptor'
-import { type ErrorCodeGuard, hasErrorCode, JsonApiError, type JsonApiErrorObject } from './errors'
+import {
+  type ErrorCodeGuard,
+  type ErrorFinder,
+  findError,
+  hasErrorCode,
+  JsonApiError,
+  type JsonApiErrorObject,
+} from './errors'
 import type { Client, ErrorCodeOf } from './result-types'
 
 describe('JsonApiError', () => {
@@ -96,5 +103,44 @@ describe('error-code typing', () => {
     expectTypeOf<ErrorCodeOf<Client<D>>>().toEqualTypeOf<string>()
     expectTypeOf<ErrorCodeOf<unknown>>().toEqualTypeOf<string>()
     expectTypeOf<ErrorCodeOf<{ albums: unknown }>>().toEqualTypeOf<string>()
+  })
+})
+
+interface Meta {
+  ACCESS_DENIED: {
+    requiredScopes: string[]
+    missingScopes: [string, ...string[]]
+    include?: string
+  }
+}
+
+describe('findError', () => {
+  const err = new JsonApiError(403, [
+    { status: '403', code: 'RESOURCE_NOT_FOUND' },
+    { status: '403', code: 'ACCESS_DENIED', meta: { requiredScopes: ['a'], missingScopes: ['a'] } },
+  ])
+
+  it('returns the first error carrying the code, else undefined', () => {
+    expect(findError(err, 'ACCESS_DENIED')?.meta).toEqual({
+      requiredScopes: ['a'],
+      missingScopes: ['a'],
+    })
+    expect(findError(err, 'PASSWORD_EXPIRED')).toBeUndefined()
+    expect(findError({ errors: [{ code: 'ACCESS_DENIED' }] }, 'ACCESS_DENIED')).toBeUndefined()
+  })
+
+  it('types the code and its declared meta when bound', () => {
+    const bound = findError as ErrorFinder<Code, Meta>
+    const found = bound(err, 'ACCESS_DENIED')
+    if (found !== undefined) {
+      expectTypeOf(found.code).toEqualTypeOf<'ACCESS_DENIED'>()
+      expectTypeOf(found.meta.missingScopes).toEqualTypeOf<[string, ...string[]]>()
+    }
+    const other = bound(err, 'RESOURCE_NOT_FOUND')
+    if (other !== undefined) {
+      expectTypeOf(other.meta).toEqualTypeOf<Record<string, unknown> | undefined>()
+    }
+    // @ts-expect-error a misspelt code is not in the union
+    bound(err, 'ACCES_DENIED')
   })
 })
