@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import {
   type ActionLocation,
   isActionLocation,
@@ -11,11 +10,10 @@ import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
+import { documentPath } from '../test/documents'
 
 function load(): OpenApiDocument {
-  const path = fileURLToPath(
-    new URL('../test/fixtures/contract-witness.openapi.json', import.meta.url),
-  )
+  const path = documentPath('contract-witness.json')
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 
@@ -158,9 +156,7 @@ describe('generator contract 17 (actions that answer with a URL)', () => {
 })
 
 describe('the music catalogue at contract 17', () => {
-  const path = fileURLToPath(
-    new URL('../test/fixtures/music-catalog.openapi.json', import.meta.url),
-  )
+  const path = documentPath('music-catalog.openapi.json')
   const music = JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 
   it('marks the albums download action as answering with a CSV URL', () => {

@@ -8,11 +8,9 @@ import { buildDescriptor } from './build-descriptor'
 import { emit } from './emit'
 import { emitSchemas } from './emit-schemas'
 import type { OpenApiDocument, SchemaObject } from './openapi'
+import { documentPath } from '../test/documents'
 
-const fixture = readFileSync(
-  fileURLToPath(new URL('../test/fixtures/music-catalog.openapi.json', import.meta.url)),
-  'utf8',
-)
+const fixture = readFileSync(documentPath('music-catalog.openapi.json'), 'utf8')
 
 const ENUM_KEY = 'X = 1; alert(1); type Y'
 const ENUM_VALUE = 'it\'s "quoted" `tick` ${alert(2)}'

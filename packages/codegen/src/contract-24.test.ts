@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { JsonApiError } from '@haddowg/json-api-client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
@@ -11,9 +10,10 @@ import {
   type ErrorMetaByCode,
   findError,
 } from '../test/generated/contract-witness.client.gen'
+import { documentPath } from '../test/documents'
 
-const fixtureUrl = new URL('../test/fixtures/contract-witness.openapi.json', import.meta.url)
-const witness = JSON.parse(readFileSync(fileURLToPath(fixtureUrl), 'utf8')) as OpenApiDocument
+const fixturePath = documentPath('contract-witness.json')
+const witness = JSON.parse(readFileSync(fixturePath, 'utf8')) as OpenApiDocument
 const source = emit(witness, buildDescriptor(witness))
 
 describe('generator contract 24 (error shapes, scoped codes, typed meta)', () => {

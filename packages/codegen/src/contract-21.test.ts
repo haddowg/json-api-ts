@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import type { TransportRequest } from '@haddowg/json-api-client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
@@ -12,12 +11,10 @@ import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
+import { documentPath } from '../test/documents'
 
 const witness = JSON.parse(
-  readFileSync(
-    fileURLToPath(new URL('../test/fixtures/contract-witness.openapi.json', import.meta.url)),
-    'utf8',
-  ),
+  readFileSync(documentPath('contract-witness.json'), 'utf8'),
 ) as OpenApiDocument
 
 type Source = { href: string; retrievedAt: string | null }

@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import type { SortToken, TransportRequest } from '@haddowg/json-api-client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient, type resourceMap } from '../test/generated/contract-witness.client.gen'
@@ -7,13 +6,14 @@ import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument, SchemaObject } from './openapi'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function load(name: string): OpenApiDocument {
-  const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function load(name: DocumentName): OpenApiDocument {
+  const path = documentPath(name)
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 
-const witness = load('contract-witness.openapi.json')
+const witness = load('contract-witness.json')
 const descriptor = buildDescriptor(witness)
 
 /**

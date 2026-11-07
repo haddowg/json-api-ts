@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { examples as catalogExamples } from '../test/generated/music-catalog.client.examples.gen'
 import { buildDescriptor } from './build-descriptor'
@@ -8,9 +7,10 @@ import { checkContract } from './contract'
 import { emit, EXAMPLE_DOC_MAX_LINES } from './emit'
 import { emitExamples } from './emit-examples'
 import type { OpenApiDocument, OperationObject } from './openapi'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function load(name: string): OpenApiDocument {
-  const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function load(name: DocumentName): OpenApiDocument {
+  const path = documentPath(name)
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 
@@ -43,7 +43,7 @@ function actionDocOf(source: string, name: string): string | undefined {
 }
 
 describe('generator contract 12 (operation examples)', () => {
-  const witness = load('contract-witness.openapi.json')
+  const witness = load('contract-witness.json')
   const examples = buildExamples(witness, buildDescriptor(witness))
 
   it('reads the witness without a warning', () => {
@@ -110,7 +110,7 @@ describe('generator contract 12 (operation examples)', () => {
 })
 
 describe('a document without examples', () => {
-  const older = withoutExamples(load('contract-witness.openapi.json'))
+  const older = withoutExamples(load('contract-witness.json'))
   older.info = { ...older.info, 'x-generator': { contract: 11 } }
 
   it('gives no examples', () => {
@@ -126,7 +126,7 @@ describe('a document without examples', () => {
 })
 
 describe('an action @example', () => {
-  const witness = load('contract-witness.openapi.json')
+  const witness = load('contract-witness.json')
 
   function emitWith(edit: (stats: OperationObject, doc: OpenApiDocument) => void): string {
     const doc = structuredClone(witness)
