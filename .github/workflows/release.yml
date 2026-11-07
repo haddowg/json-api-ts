@@ -61,8 +61,11 @@ jobs:
       # Requires pnpm 10.x for OIDC: pnpm 11 regressed OIDC publishing (404s —
       # pnpm/pnpm#11513), so keep the packageManager pin in package.json on 10.x.
       # The repository's .npmrc maps the @haddowg scope to GitHub Packages for the pinned server
-      # documents, and pnpm resolves a scoped package's registry from that mapping before its
-      # publishConfig.registry, so the scope is pointed back at npmjs here. Without it every
-      # package would be checked against, and published to, GitHub Packages.
+      # documents, and npm resolves a scoped package's registry from that mapping before its
+      # publishConfig.registry or a --@haddowg:registry flag. Install and build are done by now,
+      # so the mapping is dropped and every package publishes to npmjs, the registry setup-node
+      # configured above.
       - name: Publish
-        run: pnpm -r publish --access public --no-git-checks --provenance --@haddowg:registry=https://registry.npmjs.org/
+        run: |
+          sed -i '/^@haddowg:registry=/d' .npmrc
+          pnpm -r publish --access public --no-git-checks --provenance
