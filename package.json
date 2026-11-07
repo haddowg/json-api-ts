@@ -10,6 +10,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "prebuild": "pnpm generate",
     "build": "turbo run build",
     "pretest": "pnpm generate",
     "test": "vitest run",

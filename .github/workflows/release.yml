@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+  # Re-runs the publish from main after a failed one: pnpm publish skips any version npm
+  # already has, so it publishes only what the tagged release left unpublished.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,7 +28,7 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    if: ${{ needs.release-please.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
