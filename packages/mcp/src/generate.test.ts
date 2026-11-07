@@ -9,12 +9,11 @@ import { main, parseArgs } from './cli'
 import { generateMcpModel, serialiseMcpModel, writeMcpModel } from './generate'
 import { createJsonApiMcp } from './mcp'
 import { MODEL_FORMAT, MODEL_GENERATOR } from './model'
-import { source } from './test-fixtures'
+import { documentPath, source } from './test-fixtures'
 
-const spec = fileURLToPath(
-  new URL('../../codegen/test/fixtures/music-catalog.openapi.json', import.meta.url),
-)
-const committed = fileURLToPath(
+const spec = documentPath('music-catalog')
+// Written by `pnpm generate` with the built CLI before the tests run.
+const generated = fileURLToPath(
   new URL('../test/generated/music-catalog.mcp.gen.json', import.meta.url),
 )
 
@@ -57,9 +56,9 @@ describe('generateMcpModel', () => {
     expect(JSON.stringify(list.inputSchema)).toContain('Leave null for 25.')
   })
 
-  it('loads the committed model the way a CommonJS host would, with require', () => {
+  it('loads the generated model the way a CommonJS host would, with require', () => {
     const require = createRequire(import.meta.url)
-    const mcp = createJsonApiMcp({ model: require(committed) })
+    const mcp = createJsonApiMcp({ model: require(generated) })
     expect(mcp.contract).toBe(24)
     expect(mcp.tools.map((t) => t.name)).toContain('albums_list')
   })
@@ -81,7 +80,7 @@ describe('writeMcpModel and the CLI', () => {
       upToDate: false,
     })
     await writeMcpModel({ input: spec, output })
-    expect(readFileSync(output, 'utf8')).toBe(readFileSync(committed, 'utf8'))
+    expect(readFileSync(output, 'utf8')).toBe(readFileSync(generated, 'utf8'))
     expect((await writeMcpModel({ input: spec, output, check: true })).upToDate).toBe(true)
 
     // Whitespace a formatter changes isn't drift; content is.
@@ -117,7 +116,7 @@ describe('writeMcpModel and the CLI', () => {
     expect(JSON.parse(readFileSync(output, 'utf8'))).toMatchObject({ includeDepth: 2 })
     await writeMcpModel({ input: spec, output, includeDepth: null })
     expect(JSON.parse(readFileSync(output, 'utf8'))).toMatchObject({ includeDepth: null })
-    expect(JSON.parse(readFileSync(committed, 'utf8'))).toMatchObject({ includeDepth: 1 })
+    expect(JSON.parse(readFileSync(generated, 'utf8'))).toMatchObject({ includeDepth: 1 })
   })
 
   it('exits 1 with usage or a reason, 0 when it writes or the check passes', async () => {
