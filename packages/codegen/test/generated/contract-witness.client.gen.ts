@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   ed6e9a71ede22f2b
+ * Spec hash:   603e78b3a695ae06
  */
 
 import {
