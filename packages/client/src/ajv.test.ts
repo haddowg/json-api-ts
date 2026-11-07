@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import Ajv2020 from 'ajv/dist/2020'
 import { describe, expect, it } from 'vitest'
@@ -15,8 +16,18 @@ function fixtureBody(name: string): string {
   return readFileSync(path, 'utf8')
 }
 
-/** The real per-type JSON Schema bundle the bundle serves at GET /schemas.json. */
-const schemas = JSON.parse(fixtureBody('music-catalog.schemas.json')) as SchemaMap
+/**
+ * The real per-type JSON Schema bundle the bundle serves at GET /schemas.json, from the exact
+ * `@haddowg/json-api-symfony-specs` version pinned at the workspace root.
+ */
+const schemas = JSON.parse(
+  readFileSync(
+    createRequire(import.meta.url).resolve(
+      '@haddowg/json-api-symfony-specs/music-catalog.schemas.json',
+    ),
+    'utf8',
+  ),
+) as SchemaMap
 
 // The bundle's schemas carry `x-enum-*` keywords (tolerated under `strict: false`) plus `format`
 // annotations (date-time/date/uuid/time/uri). We do NOT enforce formats: they are advisory and the
