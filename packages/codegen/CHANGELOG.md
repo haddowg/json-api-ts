@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.18.0...json-api-codegen-v1.19.0) (2026-11-07)
+
+
+### Features
+
+* **codegen:** accept contract 23 and type undiscriminated unions exclusively ([32d6699](https://github.com/haddowg/json-api-ts/commit/32d66994472438a1822d8015054d7358ca904def))
+
 ## [1.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.17.0...json-api-codegen-v1.18.0) (2026-11-06)
 
 

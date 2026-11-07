@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.8.0...json-api-mcp-v1.9.0) (2026-11-07)
+
+
+### Features
+
+* **mcp:** accept contract 23 ([8c0b6a2](https://github.com/haddowg/json-api-ts/commit/8c0b6a2d81090f8f86bfd9e9e7a09ebcdc0bc35e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 1.19.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 1.19.0
+
 ## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.7.0...json-api-mcp-v1.8.0) (2026-11-06)
 
 
