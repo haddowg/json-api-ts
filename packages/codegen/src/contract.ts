@@ -1,10 +1,10 @@
 import type { OpenApiDocument } from './openapi'
 
 /** Below this the document predates the structures this codegen reads. */
-export const MINIMUM_CONTRACT = 1
+export const MINIMUM_CONTRACT = 24
 
 /** Above this the document carries structures this codegen does not read. */
-export const MAXIMUM_CONTRACT = 23
+export const MAXIMUM_CONTRACT = 24
 
 /**
  * Check the document's `info.x-generator.contract` against the range this codegen reads. A

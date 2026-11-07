@@ -16,7 +16,7 @@ const SHAPE =
 
 describe('generator contract 23 (closed objects, undiscriminated unions)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(23)
+    expect(witness.info?.['x-generator']?.contract).toBe(24)
     expect(checkContract(witness)).toBeUndefined()
   })
 

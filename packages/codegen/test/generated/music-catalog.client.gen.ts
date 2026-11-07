@@ -4,7 +4,7 @@
  *
  * Source spec: Music Catalog API 1.0.0
  * Server:      https://music.example
- * Spec hash:   470bc0621d0612cc
+ * Spec hash:   ded654cc809706ff
  */
 
 import {
@@ -12,6 +12,8 @@ import {
   type ClientOptions,
   createClient as createClientRuntime,
   type ErrorCodeGuard,
+  type ErrorFinder,
+  findError as findErrorRuntime,
   hasErrorCode as hasErrorCodeRuntime,
   type IncludedResource,
   type RelatedIncludedResource,
@@ -1085,16 +1087,22 @@ export const resourceMap = {
     paginator: "none",
     clientId: "forbidden"
   },
+  /** @deprecated It may stop responding on or after 2050-12-31. */
   devices: {
     attributes: {
       label: "string"
     },
     relations: {},
     paths: {
+      /** @deprecated It may stop responding on or after 2050-12-31. */
       create: "/devices",
+      /** @deprecated It may stop responding on or after 2050-12-31. */
       delete: "/devices/{id}",
+      /** @deprecated It may stop responding on or after 2050-12-31. */
       fetchMany: "/devices",
+      /** @deprecated It may stop responding on or after 2050-12-31. */
       fetchOne: "/devices/{id}",
+      /** @deprecated It may stop responding on or after 2050-12-31. */
       update: "/devices/{id}"
     },
     paginator: "page",
@@ -2101,342 +2109,462 @@ export const relatedPageKinds = {
  */
 export const ErrorCodes = {
   /**
+   * Forbidden.
+   *
    * The caller is authenticated but not permitted to do what the request asks. Retrying with the same credentials will fail the same way; act as a user who holds the permission, or don't make the request.
    *
    * @example Access is denied!
    */
   ACCESS_DENIED: "ACCESS_DENIED",
   /**
+   * Addition is prohibited.
+   *
    * This relationship does not let a client add members to it. Don't retry the request; the relationship changes only in the ways the API documents for it.
    *
    * @example Addition to relationship 'tags' is prohibited!
    */
   ADDITION_PROHIBITED: "ADDITION_PROHIBITED",
   /**
+   * Application error.
+   *
    * The server failed to handle the request because of a fault on its side, not because of anything in the request. Retrying won't help; report it to the API's maintainers.
    *
    * @example An application error has occurred!
    */
   APPLICATION_ERROR: "APPLICATION_ERROR",
   /**
+   * Atomic operations request is invalid.
+   *
    * An operation in the Atomic Operations request is malformed: a missing or unknown `op`, or a broken `ref`, `href` or `data`. The server applied none of the batch; fix the operation at `source.pointer` and send the whole batch again.
    *
    * @example Unknown atomic operation code 'upsert'.
    */
   ATOMIC_OPERATIONS_INVALID: "ATOMIC_OPERATIONS_INVALID",
   /**
+   * Attribute member is not recognized.
+   *
+   * The request body sent an attribute, or a key inside an object attribute, that the resource type does not declare. Remove it, or correct its name, and send the request again.
+   *
+   * @example The resource does not declare the member 'colour'!
+   */
+  ATTRIBUTE_MEMBER_UNRECOGNIZED: "ATTRIBUTE_MEMBER_UNRECOGNIZED",
+  /**
+   * Attribute value is invalid.
+   *
    * The server could not accept the value of the attribute at `source.pointer`, for example a date-time it cannot parse. Correct the value and send the request again.
    *
    * @example The value for attribute "publishedAt" is invalid: Failed to parse time string (next blursday) at position 0 (n): The timezone could not be found in the database
    */
   ATTRIBUTE_VALUE_INVALID: "ATTRIBUTE_VALUE_INVALID",
   /**
+   * Unauthorized.
+   *
    * The request carried no credentials, or credentials the server rejected, such as an expired token. Authenticate, then send the request again with valid credentials.
    *
    * @example Authentication is required!
    */
   AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
   /**
+   * Client generated ID already exists.
+   *
    * A resource of this type already has the `id` the create request supplied. Generate a new id and send the request again, or update the existing resource instead.
    *
    * @example Client generated ID '1' already exists!
    */
   CLIENT_GENERATED_ID_ALREADY_EXISTS: "CLIENT_GENERATED_ID_ALREADY_EXISTS",
   /**
+   * Client generated ID is not supported.
+   *
    * The create request supplied an `id`, but this resource type assigns its own ids. Leave `data.id` out and the server generates one.
    *
    * @example Client generated ID '1' is not supported!
    */
   CLIENT_GENERATED_ID_NOT_SUPPORTED: "CLIENT_GENERATED_ID_NOT_SUPPORTED",
   /**
+   * Required client generated ID.
+   *
    * This resource type expects the client to choose the id, and the create request supplied none. Add `data.id` in the format the API documents and send the request again.
    *
    * @example A client generated ID must be used!
    */
   CLIENT_GENERATED_ID_REQUIRED: "CLIENT_GENERATED_ID_REQUIRED",
   /**
+   * Cursor is malformed.
+   *
    * The cursor in the named `page` parameter could not be decoded. Use cursors exactly as the server returned them in a previous page's `links`; never build or edit one.
    *
    * @example The cursor supplied in 'page[after]' could not be decoded.
    */
   CURSOR_MALFORMED: "CURSOR_MALFORMED",
   /**
+   * Cursor is stale.
+   *
    * The cursor was issued for a different sort order than this request asks for, so it no longer marks a position in these results. Keep `sort` unchanged while paging, or start again from the first page.
    *
    * @example The cursor supplied in 'page[after]' was built for a different sort order and can no longer be used.
    */
   CURSOR_STALE: "CURSOR_STALE",
   /**
+   * Missing `data` member at the document's top level.
+   *
    * The request document has no top-level `data` member, which this request needs. Send the resource object or relationship linkage under `data`.
    *
    * @example Missing `data` member at the document's top level!
    */
   DATA_MEMBER_MISSING: "DATA_MEMBER_MISSING",
   /**
+   * Fieldset member is unrecognized.
+   *
    * A `fields[TYPE]` parameter names a member that type does not have. Request only the attributes and relationships the type declares.
    *
    * @example Fields 'colour' requested for type 'articles' can't be recognized by the endpoint!
    */
   FIELDSET_MEMBER_UNRECOGNIZED: "FIELDSET_MEMBER_UNRECOGNIZED",
   /**
+   * Filtering parameter is unrecognized.
+   *
    * The request filtered on a key this endpoint does not declare. Filter only on the keys the API documents for this resource type.
    *
    * @example Filtering parameter 'colour' can't be recognized by the endpoint!
    */
   FILTERING_UNRECOGNIZED: "FILTERING_UNRECOGNIZED",
   /**
+   * Filter value is invalid.
+   *
    * A `filter[...]` value fails the constraints that filter declares, for example text where a number is expected. Correct the value of the parameter named in `source.parameter`; each failed constraint is its own error.
    *
    * @example The value supplied for 'filter[rating]' is invalid.
    */
   FILTER_VALUE_INVALID: "FILTER_VALUE_INVALID",
   /**
+   * Full replacement is prohibited.
+   *
    * This relationship cannot be replaced as a whole, for example by a `PATCH` to its relationship endpoint. Add or remove individual members instead, if the relationship allows that.
    *
    * @example Full replacement of relationship 'tags' is prohibited!
    */
   FULL_REPLACEMENT_PROHIBITED: "FULL_REPLACEMENT_PROHIBITED",
   /**
+   * Inclusion depth exceeded.
+   *
    * An `include` path nests more relationships than the server allows. Shorten the path and fetch the deeper resources with a separate request.
    *
    * @example Included paths 'author.publisher.country' exceed the maximum include depth of 2 permitted by the endpoint!
    */
   INCLUSION_DEPTH_EXCEEDED: "INCLUSION_DEPTH_EXCEEDED",
   /**
+   * Inclusion is not allowed.
+   *
    * An `include` path names a relationship that exists but may not be included from this request. Remove the path and fetch the related resources with a separate request.
    *
    * @example Included paths 'author.company' are not allowed by the endpoint!
    */
   INCLUSION_NOT_ALLOWED: "INCLUSION_NOT_ALLOWED",
   /**
+   * Inclusion is unrecognized.
+   *
    * An `include` path names a relationship the resource type does not have. Check each path against the relationships the type documents.
    *
    * @example Included paths 'auther' can't be recognized by the endpoint!
    */
   INCLUSION_UNRECOGNIZED: "INCLUSION_UNRECOGNIZED",
   /**
+   * Inclusion is unsupported.
+   *
    * This endpoint does not support the `include` parameter. Remove it and fetch related resources with separate requests.
    *
    * @example Inclusion is not supported by the endpoint!
    */
   INCLUSION_UNSUPPORTED: "INCLUSION_UNSUPPORTED",
   /**
+   * Insufficient scope.
+   *
    * The access token is valid but does not grant every scope the request needs. `meta.missingScopes` names the ones it lacks; request a token that grants them, or drop the `include` path named in `meta.include`.
    *
    * @example The access token does not grant every scope this request needs.
    */
   INSUFFICIENT_SCOPE: "INSUFFICIENT_SCOPE",
   /**
+   * Local id conflict.
+   *
    * Two operations in the Atomic Operations request create resources of the same type under the same `lid`. Give each resource a batch creates its own `lid`.
    *
    * @example Local id 'new-article' is already registered for type 'articles'!
    */
   LOCAL_ID_CONFLICT: "LOCAL_ID_CONFLICT",
   /**
+   * Local id not found.
+   *
    * An operation refers to a `lid` that no earlier operation in the batch created. Create the resource under that `lid` in an earlier operation, or refer to an existing resource by `id`.
    *
    * @example No resource is registered for local id 'new-article' of type 'articles'!
    */
   LOCAL_ID_NOT_FOUND: "LOCAL_ID_NOT_FOUND",
   /**
+   * Local id is not supported.
+   *
    * The request used a `lid`, which only means something inside an Atomic Operations request. Identify the resource by `id`, or send the dependent writes together as one atomic batch if the API offers the extension.
    *
    * @example A local id (lid) is only supported within an Atomic Operations request; a standalone request must identify a resource by id.
    */
   LOCAL_ID_NOT_SUPPORTED: "LOCAL_ID_NOT_SUPPORTED",
   /**
+   * The provided media type is unacceptable.
+   *
    * Every `application/vnd.api+json` entry in the `Accept` header carries a parameter other than `ext` or `profile`, or asks for an `ext` the server does not support. Accept `application/vnd.api+json` with no other parameters.
    *
    * @example The media type 'application/vnd.api+json; version=2' is unacceptable in the 'Accept' header!
    */
   MEDIA_TYPE_UNACCEPTABLE: "MEDIA_TYPE_UNACCEPTABLE",
   /**
+   * The provided media type is unsupported.
+   *
    * The `Content-Type` is missing or names a media type the endpoint does not accept, or is `application/vnd.api+json` with a media type parameter other than `ext` or `profile`, or with an `ext` the server does not support. Send a JSON:API document as `Content-Type: application/vnd.api+json` with only the parameters the server supports.
    *
    * @example The media type 'application/vnd.api+json; charset=utf-8' is unsupported in the 'Content-Type' header!
    */
   MEDIA_TYPE_UNSUPPORTED: "MEDIA_TYPE_UNSUPPORTED",
   /**
-   * The path exists, but not for the method the request used: the type or relationship may be read-only, or the endpoint may take no such operation. The `Allow` response header lists the methods the path accepts.
+   * Method Not Allowed.
    *
-   * @example The method PATCH is not allowed on this path, which accepts GET.
+   * The path exists, but not for the method the request used: the type or relationship may be read-only, or the endpoint may take no such operation. The `Allow` response header lists the methods the path accepts.
    */
   METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
   /**
+   * No resource registered.
+   *
    * The server tried to use a resource type it has nothing registered for, which is a configuration fault on its side. Retrying won't help; report it to the API's maintainers.
    *
    * @example No resource is registered for type "articles".
    */
   NO_RESOURCE_REGISTERED: "NO_RESOURCE_REGISTERED",
   /**
+   * Pagination kind is not supported.
+   *
    * `page[kind]` names a pagination strategy this collection does not offer. Use one of the strategies the `detail` lists, or leave `page[kind]` out.
    *
    * @example The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor.
    */
   PAGINATION_KIND_UNKNOWN: "PAGINATION_KIND_UNKNOWN",
   /**
+   * Query parameter is malformed.
+   *
    * A query parameter has the wrong shape, such as `fields` sent without a type key or `include` sent as a list instead of a comma-separated string. Fix the parameter named in `source.parameter`.
    *
    * @example Query parameter 'include' is malformed!
    */
   QUERY_PARAM_MALFORMED: "QUERY_PARAM_MALFORMED",
   /**
+   * Query parameter is unrecognized.
+   *
    * The request used a query parameter this endpoint does not recognize. Remove it, or check its spelling against the parameters the API documents.
    *
    * @example Query parameter 'colour' can't be recognized by the endpoint!
    */
   QUERY_PARAM_UNRECOGNIZED: "QUERY_PARAM_UNRECOGNIZED",
   /**
+   * Related attribute owner missing.
+   *
    * The request wrote an attribute the server stores on a related resource, and that related resource does not exist. Set the relationship first, or leave the attribute out.
    *
    * @example Cannot write attribute "city": its related "address" is not present.
    */
   RELATED_ATTRIBUTE_OWNER_MISSING: "RELATED_ATTRIBUTE_OWNER_MISSING",
   /**
+   * Relationship count is not allowed.
+   *
    * `withCount` names a relationship that is not a countable to-many relationship of this resource. Ask for counts only on the relationships the API marks as countable.
    *
    * @example Counted relationships 'author' are not countable to-many relationships of this resource!
    */
   RELATIONSHIP_COUNT_NOT_ALLOWED: "RELATIONSHIP_COUNT_NOT_ALLOWED",
   /**
+   * The requested relationship does not exist!.
+   *
    * The request names a relationship this resource type does not have, or one whose endpoint the API does not expose. Check the relationship name against the ones the type documents.
    *
    * @example The requested relationship 'reviewers' does not exist!
    */
   RELATIONSHIP_NOT_EXISTS: "RELATIONSHIP_NOT_EXISTS",
   /**
+   * Relationship type is inappropriate.
+   *
    * The relationship data has the wrong cardinality: a list for a to-one relationship, a single identifier for a to-many one, or a `POST` or `DELETE` to a to-one relationship endpoint. Send linkage that matches the relationship.
    *
    * @example The provided relationship 'author' is of type of to-many, but to-one is expected!
    */
   RELATIONSHIP_TYPE_INAPPROPRIATE: "RELATIONSHIP_TYPE_INAPPROPRIATE",
   /**
+   * Removal is prohibited.
+   *
    * This relationship does not let a client remove members from it or clear it. Don't retry the request; the relationship changes only in the ways the API documents for it.
    *
    * @example Removal of relationship 'tags' is prohibited!
    */
   REMOVAL_PROHIBITED: "REMOVAL_PROHIBITED",
   /**
+   * Request body is an invalid JSON document.
+   *
    * The request body is not well-formed JSON. Fix the syntax the `detail` reports and send the request again.
    *
    * @example Request body is an invalid JSON document: 'Syntax error'!
    */
   REQUEST_BODY_INVALID_JSON: "REQUEST_BODY_INVALID_JSON",
   /**
+   * Request body is an invalid JSON:API document.
+   *
    * The request body is JSON but breaks the JSON:API document structure or the schema the server validates this resource against. Each violation is its own error, with `source.pointer` set where the server could locate it.
    *
    * @example The data must match the type: object
    */
   REQUEST_BODY_INVALID_JSON_API: "REQUEST_BODY_INVALID_JSON_API",
   /**
+   * Required top-level members are missing.
+   *
    * The request body is not a JSON object, or has none of the top-level members `data`, `errors` and `meta`. Send a JSON object with the resource under `data`.
    *
    * @example A document must contain at least one of the following top-level members: "data", "errors", "meta"
    */
   REQUIRED_TOP_LEVEL_MEMBERS_MISSING: "REQUIRED_TOP_LEVEL_MEMBERS_MISSING",
   /**
+   * Resource identifier ID is invalid.
+   *
    * A resource identifier in the request carries an `id` that is not a string, such as a number. Send every `id` as a JSON string.
    *
    * @example The resource ID must be a string instead of integer!
    */
   RESOURCE_IDENTIFIER_ID_INVALID: "RESOURCE_IDENTIFIER_ID_INVALID",
   /**
+   * An ID for the resource identifier is missing.
+   *
    * A resource identifier in the request has neither an `id` nor a `lid`. Identify each related resource by its `id`, or by a `lid` inside an Atomic Operations request.
    *
    * @example An ID or local ID (lid) for the resource identifier must be included!
    */
   RESOURCE_IDENTIFIER_ID_MISSING: "RESOURCE_IDENTIFIER_ID_MISSING",
   /**
+   * Resource identifier local ID is invalid.
+   *
    * A resource identifier in the request carries a `lid` that is not a string. Send every `lid` as a JSON string.
    *
    * @example The resource local ID (lid) must be a string instead of integer!
    */
   RESOURCE_IDENTIFIER_LID_INVALID: "RESOURCE_IDENTIFIER_LID_INVALID",
   /**
+   * Resource identifier type is invalid.
+   *
    * A resource identifier in the request carries a `type` that is not a string. Send every `type` as a JSON string.
    *
    * @example The resource type must be a string instead of integer!
    */
   RESOURCE_IDENTIFIER_TYPE_INVALID: "RESOURCE_IDENTIFIER_TYPE_INVALID",
   /**
+   * A type for the resource identifier is missing.
+   *
    * A resource identifier in the request has no `type`. Add the related resource's `type` to every identifier.
    *
    * @example A type for the resource identifier must be included!
    */
   RESOURCE_IDENTIFIER_TYPE_MISSING: "RESOURCE_IDENTIFIER_TYPE_MISSING",
   /**
+   * Resource id conflict.
+   *
    * The `id` in the update body is not the `id` in the URL. Send the id of the resource the URL addresses as `data.id`.
    *
    * @example Resource id '12' does not match the endpoint id '7'!
    */
   RESOURCE_ID_CONFLICT: "RESOURCE_ID_CONFLICT",
   /**
+   * Resource ID is invalid.
+   *
    * The resource object's `id` is not a string, such as a number. Send `data.id` as a JSON string.
    *
    * @example The resource ID must be a string instead of integer!
    */
   RESOURCE_ID_INVALID: "RESOURCE_ID_INVALID",
   /**
+   * Resource ID is missing.
+   *
    * The update request's resource object has no `id`. Include the id of the resource being updated as `data.id`.
    *
    * @example A resource ID must be included in the document!
    */
   RESOURCE_ID_MISSING: "RESOURCE_ID_MISSING",
   /**
+   * Resource ID is undecodable.
+   *
    * The client-generated `id` is not in a format the server can decode into one of its own ids. Send an `id` in the format the API documents for this resource type.
    *
    * @example The resource ID 'not-an-id' could not be decoded!
    */
   RESOURCE_ID_UNDECODABLE: "RESOURCE_ID_UNDECODABLE",
   /**
+   * Resource not found.
+   *
    * The resource the request addresses does not exist. Check the type and id in the URL; a deleted resource stays not found.
    *
    * @example The requested resource is not found!
    */
   RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",
   /**
+   * Resource type is missing.
+   *
    * The resource object in `data` has no `type`. Add the type of the resource the endpoint serves.
    *
    * @example A resource type must be included in the document!
    */
   RESOURCE_TYPE_MISSING: "RESOURCE_TYPE_MISSING",
   /**
+   * Resource type is unacceptable.
+   *
    * The `type` in the request is not one this endpoint or relationship accepts. Send the type the endpoint serves, or one the relationship documents for its related resources.
    *
    * @example Resource type 'people' is unacceptable!
    */
   RESOURCE_TYPE_UNACCEPTABLE: "RESOURCE_TYPE_UNACCEPTABLE",
   /**
+   * Response body is an invalid JSON document.
+   *
    * The server produced a response body that is not valid JSON, which is a fault on its side. Retrying won't help; report it to the API's maintainers.
    *
    * @example Response body is an invalid JSON document: 'Syntax error'!
    */
   RESPONSE_BODY_INVALID_JSON: "RESPONSE_BODY_INVALID_JSON",
   /**
+   * Response body is an invalid JSON:API document.
+   *
    * The server produced a response that breaks the JSON:API document structure, which is a fault on its side. Retrying won't help; report it to the API's maintainers.
    *
    * @example The data must match the type: object
    */
   RESPONSE_BODY_INVALID_JSON_API: "RESPONSE_BODY_INVALID_JSON_API",
   /**
+   * Sorting parameter is unrecognized.
+   *
    * The `sort` parameter names a field this endpoint cannot sort by. Sort only on the fields the API documents for this resource type.
    *
    * @example Sorting parameter 'popularity' can't be recognized by the endpoint!
    */
   SORTING_UNRECOGNIZED: "SORTING_UNRECOGNIZED",
   /**
+   * Sorting is unsupported.
+   *
    * This endpoint does not support sorting. Remove the `sort` parameter.
    *
    * @example Sorting is not supported by the endpoint!
    */
   SORTING_UNSUPPORTED: "SORTING_UNSUPPORTED",
   /**
+   * Top-level members are incompatible.
+   *
    * The request body has both `data` and `errors` at the top level, which JSON:API forbids. Send the resource under `data` alone.
    *
    * @example The members "data" and "errors" cannot coexist in the same document
    */
   TOP_LEVEL_MEMBERS_INCOMPATIBLE: "TOP_LEVEL_MEMBERS_INCOMPATIBLE",
   /**
+   * Top-level member is not allowed.
+   *
    * The request body has a top-level `included` member but no `data`. Remove `included`, or send it alongside `data`.
    *
    * @example If a document does not contain a top-level "data" key, the "included" member must not be present either.
@@ -2457,6 +2585,7 @@ export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
 export interface ErrorCodeByStatus {
   400:
     | "ATOMIC_OPERATIONS_INVALID"
+    | "ATTRIBUTE_MEMBER_UNRECOGNIZED"
     | "CURSOR_MALFORMED"
     | "CURSOR_STALE"
     | "DATA_MEMBER_MISSING"
@@ -2512,11 +2641,34 @@ export interface ErrorCodeByStatus {
 }
 
 /**
+ * The error codes only some operations raise, by operation id: what each adds to the codes its
+ * status documents for every operation.
+ */
+export interface ErrorCodeByOperation {}
+
+/**
+ * The `meta` each documented code declares, by code. A code not listed carries untyped `meta`,
+ * and one whose `meta` is optional may arrive without it.
+ */
+export interface ErrorMetaByCode {
+  INSUFFICIENT_SCOPE: { requiredScopes: [string, ...string[]]; missingScopes: [string, ...string[]]; include?: string }
+  REQUEST_BODY_INVALID_JSON: { original?: string } | undefined
+  RESPONSE_BODY_INVALID_JSON: { original?: string } | undefined
+}
+
+/**
  * True when `err` is a `JsonApiError` and any of its error objects carries `code`. Only takes a
  * documented code; match an undocumented one with `hasErrorCode` from
  * '@haddowg/json-api-client'.
  */
 export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
+
+/**
+ * The first error object in `err` carrying `code`, with its `meta` typed when the code declares
+ * one, or `undefined`. Only takes a documented code; find an undocumented one with `findError`
+ * from '@haddowg/json-api-client'.
+ */
+export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByCode>
 
 /**
  * Descriptor-bound client factory; wraps the generic runtime with this API’s `resourceMap`.

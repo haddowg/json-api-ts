@@ -57,9 +57,10 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 1 to 22. A document with no contract, from a server before
-`haddowg/json-api` 1.1.0, is read as it is, and a newer one generates with a warning
-that the client may miss what the server added. What each server release added is in
+contract 24. An older document is refused, because it describes its error codes in a form
+this codegen no longer reads: generate it with an older codegen release. A document with no
+contract is read as it is, and a newer one generates with a warning that the client may
+miss what the server added. What each server release added is in
 the `haddowg/json-api` changelog.
 
 A few things the codegen reads from the document that affect the generated client:
@@ -188,8 +189,10 @@ runtime's needs, and all the real machinery lives in the generic
   input/output aliases.
 - **`Links`** — each type that declares links, mapped to its `…Links` interface. See
   [below](#declared-links).
-- **`ErrorCode` / `ErrorCodeByStatus` / `hasErrorCode`** — the server's documented
-  error codes and a type guard bound to them. See [below](#error-codes).
+- **`ErrorCode` / `ErrorCodeByStatus` / `ErrorCodeByOperation` / `ErrorMetaByCode` /
+  `hasErrorCode` / `findError`** — the server's documented error codes, the codes only some
+  operations raise, each code's typed `meta`, and a guard and finder bound to them. See
+  [below](#error-codes).
 - **`pageLimits` / `relatedPageLimits`** — the page defaults and caps of each
   collection and each related collection. See [below](#page-defaults-and-caps).
 - **`pageKinds` / `relatedPageKinds`** — the pagination strategies each collection
@@ -472,9 +475,12 @@ of its arms.
 ### Error codes
 
 A `haddowg/json-api` document catalogues the error codes the server can send. Each
-`components.schemas.ErrorDocument<NNN>` offers its codes as `anyOf` branches, one
-`<Code>Error` component per code with a `code` const, plus the open generic `Error`.
-The codegen reads them into four exports:
+`components.schemas.ErrorDocument<NNN>` offers, after the open generic `Error`, the error
+*shapes* at that status: components grouping the codes that share a `source` member and a
+`meta` declaration, whose `code` is an `anyOf` of one `const` branch per code, each with the
+code's `title` and `description`. An operation raising codes only it raises points at an
+`ErrorDocument<NNN>With…` narrowed to them. Each code's example lives in
+`components.examples` under the code. The codegen reads them into these exports:
 
 ```ts
 export const ErrorCodes = {
@@ -492,21 +498,35 @@ export interface ErrorCodeByStatus {
   500: never
 }
 
+export interface ErrorCodeByOperation {
+  "update.articles": "ARTICLE_LOCKED"
+}
+
+export interface ErrorMetaByCode {
+  INSUFFICIENT_SCOPE: { requiredScopes: [string, ...string[]]; missingScopes: [string, ...string[]]; include?: string }
+}
+
 export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>
+export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByCode>
 ```
 
 - `ErrorCodes` has a key for every code any error document lists, sorted, each
-  holding its own code. A key gets TSDoc when its component has a `description`,
-  plus an `@example` for each `example`/`examples` value on
-  the component's `detail` property. An older document has neither, so its keys
-  carry no TSDoc. A code that isn't a valid identifier gets a quoted key.
+  holding its own code. A key's TSDoc carries the code's title and description from its
+  branch, and an `@example` of the `detail` in the code's example. A code that isn't a
+  valid identifier gets a quoted key.
 - `ErrorCode` is the union of those codes, derived from `ErrorCodes`. The TSDoc
   lives on the object because editors show it on hover and in completion for an
   object key, but not for a member of a string literal union.
 - `ErrorCodeByStatus` maps each status that has an `ErrorDocument<NNN>` to its
-  codes. A status whose document offers only the generic `Error` maps to `never`.
-- `hasErrorCode` only accepts an `ErrorCode`, so a misspelt code fails to compile.
-  See [errors](errors.md#match-on-an-error-code) for using it.
+  codes, including the codes only some operations raise at it. A status whose document
+  offers only the generic `Error` maps to `never`.
+- `ErrorCodeByOperation` maps each operation id with a narrowed error response to the codes
+  it adds to the ones every operation raises.
+- `ErrorMetaByCode` types the `meta` each code declares. A code whose `meta` is optional
+  types as `… | undefined`.
+- `hasErrorCode` only accepts an `ErrorCode`, so a misspelt code fails to compile, and
+  `findError` returns the first error carrying a code with its `meta` typed. See
+  [errors](errors.md#match-on-an-error-code) for using them.
 
 The bound `createClient` passes `ErrorCode` to the runtime, so the client type
 carries it too. A document with no error catalogue gets an empty `ErrorCodes` and

@@ -17,55 +17,118 @@ const errorDocument = (...variants: string[]): SchemaObject => ({
   required: ['errors'],
 })
 
-/** A `<Code>Error` component: the generic `Error` narrowed by `code` and `status` consts. */
-const variant = (
-  code: string,
+/** One code's branch of a shape's `code`. */
+const codeBranch = (code: string, title?: string, description?: string): SchemaObject => ({
+  type: 'string',
+  const: code,
+  ...(title !== undefined ? { title } : {}),
+  ...(description !== undefined ? { description } : {}),
+})
+
+/** A shape: the generic `Error` narrowed by a `code` anyOf, a `status` const and any `meta`. */
+const shape = (
   status: number,
-  extra: { description?: string; detail?: SchemaObject } = {},
+  codes: SchemaObject[],
+  meta?: { schema: SchemaObject; required: boolean },
 ): SchemaObject => ({
-  title: `${code} title`,
-  ...(extra.description !== undefined ? { description: extra.description } : {}),
+  title: `A ${status} error`,
   allOf: [
     ref('Error'),
     {
       type: 'object',
       properties: {
-        code: { type: 'string', const: code },
+        code: { anyOf: codes },
         status: { type: 'string', const: String(status) },
-        ...(extra.detail !== undefined ? { detail: extra.detail } : {}),
+        ...(meta !== undefined ? { meta: meta.schema } : {}),
       },
-      required: ['code', 'status'],
+      required: meta?.required ? ['code', 'status', 'meta'] : ['code', 'status'],
     },
   ],
 })
 
+const example = (code: string, detail: string) => ({
+  summary: code,
+  value: { errors: [{ status: '403', code, detail }] },
+})
+
 const doc: OpenApiDocument = {
   openapi: '3.1.0',
-  info: { title: 'Errors', version: '1', 'x-generator': { contract: 4 } },
+  info: { title: 'Errors', version: '1', 'x-generator': { contract: 24 } },
+  // An operation `$ref`s a shared response; the reader only follows the reference.
+  paths: {
+    '/articles/{id}': {
+      patch: {
+        operationId: 'update.articles',
+        responses: { '409': { $ref: '#/components/responses/ConflictWithArticleLocked' } as never },
+      },
+      delete: {
+        operationId: 'delete.articles',
+        responses: { '409': { $ref: '#/components/responses/Conflict' } as never },
+      },
+    },
+  },
   components: {
     schemas: {
       Error: { type: 'object', properties: { code: { type: 'string' } } },
-      AuthenticationRequiredError: variant('AUTHENTICATION_REQUIRED', 401, {
-        description: 'The request carries no valid credential.\nSign in and retry.',
-        detail: { type: 'string', examples: ['Authentication is required.'] },
-      }),
-      AccessDeniedError: variant('ACCESS_DENIED', 403, {
-        description: 'The credential is valid but lacks permission.',
-      }),
-      PasswordExpiredError: variant('PASSWORD_EXPIRED', 403, {
-        detail: { type: 'string', example: 'Your password expired on 2026-01-01.' },
-      }),
-      ResourceNotFoundError: variant('RESOURCE_NOT_FOUND', 404),
-      ErrorDocument: errorDocument(
-        'AccessDeniedError',
-        'AuthenticationRequiredError',
-        'PasswordExpiredError',
-        'ResourceNotFoundError',
+      Error401: shape(401, [
+        codeBranch(
+          'AUTHENTICATION_REQUIRED',
+          'Authentication required',
+          'The request carries no valid credential.\nSign in and retry.',
+        ),
+      ]),
+      Error403: shape(403, [
+        codeBranch(
+          'ACCESS_DENIED',
+          'Access denied',
+          'The credential is valid but lacks permission.',
+        ),
+        codeBranch('PASSWORD_EXPIRED'),
+      ]),
+      Error403InsufficientScope: shape(
+        403,
+        [codeBranch('INSUFFICIENT_SCOPE', 'Insufficient scope')],
+        {
+          schema: {
+            type: 'object',
+            properties: {
+              missingScopes: { type: 'array', items: { type: 'string' }, minItems: 1 },
+            },
+            required: ['missingScopes'],
+            additionalProperties: false,
+          },
+          required: true,
+        },
       ),
-      ErrorDocument403: errorDocument('PasswordExpiredError', 'AccessDeniedError'),
-      ErrorDocument401: errorDocument('AuthenticationRequiredError'),
-      ErrorDocument404: errorDocument('ResourceNotFoundError'),
+      Error404: shape(404, [codeBranch('RESOURCE_NOT_FOUND')]),
+      Error409: shape(409, [codeBranch('RESOURCE_ID_CONFLICT')]),
+      Error409ArticleLocked: shape(409, [codeBranch('ARTICLE_LOCKED', 'Article locked')]),
+      ErrorDocument: errorDocument(
+        'Error401',
+        'Error403',
+        'Error403InsufficientScope',
+        'Error404',
+        'Error409',
+        'Error409ArticleLocked',
+      ),
+      ErrorDocument401: errorDocument('Error401'),
+      ErrorDocument403: errorDocument('Error403', 'Error403InsufficientScope'),
+      ErrorDocument404: errorDocument('Error404'),
+      ErrorDocument409: errorDocument('Error409'),
+      ErrorDocument409WithArticleLocked: errorDocument('Error409', 'Error409ArticleLocked'),
       ErrorDocument500: errorDocument(),
+    },
+    responses: {
+      Conflict: { content: { 'application/vnd.api+json': { schema: ref('ErrorDocument409') } } },
+      ConflictWithArticleLocked: {
+        content: {
+          'application/vnd.api+json': { schema: ref('ErrorDocument409WithArticleLocked') },
+        },
+      },
+    },
+    examples: {
+      AUTHENTICATION_REQUIRED: example('AUTHENTICATION_REQUIRED', 'Authentication is required.'),
+      PASSWORD_EXPIRED: example('PASSWORD_EXPIRED', 'Your password expired on 2026-01-01.'),
     },
   },
 }
@@ -73,28 +136,37 @@ const doc: OpenApiDocument = {
 describe('readErrorCatalogue', () => {
   const catalogue = readErrorCatalogue(doc)
 
-  it('collects every documented code, sorted, skipping the generic Error branch', () => {
+  it('collects every code of every shape, sorted, skipping the generic Error branch', () => {
     expect(catalogue.codes.map((c) => c.code)).toEqual([
       'ACCESS_DENIED',
+      'ARTICLE_LOCKED',
       'AUTHENTICATION_REQUIRED',
+      'INSUFFICIENT_SCOPE',
       'PASSWORD_EXPIRED',
+      'RESOURCE_ID_CONFLICT',
       'RESOURCE_NOT_FOUND',
     ])
   })
 
-  it('groups codes by the status in the error document name, in status order', () => {
+  it('groups codes by status across the shared and narrowed error documents, in status order', () => {
     expect([...catalogue.byStatus]).toEqual([
       [401, ['AUTHENTICATION_REQUIRED']],
-      [403, ['ACCESS_DENIED', 'PASSWORD_EXPIRED']],
+      [403, ['ACCESS_DENIED', 'INSUFFICIENT_SCOPE', 'PASSWORD_EXPIRED']],
       [404, ['RESOURCE_NOT_FOUND']],
+      [409, ['ARTICLE_LOCKED', 'RESOURCE_ID_CONFLICT']],
       [500, []],
     ])
   })
 
-  it('reads descriptions and detail examples when present', () => {
+  it('maps each operation to the codes its narrowed responses add', () => {
+    expect([...catalogue.byOperation]).toEqual([['update.articles', ['ARTICLE_LOCKED']]])
+  })
+
+  it('reads titles, descriptions, examples and meta when present', () => {
     const byCode = new Map(catalogue.codes.map((c) => [c.code, c]))
     expect(byCode.get('AUTHENTICATION_REQUIRED')).toEqual({
       code: 'AUTHENTICATION_REQUIRED',
+      title: 'Authentication required',
       description: 'The request carries no valid credential.\nSign in and retry.',
       examples: ['Authentication is required.'],
     })
@@ -103,33 +175,51 @@ describe('readErrorCatalogue', () => {
       examples: ['Your password expired on 2026-01-01.'],
     })
     expect(byCode.get('RESOURCE_NOT_FOUND')).toEqual({ code: 'RESOURCE_NOT_FOUND', examples: [] })
+    expect(byCode.get('INSUFFICIENT_SCOPE')?.metaRequired).toBe(true)
+    expect(byCode.get('INSUFFICIENT_SCOPE')?.meta?.required).toEqual(['missingScopes'])
   })
 
   it('finds nothing in a document without error documents', () => {
     const empty = readErrorCatalogue({ openapi: '3.1.0' })
     expect(empty.codes).toEqual([])
     expect(empty.byStatus.size).toBe(0)
+    expect(empty.byOperation.size).toBe(0)
   })
 })
 
 describe('emitErrorCodes', () => {
-  const source = emitErrorCodes(readErrorCatalogue(doc))
+  const source = emitErrorCodes(readErrorCatalogue(doc), (schema) =>
+    schema.properties?.['missingScopes'] !== undefined
+      ? '{ missingScopes: [string, ...string[]] }'
+      : 'unknown',
+  )
 
   it('emits the ErrorCodes object with TSDoc only where the document describes a code', () => {
     expect(source).toContain(
       [
         'export const ErrorCodes = {',
-        '  /** The credential is valid but lacks permission. */',
-        '  ACCESS_DENIED: "ACCESS_DENIED",',
         '  /**',
+        '   * Access denied.',
+        '   *',
+        '   * The credential is valid but lacks permission.',
+        '   */',
+        '  ACCESS_DENIED: "ACCESS_DENIED",',
+        '  /** Article locked. */',
+        '  ARTICLE_LOCKED: "ARTICLE_LOCKED",',
+        '  /**',
+        '   * Authentication required.',
+        '   *',
         '   * The request carries no valid credential.',
         '   * Sign in and retry.',
         '   *',
         '   * @example Authentication is required.',
         '   */',
         '  AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",',
+        '  /** Insufficient scope. */',
+        '  INSUFFICIENT_SCOPE: "INSUFFICIENT_SCOPE",',
         '  /** @example Your password expired on 2026-01-01. */',
         '  PASSWORD_EXPIRED: "PASSWORD_EXPIRED",',
+        '  RESOURCE_ID_CONFLICT: "RESOURCE_ID_CONFLICT",',
         '  RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",',
         '} as const',
       ].join('\n'),
@@ -148,6 +238,7 @@ describe('emitErrorCodes', () => {
         { code: 'OK_CODE', examples: [] },
       ],
       byStatus: new Map(),
+      byOperation: new Map(),
     })
     expect(odd).toContain('  "app.locked-out": "app.locked-out",')
     expect(odd).toContain('  "2FA_REQUIRED": "2FA_REQUIRED",')
@@ -159,18 +250,51 @@ describe('emitErrorCodes', () => {
       [
         'export interface ErrorCodeByStatus {',
         '  401: "AUTHENTICATION_REQUIRED"',
-        '  403: "ACCESS_DENIED" | "PASSWORD_EXPIRED"',
+        '  403: "ACCESS_DENIED" | "INSUFFICIENT_SCOPE" | "PASSWORD_EXPIRED"',
         '  404: "RESOURCE_NOT_FOUND"',
+        '  409: "ARTICLE_LOCKED" | "RESOURCE_ID_CONFLICT"',
         '  500: never',
         '}',
       ].join('\n'),
     )
   })
 
-  it('binds the guard to the union', () => {
+  it('binds the guard to the union and the finder to the union and its meta', () => {
     expect(source).toContain(
       'export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>',
     )
+    expect(source).toContain(
+      'export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByCode>',
+    )
+  })
+
+  it('emits the codes only some operations raise, by operation id', () => {
+    expect(source).toContain(
+      [
+        'export interface ErrorCodeByOperation {',
+        '  "update.articles": "ARTICLE_LOCKED"',
+        '}',
+      ].join('\n'),
+    )
+  })
+
+  it('types each declared meta, optional where the shape does not require it', () => {
+    expect(source).toContain(
+      [
+        'export interface ErrorMetaByCode {',
+        '  INSUFFICIENT_SCOPE: { missingScopes: [string, ...string[]] }',
+        '}',
+      ].join('\n'),
+    )
+    const optional = emitErrorCodes(
+      {
+        codes: [{ code: 'X', examples: [], meta: { type: 'object' }, metaRequired: false }],
+        byStatus: new Map(),
+        byOperation: new Map(),
+      },
+      () => '{ original?: string }',
+    )
+    expect(optional).toContain('  X: { original?: string } | undefined')
   })
 
   it('falls back to string and an empty map when nothing is catalogued', () => {
@@ -178,12 +302,15 @@ describe('emitErrorCodes', () => {
     expect(empty).toContain('export const ErrorCodes = {} as const')
     expect(empty).toContain('export type ErrorCode = string')
     expect(empty).toContain('export interface ErrorCodeByStatus {}')
+    expect(empty).toContain('export interface ErrorCodeByOperation {}')
+    expect(empty).toContain('export interface ErrorMetaByCode {}')
   })
 
   it('keeps a description from closing the comment early', () => {
     const tricky = emitErrorCodes({
       codes: [{ code: 'X', description: 'ends */ here', examples: [{ field: 'a' }] }],
       byStatus: new Map(),
+      byOperation: new Map(),
     })
     expect(tricky).toContain('   * ends * / here\n   *\n   * @example {"field":"a"}')
   })
@@ -198,7 +325,7 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
 
   it('emits the codes object, the per-status map and the bound guard', () => {
     expect(source).toContain(
-      'export const ErrorCodes = {\n  /**\n   * The caller is authenticated but not permitted',
+      'export const ErrorCodes = {\n  /**\n   * Forbidden.\n   *\n   * The caller is authenticated but not permitted',
     )
     expect(source).toContain('  RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",')
     expect(source).toContain(
@@ -210,10 +337,12 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
     )
   })
 
-  it('documents each code from its description and example detail', () => {
+  it('documents each code from its title, description and example detail', () => {
     expect(source).toContain(
       [
         '  /**',
+        '   * Pagination kind is not supported.',
+        '   *',
         '   * `page[kind]` names a pagination strategy this collection does not offer. Use one of the strategies the `detail` lists, or leave `page[kind]` out.',
         '   *',
         "   * @example The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor.",
@@ -223,7 +352,7 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
     )
   })
 
-  it('documents the detail example every core code carries from contract 13', () => {
+  it('documents the detail example every core code carries', () => {
     expect(source).toContain(
       ['   * @example Access is denied!', '   */', '  ACCESS_DENIED: "ACCESS_DENIED",'].join('\n'),
     )

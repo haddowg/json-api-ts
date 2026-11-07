@@ -123,7 +123,8 @@
                     "availableFrom",
                     "availableUntil",
                     "releaseInfo"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -204,7 +205,8 @@
                     "bio",
                     "trackCount",
                     "createdAt"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -236,7 +238,8 @@
                 "example": "1"
             },
             "attributes": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -299,7 +302,8 @@
                     "slug",
                     "public",
                     "externalId"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -340,7 +344,8 @@
                 },
                 "required": [
                     "displayName"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -425,7 +430,8 @@
                     "genres",
                     "previewOffset",
                     "displayTitle"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
@@ -501,7 +507,8 @@
                     "birthDate",
                     "preferences",
                     "lastSeenIp"
-                ]
+                ],
+                "additionalProperties": false
             },
             "relationships": {
                 "type": "object"
