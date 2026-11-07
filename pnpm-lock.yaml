@@ -771,7 +771,7 @@ packages:
     engines: {node: ^20.17.0 || >=22.9.0}
 
   '@haddowg/json-api-symfony-specs@2.1.1':
-    resolution: {integrity: sha512-QVfbcyJezoYciq8R22ZhylFEaGNu7k9Fx24Tvm36BIZOU48CCZ6PT4DMfOasWqYh+xab9SyqaVZFOSteeKYCvA==}
+    resolution: {integrity: sha512-6Q5o/RqumFiwoMZZR74w1DkOXntKAUbP8jVBuMUxjYaJg1Hf3O6wK35XjS9S6mfOct1MN4YPNb6GbnrsmE8FwA==}
 
   '@haddowg/json-api-witness@2.1.0':
     resolution: {integrity: sha512-tsVFDRNhRilEthHTC4CF39r6WOMrF+tXjsOQRRCt0mkF6ivd0BiUBS+ITbN/kkS712MEyrLHKxmQyTeccikaow==}
