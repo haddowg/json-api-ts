@@ -143,3 +143,31 @@ export function hasErrorCode(err: unknown, code: string): err is JsonApiError {
  * needed because `JsonApiError<string>` doesn't assign to `JsonApiError<ErrorCode>`.
  */
 export type ErrorCodeGuard<C extends string> = (err: unknown, code: C) => err is JsonApiError<C>
+
+/**
+ * An error object carrying the documented code `K`, its `meta` typed when the server declares
+ * one for the code. `M` is a generated client's `ErrorMetaByCode`; a code it does not list
+ * keeps the untyped `meta`.
+ */
+export type CodedErrorObject<K extends string, M = {}> = JsonApiErrorObject<K> & {
+  code: K
+} & (K extends keyof M ? { meta: M[K] } : {})
+
+/**
+ * The first error object in `err` carrying `code`, or `undefined` when `err` is not a
+ * {@link JsonApiError} or none of its errors carries it. Takes any string; a generated client
+ * exports a `findError` bound to its documented codes and their `meta`, which types the result.
+ */
+export function findError(err: unknown, code: string): JsonApiErrorObject | undefined {
+  return err instanceof JsonApiError ? err.errors.find((e) => e.code === code) : undefined
+}
+
+/**
+ * {@link findError} restricted to one server's documented codes, with each code's declared
+ * `meta`. A generated client binds it:
+ * `export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByCode>`.
+ */
+export type ErrorFinder<C extends string, M = {}> = <K extends C>(
+  err: unknown,
+  code: K,
+) => CodedErrorObject<K, M> | undefined
