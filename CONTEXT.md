@@ -35,6 +35,16 @@ _Avoid_: spec version, schema version
 The header of a generated file naming its source document, server and content hash, which drift
 checking compares.
 
+**Pinned document**:
+A server document this repo generates and tests against, installed from its publishing package at
+one exact published version rather than committed.
+_Avoid_: fixture, spec fixture
+
+**Generated output report**:
+The pull-request comment showing how a change moves what is generated from the pinned documents,
+acknowledged with the `generated-output` label.
+_Avoid_: snapshot, golden file
+
 **Verb collision**:
 A relation named like a reserved handle member, which is reachable only through `.rel(name)`.
 

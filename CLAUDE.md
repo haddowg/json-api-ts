@@ -18,6 +18,13 @@ CI runs all of them on every PR. The pre-commit hook runs oxfmt, oxlint, mkdocs 
 typecheck of only the workspaces a commit touches, so CI is what proves the whole repo compiles.
 Don't run oxfmt over `docs/`: it breaks MkDocs admonitions.
 
+The server documents are exact devDependency pins on `@haddowg/json-api-symfony-specs` and
+`@haddowg/json-api-witness`, read from GitHub Packages (install needs a `read:packages` token), and
+everything generated from them is gitignored and written by `pnpm generate` (ADR 0023). To move to a
+newer document, bump the pin and refresh the lockfile; then read the `Generated output` PR comment
+before adding the `generated-output` label. `pnpm check:pins` refuses a prerelease pin on `main`
+and release PRs.
+
 Don't record generator-contract history. `info.x-generator.contract` is a compatibility check for
 the codegen, not a changelog: describe what the codegen reads and the client does now, and never
 write which contract introduced it ("from generator contract 17…") in `docs/`, `CONTEXT.md`, this
