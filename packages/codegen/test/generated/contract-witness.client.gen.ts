@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   de12129172be6fec
+ * Spec hash:   03039291edab3e2b
  */
 
 import {
@@ -72,6 +72,7 @@ export interface ArticlesAttributes {
   /** @minimum 1 */
   revision: number | null
   score: number | null
+  shape: { radius: number; width?: never; height?: never } | { width: number; height: number; radius?: never } | null
   /**
    * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`
    * @example example-slug
@@ -182,6 +183,7 @@ export interface ArticlesCreateAttributes {
   /** @minimum 1 */
   revision?: number
   score?: number
+  shape?: { radius: number; width?: never; height?: never } | { width: number; height: number; radius?: never } | null
   /**
    * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`
    * @example example-slug
@@ -252,6 +254,7 @@ export interface ArticlesUpdateAttributes {
   /** A conditional rule applies to this value; see the resource documentation. */
   reviewNote?: string | null
   score?: number
+  shape?: { radius: number; width?: never; height?: never } | { width: number; height: number; radius?: never } | null
   /**
    * @pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$`
    * @example example-slug
@@ -426,6 +429,7 @@ export const resourceMap = {
       reviewNote: "string",
       revision: "integer",
       score: "integer",
+      shape: "unknown",
       slug: "string",
       sources: "array",
       status: "string",
@@ -1571,6 +1575,12 @@ export const ErrorCodes = {
    */
   ATOMIC_OPERATIONS_INVALID: "ATOMIC_OPERATIONS_INVALID",
   /**
+   * The request body sent an attribute, or a key inside an object attribute, that the resource type does not declare. Remove it, or correct its name, and send the request again.
+   *
+   * @example The resource does not declare the member 'colour'!
+   */
+  ATTRIBUTE_MEMBER_UNRECOGNIZED: "ATTRIBUTE_MEMBER_UNRECOGNIZED",
+  /**
    * The server could not accept the value of the attribute at `source.pointer`, for example a date-time it cannot parse. Correct the value and send the request again.
    *
    * @example The value for attribute "publishedAt" is invalid: Failed to parse time string (next blursday) at position 0 (n): The timezone could not be found in the database
@@ -1903,6 +1913,7 @@ export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
 export interface ErrorCodeByStatus {
   400:
     | "ATOMIC_OPERATIONS_INVALID"
+    | "ATTRIBUTE_MEMBER_UNRECOGNIZED"
     | "CURSOR_MALFORMED"
     | "CURSOR_STALE"
     | "DATA_MEMBER_MISSING"

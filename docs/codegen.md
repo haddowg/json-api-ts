@@ -255,7 +255,14 @@ packaging?: { material: string; gatefold?: boolean } | null
 
 A discriminated union (a `oneOf` of objects with a `discriminator`) becomes a union of
 its branches, and each branch's discriminator member is the literal its `const` names, so
-checking it narrows to that branch. A list attribute types its elements from its `items`
+checking it narrows to that branch. A `oneOf` with no discriminator whose branches are closed
+objects tells its branches apart by their members instead, so each branch lists the other
+branches' members as `?: never`. A write mixing two branches then fails to compile, as the
+server would reject it, and checking a member against `undefined` narrows to its branch:
+
+```ts
+shape: { radius: number; width?: never; height?: never } | { width: number; height: number; radius?: never } | null
+``` A list attribute types its elements from its `items`
 schema, so a list of objects or of a discriminated union keeps the members, `required`
 and nullability of each element, with read and write elements following their own
 schemas as above:

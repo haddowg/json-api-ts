@@ -71,7 +71,7 @@ function beforeContract16(): OpenApiDocument {
 
 describe('generator contract 16 (operation scopes, one-type polymorphic relations)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(22)
+    expect(witness.info?.['x-generator']?.contract).toBe(23)
     expect(checkContract(witness)).toBeUndefined()
   })
 
