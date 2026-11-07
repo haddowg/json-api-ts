@@ -771,10 +771,10 @@ packages:
     engines: {node: ^20.17.0 || >=22.9.0}
 
   '@haddowg/json-api-symfony-specs@2.1.1':
-    resolution: {integrity: sha512-6Q5o/RqumFiwoMZZR74w1DkOXntKAUbP8jVBuMUxjYaJg1Hf3O6wK35XjS9S6mfOct1MN4YPNb6GbnrsmE8FwA==}
+    resolution: {integrity: sha512-6Q5o/RqumFiwoMZZR74w1DkOXntKAUbP8jVBuMUxjYaJg1Hf3O6wK35XjS9S6mfOct1MN4YPNb6GbnrsmE8FwA==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-symfony-specs/2.1.1/c3d9f0eab7142d86ac023f6bc25379a7ded33f8a}
 
   '@haddowg/json-api-witness@2.1.0':
-    resolution: {integrity: sha512-tsVFDRNhRilEthHTC4CF39r6WOMrF+tXjsOQRRCt0mkF6ivd0BiUBS+ITbN/kkS712MEyrLHKxmQyTeccikaow==}
+    resolution: {integrity: sha512-tsVFDRNhRilEthHTC4CF39r6WOMrF+tXjsOQRRCt0mkF6ivd0BiUBS+ITbN/kkS712MEyrLHKxmQyTeccikaow==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-witness/2.1.0/fa21287fe73e1b2d83922078011b9ce4670734f7}
 
   '@harperfast/extended-iterable@1.0.5':
     resolution: {integrity: sha512-4ScXlphaKEa49RpHmqwATq9QI9aUTdWVYDlJkzxhsD7ShJP+pHCYLznMO9n/wREY8jPjRZ59wLJY6HM5yB5Gkw==}
