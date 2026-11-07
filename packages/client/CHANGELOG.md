@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.12.0...json-api-client-v1.13.0) (2026-11-07)
+
+
+### Features
+
+* **client:** find an error by code with its meta typed ([d439c21](https://github.com/haddowg/json-api-ts/commit/d439c21b8b322de060e586c03a5d6c4f8ebc5a8a))
+
 ## [1.12.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.11.0...json-api-client-v1.12.0) (2026-11-06)
 
 
