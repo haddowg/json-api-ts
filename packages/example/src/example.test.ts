@@ -19,6 +19,7 @@
  *   7. opt into per-field validation with ajv.
  */
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import type { JsonApiError, TransportRequest, TransportResponse } from '@haddowg/json-api-client'
 import { createAjvValidator } from '@haddowg/json-api-client/ajv'
@@ -403,7 +404,14 @@ describe('atomic operations', () => {
     // match exactly one of them.
     const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false })
     ajv.addSchema(
-      JSON.parse(fixture('../../codegen/test/fixtures/music-catalog.openapi.json')),
+      JSON.parse(
+        readFileSync(
+          createRequire(import.meta.url).resolve(
+            '@haddowg/json-api-symfony-specs/music-catalog.openapi.json',
+          ),
+          'utf8',
+        ),
+      ),
       'spec',
     )
     const request = ajv.getSchema('spec#/components/schemas/AtomicOperationsRequest')!

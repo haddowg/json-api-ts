@@ -11,7 +11,8 @@ server. Point it at a real server by setting `VITE_API_URL`.
 ## Run
 
 ```bash
-pnpm install            # from the repo root
+pnpm install            # from the repo root (needs a GitHub Packages token, see the root README)
+pnpm generate           # writes the generated client from the pinned document
 pnpm --filter @haddowg/json-api-spotify-clone dev
 ```
 
@@ -53,8 +54,9 @@ VITE_API_URL=/api VITE_API_TOKEN=ada@example.com pnpm --filter @haddowg/json-api
 `QueryClient` with normalization installed, and the bound `reads` / `writes` APIs. Views call
 `useQuery(reads.<type>.list(query))` / `useMutation(writes.<type>...())`.
 
-The generated client (`src/generated/*.gen.ts`) is committed — the same artifact
-`@haddowg/json-api-codegen` emits from the music-catalogue OpenAPI document.
+The generated client (`src/generated/*.gen.ts`) is the artifact `@haddowg/json-api-codegen`
+emits from the music-catalogue OpenAPI document. It is not committed: `pnpm generate` at the repo
+root writes it from the pinned `@haddowg/json-api-symfony-specs`.
 
 The mock lives in `src/mock/`: `seed.ts` (the dataset), `store.ts` (rows → JSON:API resources +
 write methods), `handler.ts` (the focused request handler), `transport.ts` (the transport adapter).

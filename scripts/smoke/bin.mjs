@@ -4,13 +4,17 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const cli = join(root, 'packages/codegen/dist/cli.mjs')
-const spec = join(root, 'packages/codegen/test/fixtures/music-catalog.openapi.json')
+// The pinned music-catalog document, installed at the workspace root.
+const spec = createRequire(join(root, 'package.json')).resolve(
+  '@haddowg/json-api-symfony-specs/music-catalog.openapi.json',
+)
 
 const dir = mkdtempSync(join(tmpdir(), 'japi-codegen-bin-'))
 try {
@@ -30,7 +34,7 @@ try {
   rmSync(dir, { recursive: true, force: true })
 }
 
-// The MCP generator's bin, the same way: a check of the committed model through a symlink.
+// The MCP generator's bin, the same way: a check of the generated model through a symlink.
 const mcpCli = join(root, 'packages/mcp/dist/cli.mjs')
 const mcpModel = join(root, 'packages/mcp/test/generated/music-catalog.mcp.gen.json')
 const mcpDir = mkdtempSync(join(tmpdir(), 'japi-mcp-bin-'))

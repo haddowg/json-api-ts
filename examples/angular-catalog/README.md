@@ -2,14 +2,15 @@
 
 A small standalone Angular 21 app that reads and writes the music catalogue through
 [`@haddowg/json-api-angular`](../../packages/angular). It uses the client generated from the
-music-catalog OpenAPI fixture (`src/generated/music-catalog.gen.ts`, kept in step by
-`pnpm codegen:check`).
+music-catalog OpenAPI document (`src/generated/music-catalog.gen.ts`, written by `pnpm generate`
+at the repo root from the pinned `@haddowg/json-api-symfony-specs`, and not committed).
 
 ## Run
 
 ```bash
 pnpm install                 # from the repo root
 pnpm build                   # builds the packages the app imports
+pnpm generate                # writes the generated client from the pinned document
 pnpm --filter @haddowg/json-api-angular-catalog start
 ```
 
