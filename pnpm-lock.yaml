@@ -14,6 +14,12 @@ importers:
       '@arethetypeswrong/cli':
         specifier: ^0.18.0
         version: 0.18.4
+      '@haddowg/json-api-symfony-specs':
+        specifier: 2.1.1
+        version: 2.1.1
+      '@haddowg/json-api-witness':
+        specifier: 2.1.0
+        version: 2.1.0
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.0
@@ -763,6 +769,12 @@ packages:
   '@gar/promise-retry@1.0.3':
     resolution: {integrity: sha512-GmzA9ckNokPypTg10pgpeHNQe7ph+iIKKmhKu3Ob9ANkswreCx7R3cKmY781K8QK3AqVL3xVh9A42JvIAbkkSA==}
     engines: {node: ^20.17.0 || >=22.9.0}
+
+  '@haddowg/json-api-symfony-specs@2.1.1':
+    resolution: {integrity: sha512-QVfbcyJezoYciq8R22ZhylFEaGNu7k9Fx24Tvm36BIZOU48CCZ6PT4DMfOasWqYh+xab9SyqaVZFOSteeKYCvA==}
+
+  '@haddowg/json-api-witness@2.1.0':
+    resolution: {integrity: sha512-tsVFDRNhRilEthHTC4CF39r6WOMrF+tXjsOQRRCt0mkF6ivd0BiUBS+ITbN/kkS712MEyrLHKxmQyTeccikaow==}
 
   '@harperfast/extended-iterable@1.0.5':
     resolution: {integrity: sha512-4ScXlphaKEa49RpHmqwATq9QI9aUTdWVYDlJkzxhsD7ShJP+pHCYLznMO9n/wREY8jPjRZ59wLJY6HM5yB5Gkw==}
@@ -4314,6 +4326,10 @@ snapshots:
     optional: true
 
   '@gar/promise-retry@1.0.3': {}
+
+  '@haddowg/json-api-symfony-specs@2.1.1': {}
+
+  '@haddowg/json-api-witness@2.1.0': {}
 
   '@harperfast/extended-iterable@1.0.5':
     optional: true

@@ -28,6 +28,21 @@ if (workspaces.length === 0) {
   process.exit(0)
 }
 
+// The generated clients the workspaces import are not committed. Write them from the pinned
+// server documents first if this checkout has none yet.
+const GENERATED = [
+  'packages/codegen/test/generated/music-catalog.client.gen.ts',
+  'packages/example/src/generated/music-catalog.gen.ts',
+  'examples/spotify-clone/src/generated/music-catalog.gen.ts',
+  'examples/angular-catalog/src/generated/music-catalog.gen.ts',
+]
+if (!GENERATED.every((file) => existsSync(file))) {
+  const generated = spawnSync('pnpm', ['generate'], { stdio: 'inherit' })
+  if (generated.status !== 0) {
+    process.exit(generated.status ?? 1)
+  }
+}
+
 const result = spawnSync(
   'pnpm',
   ['exec', 'turbo', 'run', 'typecheck', ...workspaces.map((dir) => `--filter=./${dir}`)],

@@ -12,8 +12,8 @@ repos:
         types_or: [ts, tsx, javascript, jsx, json, yaml, markdown]
         # Mirror the committable entries of .oxfmtrc.json `ignorePatterns`: oxfmt
         # exits non-zero ("Expected at least one target file") if every path it is
-        # handed is ignored, which would fail any commit touching only generated
-        # output, the lockfile, the raw codegen fixtures, or the docs. Keep the two
+        # handed is ignored, which would fail any commit touching only the lockfile
+        # or the docs. Keep the two
         # in sync. docs/ is excluded because MkDocs Material's admonition/collapsible
         # syntax (indented content under `!!!`/`???` markers) is not CommonMark, and
         # oxfmt de-indents it — corrupting the rendered site. mkdocs --strict guards
@@ -21,7 +21,6 @@ repos:
         exclude: |
           (?x)^(
             docs/|
-            packages/codegen/test/fixtures/|
             pnpm-lock\.yaml$|
             .*\.gen\.ts$|
             .*\.gen\.json$
@@ -33,12 +32,11 @@ repos:
         language: system
         types_or: [ts, tsx, javascript, jsx]
         # Mirror the oxfmt exclude (and .oxlintrc.json `ignorePatterns`): oxlint exits
-        # non-zero ("No files found to lint") when every path it is handed is ignored, so a
-        # commit touching only generated clients would fail. oxlint ignores these paths
-        # anyway; excluding them here keeps such a commit from being handed an all-ignored set.
+        # non-zero ("No files found to lint") when every path it is handed is ignored.
+        # oxlint ignores these paths anyway; excluding them here keeps a commit from being
+        # handed an all-ignored set.
         exclude: |
           (?x)^(
-            packages/codegen/test/fixtures/|
             pnpm-lock\.yaml$|
             .*\.gen\.ts$
           )

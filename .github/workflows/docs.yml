@@ -19,6 +19,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  packages: read # the pinned server documents install from GitHub Packages
 
 concurrency:
   group: pages
@@ -37,13 +38,20 @@ jobs:
 
       # Build the spotify-clone demo (backend-free mock mode) and publish it
       # alongside the docs at /spotify-clone/. It builds from workspace source
-      # via the example's vite aliases, so no package build is needed first.
+      # via the example's vite aliases; only its generated client needs the
+      # codegen built, which `pnpm generate` does.
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 26
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Install and generate the client
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export NPM_CONFIG_USERCONFIG="$(.github/scripts/npm-auth)"
+          pnpm install --frozen-lockfile
+          pnpm generate
       - run: pnpm --filter @haddowg/json-api-spotify-clone exec vite build --base=/json-api-ts/spotify-clone/
       - run: mv examples/spotify-clone/dist site/spotify-clone
 

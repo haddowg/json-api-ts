@@ -5,9 +5,17 @@ on:
   push:
     branches: [main]
 
+# The server documents the clients are generated from install from GitHub Packages, which
+# needs a token even to read.
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +26,15 @@ jobs:
           node-version: 26
           cache: pnpm
 
+      - name: Authenticate to GitHub Packages
+        run: echo "NPM_CONFIG_USERCONFIG=$(.github/scripts/npm-auth)" >> "$GITHUB_ENV"
+
       - run: pnpm install --frozen-lockfile
+
+      # Each server document pin is one exact, published version. A pull request may pin a
+      # server pull request's prerelease (with a warning); main and release pull requests may not.
+      - name: Pin guard
+        run: pnpm check:pins
 
       - name: Lint
         run: pnpm lint
@@ -26,6 +42,8 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      # `pretypecheck` (and `pretest` below) run `pnpm generate`, which writes the clients and
+      # MCP models from the pinned documents before anything imports them.
       - name: Typecheck
         run: pnpm typecheck
 
@@ -35,9 +53,8 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # Drift gate: regenerate the committed client from the pinned fixture spec and fail if
-      # it differs from what is checked in (the provenance-stamped `--check` mode). Needs the
-      # built codegen CLI (above). Keeps the generated client honest against the wire contract.
+      # The generated output on disk is what the built codegen and MCP CLIs produce from the
+      # pinned documents, through the CLIs' provenance-stamped `--check` mode.
       - name: Codegen drift check
         run: pnpm codegen:check
 
