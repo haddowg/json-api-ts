@@ -4,7 +4,7 @@
  *
  * Source spec: Contract Witness API 3.4.1
  * Server:      https://api.example.com
- * Spec hash:   4049fe03e2deac5a
+ * Spec hash:   ed6e9a71ede22f2b
  */
 
 import {
@@ -1792,6 +1792,8 @@ export const ErrorCodes = {
    * @example The pagination strategy 'page[kind]=offset' is not supported; use one of: page, cursor.
    */
   PAGINATION_KIND_UNKNOWN: "PAGINATION_KIND_UNKNOWN",
+  /** Payment required. */
+  PAYMENT_REQUIRED: "PAYMENT_REQUIRED",
   /**
    * Query parameter is malformed.
    *
@@ -2004,6 +2006,8 @@ export const ErrorCodes = {
    * Subscription expired.
    *
    * The account's subscription has lapsed. Renew it, then retry the request.
+   *
+   * @example The premium subscription has expired.
    */
   SUBSCRIPTION_EXPIRED: "SUBSCRIPTION_EXPIRED",
   /**
@@ -2072,6 +2076,7 @@ export interface ErrorCodeByStatus {
     | "TOP_LEVEL_MEMBERS_INCOMPATIBLE"
     | "TOP_LEVEL_MEMBER_NOT_ALLOWED"
   401: "AUTHENTICATION_REQUIRED"
+  402: "PAYMENT_REQUIRED" | "SUBSCRIPTION_EXPIRED"
   403:
     | "ACCESS_DENIED"
     | "ADDITION_PROHIBITED"
@@ -2101,6 +2106,7 @@ export interface ErrorCodeByStatus {
  * status documents for every operation.
  */
 export interface ErrorCodeByOperation {
+  "create.tags": "PAYMENT_REQUIRED" | "SUBSCRIPTION_EXPIRED"
   "delete.articles": "ARTICLE_LOCKED"
   "update.articles": "ARTICLE_LOCKED"
 }
