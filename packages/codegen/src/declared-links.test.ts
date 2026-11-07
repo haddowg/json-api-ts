@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import type { ResourceLinks } from '@haddowg/json-api-client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient, type ImagesLinks } from '../test/generated/contract-witness.client.gen'
@@ -10,11 +9,10 @@ import { readDeclaredLinks } from './declared-links'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { unwrapRefs } from './unwrap-refs'
+import { documentPath } from '../test/documents'
 
 function loadWitness(): OpenApiDocument {
-  const path = fileURLToPath(
-    new URL('../test/fixtures/contract-witness.openapi.json', import.meta.url),
-  )
+  const path = documentPath('contract-witness.json')
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 

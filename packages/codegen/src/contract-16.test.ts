@@ -1,18 +1,18 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { isPolymorphic } from '@haddowg/json-api-client'
 import { describe, expect, it } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument, SchemaObject } from './openapi'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function load(name: string): OpenApiDocument {
-  const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function load(name: DocumentName): OpenApiDocument {
+  const path = documentPath(name)
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 
-const witness = load('contract-witness.openapi.json')
+const witness = load('contract-witness.json')
 
 /** A descriptor without the members contract 16 adds, nor the typed `included` it can't read. */
 const strip = (value: unknown): unknown =>
@@ -56,7 +56,7 @@ function collapseSingleUnions(node: unknown): unknown {
  * typed `included`.
  */
 function beforeContract16(): OpenApiDocument {
-  const doc = collapseSingleUnions(load('contract-witness.openapi.json')) as OpenApiDocument
+  const doc = collapseSingleUnions(load('contract-witness.json')) as OpenApiDocument
   doc.info = { ...doc.info, 'x-generator': { contract: 15 } }
   for (const item of Object.values(doc.paths!)) {
     for (const op of Object.values(item)) {
@@ -111,7 +111,7 @@ describe('generator contract 16 (operation scopes, one-type polymorphic relation
     })
 
     it('reads scopes only under an oauth2 scheme, whatever its name', () => {
-      const doc = load('contract-witness.openapi.json')
+      const doc = load('contract-witness.json')
       const schemes = doc.components!.securitySchemes!
       schemes['partner'] = schemes['oauth2']!
       delete schemes['oauth2']

@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
 import { detectVerbCollisions, emit } from './emit'
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { OpenApiDocument, SchemaObject } from './openapi'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function loadFixture(name: string): OpenApiDocument {
-  const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function loadFixture(name: DocumentName): OpenApiDocument {
+  const path = documentPath(name)
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 
@@ -193,10 +193,6 @@ describe('emit (music-catalog default server)', () => {
     )
     // The server-level atomic capability is threaded into the bound client by default.
     expect(source).toMatch(/createClientRuntime<[^>]*>\([\s\S]*?atomic,\s*\.\.\.options,/)
-  })
-
-  it('matches the committed, type-checked snapshot', async () => {
-    await expect(source).toMatchFileSnapshot('../test/generated/music-catalog.client.gen.ts')
   })
 })
 

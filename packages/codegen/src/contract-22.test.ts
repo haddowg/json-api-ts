@@ -6,9 +6,10 @@ import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument, OperationObject } from './openapi'
+import { documentPath } from '../test/documents'
 
-const fixtureUrl = new URL('../test/fixtures/contract-witness.openapi.json', import.meta.url)
-const witness = JSON.parse(readFileSync(fileURLToPath(fixtureUrl), 'utf8')) as OpenApiDocument
+const fixturePath = documentPath('contract-witness.json')
+const witness = JSON.parse(readFileSync(fixturePath, 'utf8')) as OpenApiDocument
 const source = emit(witness, buildDescriptor(witness))
 
 /** The witness with `edit` applied to a deep copy. */

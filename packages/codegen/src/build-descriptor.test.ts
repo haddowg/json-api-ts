@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { buildAtomic, buildDescriptor } from './build-descriptor'
 import { emit } from './emit'
 import { checkContract, MAXIMUM_CONTRACT, MINIMUM_CONTRACT } from './contract'
 import type { PaginatorDescriptor, PaginatorKind } from '@haddowg/json-api-client'
 import type { OpenApiDocument, ParameterObject, SchemaObject } from './openapi'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function loadFixture(name: string): OpenApiDocument {
-  const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function loadFixture(name: DocumentName): OpenApiDocument {
+  const path = documentPath(name)
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 

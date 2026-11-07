@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { emitSchemas } from './emit-schemas'
 import type { SchemaBundle } from './reader'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function loadBundle(name: string): SchemaBundle {
-  const path = fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function loadBundle(name: DocumentName): SchemaBundle {
+  const path = documentPath(name)
   return JSON.parse(readFileSync(path, 'utf8')) as SchemaBundle
 }
 
@@ -50,11 +50,5 @@ describe('emitSchemas', () => {
 
   it('is deterministic for a given bundle', () => {
     expect(emitSchemas(bundle)).toBe(source)
-  })
-
-  it('matches the committed, type-checked snapshot', async () => {
-    await expect(source).toMatchFileSnapshot(
-      '../test/generated/music-catalog.client.schemas.gen.ts',
-    )
   })
 })

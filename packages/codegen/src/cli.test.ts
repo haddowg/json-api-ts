@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isEntry, parseArgs, run, USAGE } from './cli'
+import { type DocumentName, documentPath } from '../test/documents'
 
-function fixturePath(name: string): string {
-  return fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.url))
+function fixturePath(name: DocumentName): string {
+  return documentPath(name)
 }
 
 const dir = await mkdtemp(join(tmpdir(), 'japi-codegen-cli-'))

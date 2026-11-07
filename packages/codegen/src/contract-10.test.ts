@@ -9,11 +9,10 @@ import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
+import { documentPath } from '../test/documents'
 
 function loadWitness(): OpenApiDocument {
-  const path = fileURLToPath(
-    new URL('../test/fixtures/contract-witness.openapi.json', import.meta.url),
-  )
+  const path = documentPath('contract-witness.json')
   return JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
 }
 

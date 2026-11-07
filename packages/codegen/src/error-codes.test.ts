@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
 import { emit } from './emit'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, SchemaObject } from './openapi'
+import { documentPath } from '../test/documents'
 
 const ref = (name: string): SchemaObject => ({ $ref: `#/components/schemas/${name}` })
 
@@ -317,9 +317,7 @@ describe('emitErrorCodes', () => {
 })
 
 describe('error codes in the generated client (music-catalog fixture)', () => {
-  const path = fileURLToPath(
-    new URL('../test/fixtures/music-catalog.openapi.json', import.meta.url),
-  )
+  const path = documentPath('music-catalog.openapi.json')
   const fixture = JSON.parse(readFileSync(path, 'utf8')) as OpenApiDocument
   const source = emit(fixture, buildDescriptor(fixture))
 
