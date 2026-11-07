@@ -44,7 +44,7 @@ describe('generator contract 12 (operation examples)', () => {
   const examples = buildExamples(witness, buildDescriptor(witness))
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(22)
+    expect(witness.info?.['x-generator']?.contract).toBe(23)
     expect(checkContract(witness)).toBeUndefined()
   })
 

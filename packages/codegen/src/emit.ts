@@ -76,6 +76,32 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
 }
 
+/** An inline object schema that admits only the members it declares. */
+function isClosedObject(schema: SchemaObject): boolean {
+  return (
+    schema.type === 'object' &&
+    schema.properties !== undefined &&
+    schema['additionalProperties'] === false
+  )
+}
+
+/** The members the other branches of a union declare and `branch` does not. */
+function foreignMembers(branch: SchemaObject, branches: readonly SchemaObject[]): string[] {
+  const own = new Set(Object.keys(branch.properties ?? {}))
+  const foreign = new Set<string>()
+  for (const other of branches) {
+    if (other === branch) {
+      continue
+    }
+    for (const name of Object.keys(other.properties ?? {})) {
+      if (!own.has(name)) {
+        foreign.add(name)
+      }
+    }
+  }
+  return [...foreign]
+}
+
 /** A `{ … }` object literal of pre-rendered entry lines, or `{}` when there are none. */
 function objectBody(lines: readonly string[]): string {
   return lines.length === 0 ? '{}' : `{\n${lines.join('\n')}\n}`
@@ -1324,7 +1350,12 @@ export class Emitter {
     // A union of branches, as `anyOf: [{ $ref: Enum }, { type: 'null' }]` for a nullable enum.
     const branches = schema.anyOf ?? schema.oneOf
     if (schema.type === undefined && branches !== undefined && branches.length > 0) {
-      const members = branches.map((branch) => this.tsType(branch))
+      const exclusive = schema.oneOf !== undefined && schema['discriminator'] === undefined
+      const members = branches.map((branch) =>
+        exclusive && isClosedObject(branch)
+          ? this.objectType(branch, foreignMembers(branch, branches))
+          : this.tsType(branch),
+      )
       const nullable = members.includes('null')
       const rest = [...new Set(members.filter((member) => member !== 'null'))]
       if (rest.length === 0) {
@@ -1392,7 +1423,13 @@ export class Emitter {
   }
 
   /** A nested object type from its `properties` (falls back to an index signature). */
-  private objectType(schema: SchemaObject): string {
+  /**
+   * An object's members, plus `never` for each name in `excluded`: the members of the other
+   * branches of an undiscriminated union, which a closed branch rejects. Without them a write
+   * could mix two branches, since TypeScript checks a literal's extra members against the union
+   * as a whole.
+   */
+  private objectType(schema: SchemaObject, excluded: readonly string[] = []): string {
     const props = schema.properties
     if (props === undefined) {
       return 'Record<string, unknown>'
@@ -1405,6 +1442,9 @@ export class Emitter {
       }
       const optional = required.has(name) ? '' : '?'
       members.push(`${propertyKey(name)}${optional}: ${this.tsType(prop)}`)
+    }
+    for (const name of excluded) {
+      members.push(`${propertyKey(name)}?: never`)
     }
     if (members.length === 0) {
       return 'Record<string, unknown>'

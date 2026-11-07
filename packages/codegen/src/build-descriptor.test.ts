@@ -1206,13 +1206,13 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(19))).toBeUndefined()
     expect(checkContract(contractDoc(20))).toBeUndefined()
     expect(checkContract(contractDoc(21))).toBeUndefined()
-    expect(checkContract(contractDoc(22))).toBeUndefined()
-    expect(MAXIMUM_CONTRACT).toBe(22)
+    expect(checkContract(contractDoc(23))).toBeUndefined()
+    expect(MAXIMUM_CONTRACT).toBe(23)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(23))).toContain(
-      'declares contract 23 and this codegen reads up to 22',
+    expect(checkContract(contractDoc(24))).toContain(
+      'declares contract 24 and this codegen reads up to 23',
     )
     expect(() => checkContract(contractDoc(0))).toThrow('predates what this codegen reads')
   })
