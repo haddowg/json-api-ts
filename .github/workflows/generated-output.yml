@@ -44,17 +44,6 @@ jobs:
       - name: Authenticate to GitHub Packages
         run: echo "NPM_CONFIG_USERCONFIG=$(.github/scripts/npm-auth)" >> "$GITHUB_ENV"
 
-      # TEMPORARY: re-resolve the GitHub Packages entries with registry access and print the
-      # lockfile lines to commit, since they were written without it. Removed once applied.
-      - name: Refresh the GitHub Packages lockfile entries
-        run: |
-          pnpm update --lockfile-only @haddowg/json-api-witness @haddowg/json-api-symfony-specs
-          echo '----- BEGIN LOCKFILE DIFF -----'
-          git diff pnpm-lock.yaml
-          echo '----- END LOCKFILE DIFF -----'
-          git checkout pnpm-lock.yaml
-          exit 1
-
       - name: Generate the head's output
         run: |
           pnpm install --frozen-lockfile
