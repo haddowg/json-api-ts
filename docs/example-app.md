@@ -40,7 +40,7 @@ export const reads = createQueryApi(client)
 export const writes = createMutationApi(queryClient, client, resourceMap)
 ```
 
-- **The generated client** — [`src/generated/music-catalog.gen.ts`](../examples/spotify-clone/src/generated/music-catalog.gen.ts) (+ `.schemas.gen.ts`) is committed to the app. It is the exact artifact `@haddowg/json-api-codegen` emits from the music-catalogue OpenAPI document, so what you read here is what the codegen produces.
+- **The generated client** — `src/generated/music-catalog.gen.ts` (+ `.schemas.gen.ts`) is the exact artifact `@haddowg/json-api-codegen` emits from the music-catalogue OpenAPI document, so what you read here is what the codegen produces. A real app commits it; this repo writes it with `pnpm generate` from the pinned `@haddowg/json-api-symfony-specs` document instead, so run that once before starting the app.
 - **The transport** — `src/api/client.ts` picks the fetch transport when `VITE_API_URL` is set, otherwise the seeded mock (`createMockTransport`). The rest of the app is identical either way; only the transport changes.
 - **The mock** lives under [`src/mock/`](../examples/spotify-clone/src/mock): `seed.ts` (the dataset), `store.ts` (rows → JSON:API resources + write methods), [`handler.ts`](../examples/spotify-clone/src/mock/handler.ts) (a focused JSON:API request handler that understands exactly the query patterns the app uses — list/filter/sort/page/include/fields, get-one, related and relationship reads, and relationship mutations with the pivot `position`), and `transport.ts` (the transport adapter). It returns documents shaped like the real bundle's, so the client sees no difference.
 

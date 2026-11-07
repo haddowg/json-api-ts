@@ -48,6 +48,20 @@ The [`packages/example`](./packages/example) workspace is a worked, tested usage
 snippet in the docs is a real typed call against the generated client, run under `pnpm test` so it
 cannot rot.
 
+## Developing
+
+The tests generate their clients from two server documents pinned as devDependencies at exact
+versions: the bundle's music-catalog example (`@haddowg/json-api-symfony-specs`) and core's contract
+witness (`@haddowg/json-api-witness`). Both are on GitHub Packages, which needs a token even to
+read, so give `pnpm install` one with `read:packages`, for example in `~/.npmrc`:
+
+```
+//npm.pkg.github.com/:_authToken=<token>
+```
+
+The repository's `.npmrc` already maps the `@haddowg` scope there. `pnpm typecheck` and `pnpm test`
+run `pnpm generate` first, which builds the CLIs and writes the gitignored clients and MCP models.
+
 ## License
 
 MIT

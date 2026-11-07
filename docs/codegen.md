@@ -21,9 +21,13 @@ json-api-codegen \
 
 That writes one file — `src/api/music.gen.ts` — which you commit like any other
 source. The [getting started](getting-started.md) walkthrough uses exactly this.
-To try it without a running API, point `--input` at the committed music-catalog
-spec this repo's own clients are generated from and conformance-tested against:
-`https://raw.githubusercontent.com/haddowg/json-api-ts/main/packages/codegen/test/fixtures/music-catalog.openapi.json`.
+To try it without a running API, generate from the music-catalog document this repo's
+own clients are generated from and conformance-tested against. The bundle publishes it
+as [`@haddowg/json-api-symfony-specs`](https://github.com/haddowg/json-api-symfony/pkgs/npm/json-api-symfony-specs)
+on GitHub Packages (installing it needs a token with `read:packages`), and
+`php bin/export-specs.php <dir>` in a checkout of
+[haddowg/json-api-symfony](https://github.com/haddowg/json-api-symfony) writes the same
+files.
 
 !!! note "Two bin names"
     The package installs both `json-api-codegen` and the short alias `japi`, so
@@ -778,36 +782,37 @@ telling them to regenerate and commit.
 
 ## Drift-checking in CI
 
-This repo drift-checks all of its own generated clients from a single committed
-spec fixture, and it is a good template. [`scripts/codegen.mjs`](../scripts/codegen.mjs)
-runs the CLI once per output, threading `--check` through when invoked with the
-flag:
+In your own project, `--check` belongs in the same CI job as your lint and typecheck
+steps, pinned to a committed spec, so a stale client can never merge:
 
 ```bash
-pnpm codegen         # regenerate every client from the committed spec fixture
-pnpm codegen:check   # the CI gate — fail if any committed client is stale
+json-api-codegen --input spec/music.openapi.json --output src/api/music.gen.ts --check
 ```
 
-Those two scripts are wired in the root [`package.json`](https://github.com/haddowg/json-api-ts/blob/main/package.json) as
-`node scripts/codegen.mjs` and `node scripts/codegen.mjs --check`. In your own
-project, `codegen:check` belongs in the same CI job as your lint/typecheck step —
-so a stale client can never merge.
+!!! note "This repo generates in CI instead of committing"
+    This repo's own clients are not committed. The server documents they come from are
+    devDependencies pinned to one exact version, `@haddowg/json-api-symfony-specs` (the
+    bundle's music-catalog example) and `@haddowg/json-api-witness` (core's contract
+    witness), and [`scripts/generate.mjs`](../scripts/generate.mjs) writes every client and
+    MCP model from them before the typecheck and the tests run. `pnpm codegen:check` then
+    runs the CLIs' `--check` against what was written. Because no diff of the output appears
+    in a pull request, CI generates it on the base and the head and posts the difference as
+    a comment, and the check fails until the `generated-output` label says someone read it.
 
-!!! tip "One source keeps the examples honest"
-    In this repo the same fixture generates the test snapshot in the codegen
-    package **and** both example clients, so all three stay pinned to one wire
-    contract. Your app typically has just one output per server, but the pattern
-    is the same: one committed spec in, drift-checked clients out.
+    ```bash
+    pnpm generate        # build the CLIs and write every output from the pinned documents
+    pnpm codegen:check   # fail if an output on disk is not what the CLIs produce
+    pnpm check:pins      # each document pin is exact, published, and a release on main
+    ```
 
 ## See it in the example app
 
-- [`scripts/codegen.mjs`](../scripts/codegen.mjs) — the regenerate / drift-check
-  harness this repo runs (`pnpm codegen` / `pnpm codegen:check`).
-- [`music-catalog.client.gen.ts`](../packages/codegen/test/generated/music-catalog.client.gen.ts)
-  — the committed snapshot of a full generated client, header, interfaces,
-  descriptor and factory.
-- [`music-catalog.gen.ts`](../examples/spotify-clone/src/generated/music-catalog.gen.ts)
-  — the generated client the spotify-clone app actually imports and uses.
+- [`scripts/generate.mjs`](../scripts/generate.mjs) — the generate / drift-check harness
+  this repo runs (`pnpm generate` / `pnpm codegen:check`).
+- `packages/codegen/test/generated/music-catalog.client.gen.ts`, written by
+  `pnpm generate` — a full generated client, header, interfaces, descriptor and factory.
+- `examples/spotify-clone/src/generated/music-catalog.gen.ts`, written the same way — the
+  generated client the spotify-clone app actually imports and uses.
 
 ## Next
 

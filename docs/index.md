@@ -56,12 +56,16 @@ npx json-api-codegen \
 ```
 
 !!! tip "No running API yet?"
-    Point `--input` at the committed music-catalog spec this repo's own clients are generated
-    from and conformance-tested against — the command is immediately runnable:
+    Generate from the music-catalog document this repo's own clients are generated from
+    and conformance-tested against. The bundle publishes it as
+    `@haddowg/json-api-symfony-specs` on GitHub Packages, which needs a token with
+    `read:packages` and the scope mapped in your `.npmrc`
+    (`@haddowg:registry=https://npm.pkg.github.com`):
 
     ```bash
+    npm install --save-dev @haddowg/json-api-symfony-specs
     npx json-api-codegen \
-      --input https://raw.githubusercontent.com/haddowg/json-api-ts/main/packages/codegen/test/fixtures/music-catalog.openapi.json \
+      --input node_modules/@haddowg/json-api-symfony-specs/music-catalog.openapi.json \
       --output src/api/music.gen.ts
     ```
 
