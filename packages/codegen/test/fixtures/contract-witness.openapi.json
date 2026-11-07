@@ -7413,7 +7413,7 @@
                         "$ref": "#/components/responses/Unauthorized"
                     },
                     "402": {
-                        "$ref": "#/components/responses/Status402WithPaymentRequired"
+                        "$ref": "#/components/responses/PaymentRequiredWithPaymentRequired"
                     },
                     "403": {
                         "$ref": "#/components/responses/Forbidden"
@@ -17526,8 +17526,8 @@
                     }
                 }
             },
-            "Status402WithPaymentRequired": {
-                "description": "Error",
+            "PaymentRequiredWithPaymentRequired": {
+                "description": "Payment Required — the request needs a payment or plan the account lacks.",
                 "content": {
                     "application/vnd.api+json": {
                         "schema": {
