@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.1.0...json-api-codegen-v2.2.0) (2026-11-08)
+
+
+### Features
+
+* **codegen:** read actions answering 201 Created ([0e23ba1](https://github.com/haddowg/json-api-ts/commit/0e23ba1c07479fc3754cd101a5ef806c588111e8))
+
 ## [2.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.0.0...json-api-codegen-v2.1.0) (2026-11-08)
 
 
