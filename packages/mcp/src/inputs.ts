@@ -572,9 +572,34 @@ function pickBody(
 /**
  * A custom action's input: the resource id at resource scope, then the body. A JSON:API body
  * whose type the descriptor knows is flat, like a create; any other body is one `body` argument.
+ * A collection action that takes filters also takes `filter`, as a list tool does.
  * `undefined` when every media type the action takes is one a model can't send, such as binary.
  */
 export function actionInput(
+  ctx: InputContext,
+  type: string,
+  name: string,
+  action: ActionDescriptor,
+): ToolInput | undefined {
+  const input = actionBodyInput(ctx, type, name, action)
+  const filter = action.scope === 'collection' ? filterInput(ctx.doc, ctx.params) : undefined
+  if (input === undefined || filter === undefined) {
+    return input
+  }
+  const properties = input.schema['properties'] as Record<string, JsonSchema>
+  if ('filter' in properties) {
+    throw new Error(
+      `the ${name} action of "${type}" takes filters and a body member named filter, which a tool can't tell apart`,
+    )
+  }
+  return {
+    ...input,
+    schema: closedObject({ ...properties, filter: filter.schema }) as ToolInput['schema'],
+    query: { filter: filter.decoder, sort: false, include: false, fields: [], paginated: false },
+  }
+}
+
+function actionBodyInput(
   ctx: InputContext,
   type: string,
   name: string,
