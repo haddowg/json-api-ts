@@ -615,6 +615,16 @@ export class DescriptorBuilder {
       if (primary !== undefined) {
         action.outputType = primary.type
         action.outputCardinality = primary.cardinality
+        // A `200` and a `201` naming different types can't share one output view; the first wins.
+        for (const ref of this.okJsonApiRefs(op).slice(1)) {
+          const other = this.documentPrimary(ref)
+          if (other !== undefined && other.type !== primary.type) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `json-api codegen: custom action path "${path}" answers with both a "${primary.type}" and a "${other.type}" document; its result is typed as "${primary.type}".`,
+            )
+          }
+        }
       }
     }
     // A raw-input action carries its declared (non-JSON:API) media type so the client sends
@@ -773,6 +783,15 @@ export class DescriptorBuilder {
 
   /** The `$ref` of the first 2xx JSON:API response body on an operation (the output document). */
   private firstOkJsonApiRef(op: OperationObject): string | undefined {
+    return this.okJsonApiRefs(op)[0]
+  }
+
+  /**
+   * The `$ref` of each 2xx JSON:API response body on an operation, in status order: an action's
+   * `200` document, then the `201` document of the resource it created.
+   */
+  private okJsonApiRefs(op: OperationObject): string[] {
+    const refs: string[] = []
     for (const [code, response] of Object.entries(op.responses ?? {})) {
       if (!code.startsWith('2')) {
         continue
@@ -781,10 +800,10 @@ export class DescriptorBuilder {
       // A response offering a location document too names its other document in a `oneOf`.
       const ref = schema === undefined ? undefined : documentArms(schema)[0]?.$ref
       if (typeof ref === 'string') {
-        return ref
+        refs.push(ref)
       }
     }
-    return undefined
+    return refs
   }
 
   /** Resolve a relationship component's `data` into a {@link RelationDescriptor}. */
