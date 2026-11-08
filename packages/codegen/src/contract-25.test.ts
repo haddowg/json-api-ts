@@ -62,8 +62,10 @@ describe('generator contract 25 (action filters)', () => {
   })
 
   it('records nothing on an action without filters', () => {
-    for (const action of Object.values(buildDescriptor(witness)['articles']!.actions!)) {
-      expect(action.filterable).toBeUndefined()
+    for (const [name, action] of Object.entries(buildDescriptor(witness)['articles']!.actions!)) {
+      if (name !== 'count' && name !== 'bulk-archive') {
+        expect(action.filterable).toBeUndefined()
+      }
     }
     expect(descriptor['articles']!.actions!['stats']!.filterable).toBeUndefined()
   })

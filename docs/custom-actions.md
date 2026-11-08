@@ -54,6 +54,8 @@ Because the input envelope is built the same way `create` builds it, validation 
 !!! tip "Where the shapes come from"
     A document-output action's result is typed as the materialised `ReadResult` of its `outputType` — identical to what a read of that type returns. A document-input action's argument is the flat `CreateInput` of its `inputType`. Both are read off the descriptor, not invented per action, so the typed contract matches exactly what the client sends and receives.
 
+An action that creates the resource it returns, such as `duplicate`, answers `201 Created` instead of `200`. The call looks the same and returns the created resource, materialised as above. When an action declares both a `200` and a `201` document, both must name the same type, since its result has one type: the codegen warns and types the result by the `200` when they differ.
+
 ## Going deeper
 
 Most actions are one of the shapes above. The remaining modes and edge cases are below.
