@@ -569,6 +569,10 @@ export class Emitter {
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}`, doc)
         }
+        const filterDoc = deprecations.operationFilters(op)
+        if (filterDoc !== undefined && action.filterable !== undefined) {
+          this.literalDocs.set(`${type}/actions/${name}/filterable`, filterDoc)
+        }
       }
       const scopes = descriptor[type]?.scopes
       for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
