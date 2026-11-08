@@ -142,7 +142,12 @@ export class Deprecations {
 
   /** The sentence naming a type's deprecated filters, read off its collection read. */
   filters(type: string): string | undefined {
-    const keys = (this.collection(type)?.parameters ?? []).flatMap((param) => {
+    return this.operationFilters(this.collection(type))
+  }
+
+  /** The sentence naming the deprecated `filter[...]` parameters of an operation. */
+  operationFilters(op: OperationObject | undefined): string | undefined {
+    const keys = (op?.parameters ?? []).flatMap((param) => {
       const name = param.name
       return param.deprecated === true &&
         typeof name === 'string' &&

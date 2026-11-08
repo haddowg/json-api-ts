@@ -592,6 +592,10 @@ export class DescriptorBuilder {
     const input = actionInput(op)
     const output = actionOutput(op)
     const action: ActionDescriptor = { scope, path, input, output }
+    const filterable = filterKeys(op)
+    if (filterable !== undefined) {
+      action.filterable = filterable
+    }
     // Only carried when non-POST (POST is the runtime default), keeping the common descriptor tiny.
     if (method !== 'post') {
       action.method = method.toUpperCase()
@@ -1240,18 +1244,7 @@ export class DescriptorBuilder {
    * deliberately not captured — `filter` values stay `unknown` (out of scope for v0.1).
    */
   private filterable(collection: string | undefined): readonly string[] | undefined {
-    if (collection === undefined) {
-      return undefined
-    }
-    const keys: string[] = []
-    for (const param of this.operation(collection, 'get')?.parameters ?? []) {
-      const name = param.name
-      if (typeof name === 'string' && name.startsWith('filter[') && name.endsWith(']')) {
-        keys.push(name.slice('filter['.length, -1))
-      }
-    }
-    // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
-    return keys.length > 0 ? keys.sort() : undefined
+    return collection === undefined ? undefined : filterKeys(this.operation(collection, 'get'))
   }
 
   private operation(path: string, method: HttpMethod): OperationObject | undefined {
@@ -1417,6 +1410,22 @@ function isJsonApiMediaType(mediaType: string): boolean {
 function isJsonMediaType(mediaType: string): boolean {
   const essence = mediaType.split(';')[0]!.trim().toLowerCase()
   return essence === 'application/json' || essence.endsWith('+json')
+}
+
+/**
+ * The keys of an operation's `filter[<key>]` query parameters, sorted, or `undefined` when it
+ * takes none.
+ */
+function filterKeys(op: OperationObject | undefined): readonly string[] | undefined {
+  const keys: string[] = []
+  for (const param of op?.parameters ?? []) {
+    const name = param.name
+    if (typeof name === 'string' && name.startsWith('filter[') && name.endsWith(']')) {
+      keys.push(name.slice('filter['.length, -1))
+    }
+  }
+  // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
+  return keys.length > 0 ? keys.sort() : undefined
 }
 
 /** The HTTP methods an action operation may be advertised under, in resolution preference order. */
