@@ -99,6 +99,22 @@ await client.articles.actions['bulk-import-put'](rows)
 
 A client generated against an older server had only the preferred method, under the same name, so regenerating adds methods and removes none. The server refuses action names that differ only in case or punctuation, so `exportGet` can't clash with another action.
 
+## Filtering a collection action
+
+A collection-scoped action can take the same `filter[...]` parameters as its type's collection read, all of them or a named few. The descriptor lists them as the action's `filterable`, and the action's options take a `filter` keyed by them. The client sends it in the query string the way `list` does, structured filters and lists included:
+
+```ts
+// GET /articles/-actions/count?filter[status]=published&filter[rating][min]=3
+const { total } = await client.articles.actions.count({
+  filter: { status: 'published', rating: { min: 3 } },
+})
+
+// A body action takes the filters after its body.
+await client.articles.actions.relabel(input, { filter: { labels: ['draft'] } })
+```
+
+A key the action doesn't take is a compile error, even when the collection read takes it. The descriptor's JSDoc names any of the action's filters the server marks deprecated, as it does for the read. An action without filters takes the same arguments it always has.
+
 ## Safety
 
 An action's method doesn't say whether it changes anything: a search sent as `POST` reads like a write. An action can declare it, and the descriptor carries each declared flag as `readOnly`, `destructive` or `idempotent`. A flag the server doesn't declare is absent, so `undefined` means unknown, not `false`. The action's JSDoc repeats them, so an editor hover on `client.articles.id(id).actions.purge` reads "The server declares this action destructive."

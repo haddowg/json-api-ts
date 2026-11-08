@@ -275,7 +275,8 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
  * `204` / no body). An action declaring a `location` returns the URL of a location document as an
  * `ActionLocation` and never follows it. An action declaring `rawOutput` answers in the media type
  * the caller picks with `options.accept`: JSON:API as above, or a `string`, a `Blob` or
- * `ArrayBuffer`, or parsed JSON by the media type's kind.
+ * `ArrayBuffer`, or parsed JSON by the media type's kind. A collection action that takes filters
+ * sends `options.filter` in the query string as a collection read does.
  */
 async function runAction(
   ctx: ClientContext,
@@ -287,6 +288,9 @@ async function runAction(
   const req: JsonApiRequest = { method: action.method ?? 'POST', path: fill(action.path, vars) }
   if (options.signal !== undefined) {
     req.signal = options.signal
+  }
+  if (options.filter !== undefined) {
+    req.query = { filter: options.filter }
   }
   let remap: ((error: JsonApiError) => JsonApiError) | undefined
   const media = requestMedia(action, options.contentType)

@@ -287,6 +287,12 @@ export interface ActionDescriptor {
    * action that answers with a bare `303`, which the transport follows as before.
    */
   location?: ActionLocationDescriptor
+  /**
+   * The keys a collection action accepts in `filter[...]`, the same filters its type's collection
+   * read takes or a subset of them. The client sends them as the read does. Absent when the action
+   * takes no filters.
+   */
+  filterable?: readonly string[]
 }
 
 /**
