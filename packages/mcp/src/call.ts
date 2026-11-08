@@ -510,7 +510,7 @@ async function callApi(
       await accessor.id(requireId(args)).delete()
       return { kind: 'bare', envelope: { data: null } }
     case 'action':
-      return runAction(entry, args, accessor, env, flat)
+      return runAction(entry, args, accessor, env, flat, query)
   }
 }
 
@@ -520,13 +520,17 @@ async function runAction(
   accessor: LooseAccessor,
   env: CallEnvironment & { baseUrl: string },
   flat: FlattenContext,
+  query: ReadQuery | undefined,
 ): Promise<Outcome> {
   const { op } = entry
   const action = op.actionDescriptor!
   const actions =
     action.scope === 'resource' ? accessor.id(requireId(args)).actions : accessor.actions
   const call = actions[entry.actionKey!]!
-  const options = env.signal === undefined ? {} : { signal: env.signal }
+  const options = {
+    ...(env.signal === undefined ? {} : { signal: env.signal }),
+    ...(query?.filter === undefined ? {} : { filter: query.filter }),
+  }
   const plan = entry.input.action!
   let result: unknown
   if (plan.kind === 'none') {
