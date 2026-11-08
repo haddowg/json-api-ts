@@ -1042,7 +1042,22 @@ export interface ActionCallOptions {
   contentType?: string
   /** Read a binary response as a `Blob` (the default) or an `ArrayBuffer`. */
   responseType?: BinaryResponseType
+  /** The filters of a collection action that takes them, sent as `filter[...]` like a read's. */
+  filter?: Readonly<Record<string, unknown>>
 }
+
+/** A filter key a collection action accepts (its `filterable` literal union), or `never`. */
+type ActionFilterKey<Act> = Act extends { filterable: readonly (infer Key)[] }
+  ? Key & string
+  : never
+
+/**
+ * The `filter` option of an action that takes filters, keyed like {@link FilterQuery}; `unknown`
+ * (adding nothing) for one that takes none.
+ */
+type ActionFilterOptions<Act> = [ActionFilterKey<Act>] extends [never]
+  ? unknown
+  : { filter?: Partial<Record<ActionFilterKey<Act>, unknown>> }
 
 /** The raw response media types an action declares (`[]` when none). */
 type RawOutputOf<Act> = Act extends { rawOutput: infer R extends readonly RawOutputMedia[] }
@@ -1191,7 +1206,7 @@ type WithInput<D extends ApiDescriptor, W, Act, E> = Act extends { input: 'docum
  * The result is shaped by the action's `output` (see {@link ActionResult}). An action that answers
  * in raw media types takes an `accept` naming one, and resolves to that media type's value. An
  * action listing several request media types takes a `contentType` naming one, and its body is
- * typed by that media type.
+ * typed by that media type. An action that takes filters takes a `filter` option keyed by them.
  */
 type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E> = Act extends {
   inputMedia: readonly InputMedia[]
@@ -1202,7 +1217,8 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
       RT extends BinaryResponseType = 'blob',
     >(
       input: InputBodyFor<D, W, Act, E, C>,
-      options?: { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT>,
+      options?: { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT> &
+        ActionFilterOptions<Act>,
     ) => ActionResultIn<D, A, Act, E, M, RT>
   : Act extends { rawOutput: readonly RawOutputMedia[] }
     ? Act extends { input: 'none' }
@@ -1210,18 +1226,29 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
           const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
           RT extends BinaryResponseType = 'blob',
         >(
-          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT>,
+          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
+            ActionFilterOptions<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
       : <
           const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
           RT extends BinaryResponseType = 'blob',
         >(
           input: WithInput<D, W, Act, E>,
-          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT>,
+          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
+            ActionFilterOptions<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
-    : Act extends { input: 'none' }
-      ? () => ActionResult<D, A, Act, E>
-      : (input: WithInput<D, W, Act, E>) => ActionResult<D, A, Act, E>
+    : Act extends { filterable: readonly string[] }
+      ? Act extends { input: 'none' }
+        ? (
+            options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
+          ) => ActionResult<D, A, Act, E>
+        : (
+            input: WithInput<D, W, Act, E>,
+            options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
+          ) => ActionResult<D, A, Act, E>
+      : Act extends { input: 'none' }
+        ? () => ActionResult<D, A, Act, E>
+        : (input: WithInput<D, W, Act, E>) => ActionResult<D, A, Act, E>
 
 /**
  * The typed map of a type's custom actions at one scope (`collection` on the
