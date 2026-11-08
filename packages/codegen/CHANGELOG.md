@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.0.0...json-api-codegen-v2.1.0) (2026-11-08)
+
+
+### Features
+
+* **codegen:** record a collection action's filters ([cf05c1a](https://github.com/haddowg/json-api-ts/commit/cf05c1a3599dc6e1c3c0cf4b3b95bef0d904fc94))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.14.0
+
 ## [2.0.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v1.19.0...json-api-codegen-v2.0.0) (2026-11-07)
 
 

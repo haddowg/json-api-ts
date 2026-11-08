@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.13.0...json-api-client-v1.14.0) (2026-11-08)
+
+
+### Features
+
+* **client:** send filters on collection actions ([445b766](https://github.com/haddowg/json-api-ts/commit/445b7667c8c97177929e9e2835103295fe2753f9))
+
 ## [1.13.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.12.0...json-api-client-v1.13.0) (2026-11-07)
 
 

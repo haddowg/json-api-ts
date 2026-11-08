@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.11.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.10.0...json-api-mcp-v1.11.0) (2026-11-08)
+
+
+### Features
+
+* **mcp:** accept filters on collection action tools ([8d19abe](https://github.com/haddowg/json-api-ts/commit/8d19abe4a08fc4d80e7836083f56fa8c33c5fb07))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.14.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.1.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.1.0
+
 ## [1.10.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.9.0...json-api-mcp-v1.10.0) (2026-11-07)
 
 
