@@ -308,7 +308,7 @@ describe('custom actions', () => {
     // `{ data: { type, attributes } }` envelope. The 2xx document is MATERIALISED into a
     // flattened resource, so we read `id`/attributes straight off the result.
     const reissued = (await client.albums.id('1').actions.reissue({
-      title: 'OK Computer',
+      releasedAt: '2001-10-01T00:00:00+00:00',
     })) as unknown as { id: string; title: string }
 
     expect(reissued.id).toBe('1')
