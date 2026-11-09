@@ -4,7 +4,8 @@
  * or `$ref`, every object closed with `additionalProperties: false` and listing all its
  * properties as required, an optional property made nullable instead, and no numeric, length or
  * pattern keywords. Constraints that can't stay as keywords move into the description, and a
- * value with no portable shape, such as a free-form object, is taken as JSON text.
+ * value with no portable shape, such as a free-form object or one open to undeclared members, is
+ * taken as JSON text.
  *
  * Each schema comes with a {@link Decoder} that turns the arguments a model sends back into the
  * value the API expects: a `null` the conversion added is dropped, and JSON text is parsed.
@@ -236,6 +237,7 @@ function constraintNote(schema: JsonSchema): string | undefined {
     num('exclusiveMaximum') === undefined ? undefined : `Less than ${num('exclusiveMaximum')}.`,
     num('multipleOf') === undefined ? undefined : `A multiple of ${num('multipleOf')}.`,
     bounds(num('minItems'), num('maxItems'), 'items'),
+    bounds(num('minProperties'), num('maxProperties'), 'members'),
     typeof schema['pattern'] === 'string'
       ? `Matches the pattern \`${schema['pattern']}\`.`
       : undefined,
@@ -247,6 +249,43 @@ function constraintNote(schema: JsonSchema): string | undefined {
       : `Defaults to ${JSON.stringify(schema['default'])}.`,
   ].filter((note): note is string => note !== undefined)
   return notes.length === 0 ? undefined : notes.join(' ')
+}
+
+const ARTICLES: Readonly<Record<string, string>> = {
+  string: 'a string',
+  integer: 'an integer',
+  number: 'a number',
+  boolean: 'a boolean',
+  object: 'an object',
+  array: 'an array',
+}
+
+/**
+ * What an open object's undeclared members take, as a sentence, such as `Any member other than
+ * \`Key\` is a string or null. At most 200 characters.` `undefined` when the member schema
+ * names no type.
+ */
+function memberNote(
+  doc: OpenApiDocument,
+  extra: unknown,
+  declared: readonly string[],
+  stack: readonly string[],
+): string | undefined {
+  const followed = follow(doc, extra, stack)
+  if (followed === undefined) {
+    return undefined
+  }
+  const { types, nullable: isNullable } = typeKeys(followed.node)
+  if (types.length === 0) {
+    return undefined
+  }
+  const kinds = types.map((type) => ARTICLES[type] ?? type)
+  const others =
+    declared.length === 0 ? '' : ` other than ${declared.map((name) => `\`${name}\``).join(', ')}`
+  return joinText(
+    `Any member${others} is ${[...kinds, ...(isNullable ? ['null'] : [])].join(' or ')}.`,
+    constraintNote(followed.node),
+  )
 }
 
 /** Merge an `allOf` into one schema: the members' keywords, then the outer node's own. */
@@ -471,6 +510,19 @@ export function toPortable(
     const writable = Object.entries(props).filter(
       ([, prop]) => !(isObject(prop) && prop['readOnly'] === true),
     )
+    // Strict mode closes every object, so one whose undeclared members take a typed schema,
+    // such as rows keyed by a spreadsheet's headers, is taken as JSON text like a free-form
+    // object. A permissive `{}` beside declared members leaves them as they are.
+    const extra = node['additionalProperties']
+    if (isObject(extra) && Object.keys(extra).length > 0) {
+      const note = memberNote(
+        doc,
+        extra,
+        writable.map(([key]) => key),
+        path,
+      )
+      return jsonText(joinText(text, note))
+    }
     if (writable.length === 0 || depth >= MAX_DEPTH) {
       return jsonText(text)
     }

@@ -22,7 +22,7 @@ describe('generator contract 17', () => {
   const tool = (name: string) => mcp.tools.find((t) => t.name === name)!
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(27)
+    expect(mcp.contract).toBe(29)
   })
 
   describe('an action that answers with a URL', () => {
