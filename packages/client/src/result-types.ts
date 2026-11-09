@@ -50,10 +50,14 @@ export type Collection<T, P = Page> = ReadonlyArray<T> &
  * The edge-local accessors carried by a materialised related VALUE (a per-edge view):
  * `$edge` (this membership's edge meta/links) and `$pivot` (typed sugar over
  * `$edge.meta.pivot`). `$pivot` is graceful: present iff the endpoint rendered
- * `meta.pivot` (relationship/related endpoints), `undefined` otherwise.
+ * `meta.pivot` (relationship/related endpoints), `undefined` otherwise. `Meta` types
+ * `$edge.meta` where the linkage renders the relation's declared identifier meta.
  */
-export interface EdgeMembers<Pivot = Record<string, unknown>> {
-  readonly $edge: Edge | undefined
+export interface EdgeMembers<
+  Pivot = Record<string, unknown>,
+  Meta extends Record<string, unknown> = Record<string, unknown>,
+> {
+  readonly $edge: Edge<Meta> | undefined
   readonly $pivot: Pivot | undefined
 }
 
@@ -190,14 +194,16 @@ type RelationPage<
 export type IdentifierMember<
   TType extends string,
   Pivot = Record<string, unknown>,
-> = ResourceIdentifier<TType> & EdgeMembers<Pivot>
+  Meta extends Record<string, unknown> = Record<string, unknown>,
+> = ResourceIdentifier<TType> & EdgeMembers<Pivot, Meta>
 
 /**
  * A hydrated related resource: a per-edge VIEW — the full `ResourceObjectView` of the
  * related node plus this membership's `$edge`/`$pivot`. Relations one hop deep stay as
  * identifiers (no nested-include narrowing in the read API today). The fieldset map `F`
  * threads through so a sparse fieldset on the included type narrows its attributes/relations.
- * `Pivot` types the per-edge `$pivot` (a `belongsToMany` relation's `meta.pivot`).
+ * `Pivot` types the per-edge `$pivot` (a `belongsToMany` relation's `meta.pivot`), and `Meta` the
+ * per-edge `$edge.meta`.
  */
 export type HydratedMember<
   D extends ApiDescriptor,
@@ -205,7 +211,8 @@ export type HydratedMember<
   TType extends TypeName<D>,
   F = unknown,
   Pivot = Record<string, unknown>,
-> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot>
+  Meta extends Record<string, unknown> = Record<string, unknown>,
+> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot, Meta>
 
 /** A hydrated related value distributes over a polymorphic union of related types. */
 type Hydrated<
@@ -214,12 +221,15 @@ type Hydrated<
   TType extends TypeName<D>,
   F = unknown,
   Pivot = Record<string, unknown>,
-> = TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot> : never
+  Meta extends Record<string, unknown> = Record<string, unknown>,
+> = TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot, Meta> : never
 
 /** An identifier related value distributes over a polymorphic union of related types. */
-type Identifier<TType extends string, Pivot = Record<string, unknown>> = TType extends string
-  ? IdentifierMember<TType, Pivot>
-  : never
+type Identifier<
+  TType extends string,
+  Pivot = Record<string, unknown>,
+  Meta extends Record<string, unknown> = Record<string, unknown>,
+> = TType extends string ? IdentifierMember<TType, Pivot, Meta> : never
 
 /**
  * The static value of one relation slot, resolved by cardinality and whether the
@@ -243,11 +253,20 @@ type RelationValue<
   F = unknown,
 > = R extends Inc
   ? IsMany<D, T, R> extends true
-    ? Collection<Hydrated<D, A, RelatedType<D, T, R>, F>, RelationPage<D, T, R>>
-    : Hydrated<D, A, RelatedType<D, T, R>, F> | null
+    ? Collection<
+        Hydrated<D, A, RelatedType<D, T, R>, F, Record<string, unknown>, EdgeMetaOf<D, T, R>>,
+        RelationPage<D, T, R>
+      >
+    : Hydrated<D, A, RelatedType<D, T, R>, F, Record<string, unknown>, EdgeMetaOf<D, T, R>> | null
   : IsMany<D, T, R> extends true
-    ? Collection<Identifier<RelatedType<D, T, R>>, RelationPage<D, T, R>>
-    : Identifier<RelatedType<D, T, R>> | null | undefined
+    ? Collection<
+        Identifier<RelatedType<D, T, R>, Record<string, unknown>, EdgeMetaOf<D, T, R>>,
+        RelationPage<D, T, R>
+      >
+    :
+        | Identifier<RelatedType<D, T, R>, Record<string, unknown>, EdgeMetaOf<D, T, R>>
+        | null
+        | undefined
 
 /**
  * The relation slots of type `T`, each typed by cardinality and include-presence, then
@@ -614,6 +633,19 @@ type PivotFieldsOf<
     : Record<string, unknown>
 
 /**
+ * The `$edge.meta` of each linkage member of relation `R`: the members the descriptor's
+ * `identifierMeta` declares, typed like a pivot, over an open record that still carries
+ * `pivot` and any other meta. A relation declaring none keeps the open record.
+ */
+type EdgeMetaOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { identifierMeta: infer P }
+  ? PivotObject<P> & Record<string, unknown>
+  : Record<string, unknown>
+
+/**
  * The typed `meta.pivot` a request may send on each member of relation `R`, from the descriptor's
  * `writePivot` (only writable fields, optional unless required). Falls back like
  * {@link PivotFieldsOf} when the descriptor has no `writePivot`.
@@ -651,7 +683,8 @@ type RelatedValue<
 /**
  * A linkage VALUE for relation `R` (the `/relationships/{rel}` endpoint, identifiers only):
  * a `Collection` of identifier members for to-many, a single identifier (or `null`) for to-one.
- * Each member's `$pivot` is typed from the relation's `readPivot`.
+ * Each member's `$pivot` is typed from the relation's `readPivot`, and its `$edge.meta` from its
+ * `identifierMeta`.
  */
 type LinkageValue<
   D extends ApiDescriptor,
@@ -660,8 +693,11 @@ type LinkageValue<
   Q = undefined,
 > =
   IsMany<D, T, R> extends true
-    ? Collection<Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>>, RelationPage<D, T, R, Q>>
-    : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>> | null
+    ? Collection<
+        Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>, EdgeMetaOf<D, T, R>>,
+        RelationPage<D, T, R, Q>
+      >
+    : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>, EdgeMetaOf<D, T, R>> | null
 
 /** The `page` argument relation `R`'s to-many reads accept; `never` for a to-one. */
 export type RelationPageParams<

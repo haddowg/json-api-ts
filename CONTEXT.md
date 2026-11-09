@@ -87,6 +87,10 @@ data but carries its own `$edge` and `$pivot`.
 **Pivot**:
 The per-edge data of a many-to-many membership, read as `$pivot`.
 
+**Identifier meta**:
+The members a server declares it adds to each linkage member's `meta`, typed on `$edge.meta`.
+_Avoid_: edge meta, link meta
+
 **Paginator**:
 The descriptor's account of how a collection pages: a strategy with its keys, or a menu of
 strategies with a default arm.

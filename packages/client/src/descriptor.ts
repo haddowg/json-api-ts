@@ -26,9 +26,10 @@ export interface RelationMutations {
 }
 
 /**
- * The pivot fields one side of the wire carries on a member's `meta.pivot`: field name to
- * wire-format hint (the vocabulary of {@link ResourceDescriptor.attributes}), the fields that
- * are always present, and the fields that may be `null`.
+ * The pivot fields one side of the wire carries on a member's `meta.pivot`, or the declared
+ * identifier meta members a response carries on a member's `meta`: field name to wire-format
+ * hint (the vocabulary of {@link ResourceDescriptor.attributes}), the fields that are always
+ * present, and the fields that may be `null`.
  */
 export interface PivotDescriptor {
   fields: Readonly<Record<string, string>>
@@ -70,6 +71,12 @@ export interface RelationDescriptor {
    * update or atomic body, or a relationship mutation.
    */
   writePivot?: PivotDescriptor
+  /**
+   * The members a response renders on each linkage member's `meta` beside any `pivot`
+   * (`<Type><Rel>IdentifierMeta`), as the server's identifier meta resolver declares them. Read
+   * only: no request carries them, and a related resource object does not render them.
+   */
+  identifierMeta?: PivotDescriptor
   /**
    * `true` for a relation create and update accept but no response renders. It stays settable
    * on write inputs and is left out of the read view, `fields` and the relationship reads.
