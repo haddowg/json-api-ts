@@ -71,12 +71,14 @@ A few things the codegen reads from the document that affect the generated clien
 
 - **Links** are typed loosely: the client reads `href` from a link object and accepts
   a plain string too.
-- **Open objects.** An attribute object whose `additionalProperties` is a schema takes
+- **Open objects and maps.** An object whose `additionalProperties` is a schema takes
   members it does not declare, each of that schema's type. Its declared members are
   intersected with a `Record` of that type, so a spreadsheet row requiring `Key` is
   `{ Key: string } & Record<string, string>`, and one declaring nothing is just
-  `Record<string, string>`. A typed map outside the attributes, such as one in a raw action
-  response, stays `Record<string, unknown>`.
+  `Record<string, string>`. This holds anywhere in the document: a count per status in a
+  raw action response is `Record<string, number>`, and a map nested in a list or another map
+  is typed the same way. An object open to any member, or one that says nothing about
+  undeclared members, stays `Record<string, unknown>`.
 - **Relation paths** use the relation's URI field name, which can differ from its name
   (`/articles/{id}/published-by` for `publisher`). The codegen finds each relation's
   endpoints by operationId (`fetchRelated.articles.publisher`) and records the segment
