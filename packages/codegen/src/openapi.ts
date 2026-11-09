@@ -25,6 +25,14 @@ export interface SchemaObject {
   'x-sort-families'?: readonly { prefix?: unknown; suffixPattern?: unknown; deprecated?: unknown }[]
   /** On a `sort` array: the fixed keys the server marks deprecated, without the `-`. */
   'x-deprecated-sorts'?: readonly unknown[]
+  /** On the `filter` object: the families of filter keys it accepts by prefix. */
+  'x-filter-families'?: readonly {
+    prefix?: unknown
+    suffixPattern?: unknown
+    list?: unknown
+    delimited?: unknown
+    deprecated?: unknown
+  }[]
   [key: string]: unknown
 }
 
@@ -56,6 +64,8 @@ export interface ParameterObject {
   deprecated?: boolean
   /** The negotiation profile a client must opt into to use this parameter (e.g. `withCount`). */
   'x-profile'?: string
+  /** On a `filter[<key>][]` parameter: the list filter it carries the array form of. */
+  'x-filter-list'?: { key?: unknown; delimited?: unknown }
 }
 
 export interface OperationObject {

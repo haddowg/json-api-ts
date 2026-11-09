@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 26. An older document is refused, because it describes its error codes in a form
+contracts 24 to 27. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -669,6 +669,18 @@ document's structure:
   items are an `anyOf` of the fixed-key enum and one pattern per family, and `sortable`
   holds that enum's keys. Absent when the type declares no family. See
   [sort families](filtering-and-sorting.md#sort-families).
+- **`listFilters`**: the keys of `filterable` whose filter takes a list, read from the
+  `x-filter-list` on their `filter[<key>][]` parameters. A filter that takes both the
+  array and the comma form is one `filterable` key. Each is typed `readonly string[]` and
+  sent as `filter[<key>][]` once per member. Absent when no filter takes a list. See
+  [list filters](filtering-and-sorting.md#list-filters).
+- **`filterFamilies`**: the filter families the collection read accepts beside
+  `filterable`, read from the `filter` parameter's `x-filter-families`. Each is a `prefix`,
+  the `suffixPattern` its keys' suffix must match and `list: true` when its filters take a
+  list, and adds `<prefix>.${string}` to the type's `filter` object. Absent when the type
+  declares no family. A collection action that takes filters carries its own `listFilters`
+  and `filterFamilies` beside its `filterable`. See
+  [filter families](filtering-and-sorting.md#filter-families).
 - **`included`** — the types a compound document of the type can carry, read from the
   document's typed `included` (a `oneOf` over `<Type>Resource` components discriminated by
   `type`). A relation's `included` lists the same for its related read. Absent when nothing is
