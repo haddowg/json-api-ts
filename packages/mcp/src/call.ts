@@ -160,6 +160,15 @@ export function readQuery(args: Record<string, unknown>, plan: QueryPlan): ReadQ
   const query: ReadQuery = {}
   if (plan.filter !== undefined && isObject(args['filter'])) {
     const filter = decode(args['filter'], plan.filter, 'filter') as Record<string, unknown>
+    for (const prefix of plan.filterFamilies ?? []) {
+      const entries = filter[`${prefix}.`]
+      delete filter[`${prefix}.`]
+      for (const entry of Array.isArray(entries) ? entries : []) {
+        if (isObject(entry) && typeof entry['name'] === 'string' && entry['value'] !== null) {
+          filter[`${prefix}.${entry['name']}`] = entry['value']
+        }
+      }
+    }
     for (const [key, value] of Object.entries(filter)) {
       if (isObject(value)) {
         // A range filter with every bound null applies nothing.
