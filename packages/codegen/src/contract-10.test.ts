@@ -58,10 +58,40 @@ describe('generator contract 10 (raw action responses)', () => {
   it('types a JSON-like raw response by its component, emitted once under its own name', () => {
     const source = emit(witness, buildDescriptor(witness))
     expect(source).toContain(
-      'export type ArticleSummary = { total: number; byStatus?: Record<string, unknown> }',
+      'export type ArticleSummary = { total: number; byStatus?: Record<string, number> }',
     )
     expect(source).toContain(
       "report: { responses: { 'application/json': ArticleSummary } }".replace(/'/g, '"'),
+    )
+  })
+
+  // A copy of the witness whose `ArticleSummary` gives `byStatus` another schema.
+  function withByStatus(byStatus: Record<string, unknown>): string {
+    const doc = loadWitness()
+    const summary = doc.components!.schemas!['ArticleSummary']!
+    summary.properties = { ...summary.properties, byStatus }
+    return emit(doc, buildDescriptor(doc))
+  }
+
+  it('types a map nested in an array and in another map by its innermost value schema', () => {
+    const source = withByStatus({
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: { type: 'object', additionalProperties: { type: 'integer' } },
+      },
+    })
+    expect(source).toContain(
+      'export type ArticleSummary = { total: number; byStatus?: Record<string, Record<string, number>>[] }',
+    )
+  })
+
+  it('keeps a map open to any member as Record<string, unknown>', () => {
+    expect(withByStatus({ type: 'object', additionalProperties: true })).toContain(
+      'export type ArticleSummary = { total: number; byStatus?: Record<string, unknown> }',
+    )
+    expect(withByStatus({ type: 'object' })).toContain(
+      'export type ArticleSummary = { total: number; byStatus?: Record<string, unknown> }',
     )
   })
 
@@ -91,6 +121,9 @@ describe('generator contract 10 (raw action responses)', () => {
       expectTypeOf(client.articles.actions.report({ accept: 'application/json' }))
         .resolves.toHaveProperty('total')
         .toEqualTypeOf<number>()
+      expectTypeOf(client.articles.actions.report({ accept: 'application/json' }))
+        .resolves.toHaveProperty('byStatus')
+        .toEqualTypeOf<Record<string, number> | undefined>()
       // @ts-expect-error -- the action does not answer in HTML.
       void client.articles.actions.report({ accept: 'text/html' })
     }
