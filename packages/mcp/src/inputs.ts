@@ -59,6 +59,12 @@ export const PAGE_LINK_DESCRIPTION =
 /** How the handler reads a read tool's query arguments. */
 export interface QueryPlan {
   filter?: Decoder
+  /**
+   * The filter families the `filter` argument takes, by prefix. Each is the `<prefix>.` member of
+   * that argument, a list of `{ name, value }` entries the handler sends as
+   * `filter[<prefix>.<name>]`.
+   */
+  filterFamilies?: readonly string[]
   sort: boolean
   include: boolean
   /**
@@ -120,16 +126,32 @@ const nullableString = (description: string): JsonSchema =>
 
 const idSchema = (description: string): JsonSchema => ({ type: 'string', description })
 
-/** The `filter[...]` parameters as one closed object, each member nullable. */
+/**
+ * The `filter[...]` parameters as one closed object, each member nullable. A filter that takes a
+ * list is one array member, from its `filter[<key>][]` parameter, whatever other form it also
+ * takes. Each filter family is a `<prefix>.` member listing `{ name, value }` entries, since a
+ * strict tool schema can't take keys it doesn't name.
+ */
 function filterInput(
   doc: OpenApiDocument,
   params: readonly ParameterObject[],
-): { schema: JsonSchema; decoder: Decoder } | undefined {
+): { schema: JsonSchema; decoder: Decoder; families: readonly string[] } | undefined {
   const properties: Record<string, JsonSchema> = {}
   const props: Record<string, PropertyDecoder> = {}
+  const listKeys = new Set(params.flatMap((param) => listFilterKey(param) ?? []))
+  const families: string[] = []
   for (const param of params) {
+    if (param.in !== 'query') {
+      continue
+    }
+    if (param.name === 'filter') {
+      families.push(...familyMembers(param, properties, props))
+      continue
+    }
+    const listKey = listFilterKey(param)
     const match = /^filter\[(.+)\]$/.exec(param.name)
-    if (param.in !== 'query' || match === null) {
+    const key = listKey ?? (match === null || param.name.endsWith('][]') ? undefined : match[1]!)
+    if (key === undefined || (listKey === undefined && listKeys.has(key))) {
       continue
     }
     const converted = toPortable(doc, param.schema ?? {}, [], 1)
@@ -141,8 +163,8 @@ function filterInput(
     }
     const addNull = !allowsNull(schema)
     const property = addNull ? nullable(schema) : schema
-    properties[match[1]!] = isDeprecated(param) ? markDeprecated(property) : property
-    props[match[1]!] = { decoder: converted.decoder, nullMeansOmit: true }
+    properties[key] = isDeprecated(param) ? markDeprecated(property) : property
+    props[key] = { decoder: converted.decoder, nullMeansOmit: true }
   }
   if (Object.keys(properties).length === 0) {
     return undefined
@@ -155,7 +177,62 @@ function filterInput(
       ),
     ),
     decoder: { kind: 'object', props },
+    families,
   }
+}
+
+/** The key a `filter[<key>][]` parameter carries the list of, from its `x-filter-list`. */
+function listFilterKey(param: ParameterObject): string | undefined {
+  const list = param['x-filter-list']
+  return isObject(list) && typeof list['key'] === 'string' ? list['key'] : undefined
+}
+
+/**
+ * Add a `<prefix>.` member per family the `filter` parameter's `x-filter-families` lists, and
+ * return the prefixes. The suffix pattern goes into the description, since a pattern keyword isn't
+ * portable.
+ */
+function familyMembers(
+  param: ParameterObject,
+  properties: Record<string, JsonSchema>,
+  props: Record<string, PropertyDecoder>,
+): string[] {
+  const declared = param.schema?.['x-filter-families']
+  const prefixes: string[] = []
+  for (const family of Array.isArray(declared) ? (declared as unknown[]) : []) {
+    if (
+      !isObject(family) ||
+      typeof family['prefix'] !== 'string' ||
+      typeof family['suffixPattern'] !== 'string'
+    ) {
+      continue
+    }
+    const { prefix, suffixPattern } = family
+    const value: JsonSchema =
+      family['list'] === true
+        ? {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'The values to match, any of them.',
+          }
+        : { type: 'string', description: 'The value to match.' }
+    const entry = closedObject({
+      name: {
+        type: 'string',
+        description: `The part of the key after \`${prefix}.\`, matching the regular expression \`${suffixPattern}\`.`,
+      },
+      value,
+    })
+    const property = nullable({
+      type: 'array',
+      items: entry,
+      description: `Filters on keys of the form \`${prefix}.<name>\`, one entry per key. Leave null to apply none.`,
+    })
+    properties[`${prefix}.`] = isDeprecated(family) ? markDeprecated(property) : property
+    props[`${prefix}.`] = { decoder: { kind: 'value' }, nullMeansOmit: true }
+    prefixes.push(prefix)
+  }
+  return prefixes
 }
 
 /** The page parameter's size bound and default for the strategy that answers by default. */
@@ -241,6 +318,9 @@ function queryInput(
     if (filter !== undefined) {
       properties['filter'] = filter.schema
       plan.filter = filter.decoder
+      if (filter.families.length > 0) {
+        plan.filterFamilies = filter.families
+      }
     }
     const sort = params.find((p) => p.in === 'query' && p.name === 'sort')
     const items = sortItems(doc, deref<JsonSchema>(doc, sort?.schema))
@@ -595,7 +675,14 @@ export function actionInput(
   return {
     ...input,
     schema: closedObject({ ...properties, filter: filter.schema }) as ToolInput['schema'],
-    query: { filter: filter.decoder, sort: false, include: false, fields: [], paginated: false },
+    query: {
+      filter: filter.decoder,
+      ...(filter.families.length > 0 ? { filterFamilies: filter.families } : {}),
+      sort: false,
+      include: false,
+      fields: [],
+      paginated: false,
+    },
   }
 }
 
