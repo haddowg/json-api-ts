@@ -293,6 +293,10 @@ export interface ActionDescriptor {
    * takes no filters.
    */
   filterable?: readonly string[]
+  /** The keys of {@link filterable} that take a list, sent as the read sends them. */
+  listFilters?: readonly string[]
+  /** The filter families the action takes, as its type's collection read does. */
+  filterFamilies?: readonly FilterFamilyDescriptor[]
 }
 
 /**
@@ -316,6 +320,17 @@ export interface CountableDescriptor {
 export interface SortFamilyDescriptor {
   prefix: string
   suffixPattern: string
+}
+
+/**
+ * A family of filter keys matched by prefix: any `filter[<prefix>.<suffix>]` whose suffix matches
+ * `suffixPattern` (a regular expression source, unanchored and without delimiters). `list` is
+ * `true` when its filters take a list, sent as `filter[<prefix>.<suffix>][]` once per member.
+ */
+export interface FilterFamilyDescriptor {
+  prefix: string
+  suffixPattern: string
+  list?: boolean
 }
 
 export interface ResourceDescriptor {
@@ -363,6 +378,18 @@ export interface ResourceDescriptor {
    * matching the server's `400 FILTERING_UNRECOGNIZED`).
    */
   filterable?: readonly string[]
+  /**
+   * The keys of {@link filterable} whose filter takes a list. Each is typed `readonly string[]` and
+   * sent as `filter[<key>][]` once per member, so a member may contain a comma. Absent when no
+   * filter takes a list.
+   */
+  listFilters?: readonly string[]
+  /**
+   * The filter families the COLLECTION read accepts beside {@link filterable}: keys matched by
+   * prefix, such as `value.<name>`. Each adds `<prefix>.${string}` to the `filter` type. Absent
+   * when the collection declares none.
+   */
+  filterFamilies?: readonly FilterFamilyDescriptor[]
   /** Custom actions declared on this type, keyed by action name. Absent/empty when none. */
   actions?: Readonly<Record<string, ActionDescriptor>>
   /**

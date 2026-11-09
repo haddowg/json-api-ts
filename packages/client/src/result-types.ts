@@ -427,15 +427,54 @@ export type SortQuery<D extends ApiDescriptor, T extends TypeName<D>> = [SortTok
   : SortToken<D, T> | readonly SortToken<D, T>[]
 
 /**
+ * The filter keys of a descriptor `Spec` (a type's, or a collection action's) whose filter takes a
+ * list, or `never`.
+ */
+type ListFilterKeyOf<Spec> = Spec extends { listFilters: readonly (infer Key)[] }
+  ? Key & string
+  : never
+
+/** The filter family prefixes of a descriptor `Spec`, or `never`. */
+type FilterFamilyPrefixOf<Spec> = Spec extends {
+  filterFamilies: readonly { prefix: infer P extends string }[]
+}
+  ? P
+  : never
+
+/** The value a filter family of `Spec` keyed `P` takes: a list for a list family, else a string. */
+type FilterFamilyValue<Spec, P extends string> = Spec extends {
+  filterFamilies: readonly (infer Family)[]
+}
+  ? Extract<Family, { prefix: P }> extends { list: true }
+    ? readonly string[]
+    : string
+  : never
+
+/**
+ * The filter object a descriptor `Spec` takes, given its exact filter keys `Key`: each exact key
+ * `unknown`, a list filter's key `readonly string[]`, and per filter family a `<prefix>.${string}`
+ * key. With no list filter and no family it is the plain partial record of the exact keys.
+ */
+type FiltersOf<Spec, Key extends string> = [
+  ListFilterKeyOf<Spec> | FilterFamilyPrefixOf<Spec>,
+] extends [never]
+  ? Partial<Record<Key, unknown>>
+  : Partial<Record<Exclude<Key, ListFilterKeyOf<Spec>>, unknown>> &
+      Partial<Record<ListFilterKeyOf<Spec> & Key, readonly string[]>> & {
+        [P in FilterFamilyPrefixOf<Spec> as `${P}.${string}`]?: FilterFamilyValue<Spec, P>
+      }
+
+/**
  * The `filter` object for type `T`: keys constrained to the advertised filter params (values
- * stay `unknown` — value shapes/operators vary). `never` (so `filter` cannot be supplied) when
- * the collection advertises no filters — a compile-time mirror of `400 FILTERING_UNRECOGNIZED`.
+ * stay `unknown` — value shapes/operators vary), a list filter's value a list of strings, and a
+ * `<prefix>.${string}` key per filter family. `never` (so `filter` cannot be supplied) when the
+ * collection advertises no filters — a compile-time mirror of `400 FILTERING_UNRECOGNIZED`.
  */
 export type FilterQuery<D extends ApiDescriptor, T extends TypeName<D>> = [
-  FilterKey<D, T>,
+  FilterKey<D, T> | FilterFamilyPrefixOf<D[T]>,
 ] extends [never]
   ? never
-  : Partial<Record<FilterKey<D, T>, unknown>>
+  : FiltersOf<D[T], FilterKey<D, T>>
 
 /**
  * The element type of the `fields` map for a typed read: a member-name array per wire type,
@@ -1055,9 +1094,9 @@ type ActionFilterKey<Act> = Act extends { filterable: readonly (infer Key)[] }
  * The `filter` option of an action that takes filters, keyed like {@link FilterQuery}; `unknown`
  * (adding nothing) for one that takes none.
  */
-type ActionFilterOptions<Act> = [ActionFilterKey<Act>] extends [never]
+type ActionFilterOptions<Act> = [ActionFilterKey<Act> | FilterFamilyPrefixOf<Act>] extends [never]
   ? unknown
-  : { filter?: Partial<Record<ActionFilterKey<Act>, unknown>> }
+  : { filter?: FiltersOf<Act, ActionFilterKey<Act>> }
 
 /** The raw response media types an action declares (`[]` when none). */
 type RawOutputOf<Act> = Act extends { rawOutput: infer R extends readonly RawOutputMedia[] }
@@ -1237,7 +1276,7 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
           options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
             ActionFilterOptions<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
-    : Act extends { filterable: readonly string[] }
+    : Act extends { filterable: readonly string[] } | { filterFamilies: readonly unknown[] }
       ? Act extends { input: 'none' }
         ? (
             options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
