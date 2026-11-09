@@ -61,9 +61,8 @@ describe('emit (music-catalog default server)', () => {
     expect(block('AlbumsAttributes')).toContain('  releasedAt: string | null')
     expect(block('AlbumsCreateAttributes')).toContain('  releasedAt?: string\n')
     expect(block('AlbumsCreateAttributes')).toContain('  explicit?: boolean\n')
-    expect(block('AlbumsCreateAttributes')).toContain(
-      'releaseInfo?: { label?: string; catalogueNumber?: string } | null',
-    )
+    // catalogueNumber is read-only, so the write shape carries only label.
+    expect(block('AlbumsCreateAttributes')).toContain('releaseInfo?: { label?: string } | null')
     // A required attribute stays non-null on reads.
     expect(block('AlbumsAttributes')).toMatch(/\n  title: string$/)
   })
@@ -201,7 +200,7 @@ describe('emit (custom actions)', () => {
     expect(source).toMatch(/actions: \{[\s\S]*?reissue: \{[\s\S]*?scope: "resource"/)
     // reissue: a document in/out action resolving its input + output resource type + cardinality.
     expect(source).toMatch(/reissue: \{[\s\S]*?input: "document"[\s\S]*?output: "document"/)
-    expect(source).toContain('inputType: "albums"')
+    expect(source).toContain('inputType: "reissues"')
     expect(source).toContain('outputType: "albums"')
     expect(source).toContain('outputCardinality: "one"')
     // summary: a meta-only output; artwork: a raw input with a 204 (none) output.
