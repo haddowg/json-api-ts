@@ -136,7 +136,7 @@ describe('generator contract 19 (discriminated unions, typed included)', () => {
     expectTypeOf<RelatedIncluded<'articles', 'tags'>['type']>().toEqualTypeOf<'articles'>()
     // Without a list, every type the server declares.
     expectTypeOf<Included<'tags'>['type']>().toEqualTypeOf<
-      'articles' | 'healthcheck' | 'images' | 'people' | 'tags' | 'videos'
+      'articles' | 'credits' | 'healthcheck' | 'images' | 'people' | 'tags' | 'videos'
     >()
   })
 

@@ -121,7 +121,9 @@ describe('generator contract 14 (declared links)', () => {
         '  thumbnail?: string',
       ].join('\n'),
     )
-    expect(source).toContain('export interface Links {\n  images: ImagesLinks\n}')
+    expect(source).toContain(
+      'export interface Links {\n  credits: CreditsLinks\n  images: ImagesLinks\n}',
+    )
     expect(source).toContain('ActionTypes, ErrorCode, Links>(')
   })
 
@@ -130,6 +132,7 @@ describe('generator contract 14 (declared links)', () => {
     const links = doc.components!.schemas!['ImagesResourceLinks']!.allOf![1]!.properties!
     delete links['download']
     delete links['thumbnail']
+    delete doc.components!.schemas!['CreditsResourceLinks']!.properties!['profile']
     const source = emit(doc, buildDescriptor(doc))
     expect(source).toContain('export interface Links {}')
     expect(source).not.toContain('ImagesLinks')

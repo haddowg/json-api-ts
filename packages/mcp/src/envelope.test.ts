@@ -186,6 +186,7 @@ describe('named links on a resource', () => {
   it('records the link names in the model', () => {
     expect(fixture('contract-witness').model.resourceLinks).toEqual({
       articles: ['publish', 'download'],
+      credits: ['profile'],
       images: ['download', 'thumbnail'],
     })
   })
