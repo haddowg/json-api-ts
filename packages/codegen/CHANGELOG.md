@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.2.0...json-api-codegen-v2.2.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **codegen:** never take an action path as a collection path ([#134](https://github.com/haddowg/json-api-ts/issues/134)) ([5923c5d](https://github.com/haddowg/json-api-ts/commit/5923c5ddcd85d709ac3ebef522863d76e6442b61))
+
 ## [2.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.1.0...json-api-codegen-v2.2.0) (2026-11-08)
 
 
