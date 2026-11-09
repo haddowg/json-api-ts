@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.2.1...json-api-codegen-v2.3.0) (2026-11-09)
+
+
+### Features
+
+* **codegen:** read declared identifier meta ([ec6ac69](https://github.com/haddowg/json-api-ts/commit/ec6ac69220d079eb50de85ffeb6668d472ee0123))
+* **codegen:** read list filters and filter families ([a3bfde1](https://github.com/haddowg/json-api-ts/commit/a3bfde1621d3af1976c5db1092e506b24a3818c6))
+* **codegen:** type objects open to undeclared members ([714eeb1](https://github.com/haddowg/json-api-ts/commit/714eeb1922787dfe3394ca9ca8b861c155abc6e3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.15.0
+
 ## [2.2.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.2.0...json-api-codegen-v2.2.1) (2026-11-09)
 
 

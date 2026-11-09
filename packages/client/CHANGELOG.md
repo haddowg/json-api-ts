@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.14.0...json-api-client-v1.15.0) (2026-11-09)
+
+
+### Features
+
+* **client:** send list filters and type filter families ([9496960](https://github.com/haddowg/json-api-ts/commit/9496960a4d6199f730f6fd57d1accc7c1da93b9f))
+* **client:** type the identifier meta a relation declares ([93eef84](https://github.com/haddowg/json-api-ts/commit/93eef8449f4118986161585d563949af3aa3f3ff))
+
 ## [1.14.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.13.0...json-api-client-v1.14.0) (2026-11-08)
 
 
