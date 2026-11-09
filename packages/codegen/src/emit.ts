@@ -573,6 +573,10 @@ export class Emitter {
         if (filterDoc !== undefined && action.filterable !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}/filterable`, filterDoc)
         }
+        const familyDoc = deprecations.operationFilterFamilies(op)
+        if (familyDoc !== undefined && action.filterFamilies !== undefined) {
+          this.literalDocs.set(`${type}/actions/${name}/filterFamilies`, familyDoc)
+        }
       }
       const scopes = descriptor[type]?.scopes
       for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
@@ -598,6 +602,7 @@ export class Emitter {
         ['filterable', deprecations.filters(type)],
         ['sortable', deprecations.sorts(type)],
         ['sortFamilies', deprecations.sortFamilies(type)],
+        ['filterFamilies', deprecations.filterFamilies(type)],
       ]
       for (const [key, doc] of keyDocs) {
         if (
