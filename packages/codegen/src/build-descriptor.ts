@@ -1054,6 +1054,10 @@ export class DescriptorBuilder {
   private collectionPath(base: string): string | undefined {
     let byCollection: string | undefined
     for (const [path, item] of Object.entries(this.paths)) {
+      // An action may take a type's create body as its input without being that type's collection.
+      if (path.includes('/-actions/')) {
+        continue
+      }
       const post = item.post
       if (post && refEndsWith(this.requestBodyRef(post), `${base}CreateRequest`)) {
         return path

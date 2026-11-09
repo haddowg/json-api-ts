@@ -267,6 +267,99 @@ describe('buildDescriptor — non-POST + unusable action operations', () => {
   })
 })
 
+const actionBody = (component: string) => ({
+  required: true,
+  content: {
+    'application/vnd.api+json': { schema: { $ref: `#/components/schemas/${component}` } },
+  },
+})
+const collectionGet = (component: string) => ({
+  responses: {
+    '200': {
+      content: {
+        'application/vnd.api+json': { schema: { $ref: `#/components/schemas/${component}` } },
+      },
+    },
+  },
+})
+const createRequestOf = (type: string, id: SchemaObject | false): SchemaObject => ({
+  type: 'object',
+  properties: {
+    data: {
+      type: 'object',
+      required: ['type'],
+      properties: { type: { type: 'string', const: type }, id },
+    },
+  },
+})
+const resourceOf = (type: string): SchemaObject => ({
+  type: 'object',
+  properties: {
+    type: { type: 'string', const: type },
+    id: { type: 'string' },
+    attributes: { type: 'object', properties: {} },
+  },
+})
+
+describe('buildDescriptor — an action input type is not a collection', () => {
+  // Each action path comes before the collection path of the type it takes as input.
+  const doc: OpenApiDocument = {
+    openapi: '3.1.0',
+    paths: {
+      '/widgets/-actions/import': {
+        post: { requestBody: actionBody('PresetsCreateRequest'), responses: { '204': {} } },
+      },
+      '/widgets/{id}/-actions/stamp': {
+        post: { requestBody: actionBody('StampsCreateRequest'), responses: { '204': {} } },
+      },
+      '/widgets/-actions/clone': {
+        post: { requestBody: actionBody('WidgetsCreateRequest'), responses: { '204': {} } },
+      },
+      '/presets': { get: collectionGet('PresetsCollection') },
+      '/widgets': {
+        get: collectionGet('WidgetsCollection'),
+        post: { requestBody: actionBody('WidgetsCreateRequest'), responses: { '201': {} } },
+      },
+    },
+    components: {
+      schemas: {
+        WidgetsResource: resourceOf('widgets'),
+        WidgetsCollection: { type: 'object' },
+        WidgetsCreateRequest: createRequestOf('widgets', { type: 'string' }),
+        PresetsResource: resourceOf('presets'),
+        PresetsCollection: { type: 'object' },
+        PresetsCreateRequest: createRequestOf('presets', false),
+        StampsResource: resourceOf('stamps'),
+        StampsCreateRequest: createRequestOf('stamps', false),
+      },
+    },
+  }
+  const built = buildDescriptor(doc)
+
+  it('keeps the collection path of a creatable type whose action path comes first', () => {
+    expect(built['widgets']!.paths).toEqual({ create: '/widgets', fetchMany: '/widgets' })
+    expect(built['widgets']!.clientId).toBe('optional')
+    expect(Object.keys(built['widgets']!.actions ?? {})).toEqual(['clone', 'import', 'stamp'])
+  })
+
+  it('gives a read-only action input type its GET collection and no create', () => {
+    expect(built['presets']!.paths).toEqual({ fetchMany: '/presets' })
+    expect(built['presets']!.actions).toBeUndefined()
+    expect(built['presets']!.clientId).toBe('forbidden')
+  })
+
+  it('gives an action input type with no endpoints of its own no paths at all', () => {
+    expect(built['stamps']!.paths).toEqual({})
+    expect(built['stamps']!.actions).toBeUndefined()
+  })
+
+  it('still names each action input type', () => {
+    expect(built['widgets']!.actions?.['import']?.inputType).toBe('presets')
+    expect(built['widgets']!.actions?.['stamp']?.inputType).toBe('stamps')
+    expect(built['widgets']!.actions?.['clone']?.inputType).toBe('widgets')
+  })
+})
+
 describe('buildDescriptor — withCount (Countable) capability', () => {
   const COUNTABLE_PROFILE = 'https://haddowg.github.io/json-api/profiles/countable/'
 
