@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.13.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.12.1...json-api-mcp-v1.13.0) (2026-11-09)
+
+
+### Features
+
+* **mcp:** accept list filters and filter families ([e7fe969](https://github.com/haddowg/json-api-ts/commit/e7fe9694e2794977bf1a1f0b278c2f235701fd6b))
+* **mcp:** read generator contract 28 ([8a9c915](https://github.com/haddowg/json-api-ts/commit/8a9c915dbe9fa622152ad82778f0c3c1f0d6bfab))
+* **mcp:** take open objects as JSON text ([e402593](https://github.com/haddowg/json-api-ts/commit/e4025935d20c78e097abbbac97ab86fa7231f865))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.15.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.3.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.3.0
+
 ## [1.12.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.12.0...json-api-mcp-v1.12.1) (2026-11-09)
 
 
