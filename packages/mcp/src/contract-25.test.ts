@@ -12,7 +12,8 @@ function withActionFilters(doc: OpenApiDocument): OpenApiDocument {
   out.info!['x-generator'] = { ...out.info!['x-generator'], contract: 25 }
   const paths = out.paths!
   const filters = (paths['/articles']!.get!.parameters ?? []).filter(
-    (param): param is ParameterObject => 'name' in param && param.name.startsWith('filter['),
+    (param): param is ParameterObject =>
+      'name' in param && (param.name.startsWith('filter[') || param.name === 'filter'),
   )
   const action = (from: OperationObject, id: string, keys?: readonly string[]) => {
     const op = structuredClone(from)
