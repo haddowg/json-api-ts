@@ -294,7 +294,7 @@ describe('writes', () => {
       title: 'Help!',
       artist: '7',
       tracks: ['1'],
-      releaseInfo: { label: 'Parlophone', catalogueNumber: null },
+      releaseInfo: { label: 'Parlophone' },
       ...nulls(['releasedAt', 'explicit', 'status', 'availableFrom', 'availableUntil']),
     })
     expect(requests[0]!.method).toBe('POST')
@@ -349,10 +349,10 @@ describe('writes', () => {
 describe('actions', () => {
   it('sends a flat document action', async () => {
     const { requests, tools } = await session(() => ({ json: { data: album('1') } }))
-    await tools.callTool('albums_reissue', { id: '1', title: 'Remaster' })
+    await tools.callTool('albums_reissue', { id: '1', releasedAt: '2001-10-01T00:00:00+00:00' })
     expect(requests[0]!.url).toBe('https://music.example/albums/1/-actions/reissue')
     expect(JSON.parse(requests[0]!.body!)).toEqual({
-      data: { type: 'albums', attributes: { title: 'Remaster' } },
+      data: { type: 'reissues', attributes: { releasedAt: '2001-10-01T00:00:00+00:00' } },
     })
   })
 
