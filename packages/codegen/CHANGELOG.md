@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.3.0...json-api-codegen-v2.4.0) (2026-11-09)
+
+
+### Features
+
+* **codegen:** type every map from its additionalProperties schema ([#140](https://github.com/haddowg/json-api-ts/issues/140)) ([b243b6d](https://github.com/haddowg/json-api-ts/commit/b243b6dbeae55e02956aae4a6dde904a7bdf1695))
+
 ## [2.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.2.1...json-api-codegen-v2.3.0) (2026-11-09)
 
 
