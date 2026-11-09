@@ -168,7 +168,7 @@ describe('buildDescriptor — custom actions', () => {
       output: 'document',
       // A document body/output names its resource type so the client accepts flat input and
       // materialises the response (rather than the raw wire envelope).
-      inputType: 'albums',
+      inputType: 'reissues',
       outputType: 'albums',
       outputCardinality: 'one',
       scopes: ['catalog:write'],
