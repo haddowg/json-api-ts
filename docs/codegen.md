@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 26. An older document is refused, because it describes its error codes in a form
+contracts 24 to 28. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -350,6 +350,34 @@ $pivot?: { readonly position: number; readonly weight?: number }
 An older document has one shared pivot schema. The codegen treats every field as
 rendered on reads, and drops the fields marked `readOnly` from writes.
 
+### Identifier meta
+
+A relation whose server declares the members it adds to each linkage member's `meta`
+publishes them as a `<Type><Rel>IdentifierMeta` component. The codegen reads it into the
+relation's `identifierMeta`, in the same shape as `readPivot`:
+
+```ts
+members: {
+  cardinality: "many", types: ["users"], pivot: true,
+  readPivot: { fields: { position: "integer" } },
+  identifierMeta: { fields: { primary: "boolean", role: "string" }, nullable: ["primary"] },
+  // …
+}
+```
+
+That types `$edge.meta` on the members of the resource's own relationship and of the
+relationship endpoint, beside `pivot` when there is one. The record stays open, since the
+related resource's own meta can sit there too:
+
+```ts
+const article = await client.articles.get('1')
+article.author?.$edge?.meta?.role // string
+```
+
+Identifier meta is read-only, so no write takes it, and the related endpoint doesn't render
+it: its members are resource objects, not linkage. A polymorphic relation types the meta of
+every member the same way.
+
 ### Declared links
 
 A server can declare named links on a type, such as a signed upload URL with the
@@ -620,7 +648,8 @@ document's structure:
   wired onto the client through the `Attributes` map.
 - **`relations`** — per relation: `cardinality` (`one`/`many`), the related
   `types` array, whether it is a `pivot` (`belongsToMany`) relation (with its
-  [`readPivot` and `writePivot`](#pivot-fields)), whether it is
+  [`readPivot` and `writePivot`](#pivot-fields)), its declared
+  [`identifierMeta`](#identifier-meta), whether it is
   [`writeOnly`](#write-only-relations), its `uriField` when its paths use a
   segment other than its name, `polymorphic: true` when its linkage is a union of
   types, even of one (read `isPolymorphic(relation)`, which falls back to counting

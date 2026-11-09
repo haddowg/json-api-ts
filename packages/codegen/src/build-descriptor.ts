@@ -332,6 +332,7 @@ export class DescriptorBuilder {
       const descriptor: RelationDescriptor = { ...parsed }
       if (writeOnly) {
         delete descriptor.readPivot
+        delete descriptor.identifierMeta
         descriptor.writeOnly = true
       }
       if (descriptor.pivot === true) {
@@ -815,80 +816,87 @@ export class DescriptorBuilder {
 
     // to-many: data.type === 'array'
     if (data.type === 'array') {
-      const items = data.items
-      if (items === undefined) {
+      const entry = data.items === undefined ? undefined : this.linkageEntry(data.items)
+      if (entry === undefined || entry.types.length === 0) {
         return undefined
       }
-      if (typeof items.$ref === 'string') {
-        // monomorphic to-many
-        const type = this.resolveConst(items.$ref)
-        return type === undefined ? undefined : { cardinality: 'many', types: [type], pivot: false }
-      }
-      if (Array.isArray(items.allOf)) {
-        // pivot to-many: the $ref is the allOf entry that carries it
-        const type = this.constFromAllOf(items.allOf)
-        if (type === undefined) {
-          return undefined
-        }
-        const relation: RelationDescriptor = { cardinality: 'many', types: [type], pivot: true }
-        const readPivot = this.pivotDescriptor(pivotNodeFromAllOf(items.allOf), 'read')
-        if (readPivot !== undefined) {
-          relation.readPivot = readPivot
-        }
-        return relation
-      }
-      const types = this.unionTypes(items)
-      if (types !== undefined) {
-        // polymorphic to-many, a union even of one type
-        return types.length === 0
-          ? undefined
-          : { cardinality: 'many', types, polymorphic: true, pivot: false }
-      }
-      return undefined
+      return this.relationOf('many', entry)
     }
 
-    // to-one: data.anyOf with the non-null entries being $refs (or pivot allOfs);
-    // a polymorphic to-one nests its $refs one level deeper in a oneOf or anyOf.
+    // to-one: data.anyOf with the non-null entries being $refs, unions or typed-meta allOfs.
     if (Array.isArray(data.anyOf)) {
-      const types: string[] = []
-      let pivot = false
-      let polymorphic = false
-      let readPivot: PivotDescriptor | undefined
-      for (const entry of data.anyOf) {
-        if (typeof entry.$ref === 'string') {
-          const type = this.resolveConst(entry.$ref)
-          if (type !== undefined) {
-            types.push(type)
-          }
-        } else if (Array.isArray(entry.allOf)) {
-          const type = this.constFromAllOf(entry.allOf)
-          if (type !== undefined) {
-            types.push(type)
-            pivot = true
-            readPivot = this.pivotDescriptor(pivotNodeFromAllOf(entry.allOf), 'read')
-          }
-        } else {
-          // polymorphic to-one: the non-null entry is itself a union of $refs, even of one
-          const union = this.unionTypes(entry)
-          if (union !== undefined) {
-            types.push(...union)
-            polymorphic = true
-          }
+      const merged: LinkageEntry = { types: [], polymorphic: false }
+      for (const item of data.anyOf) {
+        const entry = this.linkageEntry(item)
+        if (entry === undefined) {
+          continue
+        }
+        merged.types.push(...entry.types)
+        merged.polymorphic ||= entry.polymorphic
+        if (merged.pivot === undefined && entry.pivot !== undefined) {
+          merged.pivot = entry.pivot
+        }
+        if (merged.identifierMeta === undefined && entry.identifierMeta !== undefined) {
+          merged.identifierMeta = entry.identifierMeta
         }
       }
-      if (types.length === 0) {
-        return undefined
-      }
-      const relation: RelationDescriptor = polymorphic
-        ? { cardinality: 'one', types, polymorphic: true, pivot }
-        : { cardinality: 'one', types, pivot }
-      if (readPivot !== undefined) {
-        relation.readPivot = readPivot
-      }
-      return relation
+      return merged.types.length === 0 ? undefined : this.relationOf('one', merged)
     }
 
     return undefined
+  }
+
+  /**
+   * One linkage identifier schema: a `$ref` to a type's identifier, a polymorphic union of them,
+   * or an `allOf` of either with a narrowing that types the identifier's `meta` (its `pivot` and
+   * the members an identifier meta resolver declares). `undefined` for any other shape.
+   */
+  private linkageEntry(schema: SchemaObject): LinkageEntry | undefined {
+    if (typeof schema.$ref === 'string') {
+      const type = this.resolveConst(schema.$ref)
+      return type === undefined ? undefined : { types: [type], polymorphic: false }
+    }
+    if (Array.isArray(schema.allOf)) {
+      let base: LinkageEntry | undefined
+      for (const part of schema.allOf) {
+        if (
+          typeof part.$ref === 'string' ||
+          Array.isArray(part.oneOf) ||
+          Array.isArray(part.anyOf)
+        ) {
+          base ??= this.linkageEntry(part)
+        }
+      }
+      if (base === undefined) {
+        return undefined
+      }
+      const meta = metaNodesFromAllOf(schema.allOf)
+      return {
+        ...base,
+        ...(meta.pivot === undefined ? {} : { pivot: meta.pivot }),
+        ...(meta.identifierMeta === undefined ? {} : { identifierMeta: meta.identifierMeta }),
+      }
+    }
+    const union = this.unionTypes(schema)
+    return union === undefined ? undefined : { types: union, polymorphic: true }
+  }
+
+  /** A {@link RelationDescriptor} from a parsed linkage entry. */
+  private relationOf(cardinality: Cardinality, entry: LinkageEntry): RelationDescriptor {
+    // A pivot is only ever typed on a monomorphic linkage.
+    const pivot = !entry.polymorphic && entry.pivot !== undefined
+    const relation: RelationDescriptor = entry.polymorphic
+      ? { cardinality, types: entry.types, polymorphic: true, pivot }
+      : { cardinality, types: entry.types, pivot }
+    const readPivot = pivot ? this.pivotDescriptor(entry.pivot, 'read') : undefined
+    if (readPivot !== undefined) {
+      relation.readPivot = readPivot
+    }
+    const identifierMeta = this.pivotDescriptor(entry.identifierMeta, 'read')
+    if (identifierMeta !== undefined) {
+      relation.identifierMeta = identifierMeta
+    }
+    return relation
   }
 
   /**
@@ -947,19 +955,6 @@ export class DescriptorBuilder {
       out.nullable = nullable.sort()
     }
     return out
-  }
-
-  /** Pull the related type from the `$ref` entry of an `allOf` (the pivot shape). */
-  private constFromAllOf(allOf: readonly SchemaObject[]): string | undefined {
-    for (const entry of allOf) {
-      if (typeof entry.$ref === 'string') {
-        const type = this.resolveConst(entry.$ref)
-        if (type !== undefined) {
-          return type
-        }
-      }
-    }
-    return undefined
   }
 
   /**
@@ -1283,16 +1278,57 @@ export class DescriptorBuilder {
   }
 }
 
-/** The `meta.pivot` schema node of a pivot `allOf` entry list, if any. */
-function pivotNodeFromAllOf(allOf: readonly SchemaObject[]): SchemaObject | undefined {
+/** A parsed linkage identifier: its type(s) and the schema nodes typing its `meta`. */
+interface LinkageEntry {
+  types: string[]
+  polymorphic: boolean
+  /** The `meta.pivot` schema node. */
+  pivot?: SchemaObject
+  /** The `$ref` to the `<Type><Rel>IdentifierMeta` component typing the declared meta members. */
+  identifierMeta?: SchemaObject
+}
+
+/**
+ * The schema nodes typing an identifier's `meta`, from the `allOf` narrowing it: `meta` is an
+ * object with a `pivot`, a `$ref` to the declared identifier meta, or an `allOf` of the two.
+ */
+function metaNodesFromAllOf(allOf: readonly SchemaObject[]): {
+  pivot?: SchemaObject
+  identifierMeta?: SchemaObject
+} {
   for (const entry of allOf) {
     const meta = entry.properties?.['meta']
-    const pivot = isSchema(meta) ? meta.properties?.['pivot'] : undefined
-    if (isSchema(pivot)) {
-      return pivot
+    if (isSchema(meta)) {
+      return metaNodes(meta)
     }
   }
-  return undefined
+  return {}
+}
+
+function metaNodes(meta: SchemaObject): { pivot?: SchemaObject; identifierMeta?: SchemaObject } {
+  const out: { pivot?: SchemaObject; identifierMeta?: SchemaObject } = {}
+  const pivot = meta.properties?.['pivot']
+  if (isSchema(pivot)) {
+    out.pivot = pivot
+  }
+  if (typeof meta.$ref === 'string') {
+    out.identifierMeta = meta
+  }
+  for (const part of meta.allOf ?? []) {
+    const nested = metaNodes(part)
+    if (out.pivot === undefined && nested.pivot !== undefined) {
+      out.pivot = nested.pivot
+    }
+    if (out.identifierMeta === undefined && nested.identifierMeta !== undefined) {
+      out.identifierMeta = nested.identifierMeta
+    }
+  }
+  return out
+}
+
+/** The `meta.pivot` schema node of a pivot `allOf` entry list, if any. */
+function pivotNodeFromAllOf(allOf: readonly SchemaObject[]): SchemaObject | undefined {
+  return metaNodesFromAllOf(allOf).pivot
 }
 
 /**
