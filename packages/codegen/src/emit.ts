@@ -496,6 +496,12 @@ export class Emitter {
   /** Component names mid-expansion in {@link tsType} — a cycle guard for self/mutually-referential `$ref`s. */
   private readonly expanding = new Set<string>()
   /**
+   * Set while an attribute interface renders, where an object's typed `additionalProperties`
+   * are an open object's undeclared members. Elsewhere, as in a raw response body, a typed map
+   * keeps its loose `Record<string, unknown>`.
+   */
+  private typingOpenMembers = false
+  /**
    * The per-action alias names actually emitted, keyed `type -> actionName -> { input?; output? }`.
    * Populated by {@link actionTypeAliases}; consumed by {@link actionTypesMap} so the action
    * type-map only references aliases that exist (a `none` input/output contributes neither).
@@ -1320,7 +1326,7 @@ export class Emitter {
     const lines: string[] = []
     for (const field of fields) {
       const schema = props?.[field]
-      const tsType = isSchema(schema) ? this.tsType(schema) : 'unknown'
+      const tsType = isSchema(schema) ? this.attributeType(schema) : 'unknown'
       const doc = isSchema(schema) ? jsDoc(memberDoc(schema), '  ') : undefined
       if (doc) {
         lines.push(doc)
@@ -1334,6 +1340,17 @@ export class Emitter {
       return `export interface ${name} {}`
     }
     return `export interface ${name} {\n${lines.join('\n')}\n}`
+  }
+
+  /** An attribute's type, typing any open object inside it by its undeclared members. */
+  private attributeType(schema: SchemaObject): string {
+    const previous = this.typingOpenMembers
+    this.typingOpenMembers = true
+    try {
+      return this.tsType(schema)
+    } finally {
+      this.typingOpenMembers = previous
+    }
   }
 
   /** Map a JSON Schema attribute node to a precise TypeScript type. */
@@ -1442,11 +1459,20 @@ export class Emitter {
    * branches of an undiscriminated union, which a closed branch rejects. Without them a write
    * could mix two branches, since TypeScript checks a literal's extra members against the union
    * as a whole.
+   *
+   * Inside an attribute, an object whose `additionalProperties` is a schema takes members it
+   * does not declare, each of that schema's type, so its declared members are intersected with
+   * a `Record` of it, or the `Record` stands alone when it declares none.
    */
   private objectType(schema: SchemaObject, excluded: readonly string[] = []): string {
+    const extra = schema['additionalProperties'] as SchemaOrBool | undefined
+    const open =
+      this.typingOpenMembers && isSchema(extra)
+        ? `Record<string, ${this.tsType(extra)}>`
+        : undefined
     const props = schema.properties
     if (props === undefined) {
-      return 'Record<string, unknown>'
+      return open ?? 'Record<string, unknown>'
     }
     const required = new Set(schema.required ?? [])
     const members: string[] = []
@@ -1461,9 +1487,10 @@ export class Emitter {
       members.push(`${propertyKey(name)}?: never`)
     }
     if (members.length === 0) {
-      return 'Record<string, unknown>'
+      return open ?? 'Record<string, unknown>'
     }
-    return `{ ${members.join('; ')} }`
+    const declared = `{ ${members.join('; ')} }`
+    return open === undefined ? declared : `${declared} & ${open}`
   }
 
   private arrayType(schema: SchemaObject): string {

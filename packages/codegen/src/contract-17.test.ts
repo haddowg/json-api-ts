@@ -47,7 +47,7 @@ function witnessClient(body: unknown) {
 
 describe('generator contract 17 (actions that answer with a URL)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(27)
+    expect(witness.info?.['x-generator']?.contract).toBe(29)
     expect(checkContract(witness)).toBeUndefined()
   })
 
