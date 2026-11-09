@@ -38,10 +38,13 @@ export interface ResourceLinks {
   [key: string]: unknown
 }
 
-/** The relationship-instance envelope for a materialised related value (its `$edge`). */
-export interface Edge {
+/**
+ * The relationship-instance envelope for a materialised related value (its `$edge`). `Meta`
+ * types `meta` when the relation declares its identifier meta members.
+ */
+export interface Edge<Meta extends Record<string, unknown> = Record<string, unknown>> {
   links?: Record<string, unknown>
-  meta?: Record<string, unknown>
+  meta?: Meta
 }
 
 /** The uniform shape `$rel(name)` returns. */
