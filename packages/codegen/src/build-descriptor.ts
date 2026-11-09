@@ -5,6 +5,7 @@ import type {
   Cardinality,
   ClientIdPolicy,
   CountableDescriptor,
+  FilterFamilyDescriptor,
   InputMediaKind,
   MenuDescriptor,
   PaginatorDescriptor,
@@ -24,6 +25,7 @@ import type {
   HttpMethod,
   OpenApiDocument,
   OperationObject,
+  ParameterObject,
   PathItemObject,
   SchemaObject,
   SchemaOrBool,
@@ -217,6 +219,16 @@ export class DescriptorBuilder {
       const filterable = this.filterable(collection)
       if (filterable !== undefined) {
         descriptor.filterable = filterable
+      }
+      const collectionRead =
+        collection === undefined ? undefined : this.operation(collection, 'get')
+      const listFilters = listFilterKeys(collectionRead)
+      if (listFilters !== undefined) {
+        descriptor.listFilters = listFilters
+      }
+      const filterFamilies = filterFamiliesOf(collectionRead)
+      if (filterFamilies !== undefined) {
+        descriptor.filterFamilies = filterFamilies
       }
       if (Object.keys(actions).length > 0) {
         descriptor.actions = actions
@@ -595,6 +607,14 @@ export class DescriptorBuilder {
     const filterable = filterKeys(op)
     if (filterable !== undefined) {
       action.filterable = filterable
+    }
+    const listFilters = listFilterKeys(op)
+    if (listFilters !== undefined) {
+      action.listFilters = listFilters
+    }
+    const filterFamilies = filterFamiliesOf(op)
+    if (filterFamilies !== undefined) {
+      action.filterFamilies = filterFamilies
     }
     // Only carried when non-POST (POST is the runtime default), keeping the common descriptor tiny.
     if (method !== 'post') {
@@ -1437,18 +1457,72 @@ function isJsonMediaType(mediaType: string): boolean {
 
 /**
  * The keys of an operation's `filter[<key>]` query parameters, sorted, or `undefined` when it
- * takes none.
+ * takes none. A list filter's `filter[<key>][]` parameter names its key in `x-filter-list`, so a
+ * filter that takes both forms is one key.
  */
 function filterKeys(op: OperationObject | undefined): readonly string[] | undefined {
-  const keys: string[] = []
+  const keys = new Set<string>()
   for (const param of op?.parameters ?? []) {
-    const name = param.name
-    if (typeof name === 'string' && name.startsWith('filter[') && name.endsWith(']')) {
-      keys.push(name.slice('filter['.length, -1))
+    const key = filterParamKey(param)
+    if (key !== undefined) {
+      keys.add(key)
     }
   }
   // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
+  return keys.size > 0 ? [...keys].sort() : undefined
+}
+
+/** The filter key a `filter[...]` parameter carries, or `undefined` for any other parameter. */
+export function filterParamKey(param: ParameterObject): string | undefined {
+  const list = param['x-filter-list']
+  if (typeof list?.key === 'string') {
+    return list.key
+  }
+  const name = param.name
+  return typeof name === 'string' &&
+    name.startsWith('filter[') &&
+    name.endsWith(']') &&
+    !name.endsWith('][]')
+    ? name.slice('filter['.length, -1)
+    : undefined
+}
+
+/**
+ * The keys of an operation's filters that take a list, read from the `x-filter-list` of their
+ * `filter[<key>][]` parameters, sorted, or `undefined` when none does.
+ */
+function listFilterKeys(op: OperationObject | undefined): readonly string[] | undefined {
+  const keys = (op?.parameters ?? []).flatMap((param) => {
+    const key = param['x-filter-list']?.key
+    return typeof key === 'string' ? [key] : []
+  })
+  // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
   return keys.length > 0 ? keys.sort() : undefined
+}
+
+/**
+ * The filter families an operation accepts, from the `x-filter-families` of its `filter`
+ * parameter: each a key prefix, the pattern its suffix must match, and whether it takes a list.
+ * Returns `undefined` when it lists none.
+ */
+function filterFamiliesOf(
+  op: OperationObject | undefined,
+): readonly FilterFamilyDescriptor[] | undefined {
+  const declared = paramSchema(op, 'filter')?.['x-filter-families']
+  if (!Array.isArray(declared)) {
+    return undefined
+  }
+  const families: FilterFamilyDescriptor[] = []
+  for (const family of declared) {
+    if (typeof family.prefix === 'string' && typeof family.suffixPattern === 'string') {
+      families.push(
+        family.list === true
+          ? { prefix: family.prefix, suffixPattern: family.suffixPattern, list: true }
+          : { prefix: family.prefix, suffixPattern: family.suffixPattern },
+      )
+    }
+  }
+  return families.length > 0 ? families : undefined
 }
 
 /** The HTTP methods an action operation may be advertised under, in resolution preference order. */

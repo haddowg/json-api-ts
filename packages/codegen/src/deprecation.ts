@@ -1,3 +1,4 @@
+import { filterParamKey } from './build-descriptor'
 import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
 
 /** The sentence the server appends to a deprecated operation's description when it has a sunset. */
@@ -147,15 +148,14 @@ export class Deprecations {
 
   /** The sentence naming the deprecated `filter[...]` parameters of an operation. */
   operationFilters(op: OperationObject | undefined): string | undefined {
-    const keys = (op?.parameters ?? []).flatMap((param) => {
-      const name = param.name
-      return param.deprecated === true &&
-        typeof name === 'string' &&
-        name.startsWith('filter[') &&
-        name.endsWith(']')
-        ? [name.slice('filter['.length, -1)]
-        : []
-    })
+    const keys = [
+      ...new Set(
+        (op?.parameters ?? []).flatMap((param) => {
+          const key = param.deprecated === true ? filterParamKey(param) : undefined
+          return key === undefined ? [] : [key]
+        }),
+      ),
+    ]
     // oxlint-disable-next-line no-array-sort -- sorting a freshly-built array, as `filterable` is
     keys.sort()
     return keys.length === 0
@@ -172,6 +172,23 @@ export class Deprecations {
     return keys.length === 0
       ? undefined
       : `The server marks the ${codeList(keys)} ${keys.length === 1 ? 'sort' : 'sorts'} deprecated, in either direction.`
+  }
+
+  /** The sentence naming the deprecated filter families of an operation, by prefix. */
+  operationFilterFamilies(op: OperationObject | undefined): string | undefined {
+    const schema = op?.parameters?.find((param) => param.name === 'filter')?.schema
+    const families = schema?.['x-filter-families']
+    const prefixes = (Array.isArray(families) ? families : []).flatMap((family) =>
+      family.deprecated === true && typeof family.prefix === 'string' ? [family.prefix] : [],
+    )
+    return prefixes.length === 0
+      ? undefined
+      : `The server marks the ${codeList(prefixes)} filter ${prefixes.length === 1 ? 'family' : 'families'} deprecated.`
+  }
+
+  /** The sentence naming a type's deprecated filter families, by prefix. */
+  filterFamilies(type: string): string | undefined {
+    return this.operationFilterFamilies(this.collection(type))
   }
 
   /** The sentence naming a type's deprecated sort families, by prefix. */
