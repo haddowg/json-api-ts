@@ -36,12 +36,12 @@ A meta-output action has no resource to materialise, so the client returns the r
 
 When an action takes a JSON:API document *and* names an `inputType`, you pass **flat attributes** exactly as you would to `create`, and the client builds the `{ data: { type, attributes } }` envelope for you. When it returns a document, the client **materialises** the response into a flattened resource — so you read `result.title`, not `result.data.attributes.title`.
 
-`reissue` is resource-scoped, `input: document`, `output: document`:
+`reissue` is resource-scoped, `input: document`, `output: document`. It takes a `reissues` document and returns the album:
 
 ```ts
 // Flat input, like create — the client wraps it into the JSON:API envelope.
 const reissued = await client.albums.id('1').actions.reissue({
-  title: 'OK Computer',
+  releasedAt: '2001-10-01T00:00:00+00:00',
 })
 
 // The 2xx document is materialised into a flat resource.
@@ -49,7 +49,7 @@ reissued.id    // '1'
 reissued.title // 'OK Computer'
 ```
 
-Because the input envelope is built the same way `create` builds it, validation errors come back the same way too: a `422` is remapped from server pointers (`/data/attributes/title`) to your flat input keys, so `error.byPath()['title']` finds them. See [writes](writes.md) for the flat-input / `byPath()` model in full, and [errors](errors.md) for the `JsonApiError` API.
+Because the input envelope is built the same way `create` builds it, validation errors come back the same way too: a `422` is remapped from server pointers (`/data/attributes/releasedAt`) to your flat input keys, so `error.byPath()['releasedAt']` finds them. See [writes](writes.md) for the flat-input / `byPath()` model in full, and [errors](errors.md) for the `JsonApiError` API.
 
 !!! tip "Where the shapes come from"
     A document-output action's result is typed as the materialised `ReadResult` of its `outputType` — identical to what a read of that type returns. A document-input action's argument is the flat `CreateInput` of its `inputType`. Both are read off the descriptor, not invented per action, so the typed contract matches exactly what the client sends and receives.

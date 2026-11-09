@@ -209,7 +209,7 @@ off a handle (`.id(id)`). The body shape follows the action's declared `input`
 ```ts
 // Resource-scoped, document in / document out.
 const reissued = await client.albums.id('1').actions.reissue({
-  data: { type: 'albums', attributes: { title: 'OK Computer' } },
+  releasedAt: '2001-10-01T00:00:00+00:00',
 })
 
 // Collection-scoped, no input.
