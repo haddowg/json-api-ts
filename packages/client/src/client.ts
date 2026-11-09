@@ -7,6 +7,7 @@ import type {
   InputMediaKind,
 } from './descriptor'
 import { JsonApiError } from './errors'
+import { type FilterSpec, listFilterMatcher } from './filters'
 import { readActionLocation } from './location'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
 import { resolvePaginator } from './pagination'
@@ -129,6 +130,10 @@ async function run(
   if (query !== undefined) {
     const { signal, ...params } = query
     req.query = params
+    const listFilter = listFilterMatcher(filterSpec(ctx, type, operation, vars['rel']))
+    if (listFilter !== undefined) {
+      req.listFilter = listFilter
+    }
     if (signal !== undefined) {
       req.signal = signal
     }
@@ -155,6 +160,23 @@ async function run(
   return doc === undefined
     ? undefined
     : materialise(doc, ctx.materialise, linkage, primaryType, paginatorOverride)
+}
+
+/**
+ * The filter vocabulary a read's `filter` is matched against: the type's for its collection read,
+ * and the related type's for a related or relationship read of a relation with one related type.
+ */
+function filterSpec(
+  ctx: ClientContext,
+  type: string,
+  operation: string,
+  rel: string | undefined,
+): FilterSpec | undefined {
+  if (operation === 'fetchMany') {
+    return ctx.descriptor[type]
+  }
+  const types = rel === undefined ? undefined : ctx.descriptor[type]?.relations[rel]?.types
+  return types?.length === 1 ? ctx.descriptor[types[0]!] : undefined
 }
 
 /**
@@ -291,6 +313,10 @@ async function runAction(
   }
   if (options.filter !== undefined) {
     req.query = { filter: options.filter }
+    const listFilter = listFilterMatcher(action)
+    if (listFilter !== undefined) {
+      req.listFilter = listFilter
+    }
   }
   let remap: ((error: JsonApiError) => JsonApiError) | undefined
   const media = requestMedia(action, options.contentType)

@@ -57,6 +57,11 @@ export interface JsonApiRequest {
    */
   link?: boolean
   query?: ReadQuery
+  /**
+   * The filter keys of {@link query} that take a list, sent as `filter[<key>][]` once per member.
+   * The client sets it from the descriptor; without it an array filter value is comma-joined.
+   */
+  listFilter?: (key: string) => boolean
   body?: unknown
   /**
    * Override the request `Content-Type`, which defaults to the negotiated JSON:API media type on
@@ -153,14 +158,21 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 /**
  * Append a filter value under its (already-bracketed) key. A plain object is a STRUCTURED filter
  * value — a `Range`/`DateRange` deepObject (`{ min, max }`) — and recurses into nested bracketed
- * keys (`filter[k][min]=`), matching the server's deepObject wire shape; an array joins with `,`;
- * a scalar is appended directly. Without the object branch a `{ min, max }` value would reach the
+ * keys (`filter[k][min]=`), matching the server's deepObject wire shape; an array goes out once per
+ * member as `filter[k][]=` for a filter that takes a list, so a member may hold a comma, and joins
+ * with `,` otherwise; a scalar is appended directly. Without the object branch a `{ min, max }` value would reach the
  * wire as `filter[k]=[object Object]` and be silently ignored by the server.
  */
-const appendFilterValue = (parts: string[], key: string, value: unknown): void => {
+const appendFilterValue = (parts: string[], key: string, value: unknown, list = false): void => {
   if (isPlainObject(value)) {
     for (const [subKey, subValue] of Object.entries(value)) {
       appendFilterValue(parts, `${key}[${subKey}]`, subValue)
+    }
+    return
+  }
+  if (list && Array.isArray(value)) {
+    for (const member of value) {
+      append(parts, `${key}[]`, member)
     }
     return
   }
@@ -170,15 +182,16 @@ const appendFilterValue = (parts: string[], key: string, value: unknown): void =
 /**
  * Serialise a read query to a query string (no leading `?`). Bracketed keys
  * (`filter[title]`, `page[number]`, `fields[albums]`) are kept literal; only values
- * are percent-encoded. Empty/undefined entries are skipped; key order is deterministic
+ * are percent-encoded. `isListFilter` names the filter keys that take a list, whose array value
+ * goes out as `filter[<key>][]` once per member. Empty/undefined entries are skipped; key order is deterministic
  * (family order, then insertion order within a family) so URLs are stable for caching.
  */
-export function serializeQuery(query: ReadQuery): string {
+export function serializeQuery(query: ReadQuery, isListFilter?: (key: string) => boolean): string {
   const parts: string[] = []
 
   if (query.filter) {
     for (const [key, value] of Object.entries(query.filter)) {
-      appendFilterValue(parts, `filter[${key}]`, value)
+      appendFilterValue(parts, `filter[${key}]`, value, isListFilter?.(key) ?? false)
     }
   }
 
@@ -294,7 +307,7 @@ async function send(
     url = isAbsolute(req.path) ? req.path : ctx.baseUrl + req.path
   }
   if (req.query) {
-    const qs = serializeQuery(req.query)
+    const qs = serializeQuery(req.query, req.listFilter)
     if (qs) {
       url += (url.includes('?') ? '&' : '?') + qs
     }

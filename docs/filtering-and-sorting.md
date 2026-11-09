@@ -35,7 +35,7 @@ A template literal only keeps its type where TypeScript reads it against the sor
 
 ### Deprecated filters and sorts
 
-A server can mark a filter, a sort key or a sort family deprecated. It still accepts them, so they stay in the filter and sort types and compile as before. A member of a string literal union can't carry TSDoc, so your editor won't strike one through. The generated `resourceMap` names them in the TSDoc on the type's `filterable`, `sortable` and `sortFamilies` entries instead. See [deprecation](codegen.md#deprecation).
+A server can mark a filter, a filter family, a sort key or a sort family deprecated. It still accepts them, so they stay in the filter and sort types and compile as before. A member of a string literal union can't carry TSDoc, so your editor won't strike one through. The generated `resourceMap` names them in the TSDoc on the type's `filterable`, `filterFamilies`, `sortable` and `sortFamilies` entries instead. See [deprecation](codegen.md#deprecation).
 
 !!! note "No sorting advertised? `sort` is a compile error."
     If a type advertises no `sortable` set (the OpenAPI document declares no sort parameter), its `sort` value is typed `never` — the key cannot be supplied at all. That is a compile-time mirror of the server's `400 SORTING_UNSUPPORTED`. In the example app, `playlists` advertises no sort, so [BrowsePage.tsx](../examples/spotify-clone/src/pages/BrowsePage.tsx) lists them without a `sort`.
@@ -55,6 +55,27 @@ Here `filter.title` is valid because `albums` advertises `title` (alongside `q`,
 
 !!! note "No filters advertised? `filter` is a compile error."
     Just like `sort`, a type with no `filterable` set types its `filter` as `never`. Supplying one is rejected at compile time — the static twin of `400 FILTERING_UNRECOGNIZED`.
+
+### List filters
+
+A filter the server declares with `acceptsList()` takes a list of values, and the OpenAPI document gives it a `filter[<key>][]` parameter marked `x-filter-list`. The codegen lists those keys in the descriptor as `listFilters`. The filter's value is typed `readonly string[]`, and the client sends it once per member, so a member may hold a comma:
+
+```ts
+await client.reports.list({ filter: { columns: ['last,first', 'email'] } })
+// GET /reports?filter[columns][]=last%2Cfirst&filter[columns][]=email
+```
+
+Every other filter keeps its `unknown` value, and an array value for it is still joined with `,`.
+
+### Filter families
+
+A server can accept a whole family of filter keys by prefix, such as `value.<cap>` where the caps are data. The OpenAPI document lists each family under the `filter` parameter's `x-filter-families`, and the codegen copies them into the descriptor as `filterFamilies`. Each family adds a `` `value.${string}` `` key to the type's `filter` object. Its value is a `string`, or `readonly string[]` for a family whose filters take a list, which the client sends as `filter[value.<cap>][]` once per member:
+
+```ts
+await client.campaigns.list({ filter: { 'value.cap': ['a,b', 'c'], 'meta.colour': 'red' } })
+```
+
+As with sort families, the type checks the prefix and the dot but not the suffix. The descriptor carries each family's `suffixPattern` if you want to check a key before sending it; a key the server doesn't recognise comes back as its `400`. A collection action that takes its type's filters takes its list filters and families too.
 
 ### Free-text search with `filter[q]`
 
@@ -86,7 +107,7 @@ The runtime serialises the flat `filter`/`sort` into JSON:API's bracketed query 
 GET /albums?filter[title]=OK&sort=-releasedAt
 ```
 
-Only values are percent-encoded; bracketed keys stay literal. Array filter values join with `,`, and a structured value (a `Range`/`DateRange` `{ min, max }`) is expanded into nested bracketed keys (`filter[key][min]=…`) to match the server's deepObject shape.
+Only values are percent-encoded; bracketed keys stay literal. Array filter values join with `,`, except a [list filter's](#list-filters), which goes out once per member as `filter[key][]=…`, and a structured value (a `Range`/`DateRange` `{ min, max }`) is expanded into nested bracketed keys (`filter[key][min]=…`) to match the server's deepObject shape.
 
 ??? note "Going deeper: how the codegen narrows these types"
     The codegen reads the OpenAPI document your backend emits and records, per type, the exact `sortable` and `filterable` string arrays into the generated descriptor (see [the generated client](../examples/spotify-clone/src/generated/music-catalog.gen.ts)):
