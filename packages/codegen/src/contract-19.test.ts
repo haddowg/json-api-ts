@@ -52,7 +52,7 @@ const withoutIncluded = (value: unknown): unknown =>
 
 describe('generator contract 19 (discriminated unions, typed included)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(27)
+    expect(witness.info?.['x-generator']?.contract).toBe(29)
     expect(checkContract(witness)).toBeUndefined()
   })
 

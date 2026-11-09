@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 28. An older document is refused, because it describes its error codes in a form
+contracts 24 to 29. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -71,6 +71,12 @@ A few things the codegen reads from the document that affect the generated clien
 
 - **Links** are typed loosely: the client reads `href` from a link object and accepts
   a plain string too.
+- **Open objects.** An attribute object whose `additionalProperties` is a schema takes
+  members it does not declare, each of that schema's type. Its declared members are
+  intersected with a `Record` of that type, so a spreadsheet row requiring `Key` is
+  `{ Key: string } & Record<string, string>`, and one declaring nothing is just
+  `Record<string, string>`. A typed map outside the attributes, such as one in a raw action
+  response, stays `Record<string, unknown>`.
 - **Relation paths** use the relation's URI field name, which can differ from its name
   (`/articles/{id}/published-by` for `publisher`). The codegen finds each relation's
   endpoints by operationId (`fetchRelated.articles.publisher`) and records the segment
