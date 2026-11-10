@@ -22,7 +22,7 @@ describe('generator contract 27 (list filters and filter families)', () => {
   const members = (name: string) => filter(name)['properties'] as Record<string, JsonSchema>
 
   it('reads the document', () => {
-    expect(mcp.contract).toBe(32)
+    expect(mcp.contract).toBe(33)
   })
 
   it('takes a list filter as one array member', () => {
