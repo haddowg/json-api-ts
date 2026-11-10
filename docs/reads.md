@@ -98,7 +98,11 @@ const refs = await client.albums.id('1').rel('tracks').get()
 A literal relation name (`'tracks'`) narrows the return to the related type, so the members
 are typed without a cast. `.related()` and `.get()` accept the same query families as a
 collection read (`filter`/`sort`/`include`/`fields`/`page`/`withCount`) — the related and
-relationship endpoints advertise their own vocabulary.
+relationship endpoints advertise their own vocabulary. When the descriptor records a
+relation's own `sortable` and `filterable`, as the codegen does for a polymorphic relation
+whose reads declare them, `sort` and `filter` are narrowed to those keys. A `MorphToMany`
+identified by its link rows is one: it sorts and filters by its pivot fields, and each
+member's `$pivot` is typed from them.
 
 ??? note "Going deeper: `.rel(name)` vs direct property access, and suppressed endpoints"
     On a handle you can also reach a relation by property — `client.albums.id('1').tracks`

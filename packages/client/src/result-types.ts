@@ -402,11 +402,16 @@ export type CountToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] ex
  * names like `title`/`-title`) plus, per sort family, `prefix.${string}` and `-prefix.${string}`.
  * `never` when the collection advertises no sorting.
  */
-export type SortToken<D extends ApiDescriptor, T extends TypeName<D>> =
-  | FixedSortToken<D, T>
-  | FamilySortToken<D, T>
+export type SortToken<D extends ApiDescriptor, T extends TypeName<D>> = SortTokenOf<D[T]>
 
-type FixedSortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+/**
+ * A sort token a descriptor `Spec` (a type's, or a relation's) accepts: its `sortable` literal
+ * union plus, per sort family, `prefix.${string}` and `-prefix.${string}`. `never` when it
+ * declares neither.
+ */
+type SortTokenOf<Spec> = FixedSortToken<Spec> | FamilySortToken<Spec>
+
+type FixedSortToken<Spec> = Spec extends {
   sortable: infer S
 }
   ? S extends readonly (infer Token)[]
@@ -414,7 +419,7 @@ type FixedSortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] exten
     : never
   : never
 
-type FamilySortToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+type FamilySortToken<Spec> = Spec extends {
   sortFamilies: infer F
 }
   ? F extends readonly { prefix: infer P extends string }[]
@@ -494,6 +499,45 @@ export type FilterQuery<D extends ApiDescriptor, T extends TypeName<D>> = [
 ] extends [never]
   ? never
   : FiltersOf<D[T], FilterKey<D, T>>
+
+/** The exact filter keys a descriptor `Spec` declares in `filterable`, or `never`. */
+type FilterKeyOf<Spec> = Spec extends { filterable: readonly (infer Key)[] } ? Key & string : never
+
+/** Relation `R` of type `T` as its descriptor declares it. */
+type RelationSpec<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R]
+
+/**
+ * The `sort` value relation `R`'s related and relationship reads take: one of the tokens its
+ * descriptor declares or a tuple of them, as {@link SortQuery} types a collection read. A
+ * relation whose descriptor declares no sorts of its own takes any sort, since the descriptor
+ * then says nothing either way.
+ */
+export type RelationSortQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = [SortTokenOf<RelationSpec<D, T, R>>] extends [never]
+  ? string | readonly string[]
+  : SortTokenOf<RelationSpec<D, T, R>> | readonly SortTokenOf<RelationSpec<D, T, R>>[]
+
+/**
+ * The `filter` object relation `R`'s related and relationship reads take: keyed by the filters its
+ * descriptor declares, as {@link FilterQuery} types a collection read. A relation whose descriptor
+ * declares no filters of its own takes any filter.
+ */
+export type RelationFilterQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = [FilterKeyOf<RelationSpec<D, T, R>> | FilterFamilyPrefixOf<RelationSpec<D, T, R>>] extends [
+  never,
+]
+  ? Record<string, unknown>
+  : FiltersOf<RelationSpec<D, T, R>, FilterKeyOf<RelationSpec<D, T, R>>>
 
 /**
  * The element type of the `fields` map for a typed read: a member-name array per wire type,
@@ -585,12 +629,18 @@ export type ReadResult<
 > = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F>
 
 /**
- * A read query for the relationship/related endpoints: loose filter/sort/include/fields/withCount,
- * and a `page` of type `Pg` (typed from the relation's paginator on a typed accessor).
+ * A read query for the relationship/related endpoints: loose include/fields/withCount, a `page` of
+ * type `Pg` (typed from the relation's paginator on a typed accessor), and a `sort` of type `S`
+ * and a `filter` of type `F`, which a typed accessor narrows when the relation declares its own
+ * (see {@link RelationSortQuery} and {@link RelationFilterQuery}).
  */
-export interface RelationReadQuery<Pg = Readonly<Record<string, unknown>>> {
-  filter?: Record<string, unknown>
-  sort?: string | readonly string[]
+export interface RelationReadQuery<
+  Pg = Readonly<Record<string, unknown>>,
+  S = string | readonly string[],
+  F = Record<string, unknown>,
+> {
+  filter?: F
+  sort?: S
   include?: readonly string[]
   fields?: Record<string, readonly string[]>
   page?: Pg
@@ -738,6 +788,17 @@ type LinkageValue<
       >
     : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>, EdgeMetaOf<D, T, R>> | null
 
+/**
+ * The query relation `R`'s related and relationship reads take, its `sort` and `filter` narrowed
+ * to what the relation declares and its `page` of type `Pg`.
+ */
+export type TypedRelationReadQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Pg = Readonly<Record<string, unknown>>,
+> = RelationReadQuery<Pg, RelationSortQuery<D, T, R>, RelationFilterQuery<D, T, R>>
+
 /** The `page` argument relation `R`'s to-many reads accept; `never` for a to-one. */
 export type RelationPageParams<
   D extends ApiDescriptor,
@@ -765,12 +826,12 @@ export interface RelationshipAccessor<
 > {
   get: ReadsRelationship<D, T, R> extends true
     ? <const Pg extends RelationPageParams<D, T, R> | undefined = undefined>(
-        query?: RelationReadQuery<ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
+        query?: TypedRelationReadQuery<D, T, R, ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
       ) => Promise<LinkageValue<D, T, R, Pg>>
     : never
   related: ExposesRelated<D, T, R> extends true
     ? <const Pg extends RelationPageParams<D, T, R> | undefined = undefined>(
-        query?: RelationReadQuery<ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
+        query?: TypedRelationReadQuery<D, T, R, ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
       ) => Promise<RelatedValue<D, A, T, R, Pg>>
     : never
   add: RelationMutation<D, T, R, 'add', readonly WriteRef<D, T, R>[]>
