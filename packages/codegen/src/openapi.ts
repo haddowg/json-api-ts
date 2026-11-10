@@ -111,7 +111,7 @@ export interface OpenApiDocument {
   components?: {
     schemas?: Record<string, SchemaObject>
     securitySchemes?: Record<string, SecuritySchemeObject>
-    /** Shared response components; error responses are read through them. */
+    /** Shared response components; an error response is read inline or through one. */
     responses?: Record<string, unknown>
     /** Named Example Objects, such as each error code's example document. */
     examples?: Record<string, unknown>
