@@ -389,6 +389,47 @@ function relationScopeDoc(
   return lines.length === 0 ? undefined : ['OAuth scopes:', '', ...lines].join('\n')
 }
 
+/** Each operation of a document, by the operationId the projector stamps on it. */
+function operationsById(doc: OpenApiDocument): Map<string, OperationObject> {
+  const out = new Map<string, OperationObject>()
+  for (const item of Object.values(doc.paths ?? {})) {
+    for (const op of Object.values(item) as (OperationObject | undefined)[]) {
+      if (typeof op?.operationId === 'string') {
+        out.set(op.operationId, op)
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * The sentence naming the order the server reads a relation's members in when a read names no
+ * `sort`: the `default` of the `sort` parameter on its related or relationship read, or
+ * `undefined` when neither declares one. The client sends nothing for it.
+ */
+function defaultOrderDoc(
+  operations: ReadonlyMap<string, OperationObject>,
+  type: string,
+  relation: string,
+): string | undefined {
+  for (const operation of ['fetchRelated', 'fetchRelationship']) {
+    const sort = operations
+      .get(`${operation}.${type}.${relation}`)
+      ?.parameters?.find((param) => param.in === 'query' && param.name === 'sort')
+    const declared: unknown = sort?.schema?.default
+    const tokens = typeof declared === 'string' ? declared.split(',') : declared
+    if (
+      Array.isArray(tokens) &&
+      tokens.length > 0 &&
+      tokens.every((token): token is string => typeof token === 'string' && token !== '')
+    ) {
+      const order = tokens.map((token) => `\`${token}\``).join(', then ')
+      return `Without a \`sort\`, the server reads its members ordered by ${order}.`
+    }
+  }
+  return undefined
+}
+
 /** The most lines of example JSON an action's `@example` shows; a longer one is left out. */
 export const EXAMPLE_DOC_MAX_LINES = 80
 
@@ -525,6 +566,7 @@ export class Emitter {
     this.provenance = deriveProvenance(source)
     this.takenNames = new Set(MODULE_NAMES)
     const deprecations = new Deprecations(this.doc, this.schemas, this.baseByType)
+    const operations = operationsById(this.doc)
     for (const type of Object.keys(descriptor)) {
       const base = this.baseByType.get(type)
       const links =
@@ -587,6 +629,7 @@ export class Emitter {
       }
       for (const relation of Object.keys(descriptor[type]?.relations ?? {})) {
         const doc = joinDoc(
+          defaultOrderDoc(operations, type, relation),
           relationScopeDoc(scopes, relation),
           deprecations.relation(type, relation, RELATION_OPERATIONS),
         )
