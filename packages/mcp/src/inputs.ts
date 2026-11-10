@@ -88,7 +88,16 @@ export interface QueryPlan {
 
 /** One top-level write field: an attribute, or a relation sent as ids. */
 export interface WriteField {
-  relation?: { cardinality: 'one' | 'many'; types: readonly string[]; polymorphic?: boolean }
+  relation?: {
+    cardinality: 'one' | 'many'
+    types: readonly string[]
+    polymorphic?: boolean
+    /**
+     * How to read the `pivot` each member of a polymorphic relation may carry, sent as its
+     * `meta.pivot`. Absent when the relation takes no pivot.
+     */
+    pivot?: Decoder
+  }
   property: PropertyDecoder
 }
 
@@ -390,17 +399,52 @@ function requestData(doc: OpenApiDocument, schema: unknown): JsonSchema | undefi
   return deref<JsonSchema>(doc, data as JsonSchema)
 }
 
-/** A relation's write argument: an id, ids, or `{ type, id }` objects for a polymorphic one. */
+/**
+ * The writable `meta.pivot` a write request's relationship takes on each member: the pivot node of
+ * its linkage identifiers' `allOf`, or `undefined` when its members carry none.
+ */
+function writePivotSchema(doc: OpenApiDocument, relationship: unknown): JsonSchema | undefined {
+  const rel = deref<JsonSchema>(doc, relationship as JsonSchema)
+  const data = deref<JsonSchema>(
+    doc,
+    (isObject(rel?.['properties']) ? rel['properties']['data'] : undefined) as JsonSchema,
+  )
+  const items = deref<JsonSchema>(doc, data?.['items'] as JsonSchema)
+  const parts = Array.isArray(items?.['allOf']) ? (items['allOf'] as JsonSchema[]) : []
+  for (const part of parts) {
+    const props = deref<JsonSchema>(doc, part)?.['properties']
+    const meta = deref<JsonSchema>(doc, (isObject(props) ? props['meta'] : undefined) as JsonSchema)
+    const pivot = isObject(meta?.['properties']) ? meta['properties']['pivot'] : undefined
+    if (pivot !== undefined) {
+      return pivot as JsonSchema
+    }
+  }
+  return undefined
+}
+
+/**
+ * A relation's write argument: an id, ids, or `{ type, id }` objects for a polymorphic one. A
+ * polymorphic member also takes the `pivot` its relation writes, when it writes one.
+ */
 function relationArgument(
   name: string,
   relation: RelationDescriptor,
   allowNull: boolean,
+  pivot?: JsonSchema,
 ): JsonSchema {
   const polymorphic = isPolymorphic(relation)
   const one: JsonSchema = polymorphic
     ? closedObject({
         type: { type: 'string', enum: [...relation.types] },
         id: { type: 'string' },
+        ...(pivot === undefined
+          ? {}
+          : {
+              pivot: nullable({
+                ...pivot,
+                description: `The values stored on this membership, sent as its \`meta.pivot\`. Leave null to send none.`,
+              }),
+            }),
       })
     : { type: 'string' }
   const target = polymorphic ? relation.types.join(' or ') : relation.types[0]
@@ -409,7 +453,7 @@ function relationArgument(
       type: 'array',
       items: one,
       description: polymorphic
-        ? `The ${name} relationship: every related resource, as its type (${target}) and id.`
+        ? `The ${name} relationship: every related resource, as its type (${target}) and id${pivot === undefined ? '' : ', with any values stored on its membership'}.`
         : `The ${name} relationship: the ids of the related \`${target}\` resources.`,
     }
   }
@@ -480,12 +524,22 @@ function writeInput(
     const linkageAllowsNull =
       relation.cardinality === 'one' && JSON.stringify(deref(doc, linkage) ?? {}).includes('"null"')
     const isRequired = mode !== 'update' && relRequired.has(name)
-    const argument = relationArgument(name, relation, linkageAllowsNull)
+    const pivotNode =
+      isPolymorphic(relation) && relation.cardinality === 'many'
+        ? writePivotSchema(doc, raw)
+        : undefined
+    const pivot = pivotNode === undefined ? undefined : toPortable(doc, pivotNode, [], 2)
+    const argument = relationArgument(name, relation, linkageAllowsNull, pivot?.schema)
     const schema = isRequired || allowsNull(argument) ? argument : nullable(argument)
     properties[name] = isDeprecated(raw) ? markDeprecated(schema) : schema
     fields[name] = {
       relation: isPolymorphic(relation)
-        ? { cardinality: relation.cardinality, types: relation.types, polymorphic: true }
+        ? {
+            cardinality: relation.cardinality,
+            types: relation.types,
+            polymorphic: true,
+            ...(pivot === undefined ? {} : { pivot: pivot.decoder }),
+          }
         : { cardinality: relation.cardinality, types: relation.types },
       property: { decoder: { kind: 'value' }, nullMeansOmit: !isRequired },
     }

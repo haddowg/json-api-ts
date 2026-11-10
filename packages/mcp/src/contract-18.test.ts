@@ -7,7 +7,7 @@ describe('generator contract 18 (shared links components)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(29)
+    expect(mcp.contract).toBe(30)
   })
 
   it('leaves no reference to the document in any tool schema', () => {
