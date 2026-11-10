@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 32. An older document is refused, because it describes its error codes in a form
+contracts 24 to 33. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -602,8 +602,10 @@ A `haddowg/json-api` document catalogues the error codes the server can send. Ea
 `components.schemas.ErrorDocument<NNN>` offers, after the open generic `Error`, the error
 *shapes* at that status: components grouping the codes that share a `source` member and a
 `meta` declaration, whose `code` is an `anyOf` of one `const` branch per code, each with the
-code's `title` and `description`. An operation raising codes only it raises points at an
-`ErrorDocument<NNN>With…` narrowed to them. Each code's example lives in
+code's `title` and `description`. An operation raising codes only it raises answers that status
+with an error document of its own, such as `ArticlesUpdate409`, which offers the shared codes
+plus its own. The codegen finds that document through the operation's response, inline or a
+response component, so the document's name doesn't matter to it. Each code's example lives in
 `components.examples` under the code. The codegen reads them into these exports:
 
 ```ts
@@ -641,11 +643,14 @@ export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByC
 - `ErrorCode` is the union of those codes, derived from `ErrorCodes`. The TSDoc
   lives on the object because editors show it on hover and in completion for an
   object key, but not for a member of a string literal union.
-- `ErrorCodeByStatus` maps each status that has an `ErrorDocument<NNN>` to its
-  codes, including the codes only some operations raise at it. A status whose document
-  offers only the generic `Error` maps to `never`.
-- `ErrorCodeByOperation` maps each operation id with a narrowed error response to the codes
-  it adds to the ones every operation raises.
+- `ErrorCodeByStatus` maps each status that has an `ErrorDocument<NNN>`, or that some
+  operation answers with a document of its own, to its codes, including the codes only some
+  operations raise at it. A status whose documents offer only the generic `Error` maps to
+  `never`.
+- `ErrorCodeByOperation` maps each operation id with an error document of its own to the codes
+  it adds to the ones every operation raises: the document's codes less the shared
+  `ErrorDocument<NNN>` ones. The generated client exports no type per operation document, so a
+  server renaming one changes nothing a client imports.
 - `ErrorMetaByCode` types the `meta` each code declares. A code whose `meta` is optional
   types as `… | undefined`.
 - `hasErrorCode` only accepts an `ErrorCode`, so a misspelt code fails to compile, and

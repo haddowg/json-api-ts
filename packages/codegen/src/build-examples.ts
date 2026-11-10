@@ -26,8 +26,8 @@ function mediaExamples(
 
 /**
  * The request example and the `2xx` response examples of one operation, or `undefined` when it
- * declares none. Error responses are shared components rather than per-operation, so they are
- * left out.
+ * declares none. Error responses are left out: their codes reach the client through the error
+ * catalogue.
  */
 export function operationExamples(op: OperationObject | undefined): OperationExamples | undefined {
   if (op === undefined) {

@@ -27,13 +27,13 @@ export interface ErrorCatalogue {
   codes: DocumentedErrorCode[]
   /**
    * Per status, the codes its error documents offer, sorted by code: the shared
-   * `ErrorDocument<NNN>` and any narrowed to an operation's scoped codes. A status whose
+   * `ErrorDocument<NNN>` and each operation's own document at that status. A status whose
    * documents offer only the generic `Error` maps to an empty list.
    */
   byStatus: Map<number, string[]>
   /**
    * Per operation id, the codes only that operation and others like it raise, sorted: the
-   * scoped codes its narrowed error responses add to the shared ones.
+   * scoped codes its own error documents add to the shared ones.
    */
   byOperation: Map<string, string[]>
 }
@@ -79,22 +79,91 @@ function sortCodes(codes: Iterable<string>): string[] {
   return [...codes].sort()
 }
 
+/** Whether a component name is a shared error document: `ErrorDocument` or `ErrorDocument<NNN>`. */
+function isSharedDocument(name: string): boolean {
+  return /^ErrorDocument(\d{3})?$/.test(name)
+}
+
+/** One error response of one operation: its status and the error document its schema names. */
+interface OperationErrorDocument {
+  operationId: string
+  status: number
+  document: string
+}
+
 /**
- * Read the documented error codes off a document's error documents. `ErrorDocument`, each
- * `ErrorDocument<NNN>` and each `ErrorDocument<NNN>With…` offer error shapes as
- * `errors.items.anyOf` branches that `$ref` a shape component, after the generic `Error`. A
- * shape's `code` is an `anyOf` of `const` branches, one per code, each carrying the code's
- * `title` and `description`; its `meta`, when declared, types every code in it.
+ * The error document each operation answers with at each error status: the `$ref` of its
+ * response's JSON:API schema, read inline or through the response component it references.
+ */
+function operationErrorDocuments(doc: OpenApiDocument): OperationErrorDocument[] {
+  const responses = doc.components?.responses ?? {}
+  const found: OperationErrorDocument[] = []
+  for (const item of Object.values(doc.paths ?? {})) {
+    for (const operation of Object.values(item ?? {})) {
+      const op = operation as {
+        operationId?: unknown
+        responses?: Record<string, unknown>
+      }
+      if (typeof op !== 'object' || op === null || typeof op.operationId !== 'string') {
+        continue
+      }
+      for (const [code, raw] of Object.entries(op.responses ?? {})) {
+        const status = Number(code)
+        if (!Number.isInteger(status) || status < 400 || status > 599) {
+          continue
+        }
+        let response = raw as { $ref?: unknown } | undefined
+        if (typeof response?.$ref === 'string') {
+          response = response.$ref.startsWith(RESPONSE_PREFIX)
+            ? (responses[response.$ref.slice(RESPONSE_PREFIX.length)] as typeof response)
+            : undefined
+        }
+        const media = (response as { content?: Record<string, { schema?: { $ref?: unknown } }> })
+          ?.content?.[JSON_API_MEDIA_TYPE]
+        const ref = media?.schema?.$ref
+        if (typeof ref === 'string' && ref.startsWith(REF_PREFIX)) {
+          found.push({
+            operationId: op.operationId,
+            status,
+            document: ref.slice(REF_PREFIX.length),
+          })
+        }
+      }
+    }
+  }
+  return found
+}
+
+/**
+ * Read the documented error codes off a document's error documents: `ErrorDocument`, each
+ * `ErrorDocument<NNN>`, each `ErrorDocument<NNN>With…`, and each document an operation's error
+ * response names. They offer error shapes as `errors.items.anyOf` branches that `$ref` a shape
+ * component, after the generic `Error`. A shape's `code` is an `anyOf` of `const` branches, one
+ * per code, each carrying the code's `title` and `description`; its `meta`, when declared, types
+ * every code in it.
  */
 export function readErrorCatalogue(doc: OpenApiDocument): ErrorCatalogue {
   const schemas = doc.components?.schemas ?? {}
   const codes = new Map<string, DocumentedErrorCode>()
   const byStatus = new Map<number, Set<string>>()
   const byDocument = new Map<string, Set<string>>()
+  const answered = operationErrorDocuments(doc).filter(({ document }) => {
+    const schema = schemas[document]
+    return schema !== undefined && property(schema, 'errors') !== undefined
+  })
+  const answeredNames = new Set(answered.map(({ document }) => document))
+
+  const addToStatus = (status: number, documentCodes: Iterable<string>) => {
+    const seen = byStatus.get(status) ?? new Set<string>()
+    for (const code of documentCodes) {
+      seen.add(code)
+    }
+    byStatus.set(status, seen)
+  }
 
   for (const [name, schema] of Object.entries(schemas)) {
     const match = ERROR_DOCUMENT.exec(name)
-    if (match === null) {
+    if (match === null && !answeredNames.has(name)) {
       continue
     }
     const items = property(schema, 'errors')?.items
@@ -129,14 +198,14 @@ export function readErrorCatalogue(doc: OpenApiDocument): ErrorCatalogue {
       }
     }
     byDocument.set(name, documentCodes)
-    if (match[1] !== undefined) {
-      const status = Number(match[1])
-      const seen = byStatus.get(status) ?? new Set<string>()
-      for (const code of documentCodes) {
-        seen.add(code)
-      }
-      byStatus.set(status, seen)
+    if (match?.[1] !== undefined) {
+      addToStatus(Number(match[1]), documentCodes)
     }
+  }
+  // A document named for an operation carries no status in its name: it takes the status of
+  // the response that names it.
+  for (const { status, document } of answered) {
+    addToStatus(status, byDocument.get(document) ?? [])
   }
 
   return {
@@ -146,53 +215,33 @@ export function readErrorCatalogue(doc: OpenApiDocument): ErrorCatalogue {
     byStatus: new Map(
       [...byStatus].sort(([a], [b]) => a - b).map(([status, set]) => [status, sortCodes(set)]),
     ),
-    byOperation: scopedCodesByOperation(doc, byDocument),
+    byOperation: scopedCodesByOperation(answered, byDocument),
   }
 }
 
 /**
- * The codes each operation's narrowed error responses add to the shared ones: a response
- * pointing at `ErrorDocument<NNN>With…` offers the shared `ErrorDocument<NNN>` codes plus its
- * operation's scoped codes.
+ * The codes each operation's own error documents add to the shared ones. An operation answering
+ * a status with a document other than `ErrorDocument` or `ErrorDocument<NNN>` offers that
+ * status's shared codes plus its scoped ones, so its scoped codes are the document's codes less
+ * the shared `ErrorDocument<NNN>` codes.
  */
 function scopedCodesByOperation(
-  doc: OpenApiDocument,
+  answered: OperationErrorDocument[],
   byDocument: Map<string, Set<string>>,
 ): Map<string, string[]> {
-  const responses = doc.components?.responses ?? {}
   const byOperation = new Map<string, Set<string>>()
-  for (const item of Object.values(doc.paths ?? {})) {
-    for (const operation of Object.values(item ?? {})) {
-      const op = operation as {
-        operationId?: unknown
-        responses?: Record<string, { $ref?: unknown }>
-      }
-      if (typeof op !== 'object' || op === null || typeof op.operationId !== 'string') {
-        continue
-      }
-      for (const [status, response] of Object.entries(op.responses ?? {})) {
-        const ref = response?.$ref
-        if (typeof ref !== 'string' || !ref.startsWith(RESPONSE_PREFIX)) {
-          continue
-        }
-        const component = responses[ref.slice(RESPONSE_PREFIX.length)] as
-          | { content?: Record<string, { schema?: { $ref?: unknown } }> }
-          | undefined
-        const schemaRef = component?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
-        const name = typeof schemaRef === 'string' ? schemaRef.slice(REF_PREFIX.length) : ''
-        if (!/With[A-Za-z0-9]+$/.test(name)) {
-          continue
-        }
-        const shared = byDocument.get(`ErrorDocument${status}`) ?? new Set<string>()
-        const scoped = byOperation.get(op.operationId) ?? new Set<string>()
-        for (const code of byDocument.get(name) ?? []) {
-          if (!shared.has(code)) {
-            scoped.add(code)
-          }
-        }
-        byOperation.set(op.operationId, scoped)
+  for (const { operationId, status, document } of answered) {
+    if (isSharedDocument(document)) {
+      continue
+    }
+    const shared = byDocument.get(`ErrorDocument${status}`) ?? new Set<string>()
+    const scoped = byOperation.get(operationId) ?? new Set<string>()
+    for (const code of byDocument.get(document) ?? []) {
+      if (!shared.has(code)) {
+        scoped.add(code)
       }
     }
+    byOperation.set(operationId, scoped)
   }
   return new Map(
     // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
