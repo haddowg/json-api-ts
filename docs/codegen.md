@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 30. An older document is refused, because it describes its error codes in a form
+contracts 24 to 31. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -79,6 +79,14 @@ A few things the codegen reads from the document that affect the generated clien
   raw action response is `Record<string, number>`, and a map nested in a list or another map
   is typed the same way. An object open to any member, or one that says nothing about
   undeclared members, stays `Record<string, unknown>`.
+- **Unions of primitive types.** A value of several JSON types becomes a TS union of
+  each, at the top level, inside an object and as a list's items. A schema listing its
+  types, such as `["string", "number", "boolean", "array", "null"]` with string `items`,
+  is `string | number | boolean | string[] | null`, and a `oneOf` of one schema per
+  member, such as a string enum of `auto` and `off` beside an integer, is
+  `"auto" | "off" | number`. An enum keeps its values' own types, so an integer member
+  limited to `1` and `2` is `1 | 2`. The descriptor's format hint for such a value is
+  `unknown`, since no one type describes it.
 - **Relation paths** use the relation's URI field name, which can differ from its name
   (`/articles/{id}/published-by` for `publisher`). The codegen finds each relation's
   endpoints by operationId (`fetchRelated.articles.publisher`) and records the segment
@@ -662,7 +670,8 @@ Every field is derived from the spec. Where the server stamps a vendor extension
 document's structure:
 
 - **`attributes`** — the read attribute names with a coarse wire-format hint
-  (`string` / `number` / `boolean` / `date` / `date-time` / `object`). The
+  (`string` / `number` / `boolean` / `date` / `date-time` / `object`, or `unknown`
+  for a value of several types). The
   *precise* per-type interface (e.g. `AlbumsAttributes`) is emitted alongside and
   wired onto the client through the `Attributes` map.
 - **`relations`** — per relation: `cardinality` (`one`/`many`), the related

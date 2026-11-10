@@ -19,7 +19,7 @@ describe('generator contract 26 (actions answering 201 Created)', () => {
   const actions = descriptor['articles']!.actions!
 
   it('reads the document without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(30)
+    expect(witness.info?.['x-generator']?.contract).toBe(31)
     expect(checkContract(witness)).toBeUndefined()
   })
 
