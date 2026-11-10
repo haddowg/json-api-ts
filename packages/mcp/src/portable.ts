@@ -411,8 +411,16 @@ function mergeAllOf(
 }
 
 /**
- * Follow a node's `$ref`s, keeping the outermost description. `undefined` on a cycle, which the
- * caller then takes as JSON text.
+ * The keywords a use of a named shape (generator contract 32) carries beside its `$ref` that
+ * constrain the value: a required use's non-empty keyword, such as `minLength: 1` on a union
+ * with a string member.
+ */
+const USE_KEYWORDS = ['minLength', 'minItems', 'minProperties'] as const
+
+/**
+ * Follow a node's `$ref`s, keeping the outermost description and the {@link USE_KEYWORDS} beside
+ * each `$ref`, the outermost first. `undefined` on a cycle, which the caller then takes as JSON
+ * text.
  */
 function follow(
   doc: OpenApiDocument,
@@ -421,11 +429,17 @@ function follow(
 ): { node: JsonSchema; stack: readonly string[] } | undefined {
   let node: unknown = value
   let description: string | undefined
+  const use: JsonSchema = {}
   let path = stack
   while (isObject(node) && typeof node['$ref'] === 'string') {
     const ref = node['$ref']
     if (description === undefined && typeof node['description'] === 'string') {
       description = node['description']
+    }
+    for (const keyword of USE_KEYWORDS) {
+      if (!(keyword in use) && node[keyword] !== undefined) {
+        use[keyword] = node[keyword]
+      }
     }
     if (path.includes(ref)) {
       return undefined
@@ -440,7 +454,7 @@ function follow(
     return undefined
   }
   return {
-    node: description === undefined ? node : { ...node, description },
+    node: { ...node, ...use, ...(description === undefined ? {} : { description }) },
     stack: path,
   }
 }
