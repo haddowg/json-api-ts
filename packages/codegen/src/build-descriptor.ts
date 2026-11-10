@@ -1378,12 +1378,19 @@ function isNullable(schema: SchemaObject): boolean {
   return [...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].some((branch) => branch.type === 'null')
 }
 
-/** A schema's wire format hint: explicit `format`, else the JSON type, else a ref-enum is `string`. */
+/**
+ * A schema's wire format hint: explicit `format`, else the JSON type, else a ref-enum is `string`.
+ * A value of several JSON types, as a `type` list or a `oneOf` of them, has no one hint and is
+ * `unknown`, since a `format` there scopes to its string member only.
+ */
 function formatHint(schema: SchemaObject): string {
+  const types = typeKeys(schema.type)
+  if (types.length > 1) {
+    return 'unknown'
+  }
   if (typeof schema.format === 'string') {
     return schema.format
   }
-  const types = typeKeys(schema.type)
   if (types.length > 0) {
     return types[0]!
   }
