@@ -26,6 +26,7 @@ import type {
   RelationshipAccessor,
   SingleReadQuery,
   TypedReadQuery,
+  TypedRelationReadQuery,
   TypeName,
 } from '@haddowg/json-api-client'
 import { keyFor, type QueryKey } from './keys'
@@ -155,7 +156,7 @@ export function relationshipQueryOptions<
   type: T,
   id: string,
   rel: R,
-  query?: RelationReadQuery,
+  query?: TypedRelationReadQuery<D, T, R>,
 ): QueryOptions<LinkageResult<D, A, T, R>> {
   const accessor = client[type]
   return {
@@ -180,7 +181,7 @@ export function relatedQueryOptions<
   type: T,
   id: string,
   rel: R,
-  query?: RelationReadQuery,
+  query?: TypedRelationReadQuery<D, T, R>,
 ): QueryOptions<RelatedResult<D, A, T, R>> {
   const accessor = client[type]
   return {
@@ -207,12 +208,12 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
   relationship<R extends RelationName<D, T>>(
     id: string,
     rel: R,
-    query?: RelationReadQuery,
+    query?: TypedRelationReadQuery<D, T, R>,
   ): QueryOptions<LinkageResult<D, A, T, R>>
   related<R extends RelationName<D, T>>(
     id: string,
     rel: R,
-    query?: RelationReadQuery,
+    query?: TypedRelationReadQuery<D, T, R>,
   ): QueryOptions<RelatedResult<D, A, T, R>>
 }
 
@@ -254,10 +255,18 @@ function typeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
   return {
     list: (query) => listQueryOptions(client, type, query),
     get: (id, query) => getQueryOptions(client, type, id, query),
-    relationship<R extends RelationName<D, T>>(id: string, rel: R, query?: RelationReadQuery) {
+    relationship<R extends RelationName<D, T>>(
+      id: string,
+      rel: R,
+      query?: TypedRelationReadQuery<D, T, R>,
+    ) {
       return relationshipQueryOptions(client, type, id, rel, query)
     },
-    related<R extends RelationName<D, T>>(id: string, rel: R, query?: RelationReadQuery) {
+    related<R extends RelationName<D, T>>(
+      id: string,
+      rel: R,
+      query?: TypedRelationReadQuery<D, T, R>,
+    ) {
       return relatedQueryOptions(client, type, id, rel, query)
     },
   }
