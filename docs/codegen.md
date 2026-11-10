@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 29. An older document is refused, because it describes its error codes in a form
+contracts 24 to 30. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -122,7 +122,13 @@ A few things the codegen reads from the document that affect the generated clien
 - **Polymorphic relations.** A relation whose linkage is a union is marked
   `polymorphic: true` whatever its member count, so a `MorphTo` over a single type is
   polymorphic too. Its related and relationship endpoints don't advertise the related
-  type's `filter`, `sort` and `page` parameters.
+  type's `filter`, `sort` and `page` parameters. A `MorphToMany` identified by its link
+  rows can sort and filter those rows by pivot fields, and its reads then advertise their
+  own `filter` and `sort`. The codegen records them on the relation as `sortable`,
+  `sortFamilies`, `filterable`, `listFilters` and `filterFamilies`, and the client narrows
+  `sort` and `filter` on its `.get()` and `.related()` to them. Its identifiers' typed
+  `meta.pivot` becomes the relation's `readPivot` and `writePivot`, as on a
+  `BelongsToMany`.
 - **Location documents.** An action that answers with a URL, such as a short-lived
   download link, is marked `location: { mediaType }` and, when the URL is all it answers
   with, `output: "location"`. The client then returns the URL instead of fetching it, as
