@@ -248,12 +248,21 @@ export function writeInput(
       input[name] = decode(value, field.property.decoder, name)
       continue
     }
-    const identify = (item: unknown): unknown => {
+    const identify = (item: unknown, index?: number): unknown => {
       if (isPolymorphic(relation)) {
         if (!isObject(item) || typeof item['type'] !== 'string' || typeof item['id'] !== 'string') {
           throw new ArgumentError(`${name} takes the related resource's type and id`)
         }
-        return { type: item['type'], id: item['id'] }
+        const pivot = item['pivot']
+        if (relation.pivot === undefined || pivot === null || pivot === undefined) {
+          return { type: item['type'], id: item['id'] }
+        }
+        // The client sends `$pivot` as the member's `meta.pivot`.
+        return {
+          type: item['type'],
+          id: item['id'],
+          $pivot: decode(pivot, relation.pivot, `${name}[${index}].pivot`),
+        }
       }
       if (typeof item !== 'string' && typeof item !== 'number') {
         throw new ArgumentError(`${name} takes the related resource's id`)
@@ -264,7 +273,7 @@ export function writeInput(
       if (!Array.isArray(value)) {
         throw new ArgumentError(`${name} takes a list`)
       }
-      input[name] = value.map(identify)
+      input[name] = value.map((item, index) => identify(item, index))
     } else {
       input[name] = identify(value)
     }
