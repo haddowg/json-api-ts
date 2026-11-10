@@ -1282,12 +1282,12 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(MINIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
     expect(MINIMUM_CONTRACT).toBe(24)
-    expect(MAXIMUM_CONTRACT).toBe(31)
+    expect(MAXIMUM_CONTRACT).toBe(32)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(32))).toContain(
-      'declares contract 32 and this codegen reads up to 31',
+    expect(checkContract(contractDoc(33))).toContain(
+      'declares contract 33 and this codegen reads up to 32',
     )
     // A document from before error shapes describes its codes in a way this codegen no longer reads.
     expect(() => checkContract(contractDoc(23))).toThrow('predates what this codegen reads')

@@ -4,7 +4,19 @@ import type { OpenApiDocument } from './openapi'
 export const MINIMUM_CONTRACT = 24
 
 /** Above this the document carries structures this codegen does not read. */
-export const MAXIMUM_CONTRACT = 31
+export const MAXIMUM_CONTRACT = 32
+
+/**
+ * From this contract a non-enum component a field `$ref`s is a shape its author named, which the
+ * codegen emits as a type of its own. A document with no contract reads the same way.
+ */
+export const NAMED_COMPONENTS_CONTRACT = 32
+
+/** Whether the document's named schema components each get a type of their own. */
+export function readsNamedComponents(doc: OpenApiDocument): boolean {
+  const contract = doc.info?.['x-generator']?.contract
+  return typeof contract !== 'number' || contract >= NAMED_COMPONENTS_CONTRACT
+}
 
 /**
  * Check the document's `info.x-generator.contract` against the range this codegen reads. A

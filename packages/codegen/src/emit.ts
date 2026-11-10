@@ -9,6 +9,7 @@ import { buildAtomic } from './build-descriptor'
 import { type DeclaredLink, readDeclaredLinks } from './declared-links'
 import { codeList, Deprecations, splitSunset } from './deprecation'
 import { actionOperation, operationExamples } from './build-examples'
+import { readsNamedComponents } from './contract'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
@@ -161,7 +162,7 @@ function typeStem(type: string): string {
   return /^[A-Za-z]/.test(pascal) ? pascal : `Type${pascal}`
 }
 
-/** Names the generated module declares or relies on, which an enum alias must not take. */
+/** Names the generated module declares or imports, which an enum or named shape must not take. */
 const MODULE_NAMES = [
   'ActionTypes',
   'ApiDescriptor',
@@ -174,10 +175,17 @@ const MODULE_NAMES = [
   'ErrorCodes',
   'ErrorFinder',
   'ErrorMetaByCode',
+  'Included',
+  'IncludedResource',
   'Links',
   'Record',
+  'RelatedIncluded',
+  'RelatedIncludedResource',
+  'RelationName',
   'ResourceLinks',
   'ResourceMap',
+  'TypeName',
+  'WithLinks',
   'WriteAttributes',
 ]
 
@@ -539,6 +547,12 @@ export class Emitter {
   private readonly emittedInterfaces = new Set<string>()
   /** Enum component name -> the alias name it's emitted under. */
   private readonly enumNames = new Map<string, string>()
+  /** Named shape component name -> the type name it's emitted under. */
+  private readonly shapeNames = new Map<string, string>()
+  /** Named shape component name -> its declaration, in first-seen order. */
+  private readonly shapeDeclarations = new Map<string, string>()
+  /** Whether a non-enum component a schema `$ref`s is emitted as a named shape type. */
+  private readonly namedShapes: boolean
   /** Type names already spoken for: the module's own, the per-type interfaces and enum aliases. */
   private readonly takenNames: Set<string>
   /** Component names mid-expansion in {@link tsType} — a cycle guard for self/mutually-referential `$ref`s. */
@@ -572,6 +586,7 @@ export class Emitter {
     this.baseByType = this.indexBases()
     this.provenance = deriveProvenance(source)
     this.takenNames = new Set(MODULE_NAMES)
+    this.namedShapes = readsNamedComponents(this.doc)
     const deprecations = new Deprecations(this.doc, this.schemas, this.baseByType)
     const operations = operationsById(this.doc)
     for (const type of Object.keys(descriptor)) {
@@ -676,15 +691,12 @@ export class Emitter {
     }
     let name = component
     if (!isTypeName(component) || this.takenNames.has(component)) {
-      const pascal = pascalCase(component)
-      let stem = /^[A-Za-z]/.test(pascal) ? pascal : `Enum${pascal}`
-      if (!isTypeName(stem) || this.takenNames.has(stem)) {
-        stem = `${stem}Enum`
-      }
-      name = stem
-      for (let n = 2; this.takenNames.has(name); n++) {
-        name = `${stem}${n}`
-      }
+      // A derived enum name leaves a named shape's component name to that shape.
+      name = this.derivedName(
+        component,
+        'Enum',
+        (candidate) => this.namedShapes && candidate in this.schemas,
+      )
       console.warn(
         `Enum component ${stringLiteral(component)} can't be used as a TypeScript type name; emitting it as ${name}.`,
       )
@@ -692,6 +704,96 @@ export class Emitter {
     this.takenNames.add(name)
     this.enumNames.set(component, name)
     return name
+  }
+
+  /**
+   * The type a named shape is emitted under: its component name when that's a usable type name
+   * no other name in the module takes, else one derived from it with a `Shape` suffix (with a
+   * warning). A derived name also stays clear of every component name in the document, so it
+   * never depends on which components the module reaches first.
+   */
+  private shapeName(component: string): string {
+    let name = component
+    if (!isTypeName(component) || this.takenNames.has(component)) {
+      name = this.derivedName(component, 'Shape', (candidate) => candidate in this.schemas)
+      console.warn(
+        `Schema component ${stringLiteral(component)} ${isTypeName(component) ? 'clashes with a type name the generated module declares' : "can't be used as a TypeScript type name"}; emitting it as ${name}.`,
+      )
+    }
+    this.takenNames.add(name)
+    return name
+  }
+
+  /**
+   * A type name derived from a component's: PascalCased, prefixed with `suffix` when it would
+   * start with a digit, suffixed with it when that is taken too, then numbered.
+   */
+  private derivedName(
+    component: string,
+    suffix: string,
+    reserved: (name: string) => boolean,
+  ): string {
+    const free = (name: string): boolean =>
+      isTypeName(name) && !this.takenNames.has(name) && !reserved(name)
+    const pascal = pascalCase(component)
+    let stem = /^[A-Za-z]/.test(pascal) ? pascal : `${suffix}${pascal}`
+    if (!free(stem)) {
+      stem = `${stem}${suffix}`
+    }
+    let name = stem
+    for (let n = 2; !free(name); n++) {
+      name = `${stem}${n}`
+    }
+    return name
+  }
+
+  /**
+   * The type a named shape component is referenced by, declaring it the first time. The name is
+   * recorded before the body renders, so a shape that refers to itself refers to its own name.
+   */
+  private namedShape(component: string, schema: SchemaObject): string {
+    const known = this.shapeNames.get(component)
+    if (known !== undefined) {
+      return known
+    }
+    const name = this.shapeName(component)
+    this.shapeNames.set(component, name)
+    this.shapeDeclarations.set(component, this.shapeDeclaration(name, schema))
+    return name
+  }
+
+  /**
+   * A named shape's declaration: an interface for an object of declared members, each with its
+   * own JSDoc, else a type alias. The component's description and constraints are its JSDoc.
+   */
+  private shapeDeclaration(name: string, schema: SchemaObject): string {
+    const doc = jsDoc(memberDoc(schema), '')
+    const props = schema.properties
+    const extra = schema['additionalProperties'] as SchemaOrBool | undefined
+    let declaration: string
+    if (
+      schema.type === 'object' &&
+      props !== undefined &&
+      Object.keys(props).length > 0 &&
+      !isSchema(extra)
+    ) {
+      const required = new Set(schema.required ?? [])
+      const lines: string[] = []
+      for (const [field, prop] of Object.entries(props)) {
+        if (!isSchema(prop)) {
+          continue
+        }
+        const memberJsDoc = jsDoc(memberDoc(prop), '  ')
+        if (memberJsDoc !== undefined) {
+          lines.push(memberJsDoc)
+        }
+        lines.push(`  ${propertyKey(field)}${required.has(field) ? '' : '?'}: ${this.tsType(prop)}`)
+      }
+      declaration = `export interface ${name} {\n${lines.join('\n')}\n}`
+    } else {
+      declaration = `export type ${name} = ${this.tsType(schema)}`
+    }
+    return doc === undefined ? declaration : `${doc}\n${declaration}`
   }
 
   /** Map each declared wire type back to the `Base` of its resource schema. */
@@ -721,12 +823,16 @@ export class Emitter {
     // Action input/output aliases reference component schemas; resolve them (this also
     // records any enums they reach) before the enum block is emitted.
     const actionAliases = this.actionTypeAliases()
+    const errorCodes = emitErrorCodes(readErrorCatalogue(this.doc), (schema) => this.tsType(schema))
+    // Every named shape is declared by now, and declaring one records the enums it reaches.
+    const shapes = this.shapeBlock()
     const enums = this.enumAliases()
 
     const parts = [
       this.header(),
       this.imports(),
       ...(enums ? [enums] : []),
+      ...(shapes ? [shapes] : []),
       ...interfaces,
       ...writeInterfaces,
       ...linkInterfaces,
@@ -743,7 +849,7 @@ export class Emitter {
       this.relatedPageLimitsConst(),
       this.pageKindsConst(),
       this.relatedPageKindsConst(),
-      emitErrorCodes(readErrorCatalogue(this.doc), (schema) => this.tsType(schema)),
+      errorCodes,
       this.boundFactory(),
     ]
     return `${parts.join('\n\n')}\n`
@@ -1389,7 +1495,8 @@ export class Emitter {
   /** Map a JSON Schema attribute node to a precise TypeScript type. */
   private tsType(schema: SchemaObject): string {
     // A reference: an enum -> its emitted union alias; an emitted attribute interface ->
-    // its interface name (so an action envelope nests precise attribute types); else
+    // its interface name (so an action envelope nests precise attribute types); a named
+    // shape (generator contract 32) -> its own emitted type; else, in an older document,
     // structural expansion of the referenced component, falling back to unknown. A
     // `expanding` guard breaks any cyclic/self-referential component chain.
     if (typeof schema.$ref === 'string') {
@@ -1401,6 +1508,9 @@ export class Emitter {
       }
       if (target && this.emittedInterfaces.has(target)) {
         return target
+      }
+      if (target && resolved && this.namedShapes) {
+        return this.namedShape(target, resolved)
       }
       if (resolved === undefined || target === undefined || this.expanding.has(target)) {
         return 'unknown'
@@ -1531,6 +1641,20 @@ export class Emitter {
     // `minItems` of 1 or more: the server never sends, or accepts, an empty list.
     const minItems = schema['minItems']
     return typeof minItems === 'number' && minItems >= 1 ? `[${element}, ...${list}]` : list
+  }
+
+  /** The declarations of every named shape the module references, sorted by type name. */
+  private shapeBlock(): string | undefined {
+    if (this.shapeDeclarations.size === 0) {
+      return undefined
+    }
+    // oxlint-disable-next-line no-array-sort -- sorting a freshly-created entry array
+    const entries = [...this.shapeDeclarations].sort(([a], [b]) => {
+      const left = this.shapeNames.get(a)!
+      const right = this.shapeNames.get(b)!
+      return left < right ? -1 : left > right ? 1 : 0
+    })
+    return entries.map(([, declaration]) => declaration).join('\n\n')
   }
 
   /** Union aliases for every enum component an attribute referenced, sorted by name. */

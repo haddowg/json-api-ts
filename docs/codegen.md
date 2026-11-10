@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 31. An older document is refused, because it describes its error codes in a form
+contracts 24 to 32. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -87,6 +87,11 @@ A few things the codegen reads from the document that affect the generated clien
   `"auto" | "off" | number`. An enum keeps its values' own types, so an integer member
   limited to `1` and `2` is `1 | 2`. The descriptor's format hint for such a value is
   `unknown`, since no one type describes it.
+- **Named shapes.** A shape the server names as a schema component of its own, such as
+  a `PlaceholderValue` union or a `Reviewer` object, becomes one exported type under
+  that name, and every member using it refers to the name: inside an object, as a
+  list's items and as a union's branch, on reads and writes alike. See
+  [Named shapes](#named-shapes).
 - **Relation paths** use the relation's URI field name, which can differ from its name
   (`/articles/{id}/published-by` for `publisher`). The codegen finds each relation's
   endpoints by operationId (`fetchRelated.articles.publisher`) and records the segment
@@ -216,8 +221,8 @@ runtime's needs, and all the real machinery lives in the generic
   (`baseUrl`, `transport?`, `headers?`, …).
 - **`Attributes` / `WriteAttributes`** — the per-type attribute maps (read vs
   create/update), plus the per-type `…Attributes` / `…CreateAttributes` /
-  `…UpdateAttributes` interfaces, enum unions (e.g. `AlbumStatus`), and per-action
-  input/output aliases.
+  `…UpdateAttributes` interfaces, enum unions (e.g. `AlbumStatus`), named shapes (e.g.
+  `Reviewer`), and per-action input/output aliases.
 - **`Links`** — each type that declares links, mapped to its `…Links` interface. See
   [below](#declared-links).
 - **`ErrorCode` / `ErrorCodeByStatus` / `ErrorCodeByOperation` / `ErrorMetaByCode` /
@@ -274,6 +279,66 @@ An enum alias takes its component's name. When that name isn't a usable TypeScri
 name (it has spaces or punctuation, starts with a digit, is a reserved word, or clashes
 with another name in the module), the codegen derives one from it, such as `ReleaseState`
 for `release state`, and prints a warning naming both.
+
+### Named shapes
+
+A server can name a shape that several fields share, so it projects once as a schema
+component. Each such component becomes one exported type under its name, an interface for
+an object and a type alias for anything else, with the component's own description and
+constraints as its TSDoc. A shape whose writes differ from its reads also has a
+`<Name>Create` and a `<Name>Update` component, and each is its own type. Only the ones the
+document references are there.
+
+```ts
+/** @maxLength 200 */
+export type PlaceholderValue = string | number | boolean
+
+export interface Reviewer {
+  /** @minLength 1 */
+  name: string
+  /** @format date-time */
+  reviewedAt: string | null
+}
+
+export interface ReviewerCreate {
+  /** @minLength 1 */
+  name: string
+}
+
+export interface ArticlesAttributes {
+  /** The value a placeholder takes when nothing is bound. */
+  defaultValue: PlaceholderValue
+  fallbackValue: PlaceholderValue | null
+  reviewedBy: Reviewer | null
+}
+
+export interface ArticlesCreateAttributes {
+  defaultValue: PlaceholderValue
+  fallbackValue?: PlaceholderValue | null
+  reviewedBy?: ReviewerCreate
+}
+```
+
+A use that admits `null` is `<Name> | null`, since the component itself never does. A use's
+description, deprecation, example and non-empty keyword stay TSDoc on the member. A required
+list keeps its name rather than becoming a non-empty tuple, so `minItems: 1` beside the
+reference is only TSDoc. The descriptor's format hint for a named shape is its component's:
+`object` for an object and `unknown` for a union.
+
+A shape keeps its component name unless that name is one the generated module already uses
+or isn't a usable TypeScript type name. The names the module uses are its own exports and
+imports (`Attributes`, `Links`, `Included`, `TypeName` and the rest), each type's
+`<Type>Attributes`, `<Type>CreateAttributes`, `<Type>UpdateAttributes` and `<Type>Links`, and
+its action input and output aliases. A clash takes a `Shape` suffix, so a component named
+`ArticlesLinks` is `ArticlesLinksShape`. A name that isn't a type name is PascalCased first,
+`Placeholder.Value` becoming `PlaceholderValue`, and gets the suffix too when another
+component already has that name. A name starting with a digit takes `Shape` as a prefix
+instead, and a number follows if the result is still taken. The codegen prints a warning
+naming both. The result doesn't depend on the order the module reaches the components in,
+as long as no two of them derive the same name.
+
+A document older than contract 32 never names a shape, so a `$ref` to a component that isn't
+an enum is still typed inline there.
 
 A nested object follows the same rules member by member. A
 response schema lists every member the server always renders in the object's
