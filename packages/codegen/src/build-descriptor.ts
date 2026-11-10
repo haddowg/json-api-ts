@@ -20,7 +20,7 @@ import type {
   ResourceDescriptor,
   SortFamilyDescriptor,
 } from '@haddowg/json-api-client'
-import { ATOMIC_EXT, CANONICAL_PAGE_KEYS } from '@haddowg/json-api-client'
+import { ATOMIC_EXT, CANONICAL_PAGE_KEYS, isPolymorphic } from '@haddowg/json-api-client'
 import type {
   HttpMethod,
   OpenApiDocument,
@@ -521,6 +521,9 @@ export class DescriptorBuilder {
     if (countable !== undefined) {
       out.countable = countable
     }
+    if (isPolymorphic(descriptor)) {
+      Object.assign(out, relationQueries(relatedGet ?? this.operation(relationshipPath, 'get')))
+    }
     // A to-many related endpoint can advertise a DIFFERENT paginator than the related type's
     // top-level collection (D6a). Read the related-endpoint kind (preferring the related over the
     // relationship endpoint) and carry it ONLY when it diverges from the related type's collection
@@ -903,8 +906,7 @@ export class DescriptorBuilder {
 
   /** A {@link RelationDescriptor} from a parsed linkage entry. */
   private relationOf(cardinality: Cardinality, entry: LinkageEntry): RelationDescriptor {
-    // A pivot is only ever typed on a monomorphic linkage.
-    const pivot = !entry.polymorphic && entry.pivot !== undefined
+    const pivot = entry.pivot !== undefined
     const relation: RelationDescriptor = entry.polymorphic
       ? { cardinality, types: entry.types, polymorphic: true, pivot }
       : { cardinality, types: entry.types, pivot }
@@ -1238,17 +1240,7 @@ export class DescriptorBuilder {
    * the collection advertises no `sort` parameter or no fixed keys.
    */
   private sortable(collection: string | undefined): readonly string[] | undefined {
-    if (collection === undefined) {
-      return undefined
-    }
-    const items = paramSchema(this.operation(collection, 'get'), 'sort')?.items
-    const branches = items?.anyOf ?? (items === undefined ? [] : [items])
-    const tokens = branches.flatMap((branch) =>
-      Array.isArray(branch.enum)
-        ? branch.enum.filter((v): v is string => typeof v === 'string')
-        : [],
-    )
-    return tokens.length > 0 ? tokens : undefined
+    return collection === undefined ? undefined : sortTokens(this.operation(collection, 'get'))
   }
 
   /**
@@ -1259,20 +1251,7 @@ export class DescriptorBuilder {
   private sortFamilies(
     collection: string | undefined,
   ): readonly SortFamilyDescriptor[] | undefined {
-    if (collection === undefined) {
-      return undefined
-    }
-    const declared = paramSchema(this.operation(collection, 'get'), 'sort')?.['x-sort-families']
-    if (!Array.isArray(declared)) {
-      return undefined
-    }
-    const families: SortFamilyDescriptor[] = []
-    for (const family of declared) {
-      if (typeof family.prefix === 'string' && typeof family.suffixPattern === 'string') {
-        families.push({ prefix: family.prefix, suffixPattern: family.suffixPattern })
-      }
-    }
-    return families.length > 0 ? families : undefined
+    return collection === undefined ? undefined : sortFamiliesOf(this.operation(collection, 'get'))
   }
 
   /**
@@ -1454,6 +1433,79 @@ function withCountParam(op: OperationObject | undefined): CountableDescriptor | 
 /** The schema of the operation's parameter of that name, if it carries one. */
 function paramSchema(op: OperationObject | undefined, paramName: string): SchemaObject | undefined {
   return op?.parameters?.find((param) => param.name === paramName)?.schema
+}
+
+/**
+ * The sorts and filters a polymorphic relation's own reads accept, read off its related read, or
+ * its relationship read when it has no related endpoint. Its members share no type whose
+ * collection read could name them, and an identified `MorphToMany` sorts and filters its link rows
+ * by pivot fields no member type has (generator contract 30). Empty when the reads take none.
+ */
+function relationQueries(
+  op: OperationObject | undefined,
+): Pick<
+  RelationDescriptor,
+  'sortable' | 'sortFamilies' | 'filterable' | 'listFilters' | 'filterFamilies'
+> {
+  const out: Pick<
+    RelationDescriptor,
+    'sortable' | 'sortFamilies' | 'filterable' | 'listFilters' | 'filterFamilies'
+  > = {}
+  const sortable = sortTokens(op)
+  if (sortable !== undefined) {
+    out.sortable = sortable
+  }
+  const sortFamilies = sortFamiliesOf(op)
+  if (sortFamilies !== undefined) {
+    out.sortFamilies = sortFamilies
+  }
+  const filterable = filterKeys(op)
+  if (filterable !== undefined) {
+    out.filterable = filterable
+  }
+  const listFilters = listFilterKeys(op)
+  if (listFilters !== undefined) {
+    out.listFilters = listFilters
+  }
+  const filterFamilies = filterFamiliesOf(op)
+  if (filterFamilies !== undefined) {
+    out.filterFamilies = filterFamilies
+  }
+  return out
+}
+
+/**
+ * The fixed sort tokens an operation's `sort` parameter accepts: `schema.items.enum`, or the enum
+ * branch of `schema.items.anyOf` when the parameter also accepts sort families. Returns
+ * `undefined` when the operation takes no `sort` or no fixed keys.
+ */
+function sortTokens(op: OperationObject | undefined): readonly string[] | undefined {
+  const items = paramSchema(op, 'sort')?.items
+  const branches = items?.anyOf ?? (items === undefined ? [] : [items])
+  const tokens = branches.flatMap((branch) =>
+    Array.isArray(branch.enum) ? branch.enum.filter((v): v is string => typeof v === 'string') : [],
+  )
+  return tokens.length > 0 ? tokens : undefined
+}
+
+/**
+ * The sort families an operation's `sort` parameter accepts, from its `x-sort-families`, or
+ * `undefined` when it lists none.
+ */
+function sortFamiliesOf(
+  op: OperationObject | undefined,
+): readonly SortFamilyDescriptor[] | undefined {
+  const declared = paramSchema(op, 'sort')?.['x-sort-families']
+  if (!Array.isArray(declared)) {
+    return undefined
+  }
+  const families: SortFamilyDescriptor[] = []
+  for (const family of declared) {
+    if (typeof family.prefix === 'string' && typeof family.suffixPattern === 'string') {
+      families.push({ prefix: family.prefix, suffixPattern: family.suffixPattern })
+    }
+  }
+  return families.length > 0 ? families : undefined
 }
 
 /**
