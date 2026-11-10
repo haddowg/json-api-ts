@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.5.0...json-api-codegen-v2.6.0) (2026-11-10)
+
+
+### Features
+
+* **codegen:** read generator contract 31 ([284ba5b](https://github.com/haddowg/json-api-ts/commit/284ba5b22c9671e95e62c78c9eda271cbb311b34))
+
+
+### Bug Fixes
+
+* **codegen:** type an integer enum by its numbers ([277d65e](https://github.com/haddowg/json-api-ts/commit/277d65e17dd62bb60a72dcdbca4022b964135264))
+
 ## [2.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.4.0...json-api-codegen-v2.5.0) (2026-11-10)
 
 
