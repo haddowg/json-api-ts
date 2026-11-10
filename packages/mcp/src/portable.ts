@@ -260,6 +260,79 @@ const ARTICLES: Readonly<Record<string, string>> = {
   array: 'an array',
 }
 
+/** The keywords that constrain only a value of one JSON type, which a union lists beside its types. */
+const SCOPED: Readonly<Record<string, readonly string[]>> = {
+  string: ['format', 'minLength', 'maxLength', 'pattern'],
+  number: ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf'],
+  integer: ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf'],
+  boolean: [],
+  array: ['items', 'minItems', 'maxItems', 'uniqueItems'],
+  object: ['properties', 'required', 'additionalProperties', 'minProperties', 'maxProperties'],
+}
+
+/** One type of a schema listing several, with only the keywords that constrain that type. */
+function scopedTo(node: JsonSchema, type: string): JsonSchema {
+  const out: JsonSchema = { type }
+  for (const key of SCOPED[type] ?? []) {
+    if (node[key] !== undefined) {
+      out[key] = node[key]
+    }
+  }
+  return out
+}
+
+/**
+ * The branches of a union of primitive types: one schema per type of a `type` list, or the
+ * non-null `oneOf`/`anyOf` branches, each followed through its `$ref`. `undefined` when the
+ * schema isn't such a union, or one of its branches is an object or can't be followed.
+ */
+function primitiveBranches(
+  doc: OpenApiDocument,
+  node: JsonSchema,
+  stack: readonly string[],
+): JsonSchema[] | undefined {
+  const { types } = typeKeys(node)
+  const raw = (node['oneOf'] ?? node['anyOf']) as unknown[] | undefined
+  const branches =
+    types.length > 1
+      ? types.map((type) => scopedTo(node, type))
+      : Array.isArray(raw) && types.length === 0
+        ? raw.filter((b) => !isNull(b)).map((b) => follow(doc, b, stack)?.node)
+        : []
+  if (branches.length < 2) {
+    return undefined
+  }
+  const primitive = branches.every((branch) => {
+    if (branch === undefined) {
+      return false
+    }
+    const own = typeKeys(branch).types
+    return own.length > 0
+      ? !own.includes('object')
+      : Array.isArray(branch['enum']) || branch['const'] !== undefined
+  })
+  return primitive ? (branches as JsonSchema[]) : undefined
+}
+
+/** A union branch for a sentence, such as `a string, at most 200 characters` or `` `auto` or `off` ``. */
+function branchNote(branch: JsonSchema): string {
+  const values = Array.isArray(branch['enum'])
+    ? (branch['enum'] as unknown[])
+    : branch['const'] !== undefined
+      ? [branch['const']]
+      : undefined
+  const { types } = typeKeys(branch)
+  const items = isObject(branch['items']) ? typeKeys(branch['items']).types : []
+  const kind =
+    values !== undefined
+      ? values.map((v) => `\`${JSON.stringify(v)}\``).join(' or ')
+      : types.includes('array') && items.length > 0
+        ? `an array of ${items.join(', ')} values`
+        : types.map((type) => ARTICLES[type] ?? type).join(' or ')
+  const note = constraintNote(branch)
+  return note === undefined ? kind : `${kind}, ${note.charAt(0).toLowerCase()}${note.slice(1, -1)}`
+}
+
 /**
  * What an open object's undeclared members take, as a sentence, such as `Any member other than
  * \`Key\` is a string or null. At most 200 characters.` `undefined` when the member schema
@@ -275,13 +348,18 @@ function memberNote(
   if (followed === undefined) {
     return undefined
   }
+  const others =
+    declared.length === 0 ? '' : ` other than ${declared.map((name) => `\`${name}\``).join(', ')}`
+  const union = primitiveBranches(doc, followed.node, followed.stack)
+  if (union !== undefined) {
+    const nulls = typeKeys(followed.node).nullable || allowsNullBranch(followed.node)
+    return `Any member${others} is one of: ${[...union.map(branchNote), ...(nulls ? ['null'] : [])].join('; ')}.`
+  }
   const { types, nullable: isNullable } = typeKeys(followed.node)
   if (types.length === 0) {
     return undefined
   }
   const kinds = types.map((type) => ARTICLES[type] ?? type)
-  const others =
-    declared.length === 0 ? '' : ` other than ${declared.map((name) => `\`${name}\``).join(', ')}`
   return joinText(
     `Any member${others} is ${[...kinds, ...(isNullable ? ['null'] : [])].join(' or ')}.`,
     constraintNote(followed.node),
@@ -418,6 +496,11 @@ function unionDecoder(node: JsonSchema, converted: readonly Portable[]): Decoder
 
 const isNull = (b: unknown): boolean => isObject(b) && b['type'] === 'null'
 
+const allowsNullBranch = (node: JsonSchema): boolean =>
+  [node['oneOf'], node['anyOf']].some(
+    (branches) => Array.isArray(branches) && branches.some(isNull),
+  )
+
 /** Convert one document schema into a portable input schema and its decoder. */
 export function toPortable(
   doc: OpenApiDocument,
@@ -455,10 +538,14 @@ export function toPortable(
       const single = toPortable(doc, { ...resolved.node, ...rest }, resolved.stack, depth)
       return withNull ? { ...single, schema: nullable(single.schema) } : single
     }
-    if (depth >= MAX_DEPTH) {
+    // A union of primitive types stays shallow however deep it sits, so it never becomes JSON
+    // text, where a string member's value would be ambiguous.
+    const primitive = primitiveBranches(doc, node, path) !== undefined
+    if (depth >= MAX_DEPTH && !primitive) {
       return jsonText(description)
     }
-    const converted = others.map((b) => toPortable(doc, b, path, depth + 1))
+    const next = primitive ? Math.min(depth + 1, MAX_DEPTH - 1) : depth + 1
+    const converted = others.map((b) => toPortable(doc, b, path, next))
     const schemas = converted.map((c) => c.schema)
     const schema: JsonSchema = { anyOf: withNull ? [...schemas, { type: 'null' }] : schemas }
     const text = joinText(description, constraintNote(node))
@@ -492,13 +579,17 @@ export function toPortable(
     types = [inferred]
   }
   if (types.length > 1) {
+    // Each type becomes its own branch holding the keywords that constrain it, so a list
+    // member keeps its items and a string member its length.
+    const next = types.includes('object') ? depth + 1 : Math.min(depth + 1, MAX_DEPTH - 1)
+    const converted = types.map((type) => toPortable(doc, scopedTo(node, type), path, next))
     const schema: JsonSchema = {
-      anyOf: [...types.map((type) => ({ type })), ...(isNullable ? [{ type: 'null' }] : [])],
+      anyOf: [...converted.map((c) => c.schema), ...(isNullable ? [{ type: 'null' }] : [])],
     }
     if (description !== undefined) {
       schema['description'] = description
     }
-    return { schema, decoder: VALUE }
+    return { schema, decoder: unionDecoder(node, converted) }
   }
 
   const type = types[0]!

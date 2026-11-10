@@ -12,7 +12,7 @@ describe('generator contract 20 (sort families)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(30)
+    expect(mcp.contract).toBe(31)
   })
 
   it('offers the fixed keys and describes each family in its own branch', () => {
