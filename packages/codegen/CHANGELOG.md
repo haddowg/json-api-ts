@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.4.0...json-api-codegen-v2.5.0) (2026-11-10)
+
+
+### Features
+
+* **codegen:** name a relation's default read order in its JSDoc ([#143](https://github.com/haddowg/json-api-ts/issues/143)) ([dc0354c](https://github.com/haddowg/json-api-ts/commit/dc0354c06b3fca47d9e0317e19274e4bf47a3ac6))
+* **codegen:** read generator contract 30 ([cdc4a20](https://github.com/haddowg/json-api-ts/commit/cdc4a205b00b6df0d9e4c71f185e0bb91169807f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.16.0
+
 ## [2.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.3.0...json-api-codegen-v2.4.0) (2026-11-09)
 
 

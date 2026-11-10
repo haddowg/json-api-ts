@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.1.16...json-api-query-v1.2.0) (2026-11-10)
+
+
+### Features
+
+* **query:** narrow sort and filter on relation read options ([2da0303](https://github.com/haddowg/json-api-ts/commit/2da0303a5d0d933c65eb67d600145b8958c7b378))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.16.0
+
 ## [1.1.16](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.1.15...json-api-query-v1.1.16) (2026-11-09)
 
 
