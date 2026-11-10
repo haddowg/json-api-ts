@@ -114,6 +114,11 @@ A few things the codegen reads from the document that affect the generated clien
   The JSDoc of the descriptor's `paths` entries, relations, actions and `atomic` names
   them too, so a hover on `resourceMap.articles.relations.author` lists what each of its
   endpoints needs.
+- **Default read order.** A to-many relation that declares the order its members are
+  read in when a request names no `sort` publishes it as the `default` of the `sort`
+  parameter on its related and relationship reads. The relation's JSDoc names it, for
+  example "Without a `sort`, the server reads its members ordered by `position`". The
+  client sends nothing for it, since the server applies the order either way.
 - **Polymorphic relations.** A relation whose linkage is a union is marked
   `polymorphic: true` whatever its member count, so a `MorphTo` over a single type is
   polymorphic too. Its related and relationship endpoints don't advertise the related
