@@ -76,6 +76,13 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
 }
 
+/** An enum value as a TS literal type: a string quoted, a number, boolean or `null` as it is. */
+function enumLiteral(value: unknown): string {
+  return typeof value === 'number' || typeof value === 'boolean' || value === null
+    ? String(value)
+    : stringLiteral(String(value))
+}
+
 /** An inline object schema that admits only the members it declares. */
 function isClosedObject(schema: SchemaObject): boolean {
   return (
@@ -1443,9 +1450,9 @@ export class Emitter {
     if (typeof constant === 'number' || typeof constant === 'boolean') {
       return String(constant)
     }
-    // An inline enum (string literals without a $ref).
+    // An inline enum, such as a union member's `["auto", "off"]` or an integer's `[1, 2]`.
     if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-      return schema.enum.map((value) => stringLiteral(String(value))).join(' | ')
+      return [...new Set(schema.enum.map(enumLiteral))].join(' | ')
     }
     if (types.length === 0) {
       return 'unknown'
@@ -1537,7 +1544,7 @@ export class Emitter {
       .map((name) => {
         const schema = this.usedEnums.get(name)!
         const values = schema.enum ?? []
-        const union = values.map((value) => stringLiteral(String(value))).join(' | ')
+        const union = [...new Set(values.map(enumLiteral))].join(' | ')
         const alias = `export type ${this.enumName(name)} = ${union}`
         const doc = jsDoc(this.enumDoc(schema), '')
         return doc ? `${doc}\n${alias}` : alias

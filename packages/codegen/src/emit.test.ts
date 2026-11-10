@@ -566,9 +566,12 @@ describe('emit (const members and structured list elements)', () => {
             },
             modes: { type: 'array', items: { type: 'string', enum: ['a|b', 'c'] } },
             pipe: { type: 'array', items: { type: 'string', const: 'x|{y' } },
+            size: { type: 'integer', enum: [1, 2] },
+            level: { $ref: '#/components/schemas/Level' },
           },
-          required: ['marker', 'parts', 'modes', 'pipe'],
+          required: ['marker', 'parts', 'modes', 'pipe', 'size', 'level'],
         },
+        Level: { type: 'integer', enum: [10, 20] },
       },
     },
   }
@@ -584,6 +587,12 @@ describe('emit (const members and structured list elements)', () => {
     )
     expect(out).toContain('  modes: ("a|b" | "c")[]\n')
     expect(out).toContain('  pipe: "x|{y"[]\n')
+  })
+
+  it('types an integer enum by its numbers, inline or hoisted', () => {
+    expect(out).toContain('  size: 1 | 2\n')
+    expect(out).toContain('  level: Level\n')
+    expect(out).toContain('export type Level = 10 | 20')
   })
 })
 
