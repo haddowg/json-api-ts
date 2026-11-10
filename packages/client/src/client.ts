@@ -163,8 +163,9 @@ async function run(
 }
 
 /**
- * The filter vocabulary a read's `filter` is matched against: the type's for its collection read,
- * and the related type's for a related or relationship read of a relation with one related type.
+ * The filter vocabulary a read's `filter` is matched against: the type's for its collection read.
+ * A related or relationship read takes the relation's own when its descriptor declares one, else
+ * the related type's when the relation has one related type.
  */
 function filterSpec(
   ctx: ClientContext,
@@ -175,7 +176,11 @@ function filterSpec(
   if (operation === 'fetchMany') {
     return ctx.descriptor[type]
   }
-  const types = rel === undefined ? undefined : ctx.descriptor[type]?.relations[rel]?.types
+  const relation = rel === undefined ? undefined : ctx.descriptor[type]?.relations[rel]
+  if (relation?.filterable !== undefined || relation?.filterFamilies !== undefined) {
+    return relation
+  }
+  const types = relation?.types
   return types?.length === 1 ? ctx.descriptor[types[0]!] : undefined
 }
 

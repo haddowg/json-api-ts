@@ -129,6 +129,26 @@ export interface RelationDescriptor {
    * `included` only as `{type, id}`.
    */
   included?: readonly string[]
+  /**
+   * The sort tokens the relation's own related and relationship reads accept, when the descriptor
+   * records them on the relation. The codegen does for a polymorphic relation, whose members
+   * share no type to read them from, such as a `MorphToMany` sorting by its pivot fields. Narrows
+   * `sort` on `.get()` and `.related()` as {@link ResourceDescriptor.sortable} narrows a
+   * collection read. Absent, together with {@link sortFamilies}, means the reads take any sort.
+   */
+  sortable?: readonly string[]
+  /** The sort families the relation's reads accept beside {@link sortable}. */
+  sortFamilies?: readonly SortFamilyDescriptor[]
+  /**
+   * The filter keys the relation's own related and relationship reads accept, recorded as
+   * {@link sortable} is. Narrows `filter` on `.get()` and `.related()`. Absent, together with
+   * {@link filterFamilies}, means the reads take any filter.
+   */
+  filterable?: readonly string[]
+  /** The keys of {@link filterable} whose filter takes a list, sent as a collection read sends them. */
+  listFilters?: readonly string[]
+  /** The filter families the relation's reads accept beside {@link filterable}. */
+  filterFamilies?: readonly FilterFamilyDescriptor[]
 }
 
 /** A built-in pagination strategy. */
