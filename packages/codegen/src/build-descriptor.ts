@@ -304,7 +304,7 @@ export class DescriptorBuilder {
     const out: Record<string, string> = {}
     for (const [name, prop] of Object.entries(props)) {
       if (isSchema(prop)) {
-        out[name] = formatHint(prop)
+        out[name] = formatHint(prop, this.schemas)
       }
     }
     return sortRecord(out)
@@ -956,7 +956,7 @@ export class DescriptorBuilder {
       if (!isSchema(prop) || prop[side === 'read' ? 'writeOnly' : 'readOnly'] === true) {
         continue
       }
-      fields[name] = formatHint(prop)
+      fields[name] = formatHint(prop, this.schemas)
       if (isNullable(prop)) {
         nullable.push(name)
       }
@@ -1381,9 +1381,14 @@ function isNullable(schema: SchemaObject): boolean {
 /**
  * A schema's wire format hint: explicit `format`, else the JSON type, else a ref-enum is `string`.
  * A value of several JSON types, as a `type` list or a `oneOf` of them, has no one hint and is
- * `unknown`, since a `format` there scopes to its string member only.
+ * `unknown`, since a `format` there scopes to its string member only. A `$ref` to a named shape
+ * (generator contract 32) takes its component's hint.
  */
-function formatHint(schema: SchemaObject): string {
+function formatHint(
+  schema: SchemaObject,
+  schemas: Record<string, SchemaObject>,
+  seen: ReadonlySet<string> = new Set(),
+): string {
   const types = typeKeys(schema.type)
   if (types.length > 1) {
     return 'unknown'
@@ -1394,8 +1399,13 @@ function formatHint(schema: SchemaObject): string {
   if (types.length > 0) {
     return types[0]!
   }
-  // A $ref (typically an enum component) renders as a string union.
+  // A $ref to an enum component renders as a string union.
   if (typeof schema.$ref === 'string') {
+    const target = refName(schema.$ref)
+    const resolved = target === undefined || seen.has(target) ? undefined : schemas[target]
+    if (target !== undefined && resolved !== undefined && !Array.isArray(resolved.enum)) {
+      return formatHint(resolved, schemas, new Set([...seen, target]))
+    }
     return 'string'
   }
   // A nullable `$ref` is `anyOf: [{ $ref }, { type: 'null' }]`: hint the value branch.
@@ -1403,7 +1413,7 @@ function formatHint(schema: SchemaObject): string {
     branch.type !== undefined && typeKeys(branch.type).length === 0
   const branches = (schema.anyOf ?? schema.oneOf ?? []).filter((branch) => !isNullOnly(branch))
   if (branches.length === 1) {
-    return formatHint(branches[0]!)
+    return formatHint(branches[0]!, schemas, seen)
   }
   return 'unknown'
 }

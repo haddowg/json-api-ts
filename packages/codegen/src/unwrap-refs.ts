@@ -2,7 +2,8 @@ import type { OpenApiDocument } from './openapi'
 
 /**
  * Keywords that annotate a schema without constraining it. A single-entry `allOf` wrapper is
- * read as its `$ref` only when the wrapper carries nothing else, plus any `x-` extension.
+ * read as its `$ref` only when the wrapper carries nothing else, plus any `x-` extension and
+ * the non-empty keywords below.
  */
 const ANNOTATIONS = new Set([
   'title',
@@ -15,6 +16,12 @@ const ANNOTATIONS = new Set([
   'writeOnly',
   '$comment',
 ])
+
+/**
+ * The non-empty keywords a required use of a named shape carries beside its `$ref`. They narrow
+ * the value without changing its type, so a wrapper holding them still reads as its `$ref`.
+ */
+const NON_EMPTY = new Set(['minLength', 'minItems', 'minProperties'])
 
 const unwrapped = new WeakMap<OpenApiDocument, OpenApiDocument>()
 
@@ -70,7 +77,7 @@ function wrappedRef(node: Record<string, unknown>): string | undefined {
     return undefined
   }
   const annotationsOnly = Object.keys(node).every(
-    (key) => key === 'allOf' || ANNOTATIONS.has(key) || key.startsWith('x-'),
+    (key) => key === 'allOf' || ANNOTATIONS.has(key) || NON_EMPTY.has(key) || key.startsWith('x-'),
   )
   return annotationsOnly ? ref : undefined
 }

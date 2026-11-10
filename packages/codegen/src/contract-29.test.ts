@@ -66,7 +66,7 @@ function sheets(properties: Record<string, unknown>): OpenApiDocument {
  */
 describe('generator contract 29 (open objects)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(31)
+    expect(witness.info?.['x-generator']?.contract).toBe(32)
     expect(checkContract(witness)).toBeUndefined()
   })
 

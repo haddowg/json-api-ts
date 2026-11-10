@@ -30,7 +30,7 @@ pnpm add -D @haddowg/json-api-codegen
 
 Two bin names are installed: `json-api-codegen` and the short alias `japi`.
 
-The codegen reads documents of generator contracts 24 to 31 (`info.x-generator.contract`). A newer
+The codegen reads documents of generator contracts 24 to 32 (`info.x-generator.contract`). A newer
 document still generates, with a warning that the client may miss what the server added, and an
 older one is refused: it describes its error codes in a form this codegen no longer reads.
 Anything the server marks deprecated gets `@deprecated` TSDoc, so editors strike it through.
@@ -125,7 +125,7 @@ The output module exports:
   capability are baked in; you supply only [`ClientOptions`](../client)).
 - `Attributes` / `WriteAttributes` — the per-type attribute maps (read vs create/update).
 - Per-type `…Attributes` / `…CreateAttributes` / `…UpdateAttributes` interfaces, enum types
-  (e.g. `AlbumStatus`), and action input/output types.
+  (e.g. `AlbumStatus`), named shapes (e.g. `Reviewer`), and action input/output types.
 - `Links` — the typed declared links of each type that declares any.
 - `ErrorCodes` / `ErrorCode` / `ErrorCodeByStatus` / `ErrorCodeByOperation` / `ErrorMetaByCode` /
   `hasErrorCode` / `findError` — the server's documented error codes, the codes only some

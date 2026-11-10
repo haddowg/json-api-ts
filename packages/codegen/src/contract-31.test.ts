@@ -105,7 +105,7 @@ const fallback = {
  */
 describe('generator contract 31 (unions)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(31)
+    expect(witness.info?.['x-generator']?.contract).toBe(32)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -144,7 +144,12 @@ describe('generator contract 31 (unions)', () => {
     const result = await client.articles.id('art-1').get()
     expect(result.value).toEqual(['gold', 2.5, false])
     expect(result.threshold).toBe('auto')
-    await client.articles.create({ title: 'Hello', value: 'gold', threshold: 0 })
+    await client.articles.create({
+      title: 'Hello',
+      defaultValue: 'gold',
+      value: 'gold',
+      threshold: 0,
+    })
     await client.articles.id('art-1').update({ value: [1, 'two', true], threshold: 'off' })
     const bodies = requests.slice(1).map((req) => JSON.parse(String(req.body)) as unknown)
     expect(bodies[0]).toMatchObject({ data: { attributes: { value: 'gold', threshold: 0 } } })
@@ -158,6 +163,7 @@ describe('generator contract 31 (unions)', () => {
     void (() =>
       client.articles.create({
         title: 'Hello',
+        defaultValue: 'gold',
         // @ts-expect-error — no member takes an object.
         value: { gold: true },
       }))

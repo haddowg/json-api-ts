@@ -53,7 +53,7 @@ function witnessClient() {
 
 describe('generator contract 21 (structured list elements)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(31)
+    expect(witness.info?.['x-generator']?.contract).toBe(32)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -93,6 +93,7 @@ describe('generator contract 21 (structured list elements)', () => {
     const { client, requests } = witnessClient()
     await client.articles.create({
       title: 'Hello',
+      defaultValue: 'gold',
       sources: [{ href: 'https://example.com/a' }],
       steps: [{ operation: 'trim' }, { operation: 'find_replace', params: { find: 'a' } }],
     })
@@ -114,12 +115,14 @@ describe('generator contract 21 (structured list elements)', () => {
     void (() =>
       client.articles.create({
         title: 'Hello',
+        defaultValue: 'gold',
         // @ts-expect-error — a source needs its href.
         sources: [{ retrievedAt: '2026-01-01T00:00:00Z' }],
       }))
     void (() =>
       client.articles.create({
         title: 'Hello',
+        defaultValue: 'gold',
         // @ts-expect-error — `upper` is not a step operation.
         steps: [{ operation: 'upper' }],
       }))
