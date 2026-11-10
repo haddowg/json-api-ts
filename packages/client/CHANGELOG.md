@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.15.0...json-api-client-v1.16.0) (2026-11-10)
+
+
+### Features
+
+* **client:** narrow sort and filter on a relation's own reads ([3c84f41](https://github.com/haddowg/json-api-ts/commit/3c84f412ce0a4f5189565cb669414ea4ef3d096d))
+
 ## [1.15.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.14.0...json-api-client-v1.15.0) (2026-11-09)
 
 
