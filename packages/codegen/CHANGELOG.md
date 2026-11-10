@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.7.0...json-api-codegen-v2.8.0) (2026-11-10)
+
+
+### Features
+
+* **codegen:** read generator contract 33 ([8cc0978](https://github.com/haddowg/json-api-ts/commit/8cc0978b15a7bd34ca95d1da00769ba9af3a1595))
+
 ## [2.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.6.0...json-api-codegen-v2.7.0) (2026-11-10)
 
 
