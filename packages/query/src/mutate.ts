@@ -22,21 +22,26 @@
  * same normalized patch and snapshots the touched queries; `onError` restores the snapshot;
  * `onSettled` runs the post-write reconciliation (the success patch having already landed).
  */
-import type {
-  ApiDescriptor,
-  AtomicHandle,
-  AtomicRecorder,
-  AtomicResult,
-  AtomicResults,
-  CreateInput,
-  FieldsMap,
-  IncludePath,
-  LinkageRef,
-  ReadResult,
-  RelationName,
-  TypeName,
-  UpdateInput,
-  WriteOptions,
+import {
+  type ApiDescriptor,
+  type AtomicHandle,
+  type AtomicRecorder,
+  type AtomicResult,
+  type AtomicResults,
+  type CreateInput,
+  type CreateMethod,
+  type FieldsMap,
+  type IncludePath,
+  isAccepted,
+  type LinkageRef,
+  type ReadResult,
+  type RelationName,
+  type TypeName,
+  type UpdateInput,
+  type UpdateMethod,
+  type WaitedWriteResult,
+  type WaitValue,
+  type WriteOptions,
 } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
 import { operationKey, relationKey, resourceKey } from './keys'
@@ -82,18 +87,9 @@ export interface MutationContext {
 /** A client narrowed to the per-type write methods the mutation factories drive. */
 type WriteClient<D extends ApiDescriptor, A, W> = {
   [T in TypeName<D>]: {
-    create<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-      input: CreateInput<D, W, T>,
-      opts?: WriteOptions<D, T, Inc, F>,
-    ): Promise<ReadResult<D, A, T, Inc, F>>
+    create: CreateMethod<D, A, W, T>
     id(id: string): {
-      update<
-        const Inc extends readonly IncludePath<D, T>[] = [],
-        const F extends FieldsMap<D> = {},
-      >(
-        patch: UpdateInput<D, W, T>,
-        opts?: WriteOptions<D, T, Inc, F>,
-      ): Promise<ReadResult<D, A, T, Inc, F>>
+      update: UpdateMethod<D, A, W, T>
       delete(): Promise<void>
       rel(name: RelationName<D, T>): {
         add(refs: readonly LinkageRef<string>[]): Promise<unknown>
@@ -157,11 +153,27 @@ function invalidateParentRelations(
 
 // ── Create / update / delete ──────────────────────────────────────────────────────────────
 
+// A create or update called through a client whose method type is still a deferred conditional.
+type LooseWrite = (body: unknown, opts?: unknown) => Promise<unknown>
+
+/**
+ * The write options a create or update mutation takes: `include`/`fields`, and `wait` for a write
+ * that declares a `202`.
+ */
+export type WriteMutationOpts<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Inc extends readonly IncludePath<D, T>[] = [],
+  F extends FieldsMap<D> = FieldsMap<D>,
+  Wt = undefined,
+> = WriteOptions<D, T, Inc, F> & { wait?: Wt }
+
 /**
  * The create mutation (`POST /{type}`): `mutationFn` runs `client.<type>.create(input, opts)`;
  * on settle the type's list subtree is invalidated (a new member changes collection membership —
  * a patch can't insert it). The fresh resource is also normalized on success so any
- * query already holding the (server-assigned-id) resource reflects it.
+ * query already holding the (server-assigned-id) resource reflects it. A create that declares a
+ * `202` may resolve to an `Accepted` job instead, which is not normalized, unless `wait` polls it.
  *
  * No optimistic insert by default: inserting into the right cached lists requires knowing each
  * list's sort/filter/page, which is list-specific — we invalidate instead (the documented,
@@ -174,18 +186,27 @@ export function createMutationOptions<
   T extends TypeName<D>,
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
+  const Wt extends WaitValue<D, T, 'create'> = undefined,
 >(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
-  opts?: WriteOptions<D, T, Inc, F>,
-): MutationOptions<ReadResult<D, A, T, Inc, F>, CreateInput<D, W, T>> {
+  opts?: WriteMutationOpts<D, T, Inc, F, Wt>,
+): MutationOptions<
+  WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>, Wt>,
+  CreateInput<D, W, T>
+> {
   const accessor = client[type]
   return {
-    mutationFn: (input) => accessor.create<Inc, F>(input, opts),
+    mutationFn: (input) =>
+      (accessor.create as LooseWrite)(input, opts) as Promise<
+        WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>, Wt>
+      >,
     onSuccess: (data) => {
-      normalize(queryClient, data, descriptor)
+      if (!isAccepted(data)) {
+        normalize(queryClient, data, descriptor)
+      }
     },
     onSettled: () => invalidateLists(queryClient, type),
   }
@@ -197,7 +218,8 @@ export function createMutationOptions<
  * so on success it PATCHES across the cache via {@link normalize} (no refetch). When optimistic,
  * `onMutate` pre-applies the patch's attributes (those keys that are declared attributes of the
  * type — relation slots are skipped) through the normalized patch and snapshots the touched
- * queries; `onError` restores the snapshot.
+ * queries; `onError` restores the snapshot. An update that declares a `202` may resolve to an
+ * `Accepted` job, which is not normalized, unless `wait` polls it.
  *
  * @param optimistic apply the patch's attributes immediately (rolled back on error). Default off.
  */
@@ -208,24 +230,34 @@ export function updateMutationOptions<
   T extends TypeName<D>,
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
+  const Wt extends WaitValue<D, T, 'update'> = undefined,
 >(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
   id: string,
-  opts?: WriteOptions<D, T, Inc, F> & { optimistic?: boolean },
-): MutationOptions<ReadResult<D, A, T, Inc, F>, UpdateInput<D, W, T>, MutationContext> {
+  opts?: UpdateMutationOpts<D, T, Inc, F, Wt>,
+): MutationOptions<
+  WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>,
+  UpdateInput<D, W, T>,
+  MutationContext
+> {
   const accessor = client[type]
   const optimistic = opts?.optimistic === true
   const base: MutationOptions<
-    ReadResult<D, A, T, Inc, F>,
+    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>,
     UpdateInput<D, W, T>,
     MutationContext
   > = {
-    mutationFn: (patch) => accessor.id(id).update<Inc, F>(patch, opts),
+    mutationFn: (patch) =>
+      (accessor.id(id).update as LooseWrite)(patch, opts) as Promise<
+        WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>
+      >,
     onSuccess: (data) => {
-      normalize(queryClient, data, descriptor)
+      if (!isAccepted(data)) {
+        normalize(queryClient, data, descriptor)
+      }
     },
   }
   if (!optimistic) {
@@ -564,13 +596,17 @@ function attributesFromPatch(
 
 // ── Bound per-type mutation API (sugar over the standalone factories) ────────────────────────
 
-/** Extra options for an `update(...)` mutation: the write `include`/`fields` plus the optimistic toggle. */
+/**
+ * Extra options for an `update(...)` mutation: the write `include`/`fields`, `wait` for an update
+ * that declares a `202`, plus the optimistic toggle.
+ */
 export type UpdateMutationOpts<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[] = [],
   F extends FieldsMap<D> = FieldsMap<D>,
-> = WriteOptions<D, T, Inc, F> & { optimistic?: boolean }
+  Wt = undefined,
+> = WriteMutationOpts<D, T, Inc, F, Wt> & { optimistic?: boolean }
 
 /**
  * The relationship-mutation option factories for one relation (`api.<type>.id(id).rel(rel).add(...)`).
@@ -596,18 +632,33 @@ export interface RelationMutationApi {
 
 /** The id-scoped mutation option factories (`api.<type>.id(id).update(...)` etc.). */
 export interface HandleMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
-  update<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    opts?: UpdateMutationOpts<D, T, Inc, F>,
-  ): MutationOptions<ReadResult<D, A, T, Inc, F>, UpdateInput<D, W, T>, MutationContext>
+  update<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Wt extends WaitValue<D, T, 'update'> = undefined,
+  >(
+    opts?: UpdateMutationOpts<D, T, Inc, F, Wt>,
+  ): MutationOptions<
+    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>,
+    UpdateInput<D, W, T>,
+    MutationContext
+  >
   delete(): MutationOptions<void, void>
   rel(name: RelationName<D, T>): RelationMutationApi
 }
 
 /** The per-type mutation option factories, with `queryClient`/`client`/`descriptor`/`type` pre-applied. */
 export interface TypeMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
-  create<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    opts?: WriteOptions<D, T, Inc, F>,
-  ): MutationOptions<ReadResult<D, A, T, Inc, F>, CreateInput<D, W, T>>
+  create<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Wt extends WaitValue<D, T, 'create'> = undefined,
+  >(
+    opts?: WriteMutationOpts<D, T, Inc, F, Wt>,
+  ): MutationOptions<
+    WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>, Wt>,
+    CreateInput<D, W, T>
+  >
   id(id: string): HandleMutationApi<D, A, W, T>
 }
 
