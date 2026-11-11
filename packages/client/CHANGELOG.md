@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.16.0...json-api-client-v1.17.0) (2026-11-11)
+
+
+### Features
+
+* **client:** read relationship counts and send relationship queries ([f4c1050](https://github.com/haddowg/json-api-ts/commit/f4c1050dc5d11b1abc386c15ddf2da3467ae3f0d))
+
 ## [1.16.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.15.0...json-api-client-v1.16.0) (2026-11-10)
 
 
