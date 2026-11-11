@@ -1,4 +1,6 @@
 import type {
+  AcceptedDescriptor,
+  AcceptedOperation,
   ActionDescriptor,
   ApiDescriptor,
   AtomicDescriptor,
@@ -246,6 +248,10 @@ export class DescriptorBuilder {
       if (Object.keys(scopes).length > 0) {
         descriptor.scopes = scopes
       }
+      const accepted = this.acceptedWrites(collection)
+      if (accepted !== undefined) {
+        descriptor.accepted = accepted
+      }
       // A synthetic stub for an unregistered related type — core's `permissiveResourceObject`
       // emits a `<Rel>Resource` carrying ONLY a `type` const (no `id`/`attributes`) so linkage
       // refs resolve — is reachable only through a parent's `.related()` (which works via the
@@ -260,6 +266,53 @@ export class DescriptorBuilder {
       out[wireType] = descriptor
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The writes of a type that declare a `202 Accepted`, keyed `create` (the collection's `POST`)
+   * or `update` (the resource's `PATCH`). `undefined` when neither does.
+   */
+  private acceptedWrites(
+    collection: string | undefined,
+  ): Partial<Record<AcceptedOperation, AcceptedDescriptor>> | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const out: Partial<Record<AcceptedOperation, AcceptedDescriptor>> = {}
+    const create = this.accepted(this.operation(collection, 'post'), `POST ${collection}`)
+    if (create !== undefined) {
+      out.create = create
+    }
+    const item = `${collection}/{id}`
+    const update = this.accepted(this.operation(item, 'patch'), `PATCH ${item}`)
+    if (update !== undefined) {
+      out.update = update
+    }
+    return Object.keys(out).length > 0 ? out : undefined
+  }
+
+  /**
+   * The `202 Accepted` an operation declares: the job type its body's primary `data` names, a
+   * `$ref` to the job type's document or the inline document of a type the server doesn't
+   * register. `undefined` when the operation declares no `202`; a `202` whose job type can't be
+   * read warns and is left out.
+   */
+  private accepted(op: OperationObject | undefined, label: string): AcceptedDescriptor | undefined {
+    const response = op?.responses?.['202']
+    if (response === undefined) {
+      return undefined
+    }
+    const schema = this.resolveSchema(response.content?.[JSON_API_MEDIA_TYPE]?.schema)
+    const data = schema?.properties?.['data']
+    const jobType = isSchema(data) ? this.dataConst(data) : undefined
+    if (jobType === undefined) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `json-api codegen: ${label} declares a 202 Accepted whose job type can't be read; it is typed as answering synchronously.`,
+      )
+      return undefined
+    }
+    return { jobType }
   }
 
   /**
@@ -700,6 +753,10 @@ export class DescriptorBuilder {
     if (mediaType !== undefined) {
       action.location = { mediaType }
     }
+    const accepted = this.accepted(op, `custom action path "${path}"`)
+    if (accepted !== undefined) {
+      action.accepted = accepted
+    }
     return action
   }
 
@@ -710,7 +767,7 @@ export class DescriptorBuilder {
   private rawOutput(op: OperationObject): RawOutputMedia[] {
     const out: RawOutputMedia[] = []
     for (const [code, response] of Object.entries(op.responses ?? {})) {
-      if (!code.startsWith('2')) {
+      if (!isResultStatus(code)) {
         continue
       }
       for (const [mediaType, media] of Object.entries(response.content ?? {})) {
@@ -826,7 +883,7 @@ export class DescriptorBuilder {
   private okJsonApiRefs(op: OperationObject): string[] {
     const refs: string[] = []
     for (const [code, response] of Object.entries(op.responses ?? {})) {
-      if (!code.startsWith('2')) {
+      if (!isResultStatus(code)) {
         continue
       }
       const schema = response.content?.[JSON_API_MEDIA_TYPE]?.schema
@@ -1761,10 +1818,18 @@ function actionOutput(op: OperationObject): ActionDescriptor['output'] {
   return typeof arm.$ref === 'string' && refName(arm.$ref) === 'MetaDocument' ? 'meta' : 'document'
 }
 
+/**
+ * Whether a status answers with the operation's result: any `2xx` but a `202`, whose body is the
+ * job of a write accepted for later.
+ */
+export function isResultStatus(code: string): boolean {
+  return code.startsWith('2') && code !== '202'
+}
+
 /** The JSON:API schema of an operation's first success response that declares one. */
 function okJsonApiSchema(op: OperationObject): SchemaObject | undefined {
   for (const [code, response] of Object.entries(op.responses ?? {})) {
-    if (!code.startsWith('2')) {
+    if (!isResultStatus(code)) {
       continue
     }
     const schema = response.content?.[JSON_API_MEDIA_TYPE]?.schema
