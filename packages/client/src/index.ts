@@ -7,6 +7,13 @@
  * augmented arrays); errors/transport/serialize-write/validate/atomic are the seams it
  * composes. The optional TanStack binding + normalization live in @haddowg/json-api-query.
  */
+export {
+  type Accepted,
+  isAccepted,
+  parseRetryAfter,
+  type PollOptions,
+  PollTimeoutError,
+} from './accepted'
 export * from './atomic'
 export * from './client'
 export * from './descriptor'

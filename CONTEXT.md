@@ -133,6 +133,11 @@ error's `source.pointer` is remapped to.
 **Action location**:
 The `{ url, type, expiresAt? }` value an action that answers with a URL returns.
 
+**Accepted job**:
+The `Accepted` value a write or action declaring a `202` resolves to when the server accepts it for
+later: the materialised job, its `contentLocation` and `retryAfter`, and `$poll()`.
+_Avoid_: pending result, async result
+
 **Atomic handle**:
 The value a `tx.create` in `client.atomic()` returns, which doubles as a `{ type, lid }` relation
 reference for later operations in the batch.

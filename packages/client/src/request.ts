@@ -279,6 +279,31 @@ export async function execute(
   return parseDocument(res.body)
 }
 
+/** A response's status and headers beside its parsed {@link Document}. */
+export interface ExecutedResponse {
+  status: number
+  headers: Record<string, string>
+  document: Document | undefined
+}
+
+/**
+ * Execute a request as {@link execute} does, keeping the response's status and headers. With
+ * `seeOther`, a `303` the transport didn't follow resolves with no document instead of throwing,
+ * so the caller can read its `Location`.
+ */
+export async function executeResponse(
+  ctx: JsonApiContext,
+  req: JsonApiRequest,
+  seeOther = false,
+): Promise<ExecutedResponse> {
+  const res = await send(ctx, req, undefined, seeOther)
+  return {
+    status: res.status,
+    headers: res.headers,
+    document: res.status === 303 ? undefined : parseDocument(res.body),
+  }
+}
+
 /** How {@link executeRaw} reads a successful response body. */
 export type RawResponseType = 'text' | 'blob' | 'arraybuffer'
 
@@ -329,6 +354,7 @@ async function send(
   ctx: JsonApiContext,
   req: JsonApiRequest,
   responseType?: 'blob' | 'arraybuffer',
+  seeOther = false,
 ): Promise<TransportResponse> {
   let url: string
   let sendHeaders = true
@@ -385,7 +411,7 @@ async function send(
 
   const res = await ctx.transport(transportReq)
 
-  if (res.status >= 200 && res.status < 300) {
+  if ((res.status >= 200 && res.status < 300) || (seeOther && res.status === 303)) {
     return res
   }
 

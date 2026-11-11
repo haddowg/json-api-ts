@@ -69,6 +69,44 @@ updated.title // 'OK Computer (Remaster)'
 
 The handle's `id` always wins as the document id, so you never repeat it in the patch body. Omitted keys are left untouched server-side (JSON:API PATCH semantics). The input is typed as a `Partial` of the type's write attributes.
 
+## Writes accepted for later
+
+A server can accept a create or update for later and answer `202 Accepted` with a job to poll. The codegen reads the `202` from the spec, so only the writes that declare one change type: they resolve to their usual result or an `Accepted` job, and `isAccepted()` tells them apart.
+
+```ts
+import { isAccepted } from '@haddowg/json-api-client'
+
+const result = await client['catalog-exports'].create({ format: 'csv' })
+if (isAccepted(result)) {
+  result.job.state // the materialised export-jobs resource
+  result.contentLocation // the job URL, from Content-Location
+  result.retryAfter // seconds to wait, from Retry-After, or undefined
+  const created = await result.$poll({ timeout: 60_000 })
+}
+```
+
+The job is the job type's resource when the API declares that type, an open record when it doesn't, and the document's top-level `meta` when the server answers with a meta-only document. `retryAfter` reads `Retry-After` as delta-seconds or an HTTP date, counted from when the response arrived.
+
+Pass `wait` to poll straight away, and the call resolves to the plain result:
+
+```ts
+const created = await client['catalog-exports'].create(
+  { format: 'csv' },
+  { wait: { timeout: 60_000, signal: controller.signal } },
+)
+```
+
+`wait: true` polls with the defaults. `$poll()` and `wait` take the same options: `timeout` in milliseconds, five minutes by default, and an `AbortSignal`. A poll is a `GET` on `contentLocation`:
+
+- an answer holding the job means the job is pending, so the client waits for that answer's `Retry-After`, else the `202`'s, else a second, and polls again;
+- a `303` means the job is done. The `fetch` transport follows it, so any other `2xx` is the finished result. A transport that hands back the `303` gets its `Location` fetched;
+- a non-2xx throws the usual [`JsonApiError`](errors.md). The client has no hook for a failed job: the server reports one as an HTTP error;
+- a job still pending at the timeout rejects with a `PollTimeoutError`, and an abort rejects with the signal's reason, as an aborted request does.
+
+The finished result is the resource the job URL ends at, so the write's `include` and `fields` don't reach it. A call with `wait` is typed without them, and so is `$poll()`.
+
+A `202` on an operation whose spec doesn't declare one isn't treated as a job: the client materialises the answer as before.
+
 ## Delete
 
 `delete` sends `DELETE /{type}/{id}` and resolves `void` on the server's `204`:

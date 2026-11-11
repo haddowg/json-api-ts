@@ -1,5 +1,7 @@
+import { type PollOptions, toAccepted } from './accepted'
 import { type AtomicRecorder, runAtomic } from './atomic'
 import type {
+  AcceptedDescriptor,
   ActionDescriptor,
   ActionScope,
   ApiDescriptor,
@@ -12,8 +14,11 @@ import { readActionLocation } from './location'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
 import { resolvePaginator } from './pagination'
 import {
+  type Document,
   execute,
   executeRaw,
+  type ExecutedResponse,
+  executeResponse,
   type JsonApiContext,
   type JsonApiRequest,
   type ReadQuery,
@@ -269,10 +274,14 @@ function negotiateProfiles(
   }
 }
 
-/** A write opts object: an optional `include`/`fields` narrowing the materialised response. */
+/**
+ * A write opts object: an optional `include`/`fields` narrowing the materialised response, and
+ * `wait` to poll a `202 Accepted` job until it's done.
+ */
 interface WriteOpts {
   include?: readonly string[]
   fields?: Record<string, readonly string[]>
+  wait?: boolean | PollOptions
 }
 
 /** Project a write's opts to the read-query families the response honours (`include`/`fields`). */
@@ -306,12 +315,48 @@ interface WriteSpec {
   linkage?: boolean
   /** Remap a thrown error's pointers to flat input paths (resource-write vs relationship-write). */
   remap: (error: JsonApiError) => JsonApiError
+  /** The `202 Accepted` the write declares, if any. */
+  accepted?: AcceptedDescriptor | undefined
+  /** Poll an accepted job until it's done, with these options. */
+  wait?: PollOptions | undefined
+}
+
+/** The poll options a call's `wait` asks for, or `undefined` when it doesn't wait. */
+const waitOptions = (wait: boolean | PollOptions | undefined): PollOptions | undefined =>
+  wait === true ? {} : wait === false ? undefined : wait
+
+/**
+ * Answer a `202` the operation declares with an `Accepted`, or with its result when the caller
+ * waits. The job is materialised, or is the top-level `meta` of a meta-only document; `complete`
+ * shapes the document the job URL finally answers with, as the operation shapes its own.
+ */
+function answerAccepted(
+  ctx: ClientContext,
+  accepted: AcceptedDescriptor,
+  res: ExecutedResponse,
+  complete: (doc: Document | undefined) => unknown,
+  wait: PollOptions | undefined,
+): unknown {
+  const value = toAccepted(
+    {
+      request: ctx.request,
+      jobType: accepted.jobType,
+      job: (doc) =>
+        doc === undefined || !('data' in doc)
+          ? (doc?.meta ?? {})
+          : materialise(doc, ctx.materialise),
+      complete,
+    },
+    res,
+  )
+  return wait === undefined ? value : value.$poll(wait)
 }
 
 /**
  * Drive a write: fill the path template, attach the body (and any `include`/`fields` query),
  * execute, and materialise the response (`undefined` for a `204`/no body — so create/update
- * return the resource and delete/`204` relationship mutations resolve `undefined`/`void`).
+ * return the resource and delete/`204` relationship mutations resolve `undefined`/`void`). A
+ * `202` the write declares resolves to an `Accepted` job, or with `wait` to the polled result.
  * On a thrown {@link JsonApiError}, each error's flat `path` is populated (via `spec.remap`)
  * before it propagates, so a caller's `byPath()` keys are the flat input shape.
  */
@@ -328,16 +373,24 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
   if (spec.query !== undefined) {
     req.query = spec.query
   }
-  let doc
+  if (spec.wait?.signal !== undefined) {
+    req.signal = spec.wait.signal
+  }
+  let res
   try {
-    doc = await execute(ctx.request, req)
+    res = await executeResponse(ctx.request, req)
   } catch (error) {
     if (error instanceof JsonApiError) {
       throw spec.remap(error)
     }
     throw error
   }
-  return doc === undefined ? undefined : materialise(doc, ctx.materialise, spec.linkage ?? false)
+  const complete = (doc: Document | undefined) =>
+    doc === undefined ? undefined : materialise(doc, ctx.materialise, spec.linkage ?? false)
+  if (res.status === 202 && spec.accepted !== undefined) {
+    return answerAccepted(ctx, spec.accepted, res, complete, spec.wait)
+  }
+  return complete(res.document)
 }
 
 /**
@@ -361,7 +414,8 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
  * `ActionLocation` and never follows it. An action declaring `rawOutput` answers in the media type
  * the caller picks with `options.accept`: JSON:API as above, or a `string`, a `Blob` or
  * `ArrayBuffer`, or parsed JSON by the media type's kind. A collection action that takes filters
- * sends `options.filter` in the query string as a collection read does.
+ * sends `options.filter` in the query string as a collection read does. A `202` the action
+ * declares resolves to an `Accepted` job, or with `options.wait` to the value its job URL ends at.
  */
 async function runAction(
   ctx: ClientContext,
@@ -419,29 +473,50 @@ async function runAction(
       const text = await executeRaw(ctx.request, req, 'text')
       return raw.kind === 'json' && text !== undefined ? (JSON.parse(text) as unknown) : text
     }
-    const doc = await execute(ctx.request, req)
-    if (action.location !== undefined) {
-      const location = doc === undefined ? undefined : readActionLocation(doc, action.location)
-      if (location !== undefined) {
-        return location
-      }
-      if (action.output === 'location') {
-        throw new Error('The action answered without the location document it declares.')
-      }
+    const res = await executeResponse(ctx.request, req)
+    const complete = (doc: Document | undefined) => actionValue(ctx, action, doc)
+    if (res.status === 202 && action.accepted !== undefined) {
+      const wait = waitOptions(options.wait)
+      const signal = wait?.signal ?? options.signal
+      return answerAccepted(
+        ctx,
+        action.accepted,
+        res,
+        complete,
+        wait === undefined || signal === undefined ? wait : { ...wait, signal },
+      )
     }
-    if (action.output === 'none' || action.output === 'location' || doc === undefined) {
-      return undefined
-    }
-    if (action.output === 'meta') {
-      return doc.meta
-    }
-    return materialise(doc, ctx.materialise)
+    return complete(res.document)
   } catch (error) {
     if (remap !== undefined && error instanceof JsonApiError) {
       throw remap(error)
     }
     throw error
   }
+}
+
+/** Shape an action's JSON:API answer by its declared `output`, or its `location`. */
+function actionValue(
+  ctx: ClientContext,
+  action: ActionDescriptor,
+  doc: Document | undefined,
+): unknown {
+  if (action.location !== undefined) {
+    const location = doc === undefined ? undefined : readActionLocation(doc, action.location)
+    if (location !== undefined) {
+      return location
+    }
+    if (action.output === 'location') {
+      throw new Error('The action answered without the location document it declares.')
+    }
+  }
+  if (action.output === 'none' || action.output === 'location' || doc === undefined) {
+    return undefined
+  }
+  if (action.output === 'meta') {
+    return doc.meta
+  }
+  return materialise(doc, ctx.materialise)
 }
 
 /**
@@ -732,6 +807,8 @@ function resourceHandle(
         body: toDocument(ctx.descriptor, type, patch, { id }),
         query: writeQuery(opts),
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+        accepted: ctx.descriptor[type]?.accepted?.update,
+        wait: waitOptions(opts?.wait),
       }),
     delete: () =>
       runWrite(ctx, {
@@ -774,6 +851,8 @@ function typeAccessor(
         body: toDocument(ctx.descriptor, type, input),
         query: writeQuery(opts),
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+        accepted: ctx.descriptor[type]?.accepted?.create,
+        wait: waitOptions(opts?.wait),
       }) as Promise<never>,
     id: (id: string) => resourceHandle(ctx, type, id),
     actions: actionsAccessor(ctx, type, 'collection', {}),

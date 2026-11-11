@@ -184,6 +184,21 @@ if (isActionLocation(result)) {
 
 An action that only documents a `303`, such as an asynchronous job pointing at what it produced, has no `location`. Its method is typed as before, and the transport follows the redirect.
 
+## Actions accepted for later
+
+An action that declares a `202 Accepted` resolves to its usual value or an `Accepted` job, and takes `wait` as a [write accepted for later](writes.md#writes-accepted-for-later) does. The poll ends at whatever the action normally returns: its resource, its `meta`, or nothing.
+
+```ts
+const result = await client.articles.id('1').actions.reindex()
+if (isAccepted(result)) {
+  await result.$poll()
+}
+
+const reindexed = await client.articles.id('1').actions.reindex({ wait: true })
+```
+
+The call's `signal` cancels the action and its polling. An action that declares only a `202` returns nothing once its job is done, since the spec names no other answer. An action that also answers in raw media types takes `wait` too, but its result type isn't narrowed by it.
+
 ## Request media types
 
 An action can accept several request media types. Pick one with `contentType`, and the body is typed by it:
