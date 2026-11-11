@@ -5,6 +5,7 @@ import {
   execute,
   fetchTransport,
   type HeadersInit,
+  isAccepted,
   isActionLocation,
   isPolymorphic,
   JsonApiError,
@@ -506,7 +507,7 @@ async function callApi(
       }
     case 'create': {
       const input = writeInput(args, entry.input.write!)
-      const created = await accessor.create(input)
+      const created = jobOrResult(await accessor.create(input))
       // A 204 to a client-generated id sends nothing back but the id the caller chose.
       return {
         kind: 'bare',
@@ -518,7 +519,9 @@ async function callApi(
     }
     case 'update': {
       const id = requireId(args)
-      const updated = await accessor.id(id).update(writeInput(args, entry.input.write!))
+      const updated = jobOrResult(
+        await accessor.id(id).update(writeInput(args, entry.input.write!)),
+      )
       return {
         kind: 'bare',
         envelope: resourceEnvelope(isObject(updated) ? updated : { id, type: op.type }, flat),
@@ -531,6 +534,9 @@ async function callApi(
       return runAction(entry, args, accessor, env, flat, query)
   }
 }
+
+/** A write's result, or the job of one the server accepted for later, which the tool returns. */
+const jobOrResult = (value: unknown): unknown => (isAccepted(value) ? value.job : value)
 
 async function runAction(
   entry: ToolEntry,
@@ -565,6 +571,7 @@ async function runAction(
     }
     result = await call(body, options)
   }
+  result = jobOrResult(result)
 
   // A URL the action produced goes back as data; the tool never fetches it.
   if (action.location !== undefined && isActionLocation(result)) {
