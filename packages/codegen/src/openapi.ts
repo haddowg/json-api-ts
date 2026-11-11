@@ -62,7 +62,10 @@ export interface ParameterObject {
   style?: string
   explode?: boolean
   deprecated?: boolean
-  /** The negotiation profile a client must opt into to use this parameter (e.g. `withCount`). */
+  /**
+   * The negotiation profile a client must opt into to use this parameter (e.g. `withCount` or
+   * `relatedQuery`).
+   */
   'x-profile'?: string
   /** On a `filter[<key>][]` parameter: the list filter it carries the array form of. */
   'x-filter-list'?: { key?: unknown; delimited?: unknown }
@@ -115,5 +118,7 @@ export interface OpenApiDocument {
     responses?: Record<string, unknown>
     /** Named Example Objects, such as each error code's example document. */
     examples?: Record<string, unknown>
+    /** Shared parameters, such as `relatedQuery`, which operations reach through a `$ref`. */
+    parameters?: Record<string, ParameterObject>
   }
 }
