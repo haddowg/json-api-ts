@@ -134,6 +134,9 @@ async function run(
     if (listFilter !== undefined) {
       req.listFilter = listFilter
     }
+    if (params.relatedQuery !== undefined) {
+      req.relatedListFilter = relatedListFilter(ctx, type)
+    }
     if (signal !== undefined) {
       req.signal = signal
     }
@@ -185,10 +188,56 @@ function filterSpec(
 }
 
 /**
+ * Whether a `relatedQuery` entry's filter key takes a list, matched against the vocabulary of the
+ * relation its include path ends on, as that relation's related read matches it. A path through a
+ * polymorphic relation continues from the first member type declaring the next relation.
+ */
+function relatedListFilter(
+  ctx: ClientContext,
+  type: string,
+): (path: string, key: string) => boolean {
+  const matchers = new Map<string, ((key: string) => boolean) | undefined>()
+  return (path, key) => {
+    if (!matchers.has(path)) {
+      matchers.set(path, listFilterMatcher(relatedQuerySpec(ctx, type, path)))
+    }
+    return matchers.get(path)?.(key) ?? false
+  }
+}
+
+/** The filter vocabulary of the relation an include path from `type` ends on. */
+function relatedQuerySpec(ctx: ClientContext, type: string, path: string): FilterSpec | undefined {
+  const names = path.split('.')
+  let owners: readonly string[] = [type]
+  for (const [index, name] of names.entries()) {
+    const owner = owners.find((t) => ctx.descriptor[t]?.relations[name] !== undefined)
+    if (owner === undefined) {
+      return undefined
+    }
+    if (index === names.length - 1) {
+      return filterSpec(ctx, owner, 'fetchRelated', name)
+    }
+    owners = ctx.descriptor[owner]!.relations[name]!.types
+  }
+  return undefined
+}
+
+/** Whether a `relatedQuery` carries a filter or sort for any path, so it reaches the wire. */
+function sendsRelatedQuery(relatedQuery: ReadQuery['relatedQuery']): boolean {
+  return Object.values(relatedQuery ?? {}).some(
+    (entry) =>
+      Object.keys(entry?.filter ?? {}).length > 0 ||
+      (entry?.sort !== undefined && entry.sort.length > 0),
+  )
+}
+
+/**
  * Add any profiles a query's parameters require to the request's negotiated `profiles`. A
  * `withCount` read needs the type's Countable profile in `Accept` — else the server rejects it
  * (400) under strict query-param validation. The profile URI is read from the descriptor's
- * `countable` block (never hardcoded); absent when the type advertises no Countable profile.
+ * `countable` block (never hardcoded); absent when the type advertises no Countable profile. A
+ * `relatedQuery` on a collection or single read likewise adds the type's Relationship Queries
+ * profile, after any Countable one.
  */
 function negotiateProfiles(
   ctx: ClientContext,
@@ -197,17 +246,26 @@ function negotiateProfiles(
   req: JsonApiRequest,
   relationForCount?: string,
 ): void {
-  if (query.withCount === undefined || query.withCount.length === 0) {
-    return
+  const profiles: string[] = []
+  if (query.withCount !== undefined && query.withCount.length > 0) {
+    // A related/relationship read negotiates the RELATION's Countable profile (its tokens differ
+    // from the collection's); a top-level collection read uses the type's.
+    const profile =
+      relationForCount !== undefined
+        ? ctx.descriptor[type]?.relations[relationForCount]?.countable?.profile
+        : ctx.descriptor[type]?.countable?.profile
+    if (profile !== undefined) {
+      profiles.push(profile)
+    }
   }
-  // A related/relationship read negotiates the RELATION's Countable profile (its tokens differ
-  // from the collection's); a top-level collection read uses the type's.
-  const profile =
-    relationForCount !== undefined
-      ? ctx.descriptor[type]?.relations[relationForCount]?.countable?.profile
-      : ctx.descriptor[type]?.countable?.profile
-  if (profile !== undefined) {
-    req.profiles = [...(req.profiles ?? []), profile]
+  if (relationForCount === undefined && sendsRelatedQuery(query.relatedQuery)) {
+    const profile = ctx.descriptor[type]?.relatedQuery?.profile
+    if (profile !== undefined && !profiles.includes(profile)) {
+      profiles.push(profile)
+    }
+  }
+  if (profiles.length > 0) {
+    req.profiles = [...(req.profiles ?? []), ...profiles]
   }
 }
 

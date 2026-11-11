@@ -63,6 +63,11 @@ export interface ResourceEnvelope {
   readonly $document: DocumentEnvelope
   readonly $raw: RawResource
   $rel(name: string): RelationView | undefined
+  /**
+   * A relationship's count, from its `meta.total` (a `withCount` read): a finite number, else
+   * `undefined`. Read from the raw relationship, so it works when the relation carries no data.
+   */
+  $count(name: string): number | undefined
 }
 
 /** Edge-local accessors carried by a materialised related VALUE (per-edge view). */
@@ -78,6 +83,12 @@ export interface ArrayEnvelope {
   readonly $meta: Record<string, unknown> | undefined
   $next(options?: NavigateOptions): Promise<unknown>
   $prev(options?: NavigateOptions): Promise<unknown>
+}
+
+/** The accessor a to-many relationship array carries beside its {@link ArrayEnvelope}. */
+export interface RelationArrayEnvelope {
+  /** The relationship's count, from its `meta.total`: a finite number, else `undefined`. */
+  readonly $count: number | undefined
 }
 
 /** Per-call options for `$next()`/`$prev()`. */
@@ -136,6 +147,12 @@ const define = (target: object, key: string, value: unknown): void => {
 
 const defineGetter = (target: object, key: string, get: () => unknown): void => {
   Object.defineProperty(target, key, { get, enumerable: false, configurable: true })
+}
+
+/** A relationship object's `meta.total` when it is a finite number, else `undefined`. */
+const relationTotal = (rel: RawRelationship | undefined): number | undefined => {
+  const total = rel?.meta?.['total']
+  return typeof total === 'number' && Number.isFinite(total) ? total : undefined
 }
 
 /**
@@ -347,7 +364,7 @@ function resolveMember(
   return buildIdentifierView(member, relationEdge)
 }
 
-/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$rel). */
+/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$rel/$count). */
 function attachResourceEnvelope(
   node: object,
   raw: RawResource,
@@ -368,6 +385,9 @@ function attachResourceEnvelope(
     if (rel.meta !== undefined) view.meta = rel.meta
     return view
   })
+  define(node, '$count', (name: string): number | undefined =>
+    Object.hasOwn(rels, name) ? relationTotal(rels[name]) : undefined,
+  )
 }
 
 /**
@@ -387,7 +407,7 @@ function buildEdgeView(node: object, member: RawResource, relationEdge?: Relatio
   // leave edge views stale, so it must preserve this walk-every-view invariant.
   Object.assign(view, node)
   // Delegate the node's non-enumerable `$`-accessors so they read through to the node.
-  for (const k of ['$meta', '$links', '$self', '$document', '$raw', '$rel'] as const) {
+  for (const k of ['$meta', '$links', '$self', '$document', '$raw', '$rel', '$count'] as const) {
     delegate(view, node, k)
   }
   // A full-resource member's own `links` is its self-link (already on `$links`/`$self`), so a
@@ -496,6 +516,7 @@ function augmentRelationArray(
   const links = rel.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => rel.meta)
+  defineGetter(arr, '$count', () => relationTotal(rel))
   attachPage(arr, paginator, pageMeta(rel.meta), links, ctx, false)
   return arr
 }

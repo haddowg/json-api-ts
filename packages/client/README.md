@@ -126,6 +126,26 @@ reads (no single-`get` endpoint advertises it). The client negotiates the Counta
 
 ```ts
 const albums = await client.albums.list({ withCount: ['tracks'] })
+albums[0]!.$count('tracks') // number: the list asked to count tracks
+```
+
+The server puts each count in the relationship object's `meta.total`. `$count(name)` reads it off
+the resource, even when the relationship carries no data, and a to-many relationship array has
+the same value as `$count`. Both are `undefined` when the server sent no finite number.
+
+### `relatedQuery` (the Relationship Queries profile)
+
+Where a type's `list` or `get` advertises it, `relatedQuery` filters and sorts a relationship
+from the primary read, keyed by include path. Each entry's `filter` and `sort` take what the
+relation's own related read takes. The client negotiates the profile in `Accept`, beside the
+Countable one when `withCount` is set too.
+
+```ts
+const runs = await client['campaign-template-runs'].list({
+  withCount: ['items'],
+  relatedQuery: { items: { filter: { state: 'failed' } } },
+})
+runs[0]!.$count('items') // the run's failed items
 ```
 
 ### Pagination & cursor

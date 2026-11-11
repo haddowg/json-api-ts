@@ -18,13 +18,20 @@ import type {
   AtomicResults,
   AtomicUpdateHandle,
 } from './atomic'
-import type { ActionDescriptor, ApiDescriptor, InputMedia, RawOutputMedia } from './descriptor'
+import type {
+  ActionDescriptor,
+  ApiDescriptor,
+  InputMedia,
+  RawOutputMedia,
+  RelatedQueryOperation,
+} from './descriptor'
 import type { ActionLocation } from './location'
 import type {
   ArrayEnvelope,
   DocumentEnvelope,
   Edge,
   NavigateOptions,
+  RelationArrayEnvelope,
   RelationView,
   ResourceLinks,
 } from './materialise'
@@ -45,6 +52,12 @@ export type Collection<T, P = Page> = ReadonlyArray<T> &
     $next(options?: NavigateOptions): Promise<Collection<T, P> | undefined>
     $prev(options?: NavigateOptions): Promise<Collection<T, P> | undefined>
   }
+
+/**
+ * A to-many relationship value: a {@link Collection} that also carries `$count`, the
+ * relationship's `meta.total` when the read counted it.
+ */
+export type RelationCollection<T, P = Page> = Collection<T, P> & RelationArrayEnvelope
 
 /**
  * The edge-local accessors carried by a materialised related VALUE (a per-edge view):
@@ -253,13 +266,13 @@ type RelationValue<
   F = unknown,
 > = R extends Inc
   ? IsMany<D, T, R> extends true
-    ? Collection<
+    ? RelationCollection<
         Hydrated<D, A, RelatedType<D, T, R>, F, Record<string, unknown>, EdgeMetaOf<D, T, R>>,
         RelationPage<D, T, R>
       >
     : Hydrated<D, A, RelatedType<D, T, R>, F, Record<string, unknown>, EdgeMetaOf<D, T, R>> | null
   : IsMany<D, T, R> extends true
-    ? Collection<
+    ? RelationCollection<
         Identifier<RelatedType<D, T, R>, Record<string, unknown>, EdgeMetaOf<D, T, R>>,
         RelationPage<D, T, R>
       >
@@ -281,12 +294,34 @@ type Relations<D extends ApiDescriptor, A, T extends TypeName<D>, Inc, F = unkno
 >
 
 /**
+ * The relations of type `T` a `withCount` read can count: its count tokens without `_self_`,
+ * which counts the collection rather than a relation.
+ */
+export type CountedRelationName<D extends ApiDescriptor, T extends TypeName<D>> = Exclude<
+  CountToken<D, T>,
+  '_self_'
+>
+
+/**
+ * The `$count` accessor of a resource object of type `T`: a relationship's `meta.total`, read
+ * from the raw relationship so it works when the relation carries no data. `Counted` names the
+ * relations the read asked to count, for which it is a `number`; any other relation may have no
+ * count, so it is `number | undefined`.
+ */
+export interface CountAccessor<D extends ApiDescriptor, T extends TypeName<D>, Counted = never> {
+  $count<R extends CountedRelationName<D, T>>(
+    name: R,
+  ): R extends Counted ? number : number | undefined
+}
+
+/**
  * A materialised resource object: flattened `type` + `id` + attributes + relation slots
  * as own enumerable props, intersected with the resource-level `$`-accessors. `Inc` is
  * the union of relation names included by the read (narrows relations to hydrated); `F` is
  * the sparse-fieldset selection map (narrows attributes/relations to the requested members —
  * `type`/`id`/the `$`-accessors are always present). The default `F = unknown` keeps every
- * member (no fieldset narrowing).
+ * member (no fieldset narrowing). `Counted` names the relations the read counted, whose `$count`
+ * is then a `number`.
  */
 export type ResourceObjectView<
   D extends ApiDescriptor,
@@ -294,12 +329,14 @@ export type ResourceObjectView<
   T extends TypeName<D>,
   Inc = never,
   F = unknown,
+  Counted = never,
 > = {
   type: T
   id: string
 } & PickSelected<AttributesOf<A, T>, SelectedFields<F, T>> &
   Relations<D, A, T, Inc, F> &
-  ResourceAccessors<LinksOf<A, T>>
+  ResourceAccessors<LinksOf<A, T>> &
+  CountAccessor<D, T, Counted>
 
 /**
  * The element type of the `include` array for type `T`: a path from the descriptor's
@@ -557,6 +594,82 @@ export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
   | ReadableRelationName<D, T>
 
+/** A `relatedQuery` entry for a path whose relation declares no vocabulary of its own. */
+export interface LooseRelatedQueryEntry {
+  filter?: Record<string, unknown>
+  sort?: string | readonly string[]
+}
+
+/**
+ * The `relatedQuery` entry for relation `R` of type `T`: its `filter` and `sort` typed as the
+ * relation's own related read types them (see {@link RelationFilterQuery} and
+ * {@link RelationSortQuery}).
+ */
+export interface RelatedQueryEntry<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> {
+  filter?: RelationFilterQuery<D, T, R>
+  sort?: RelationSortQuery<D, T, R>
+}
+
+/** The most relationships deep {@link RelatedQueryEntryAt} follows a path before it goes loose. */
+type MaxRelatedQueryDepth = 8
+
+/**
+ * The entry for include path `P` from type `T`, typed from the relation the path ends on. A
+ * polymorphic relation part way along continues from each member type declaring the next
+ * relation. `never` when no type along the path declares it.
+ */
+type RelatedQueryEntryAt<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  P extends string,
+  Depth extends readonly unknown[] = [],
+> = Depth['length'] extends MaxRelatedQueryDepth
+  ? LooseRelatedQueryEntry
+  : P extends `${infer Head}.${infer Rest}`
+    ? Head extends RelationName<D, T>
+      ? RelatedType<D, T, Head> extends infer U
+        ? U extends TypeName<D>
+          ? RelatedQueryEntryAt<D, U, Rest, [...Depth, unknown]>
+          : never
+        : never
+      : never
+    : P extends RelationName<D, T>
+      ? RelatedQueryEntry<D, T, P>
+      : never
+
+/** The entry for include path `P` from type `T`, loose when its relation can't be resolved. */
+type RelatedQueryEntryFor<D extends ApiDescriptor, T extends TypeName<D>, P extends string> = [
+  RelatedQueryEntryAt<D, T, P>,
+] extends [never]
+  ? LooseRelatedQueryEntry
+  : RelatedQueryEntryAt<D, T, P>
+
+/**
+ * The `relatedQuery` object for type `T` (the Relationship Queries profile): keyed by the type's
+ * include paths, each entry a `filter` and `sort` for the relationship the path ends on.
+ */
+export type RelatedQuery<D extends ApiDescriptor, T extends TypeName<D>> = {
+  readonly [P in IncludePath<D, T>]?: RelatedQueryEntryFor<D, T, P>
+}
+
+/**
+ * The `relatedQuery` read `Op` of type `T` takes: {@link RelatedQuery} when the type's
+ * descriptor names the read in `relatedQuery.operations`, else `never`, so it can't be sent.
+ */
+export type RelatedQueryParam<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends RelatedQueryOperation,
+> = D[T] extends { relatedQuery: { operations: readonly (infer O)[] } }
+  ? Op extends O
+    ? RelatedQuery<D, T>
+    : never
+  : never
+
 /** The `page` argument a collection read of type `T` accepts (see {@link PageParams}). */
 export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = PageParams<
   D[T]['paginator']
@@ -564,10 +677,12 @@ export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = Pag
 
 /**
  * A read query carrying a typed, narrowing `include`, a typed `fields` (drives sparse-fieldset
- * return narrowing), a `withCount` constrained to the type's count tokens, a `page` typed by the
- * collection's paginator (`Pg` drives the `$page` type), plus the loose JSON:API query families. `Inc`/`F` are inferred (as `const`) at the call site. Used for the
- * COLLECTION read (`list`); the single-resource read (`get`) uses {@link SingleReadQuery}, which
- * drops `withCount` (no `GET /{type}/{id}` endpoint advertises it).
+ * return narrowing), a `withCount` constrained to the type's count tokens (`Cnt` drives `$count`
+ * narrowing), a `page` typed by the collection's paginator (`Pg` drives the `$page` type), a
+ * `relatedQuery` keyed by include path, plus the loose JSON:API query families. `Inc`/`F`/`Cnt`
+ * are inferred (as `const`) at the call site. Used for the COLLECTION read (`list`); the
+ * single-resource read (`get`) uses {@link SingleReadQuery}, which drops `withCount` (no
+ * `GET /{type}/{id}` endpoint advertises it).
  */
 export interface TypedReadQuery<
   D extends ApiDescriptor,
@@ -575,6 +690,7 @@ export interface TypedReadQuery<
   Inc extends readonly IncludePath<D, T>[],
   F extends FieldsMap<D> = FieldsMap<D>,
   Pg extends ListPageParams<D, T> | undefined = ListPageParams<D, T> | undefined,
+  Cnt extends readonly CountToken<D, T>[] = readonly CountToken<D, T>[],
 > {
   /** The relations to include — drives static narrowing; constrained to the advertised paths. */
   include?: Inc
@@ -584,8 +700,16 @@ export interface TypedReadQuery<
   sort?: SortQuery<D, T>
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F
-  /** Relationship-count tokens (the Countable profile) — comma-joined onto `withCount`. */
-  withCount?: readonly CountToken<D, T>[]
+  /**
+   * Relationship-count tokens (the Countable profile) — comma-joined onto `withCount`. Each
+   * relation named here reads back as a `number` from `$count` on the result's resources.
+   */
+  withCount?: Cnt
+  /**
+   * A `filter` and `sort` per include path, applied to that relationship (the Relationship
+   * Queries profile). Present only when the collection read advertises it.
+   */
+  relatedQuery?: RelatedQueryParam<D, T, 'fetchMany'>
   /**
    * The page to read, under the paginator's wire keys. On a menu, `kind` picks a strategy;
    * without it the server answers with its default.
@@ -596,10 +720,11 @@ export interface TypedReadQuery<
 }
 
 /**
- * A single-resource read query (`GET /{type}/{id}`): only `include` and sparse `fields`. A
- * single-resource endpoint advertises neither `sort`/`filter`/`page` (no collection to order,
- * filter or page) nor `withCount` — accepting any of them would be a lying type (the server
- * rejects an unrecognised parameter with `400` under strict query-param validation).
+ * A single-resource read query (`GET /{type}/{id}`): `include`, sparse `fields` and, where the
+ * read advertises it, `relatedQuery`. A single-resource endpoint advertises neither
+ * `sort`/`filter`/`page` (no collection to order, filter or page) nor `withCount` — accepting
+ * any of them would be a lying type (the server rejects an unrecognised parameter with `400`
+ * under strict query-param validation).
  */
 export interface SingleReadQuery<
   D extends ApiDescriptor,
@@ -611,6 +736,11 @@ export interface SingleReadQuery<
   include?: Inc
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F
+  /**
+   * A `filter` and `sort` per include path, applied to that relationship (the Relationship
+   * Queries profile). Present only when the single-resource read advertises it.
+   */
+  relatedQuery?: RelatedQueryParam<D, T, 'fetchOne'>
   /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
   signal?: AbortSignal
 }
@@ -618,7 +748,7 @@ export interface SingleReadQuery<
 /**
  * The static return type of a read on type `T` given its `include` tuple and `fields` selection
  * `F` — the resource object with the named relations narrowed to hydrated and its members
- * narrowed to the requested sparse fieldset.
+ * narrowed to the requested sparse fieldset. `Counted` names the relations the read counted.
  */
 export type ReadResult<
   D extends ApiDescriptor,
@@ -626,7 +756,8 @@ export type ReadResult<
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[] = [],
   F = unknown,
-> = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F>
+  Counted = never,
+> = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F, Counted>
 
 /**
  * A read query for the relationship/related endpoints: loose include/fields/withCount, a `page` of
@@ -1452,9 +1583,10 @@ export interface TypeAccessor<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Pg extends ListPageParams<D, T> | undefined = undefined,
+    const Cnt extends readonly CountToken<D, T>[] = [],
   >(
-    query?: TypedReadQuery<D, T, Inc, F, Pg>,
-  ): Promise<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>>
+    query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+  ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
   get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,
