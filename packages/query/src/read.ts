@@ -17,6 +17,7 @@ import type {
   ApiDescriptor,
   Collection,
   FieldsMap,
+  CountToken,
   IncludePath,
   ListPageParams,
   PageOf,
@@ -74,9 +75,10 @@ type TypedClient<D extends ApiDescriptor, A> = {
       const Inc extends readonly IncludePath<D, T>[] = [],
       const F extends FieldsMap<D> = {},
       const Pg extends ListPageParams<D, T> | undefined = undefined,
+      const Cnt extends readonly CountToken<D, T>[] = [],
     >(
-      query?: TypedReadQuery<D, T, Inc, F, Pg>,
-    ): Promise<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>>
+      query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+    ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
     get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
       id: string,
       query?: SingleReadQuery<D, T, Inc, F>,
@@ -102,15 +104,18 @@ export function listQueryOptions<
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
   const Pg extends ListPageParams<D, T> | undefined = undefined,
+  const Cnt extends readonly CountToken<D, T>[] = [],
 >(
   client: TypedClient<D, A>,
   type: T,
-  query?: TypedReadQuery<D, T, Inc, F, Pg>,
-): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>> {
+  query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+): QueryOptions<
+  Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>
+> {
   const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
-    queryFn: () => accessor.list<Inc, F, Pg>(query),
+    queryFn: () => accessor.list<Inc, F, Pg, Cnt>(query),
   }
 }
 
@@ -198,9 +203,12 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Pg extends ListPageParams<D, T> | undefined = undefined,
+    const Cnt extends readonly CountToken<D, T>[] = [],
   >(
-    query?: TypedReadQuery<D, T, Inc, F, Pg>,
-  ): QueryOptions<Collection<ReadResult<D, A, T, Inc, F>, PageOf<D[T]['paginator'], Pg>>>
+    query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+  ): QueryOptions<
+    Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>
+  >
   get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,
