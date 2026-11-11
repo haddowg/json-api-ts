@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.8.0...json-api-codegen-v2.9.0) (2026-11-11)
+
+
+### Features
+
+* **codegen:** record which reads take relatedQuery ([34c9f4d](https://github.com/haddowg/json-api-ts/commit/34c9f4deedf1e42a243a10ee166950453c29b6af))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.17.0
+
 ## [2.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.7.0...json-api-codegen-v2.8.0) (2026-11-10)
 
 

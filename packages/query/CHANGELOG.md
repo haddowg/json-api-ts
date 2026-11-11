@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.2.0...json-api-query-v1.3.0) (2026-11-11)
+
+
+### Features
+
+* **query:** narrow relationship counts on list read options ([f62830c](https://github.com/haddowg/json-api-ts/commit/f62830c97f560c378474db216da0c383225b66c2))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.17.0
+
 ## [1.2.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.1.16...json-api-query-v1.2.0) (2026-11-10)
 
 
