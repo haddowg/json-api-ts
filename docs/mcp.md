@@ -38,6 +38,7 @@ The generator throws when the document's generator contract is outside the range
 
 ### What the model holds
 
+- `$comment`: a note that the file is generated and shouldn't be edited by hand. Regenerate it with the CLI instead. The runtime ignores it.
 - `format` and `generator`: the model's own format and the package that wrote it.
 - `contract` and `source`: the document's generator contract, its title and version, and a content hash of the document.
 - `baseUrl`: the document's first server, the default base URL.
