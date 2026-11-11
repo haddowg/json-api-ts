@@ -19,6 +19,16 @@ export interface ReadQuery {
   fields?: Record<string, string[]>
   /** Relationship-count tokens (the Countable profile) — serialised comma-joined onto `withCount`. */
   withCount?: readonly string[]
+  /**
+   * A `filter` and `sort` per include path (the Relationship Queries profile), serialised as
+   * `relatedQuery[<path>][filter][<key>]` and `relatedQuery[<path>][sort]`.
+   */
+  relatedQuery?: Readonly<
+    Record<
+      string,
+      { filter?: Readonly<Record<string, unknown>>; sort?: string | readonly string[] } | undefined
+    >
+  >
   page?: Record<string, unknown>
   /** Cancels the read when signalled. Never serialised; passed to the transport. */
   signal?: AbortSignal
@@ -62,6 +72,11 @@ export interface JsonApiRequest {
    * The client sets it from the descriptor; without it an array filter value is comma-joined.
    */
   listFilter?: (key: string) => boolean
+  /**
+   * The filter keys of a {@link ReadQuery.relatedQuery} entry that take a list, by the entry's
+   * include path. The client sets it from the relation the path ends on.
+   */
+  relatedListFilter?: (path: string, key: string) => boolean
   body?: unknown
   /**
    * Override the request `Content-Type`, which defaults to the negotiated JSON:API media type on
@@ -183,10 +198,15 @@ const appendFilterValue = (parts: string[], key: string, value: unknown, list = 
  * Serialise a read query to a query string (no leading `?`). Bracketed keys
  * (`filter[title]`, `page[number]`, `fields[albums]`) are kept literal; only values
  * are percent-encoded. `isListFilter` names the filter keys that take a list, whose array value
- * goes out as `filter[<key>][]` once per member. Empty/undefined entries are skipped; key order is deterministic
+ * goes out as `filter[<key>][]` once per member, and `isRelatedListFilter` does the same for a
+ * `relatedQuery` entry's filters by include path. Empty/undefined entries are skipped; key order is deterministic
  * (family order, then insertion order within a family) so URLs are stable for caching.
  */
-export function serializeQuery(query: ReadQuery, isListFilter?: (key: string) => boolean): string {
+export function serializeQuery(
+  query: ReadQuery,
+  isListFilter?: (key: string) => boolean,
+  isRelatedListFilter?: (path: string, key: string) => boolean,
+): string {
   const parts: string[] = []
 
   if (query.filter) {
@@ -215,6 +235,24 @@ export function serializeQuery(query: ReadQuery, isListFilter?: (key: string) =>
 
   if (query.withCount && query.withCount.length > 0) {
     append(parts, 'withCount', query.withCount.join(','))
+  }
+
+  for (const [path, entry] of Object.entries(query.relatedQuery ?? {})) {
+    for (const [key, value] of Object.entries(entry?.filter ?? {})) {
+      appendFilterValue(
+        parts,
+        `relatedQuery[${path}][filter][${key}]`,
+        value,
+        isRelatedListFilter?.(path, key) ?? false,
+      )
+    }
+    if (entry?.sort !== undefined) {
+      append(
+        parts,
+        `relatedQuery[${path}][sort]`,
+        typeof entry.sort === 'string' ? entry.sort : entry.sort.join(','),
+      )
+    }
   }
 
   if (query.page) {
@@ -307,7 +345,7 @@ async function send(
     url = isAbsolute(req.path) ? req.path : ctx.baseUrl + req.path
   }
   if (req.query) {
-    const qs = serializeQuery(req.query, req.listFilter)
+    const qs = serializeQuery(req.query, req.listFilter, req.relatedListFilter)
     if (qs) {
       url += (url.includes('?') ? '&' : '?') + qs
     }

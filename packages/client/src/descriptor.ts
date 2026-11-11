@@ -339,6 +339,20 @@ export interface CountableDescriptor {
   profile: string
 }
 
+/** A read that takes `relatedQuery`: the collection read or the single-resource read. */
+export type RelatedQueryOperation = 'fetchMany' | 'fetchOne'
+
+/**
+ * The `relatedQuery` parameter of a type's reads (the Relationship Queries profile): a `filter`
+ * and `sort` per include path, applied to that relationship's members. `operations` names the
+ * reads that advertise it, and `profile` is the URI a client negotiates in `Accept` before the
+ * server honours it, read from the parameter's `x-profile`.
+ */
+export interface RelatedQueryDescriptor {
+  operations: readonly RelatedQueryOperation[]
+  profile: string
+}
+
 /**
  * A family of sort keys matched by prefix: any key of the form `<prefix>.<suffix>`, ascending or
  * with a leading `-`, whose suffix matches `suffixPattern` (a regular expression source, unanchored
@@ -373,6 +387,11 @@ export interface ResourceDescriptor {
    * Absent when no read endpoint advertises `withCount`.
    */
   countable?: CountableDescriptor
+  /**
+   * The reads that take `relatedQuery` and the profile it needs. Absent when neither the
+   * collection read nor the single-resource read advertises it.
+   */
+  relatedQuery?: RelatedQueryDescriptor
   /**
    * The relation paths the read endpoints accept in `include` — the exact enum the OpenAPI
    * document advertises, including nested dotted paths (`tracks.album`). Drives `include`
