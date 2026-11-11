@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.18.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.18.0...json-api-mcp-v1.18.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **mcp:** return the job of a write the server accepts for later ([5f8d6ac](https://github.com/haddowg/json-api-ts/commit/5f8d6ace232ae82aa100cb455688c5b537df0e5d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.18.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.10.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.10.0
+
 ## [1.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.17.1...json-api-mcp-v1.18.0) (2026-11-11)
 
 
