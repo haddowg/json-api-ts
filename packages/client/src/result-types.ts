@@ -9,6 +9,7 @@
  * flattened as own enumerable props (`type`, `id`, attributes, relations) and the
  * envelope rides non-enumerable `$`-accessors.
  */
+import type { Accepted, PollOptions } from './accepted'
 import type {
   AtomicCreateHandle,
   AtomicDeleteHandle,
@@ -19,6 +20,7 @@ import type {
   AtomicUpdateHandle,
 } from './atomic'
 import type {
+  AcceptedOperation,
   ActionDescriptor,
   ApiDescriptor,
   InputMedia,
@@ -1170,6 +1172,112 @@ export interface WriteOptions<
   fields?: F
 }
 
+// ── Accepted writes (docs/writes.md) ──────────────────────────────────────────────────────────
+
+/** The options that make a write wait for an accepted job: `true`, or the {@link PollOptions}. */
+export interface WaitOptions {
+  wait: true | PollOptions
+}
+
+/** The `202` write `Op` on type `T` declares (its `{ jobType }`), or `never`. */
+export type AcceptedOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends AcceptedOperation,
+> = D[T] extends {
+  accepted: infer Acc
+}
+  ? Acc extends { [K in Op]: infer J }
+    ? J
+    : never
+  : never
+
+/**
+ * The job an accepted write answers with: the job type's resource view when it is a type of this
+ * API, else an open record, which is also what a meta-only job document's `meta` reads as.
+ */
+export type AcceptedJob<D extends ApiDescriptor, A, J> = J extends {
+  jobType: infer JT extends string
+}
+  ? JT extends TypeName<D>
+    ? ReadResult<D, A, JT>
+    : Readonly<Record<string, unknown>>
+  : never
+
+/**
+ * What write `Op` on type `T` resolves to without waiting: its result `R`, or, when it declares a
+ * `202`, `R` or an {@link Accepted} job whose poll resolves to the resource without the write's
+ * `include` or `fields`.
+ */
+export type WriteResult<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  Op extends AcceptedOperation,
+  R,
+> = [AcceptedOf<D, T, Op>] extends [never]
+  ? R
+  : R | Accepted<AcceptedJob<D, A, AcceptedOf<D, T, Op>>, ReadResult<D, A, T>>
+
+/**
+ * The `wait` a caller may pass to write `Op` on type `T`: a boolean or {@link PollOptions} when it
+ * declares a `202`, else nothing.
+ */
+export type WaitValue<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends AcceptedOperation,
+> = [AcceptedOf<D, T, Op>] extends [never] ? undefined : boolean | PollOptions | undefined
+
+/**
+ * What write `Op` resolves to when called with `wait` of type `Wt`: the resource without the
+ * write's `include` or `fields` when it waits, else {@link WriteResult}.
+ */
+export type WaitedWriteResult<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  Op extends AcceptedOperation,
+  R,
+  Wt,
+> = Wt extends true | PollOptions ? ReadResult<D, A, T> : WriteResult<D, A, T, Op, R>
+
+/**
+ * `client.<type>.create`. A type whose create declares a `202` also takes `wait`, which polls an
+ * accepted job and resolves to the created resource; without it the call may resolve to an
+ * {@link Accepted}.
+ */
+export type CreateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> = [
+  AcceptedOf<D, T, 'create'>,
+] extends [never]
+  ? <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+      input: CreateInput<D, W, T>,
+      opts?: WriteOptions<D, T, Inc, F>,
+    ) => Promise<ReadResult<D, A, T, Inc, F>>
+  : {
+      (input: CreateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
+      <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+        input: CreateInput<D, W, T>,
+        opts?: WriteOptions<D, T, Inc, F> & { wait?: false },
+      ): Promise<WriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>>>
+    }
+
+/** `client.<type>.id(id).update`, which takes `wait` as {@link CreateMethod} does. */
+export type UpdateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> = [
+  AcceptedOf<D, T, 'update'>,
+] extends [never]
+  ? <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+      patch: UpdateInput<D, W, T>,
+      opts?: WriteOptions<D, T, Inc, F>,
+    ) => Promise<ReadResult<D, A, T, Inc, F>>
+  : {
+      (patch: UpdateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
+      <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+        patch: UpdateInput<D, W, T>,
+        opts?: WriteOptions<D, T, Inc, F> & { wait?: false },
+      ): Promise<WriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>>>
+    }
+
 // ── Atomic results (docs/atomic-operations.md) ─────────────────────────────────────────────────
 
 /**
@@ -1260,10 +1368,27 @@ type ActionOutputBody<E> = 'output' extends keyof E ? E['output'] : unknown
  * - `none` — `void` (a `204`).
  */
 type ActionResult<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Promise<
-  Act extends { location: object }
-    ? ActionDocumentValue<D, A, Act, E> | ActionLocation
-    : ActionDocumentValue<D, A, Act, E>
+  ActionValue<D, A, Act, E> | ActionAccepted<D, A, Act, E>
 >
+
+/** The value an action answers with when it answers synchronously. */
+type ActionValue<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Act extends {
+  location: object
+}
+  ? ActionDocumentValue<D, A, Act, E> | ActionLocation
+  : ActionDocumentValue<D, A, Act, E>
+
+/** The {@link Accepted} job of an action that declares a `202`, or `never`. */
+type ActionAccepted<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Act extends {
+  accepted: object
+}
+  ? Accepted<AcceptedJob<D, A, Act['accepted']>, ActionValue<D, A, Act, E>>
+  : never
+
+/** The `wait` option of an action that declares a `202`; `unknown` (adding nothing) otherwise. */
+type ActionWaitOption<Act> = Act extends { accepted: object }
+  ? { wait?: boolean | PollOptions }
+  : unknown
 
 /** The value of an action's JSON:API answer other than a location document. */
 type ActionDocumentValue<
@@ -1311,6 +1436,8 @@ export interface ActionCallOptions {
   responseType?: BinaryResponseType
   /** The filters of a collection action that takes them, sent as `filter[...]` like a read's. */
   filter?: Readonly<Record<string, unknown>>
+  /** Poll a `202 Accepted` job until it's done, for an action that declares one. */
+  wait?: boolean | PollOptions
 }
 
 /** A filter key a collection action accepts (its `filterable` literal union), or `never`. */
@@ -1485,7 +1612,8 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
     >(
       input: InputBodyFor<D, W, Act, E, C>,
       options?: { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT> &
-        ActionFilterOptions<Act>,
+        ActionFilterOptions<Act> &
+        ActionWaitOption<Act>,
     ) => ActionResultIn<D, A, Act, E, M, RT>
   : Act extends { rawOutput: readonly RawOutputMedia[] }
     ? Act extends { input: 'none' }
@@ -1494,7 +1622,8 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
           RT extends BinaryResponseType = 'blob',
         >(
           options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
-            ActionFilterOptions<Act>,
+            ActionFilterOptions<Act> &
+            ActionWaitOption<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
       : <
           const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
@@ -1502,20 +1631,53 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
         >(
           input: WithInput<D, W, Act, E>,
           options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
-            ActionFilterOptions<Act>,
+            ActionFilterOptions<Act> &
+            ActionWaitOption<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
-    : Act extends { filterable: readonly string[] } | { filterFamilies: readonly unknown[] }
-      ? Act extends { input: 'none' }
-        ? (
-            options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
-          ) => ActionResult<D, A, Act, E>
-        : (
-            input: WithInput<D, W, Act, E>,
-            options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
-          ) => ActionResult<D, A, Act, E>
-      : Act extends { input: 'none' }
-        ? () => ActionResult<D, A, Act, E>
-        : (input: WithInput<D, W, Act, E>) => ActionResult<D, A, Act, E>
+    : Act extends { accepted: object }
+      ? AcceptedActionMethod<D, A, W, Act, E>
+      : Act extends { filterable: readonly string[] } | { filterFamilies: readonly unknown[] }
+        ? Act extends { input: 'none' }
+          ? (
+              options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
+            ) => ActionResult<D, A, Act, E>
+          : (
+              input: WithInput<D, W, Act, E>,
+              options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
+            ) => ActionResult<D, A, Act, E>
+        : Act extends { input: 'none' }
+          ? () => ActionResult<D, A, Act, E>
+          : (input: WithInput<D, W, Act, E>) => ActionResult<D, A, Act, E>
+
+/**
+ * An action that declares a `202`: `wait` polls the accepted job and resolves to the action's
+ * value; without it the call may resolve to an {@link Accepted}.
+ */
+type AcceptedActionMethod<
+  D extends ApiDescriptor,
+  A,
+  W,
+  Act extends ActionDescriptor,
+  E,
+> = Act extends { input: 'none' }
+  ? {
+      (
+        options: { signal?: AbortSignal } & ActionFilterOptions<Act> & WaitOptions,
+      ): Promise<ActionValue<D, A, Act, E>>
+      (
+        options?: { signal?: AbortSignal; wait?: false } & ActionFilterOptions<Act>,
+      ): ActionResult<D, A, Act, E>
+    }
+  : {
+      (
+        input: WithInput<D, W, Act, E>,
+        options: { signal?: AbortSignal } & ActionFilterOptions<Act> & WaitOptions,
+      ): Promise<ActionValue<D, A, Act, E>>
+      (
+        input: WithInput<D, W, Act, E>,
+        options?: { signal?: AbortSignal; wait?: false } & ActionFilterOptions<Act>,
+      ): ActionResult<D, A, Act, E>
+    }
 
 /**
  * The typed map of a type's custom actions at one scope (`collection` on the
@@ -1561,10 +1723,7 @@ export type ResourceHandle<
   get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
     query?: SingleReadQuery<D, T, Inc, F>,
   ): Promise<ReadResult<D, A, T, Inc, F>>
-  update<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    patch: UpdateInput<D, W, T>,
-    opts?: WriteOptions<D, T, Inc, F>,
-  ): Promise<ReadResult<D, A, T, Inc, F>>
+  update: UpdateMethod<D, A, W, T>
   delete(): Promise<void>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
   /** The type's resource-scoped custom actions, keyed by name (sub `{id}` from this handle). */
@@ -1591,10 +1750,7 @@ export interface TypeAccessor<
     id: string,
     query?: SingleReadQuery<D, T, Inc, F>,
   ): Promise<ReadResult<D, A, T, Inc, F>>
-  create<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    input: CreateInput<D, W, T>,
-    opts?: WriteOptions<D, T, Inc, F>,
-  ): Promise<ReadResult<D, A, T, Inc, F>>
+  create: CreateMethod<D, A, W, T>
   id(id: string): ResourceHandle<D, A, W, T, Act>
   /** The type's collection-scoped custom actions, keyed by name. */
   readonly actions: ActionsAccessor<D, A, W, T, 'collection', Act>

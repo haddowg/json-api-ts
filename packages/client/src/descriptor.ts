@@ -237,6 +237,15 @@ export interface InputMedia {
 }
 
 /**
+ * A `202 Accepted` an operation declares: the server may accept the write for later and answer
+ * with a job document to poll at its `Content-Location`. `jobType` is the job's JSON:API type, a
+ * registered type when the descriptor has an entry for it.
+ */
+export interface AcceptedDescriptor {
+  jobType: string
+}
+
+/**
  * A custom action declared on a type (`#[AsJsonApiAction]`). The runtime reaches it via
  * `client.<type>.actions.<name>(...)` (collection scope) or
  * `client.<type>.id(id).actions.<name>(...)` (resource scope); `input`/`output` drive how the body
@@ -324,6 +333,11 @@ export interface ActionDescriptor {
   listFilters?: readonly string[]
   /** The filter families the action takes, as its type's collection read does. */
   filterFamilies?: readonly FilterFamilyDescriptor[]
+  /**
+   * Present when the action may answer `202 Accepted` with a job to poll. Absent when it always
+   * answers synchronously.
+   */
+  accepted?: AcceptedDescriptor
 }
 
 /**
@@ -448,7 +462,16 @@ export interface ResourceDescriptor {
    * {@link ActionDescriptor.scopes}.
    */
   scopes?: Readonly<Record<string, readonly string[]>>
+  /**
+   * The writes that may answer `202 Accepted` with a job to poll, keyed `create` or `update`. A
+   * delete never does. Absent when every write answers synchronously; an action's is on its
+   * {@link ActionDescriptor.accepted}.
+   */
+  accepted?: Readonly<Partial<Record<AcceptedOperation, AcceptedDescriptor>>>
 }
+
+/** A write that can answer `202 Accepted`. */
+export type AcceptedOperation = 'create' | 'update'
 
 export type ApiDescriptor = Readonly<Record<string, ResourceDescriptor>>
 
