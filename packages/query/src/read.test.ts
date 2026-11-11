@@ -42,6 +42,11 @@ const descriptor = {
     sortable: ['title', '-title'],
     sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['q'],
+    countable: { tokens: ['tracks'], profile: 'https://music.example/profiles/countable/' },
+    relatedQuery: {
+      operations: ['fetchMany', 'fetchOne'],
+      profile: 'https://music.example/profiles/relationship-queries/',
+    },
   },
   artists: {
     attributes: { name: 'string' },
@@ -172,6 +177,45 @@ describe('listQueryOptions', () => {
     expect(requests).toHaveLength(1)
     expect(second).toBe(first)
     expect(qc.getQueryData(a.queryKey)).toBe(qc.getQueryData(b.queryKey))
+  })
+})
+
+describe('listQueryOptions with withCount and relatedQuery', () => {
+  const query = {
+    withCount: ['tracks'],
+    relatedQuery: { tracks: { filter: { title: 'Intro' }, sort: '-title' } },
+  } as const
+
+  it('keys a read by its relatedQuery and reads the count as a number', async () => {
+    const { client, requests } = makeClient({
+      'GET /albums': {
+        data: [{ ...resource('albums', '1'), relationships: { tracks: { meta: { total: 4 } } } }],
+      },
+    })
+    const options = listQueryOptions(client, 'albums', query)
+    expect(options.queryKey).toEqual(keyFor({ type: 'albums', operation: 'fetchMany' }, query))
+    expect(options.queryKey).not.toEqual(
+      listQueryOptions(client, 'albums', { withCount: ['tracks'] }).queryKey,
+    )
+
+    const [album] = await new QueryClient().fetchQuery(options)
+    expect(decodeURI(requests[0]!.url)).toContain(
+      'withCount=tracks&relatedQuery[tracks][filter][title]=Intro&relatedQuery[tracks][sort]=-title',
+    )
+    expect(album!.$count('tracks')).toBe(4)
+    expectTypeOf(album!.$count('tracks')).toEqualTypeOf<number>()
+  })
+
+  it('narrows the bound API the same way', async () => {
+    const { client } = makeClient({
+      'GET /albums': {
+        data: [{ ...resource('albums', '1'), relationships: { tracks: { meta: { total: 4 } } } }],
+      },
+    })
+    const options = createQueryApi(client).albums.list(query)
+    expect(options.queryKey).toEqual(listQueryOptions(client, 'albums', query).queryKey)
+    const [album] = await new QueryClient().fetchQuery(options)
+    expectTypeOf(album!.$count('tracks')).toEqualTypeOf<number>()
   })
 })
 
