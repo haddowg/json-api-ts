@@ -95,7 +95,7 @@ narrowing story.
   without a guard.
 - A **links-only** relation (a relationship object carrying `links`/`meta` but no
   `data`) has no value to hydrate, so the slot is `undefined`; reach its links via
-  `$rel(name)` (below).
+  `$rel(name)` (below), and a `withCount` total via `$count(name)`.
 
 ## Augmented arrays
 
@@ -181,6 +181,7 @@ ok.$meta        // resource-level meta (or undefined)
 ok.$document    // the shared top-level { jsonapi, meta, links } envelope
 ok.$raw         // the original wire resource object (escape hatch)
 ok.$rel('tags') // { data, links, meta } for any relationship, incl. links-only
+ok.$count('tracks') // the relationship's meta.total from a withCount read, or undefined
 ```
 
 ??? note "The full accessor set"
@@ -192,9 +193,11 @@ ok.$rel('tags') // { data, links, meta } for any relationship, incl. links-only
     | `$document` | every resource | the shared, by-reference `{ jsonapi, meta, links }` top-level envelope — identical identity for every resource from one response |
     | `$raw` | every resource | the original JSON:API resource object |
     | `$rel(name)` | the parent resource | `{ data?, links?, meta? }` for a relationship — the way to reach a **links-only** relation's envelope |
+    | `$count(name)` | the parent resource | a relationship's `meta.total` when it's a finite number, else `undefined`; see [counting relationships](pagination.md#counting-relationships-with-withcount) |
     | `$edge` | every related value | the relationship-instance envelope for *this* membership (to-one: `{ links: { self, related }, meta }`; to-many member: meta such as `pivot`) |
     | `$pivot` | pivot to-many members | typed sugar over `$edge.meta.pivot` |
     | `$page` / `$links` / `$meta` / `$next()` / `$prev()` | augmented arrays | the relationship-level pagination + navigation envelope ([Pagination](pagination.md)) |
+    | `$count` | to-many relation arrays | the relationship's `meta.total`, as `$count(name)` on the parent reads it |
 
     `$edge` is distinct from a resource's own `$links`/`$meta`: it describes the
     *edge* (the membership) rather than the resource. For a to-one, the edge carries

@@ -1,0 +1,3 @@
+# A relationship count is read from the resource, since a counted relation may carry no data
+
+A `withCount` read puts each total in the relationship object's `meta.total`, and a counted relation is often rendered with only links and meta, which materialises to no relation value. So the count is read through `$count(name)` on the resource, from the raw relationship as `$rel` reads it, and the to-many array's own `$count` is a convenience for when the array exists. The relations a list's `withCount` tuple names, inferred as a `const` tuple like `include`, read as `number` on that list's resources and every other count stays `number | undefined`. The array's `$count` and included resources aren't narrowed, which keeps the narrowing to one type parameter on the view.

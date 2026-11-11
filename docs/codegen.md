@@ -816,6 +816,10 @@ document's structure:
   unions, narrowed by `type`; without a list they cover every type.
 - **`countable`** — the collection's `withCount` tokens and the negotiation
   profile URI (read from the parameter's `x-profile`, never hardcoded).
+- **`relatedQuery`** — the reads that take the shared `relatedQuery` parameter, as
+  `operations` (`fetchMany`, `fetchOne` or both), and the Relationship Queries profile URI read
+  from its `x-profile`. Absent when neither read advertises it. See
+  [relationship queries](filtering-and-sorting.md#relationship-queries).
 - **`actions`** — custom actions keyed by name, each carrying `scope`
   (`resource`/`collection`), `path`, `input` (`document`/`none`/`raw`) and
   `output` (`document`/`meta`/`location`/`none`), plus an `inputType`/`outputType` where the

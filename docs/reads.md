@@ -120,7 +120,8 @@ member's `$pivot` is typed from them.
 ## How the query families compose
 
 A collection read (`list`) accepts the full set; a single read (`get`/`id(id).get`) accepts
-only `include` and `fields` (a single resource has no collection to filter, sort or page):
+only `include`, `fields` and, where the server advertises it, `relatedQuery` (a single resource
+has no collection to filter, sort or page):
 
 | Family      | What it does                                        | Deep dive |
 |-------------|-----------------------------------------------------|-----------|
@@ -129,7 +130,8 @@ only `include` and `fields` (a single resource has no collection to filter, sort
 | `include`   | hydrate relations into the result type               | [includes and sparse fieldsets](includes-and-sparse-fieldsets.md) |
 | `fields`    | narrow which members each type returns               | [includes and sparse fieldsets](includes-and-sparse-fieldsets.md) |
 | `page`      | window the collection                                | [pagination](pagination.md) |
-| `withCount` | ask for relationship counts (Countable profile)      | [pagination](pagination.md) |
+| `withCount` | ask for relationship counts (Countable profile)      | [pagination](pagination.md#counting-relationships-with-withcount) |
+| `relatedQuery` | filter and sort a relationship by include path (Relationship Queries profile) | [filtering and sorting](filtering-and-sorting.md#relationship-queries) |
 
 They compose freely on a `list`. This is a real, tested call combining all of them:
 

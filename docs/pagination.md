@@ -168,6 +168,29 @@ Because navigation is link-driven, cursor pagination needs no special handling: 
 
     That is the runtime shape. On a generated client each read's `$page` is the narrower `TypedPage<kind, keys, arm>`, whose `meta` is typed for its kind (see the table above). `$page.meta` is the untouched `meta.page` block from the wire, and `$page.links` are the extracted navigation hrefs `$next()`/`$prev()` follow. Both are optional: a count-free paginator may carry only links, and the last page may carry no `next`.
 
+## Counting relationships with `withCount`
+
+A collection read takes `withCount`, the relations to count on each resource. It's typed to the type's count tokens, and the client negotiates the Countable profile in `Accept` for you. The server puts each total in that relationship object's `meta.total`, which is often the only thing the relationship carries: no `data`, so no relation value on the resource. Read it with `$count(name)` on the resource instead:
+
+```ts
+const albums = await client.albums.list({ withCount: ['tracks'] })
+
+albums[0]!.$count('tracks') // number
+```
+
+`$count` takes the type's countable relations (`_self_` counts the collection, so it isn't one). A relation the call's `withCount` names reads as `number`; any other reads as `number | undefined`, since nothing asked the server for it. At runtime `$count` returns `undefined` unless `meta.total` holds a finite number.
+
+When the relationship does carry data, its to-many array has the same total as `$count`:
+
+```ts
+const albums = await client.albums.list({ include: ['tracks'], withCount: ['tracks'] })
+
+albums[0]!.tracks.$count   // number | undefined, the same value
+albums[0]!.$count('tracks') // number
+```
+
+The array's `$count` isn't narrowed by `withCount`, so prefer the resource's. To count a filtered subset of a relationship, such as a run's failed items, add a [relationship query](filtering-and-sorting.md#relationship-queries).
+
 ## Paginating a related collection
 
 A related collection paginates the same way. Fetch a to-many relation with `.related()` and pass `page`; the returned array carries its own `$page`, and it reports the **relation's** paginator — which the spec may declare differently from the related type's own top-level collection. The `page` argument is typed from that paginator too, and a to-one relation takes no `page`:
