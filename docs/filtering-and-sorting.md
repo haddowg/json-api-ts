@@ -99,6 +99,30 @@ An empty term simply omits `filter`, so the reads return the full catalogue.
 !!! tip "Spread optional query keys, don't set them to `undefined`."
     The read-query types are `exactOptionalPropertyTypes` — an explicit `filter: undefined` is a type error. Build the optional part conditionally (`const qFilter = q ? { filter: { q } } : {}`) and spread it, as `SearchPage` does.
 
+## Relationship queries
+
+A read can filter and sort a relationship's members from the primary request, through `relatedQuery` (the Relationship Queries profile). It's there on `list` and `get` only for a type whose descriptor advertises it, keyed by the type's include paths, dotted ones too. Each entry takes a `filter` and a `sort` for the relationship the path ends on:
+
+```ts
+const runs = await client['campaign-template-runs'].list({
+  withCount: ['items'],
+  relatedQuery: { items: { filter: { state: 'failed' } } },
+})
+
+runs[0]!.$count('items') // number: the run's failed items
+```
+
+The server applies the entry wherever it renders that relationship: its linkage, its `included` members and its `withCount` total. So the count above is the failed items, not all of them. See [counting relationships](pagination.md#counting-relationships-with-withcount) for `$count`.
+
+An entry's `filter` and `sort` are typed the way that relation's own `.related()` read types them. Where the descriptor records the relation's own `filterable` and `sortable`, as the codegen does for a polymorphic relation, they're narrowed to those keys and a key the relation doesn't take fails to compile. Otherwise they're loose: any key, any token. An include path the type doesn't advertise fails to compile either way.
+
+On the wire each entry becomes `relatedQuery[<path>][filter][<key>]=<value>` and `relatedQuery[<path>][sort]=<tokens>`, with a list value sent as the primary `filter` sends it. The client adds the profile URI from the descriptor to `Accept`, after the Countable one when `withCount` is set too:
+
+```
+GET /campaign-template-runs?withCount=items&relatedQuery[items][filter][state]=failed
+Accept: application/vnd.api+json; profile="…/countable/ …/relationship-queries/"
+```
+
 ## How the wire is serialised
 
 The runtime serialises the flat `filter`/`sort` into JSON:API's bracketed query families deterministically, so URLs are stable (good for caching). A `filter` object becomes `filter[key]=value`; a `sort` tuple joins with `,`:

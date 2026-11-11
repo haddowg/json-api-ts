@@ -57,7 +57,7 @@ _Avoid_: entity, model, record
 
 **`$`-accessor**:
 A non-enumerable, `$`-prefixed member of a resource object or collection that exposes envelope
-data, such as `$meta`, `$links`, `$document`, `$edge`, `$pivot`, `$rel` or `$page`.
+data, such as `$meta`, `$links`, `$document`, `$edge`, `$pivot`, `$rel`, `$count` or `$page`.
 
 **Materialisation**:
 The conversion of a JSON:API document into resource objects and collections.
@@ -98,6 +98,15 @@ _Avoid_: pagination kind
 
 **Menu**:
 A paginator offering several strategies, one picked per request by `kind` in `page`.
+
+**Relationship count**:
+A relationship's `meta.total` from a `withCount` read, read as `$count(name)` on the resource.
+_Avoid_: relation total, count meta
+
+**Relationship query**:
+The `filter` and `sort` a collection or single read sends for one of its include paths through
+`relatedQuery`, under the Relationship Queries profile.
+_Avoid_: nested filter, include filter
 
 ### Writing
 
