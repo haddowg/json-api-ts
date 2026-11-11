@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.17.0...json-api-client-v1.18.0) (2026-11-11)
+
+
+### Features
+
+* **client:** type and poll writes the server accepts for later ([e4288dd](https://github.com/haddowg/json-api-ts/commit/e4288ddc597d889ec757c37e77ffef20989b0d7e))
+
 ## [1.17.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.16.0...json-api-client-v1.17.0) (2026-11-11)
 
 

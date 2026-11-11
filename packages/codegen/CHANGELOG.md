@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.10.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.9.0...json-api-codegen-v2.10.0) (2026-11-11)
+
+
+### Features
+
+* **codegen:** read a declared 202 Accepted into the descriptor ([ae27de1](https://github.com/haddowg/json-api-ts/commit/ae27de1c18a1ee15aca88686ecc947e70f5fedda))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.18.0
+
 ## [2.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.8.0...json-api-codegen-v2.9.0) (2026-11-11)
 
 

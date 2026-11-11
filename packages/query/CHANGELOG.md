@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.3.0...json-api-query-v1.4.0) (2026-11-11)
+
+
+### Features
+
+* **query:** type create and update mutations a server may accept later ([f6b2548](https://github.com/haddowg/json-api-ts/commit/f6b2548f141f68935cc0f17fdd4f58e077a2c7e9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.18.0
+
 ## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.2.0...json-api-query-v1.3.0) (2026-11-11)
 
 
