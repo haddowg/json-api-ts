@@ -14,6 +14,8 @@ import type {
   PaginatorStrategy,
   PivotDescriptor,
   RawMediaKind,
+  RelatedQueryDescriptor,
+  RelatedQueryOperation,
   RawOutputMedia,
   RelationDescriptor,
   RelationMutations,
@@ -89,6 +91,8 @@ export class DescriptorBuilder {
   private readonly scopeSchemes: ReadonlySet<string>
   /** The document's default security, which an operation without its own inherits. */
   private readonly defaultSecurity: readonly SecurityRequirement[]
+  /** The shared parameters an operation's parameter `$ref` points at. */
+  private readonly sharedParameters: Record<string, ParameterObject>
 
   constructor(source: OpenApiDocument) {
     const doc = unwrapRefs(source)
@@ -100,6 +104,7 @@ export class DescriptorBuilder {
         .map(([name]) => name),
     )
     this.defaultSecurity = doc.security ?? []
+    this.sharedParameters = doc.components?.parameters ?? {}
   }
 
   /**
@@ -197,6 +202,10 @@ export class DescriptorBuilder {
       const countable = this.countable(collection)
       if (countable !== undefined) {
         descriptor.countable = countable
+      }
+      const relatedQuery = this.relatedQuery(collection)
+      if (relatedQuery !== undefined) {
+        descriptor.relatedQuery = relatedQuery
       }
       const includable = this.includable(collection)
       if (includable !== undefined) {
@@ -1214,6 +1223,47 @@ export class DescriptorBuilder {
       return undefined
     }
     return withCountParam(this.operation(collection, 'get'))
+  }
+
+  /**
+   * The reads of a type that take `relatedQuery` (the Relationship Queries profile): the
+   * collection GET and the single-resource GET, each when its parameters carry `relatedQuery`
+   * with an `x-profile`, inline or through a shared parameter `$ref`. The profile is read from
+   * that `x-profile`. Returns `undefined` when neither read advertises it.
+   */
+  private relatedQuery(collection: string | undefined): RelatedQueryDescriptor | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const reads: readonly [RelatedQueryOperation, OperationObject | undefined][] = [
+      ['fetchMany', this.operation(collection, 'get')],
+      ['fetchOne', this.operation(`${collection}/{id}`, 'get')],
+    ]
+    const operations: RelatedQueryOperation[] = []
+    let profile: string | undefined
+    for (const [operation, op] of reads) {
+      const param = (op?.parameters ?? [])
+        .map((p) => this.resolveParameter(p))
+        .find((p) => p?.name === 'relatedQuery' && p.in === 'query')
+      const paramProfile = param?.['x-profile']
+      if (typeof paramProfile !== 'string') {
+        continue
+      }
+      operations.push(operation)
+      profile ??= paramProfile
+    }
+    return profile === undefined ? undefined : { operations, profile }
+  }
+
+  /** A parameter with a `#/components/parameters/` `$ref` followed, else the parameter as is. */
+  private resolveParameter(param: ParameterObject): ParameterObject | undefined {
+    if (typeof param.$ref !== 'string') {
+      return param
+    }
+    const prefix = '#/components/parameters/'
+    return param.$ref.startsWith(prefix)
+      ? this.sharedParameters[param.$ref.slice(prefix.length)]
+      : undefined
   }
 
   /**

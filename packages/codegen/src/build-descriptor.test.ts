@@ -466,6 +466,89 @@ describe('buildDescriptor — withCount (Countable) capability', () => {
   })
 })
 
+/** A `widgets` type whose collection and single reads take the given parameters. */
+const widgetsWith = (
+  collectionParams: ParameterObject[],
+  itemParams: ParameterObject[],
+  shared: Record<string, ParameterObject> = {},
+): OpenApiDocument => ({
+  components: {
+    schemas: {
+      WidgetsResource: {
+        type: 'object',
+        properties: { type: { type: 'string', const: 'widgets' }, id: { type: 'string' } },
+      },
+      WidgetsCollection: { type: 'object' },
+    },
+    parameters: shared,
+  },
+  paths: {
+    '/widgets': {
+      get: {
+        parameters: collectionParams,
+        responses: {
+          '200': {
+            content: {
+              'application/vnd.api+json': {
+                schema: { $ref: '#/components/schemas/WidgetsCollection' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/widgets/{id}': { get: { parameters: itemParams, responses: {} } },
+  },
+})
+
+const relatedQueryParam = (profile?: string): ParameterObject => ({
+  name: 'relatedQuery',
+  in: 'query',
+  style: 'deepObject',
+  schema: { type: 'object' },
+  ...(profile === undefined ? {} : { 'x-profile': profile }),
+})
+
+describe('buildDescriptor — relatedQuery (Relationship Queries) capability', () => {
+  const RELATIONSHIP_QUERIES_PROFILE =
+    'https://haddowg.github.io/json-api/profiles/relationship-queries/'
+
+  it('records the reads that take relatedQuery and its profile (albums)', () => {
+    expect(descriptor['albums']!.relatedQuery).toEqual({
+      operations: ['fetchMany', 'fetchOne'],
+      profile: RELATIONSHIP_QUERIES_PROFILE,
+    })
+  })
+
+  it('omits relatedQuery for a type whose reads do not advertise it (genres)', () => {
+    expect(descriptor['genres']!.relatedQuery).toBeUndefined()
+  })
+
+  it('follows a shared parameter $ref and reads the profile from its x-profile', () => {
+    const ref = { $ref: '#/components/parameters/relatedQuery' }
+    const doc = widgetsWith([ref], [ref], {
+      relatedQuery: relatedQueryParam('https://example.test/profiles/custom-relq/'),
+    })
+    expect(buildDescriptor(doc)['widgets']!.relatedQuery).toEqual({
+      operations: ['fetchMany', 'fetchOne'],
+      profile: 'https://example.test/profiles/custom-relq/',
+    })
+  })
+
+  it('names only the reads that advertise it', () => {
+    const doc = widgetsWith([], [relatedQueryParam('https://example.test/profiles/relq/')])
+    expect(buildDescriptor(doc)['widgets']!.relatedQuery).toEqual({
+      operations: ['fetchOne'],
+      profile: 'https://example.test/profiles/relq/',
+    })
+  })
+
+  it('omits relatedQuery when the parameter carries no x-profile', () => {
+    const doc = widgetsWith([relatedQueryParam()], [relatedQueryParam()])
+    expect(buildDescriptor(doc)['widgets']!.relatedQuery).toBeUndefined()
+  })
+})
+
 describe('buildDescriptor — include/sort/filter capabilities', () => {
   it('captures the includable enum (incl. nested dotted paths) from the read params (albums)', () => {
     expect(descriptor['albums']!.includable).toEqual([
