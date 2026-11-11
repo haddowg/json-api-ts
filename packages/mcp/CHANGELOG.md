@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.17.1...json-api-mcp-v1.18.0) (2026-11-11)
+
+
+### Features
+
+* **mcp:** mark the generated model as not for hand editing ([#154](https://github.com/haddowg/json-api-ts/issues/154)) ([a9051bf](https://github.com/haddowg/json-api-ts/commit/a9051bf310c3fe94dfd4bfda0a629ee5d109ef42))
+
 ## [1.17.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.17.0...json-api-mcp-v1.17.1) (2026-11-11)
 
 
