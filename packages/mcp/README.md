@@ -28,6 +28,9 @@ npx @haddowg/json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json
 npx @haddowg/json-api-mcp --input openapi/v5.json --output src/mcp/v5.mcp.json --check # in CI
 ```
 
+The model is generated, and its leading `$comment` says so. Regenerate it rather than editing
+it by hand.
+
 Tools include one relationship deep by default, so each tool's schema carries only the types its
 direct relations reach. Pass `--include-depth <n>`, or `all` for every path the document
 declares, to change that.

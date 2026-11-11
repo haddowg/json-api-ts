@@ -71,6 +71,8 @@ export interface McpModelTool {
 
 /** The generated artefact. */
 export interface McpModel {
+  /** Marks the written file as generated. The runtime ignores it. */
+  readonly $comment?: string
   format: 1 | 2 | 3 | typeof MODEL_FORMAT
   generator: typeof MODEL_GENERATOR
   /** The generator contract the source document declared. */
