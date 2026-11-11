@@ -825,7 +825,15 @@ document's structure:
   `output` (`document`/`meta`/`location`/`none`), plus an `inputType`/`outputType` where the
   action names a resource, and a `location` when it answers with a URL. A `document` action gets emitted `…Input`/`…Output`
   type aliases. See [custom actions](custom-actions.md). An action needing OAuth
-  scopes carries them as `scopes`.
+  scopes carries them as `scopes`, and one declaring a `202 Accepted` carries
+  `accepted: { jobType }`. Its `output` and `outputType` come from its other success
+  responses, since a `202`'s body is the job.
+- **`accepted`** — the writes that declare a `202 Accepted`, keyed `create` or `update`,
+  each `{ jobType }`: the job type the `202` body's primary `data` names, from a `$ref` to
+  that type's document or an inline document of a type the server doesn't register.
+  Those writes, and only those, resolve to their result or an `Accepted` job and take
+  `wait`. Absent when no write declares one. See
+  [writes accepted for later](writes.md#writes-accepted-for-later).
 - **`scopes`** — the OAuth scopes each operation needs, keyed by the operation id
   without its type (`fetchOne`, `fetchRelated.author`, `addRelationship.tags`). Absent when no operation of the type needs one.
 

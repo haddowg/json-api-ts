@@ -5,7 +5,7 @@ import {
   HANDLE_RESERVED,
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
-import { buildAtomic } from './build-descriptor'
+import { buildAtomic, isResultStatus } from './build-descriptor'
 import { type DeclaredLink, readDeclaredLinks } from './declared-links'
 import { codeList, Deprecations, splitSunset } from './deprecation'
 import { actionOperation, operationExamples } from './build-examples'
@@ -293,7 +293,7 @@ function firstSuccessSchema(
   mediaType: string,
 ): SchemaObject | undefined {
   for (const [code, response] of Object.entries(op?.responses ?? {})) {
-    const media = code.startsWith('2') ? response.content?.[mediaType] : undefined
+    const media = isResultStatus(code) ? response.content?.[mediaType] : undefined
     if (media !== undefined) {
       return media.schema
     }
