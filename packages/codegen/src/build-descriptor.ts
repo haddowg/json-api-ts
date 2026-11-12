@@ -21,6 +21,7 @@ import type {
   RawOutputMedia,
   RelationDescriptor,
   RelationMutations,
+  ResourceCountOperation,
   ResourceDescriptor,
   SortFamilyDescriptor,
 } from '@haddowg/json-api-client'
@@ -224,6 +225,10 @@ export class DescriptorBuilder {
       const countable = this.countable(collection)
       if (countable !== undefined) {
         descriptor.countable = countable
+      }
+      const resourceCountable = this.resourceCountable(collection)
+      if (resourceCountable !== undefined) {
+        descriptor.resourceCountable = resourceCountable
       }
       const relatedQuery = this.relatedQuery(collection)
       if (relatedQuery !== undefined) {
@@ -1330,14 +1335,46 @@ export class DescriptorBuilder {
    * Deliberately scoped to the collection GET only. The per-endpoint token sets differ
    * (a collection counts e.g. `tracks`; a related/relationship endpoint counts `_self_` and its
    * own relations), so a single per-type `countable` can only honestly describe one endpoint.
-   * The fluent surface exposes `withCount` on `list` (the collection), so `countable` mirrors
-   * that endpoint — a related-GET fallback would advertise tokens `list` cannot legally send.
+   * `countable` mirrors the endpoint `list` reads, and {@link resourceCountable} records the
+   * single-resource operations, so neither advertises tokens its call cannot legally send.
    */
   private countable(collection: string | undefined): CountableDescriptor | undefined {
     if (collection === undefined) {
       return undefined
     }
     return withCountParam(this.operation(collection, 'get'))
+  }
+
+  /**
+   * The `withCount` of the type's operations that answer with one resource: the single read
+   * (`GET /{id}`), the create (`POST`) and the update (`PATCH /{id}`), each read off its own
+   * `withCount` parameter as {@link countable} reads the collection's. An operation documenting
+   * no `withCount` has no entry; `undefined` when none does. The tokens never include `_self_`,
+   * which counts a collection.
+   */
+  private resourceCountable(
+    collection: string | undefined,
+  ): Partial<Record<ResourceCountOperation, CountableDescriptor>> | undefined {
+    if (collection === undefined) {
+      return undefined
+    }
+    const item = `${collection}/{id}`
+    const operations: readonly [ResourceCountOperation, OperationObject | undefined][] = [
+      ['fetchOne', this.operation(item, 'get')],
+      ['create', this.operation(collection, 'post')],
+      ['update', this.operation(item, 'patch')],
+    ]
+    const out: Partial<Record<ResourceCountOperation, CountableDescriptor>> = {}
+    for (const [operation, op] of operations) {
+      const countable = withCountParam(op)
+      if (countable !== undefined) {
+        out[operation] = {
+          tokens: countable.tokens.filter((token) => token !== '_self_'),
+          profile: countable.profile,
+        }
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined
   }
 
   /**

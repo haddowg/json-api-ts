@@ -162,6 +162,22 @@ describe('readErrorCatalogue', () => {
     expect([...catalogue.byOperation]).toEqual([['update.articles', ['ARTICLE_LOCKED']]])
   })
 
+  it("scopes all of an operation document's codes when its status has no shared document", () => {
+    const schemas = { ...doc.components!.schemas }
+    delete schemas['ErrorDocument409']
+    const responses = { ...doc.components!.responses }
+    delete responses['Conflict']
+    const unshared = readErrorCatalogue({
+      ...doc,
+      paths: { '/articles/{id}': { patch: doc.paths!['/articles/{id}']!.patch! } },
+      components: { ...doc.components, schemas, responses },
+    })
+    expect([...unshared.byOperation]).toEqual([
+      ['update.articles', ['ARTICLE_LOCKED', 'RESOURCE_ID_CONFLICT']],
+    ])
+    expect(unshared.byStatus.get(409)).toEqual(['ARTICLE_LOCKED', 'RESOURCE_ID_CONFLICT'])
+  })
+
   it('reads titles, descriptions, examples and meta when present', () => {
     const byCode = new Map(catalogue.codes.map((c) => [c.code, c]))
     expect(byCode.get('AUTHENTICATION_REQUIRED')).toEqual({

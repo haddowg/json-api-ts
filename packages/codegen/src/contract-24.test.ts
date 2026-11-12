@@ -18,7 +18,7 @@ const source = emit(witness, buildDescriptor(witness))
 
 describe('generator contract 24 (error shapes, scoped codes, typed meta)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(34)
+    expect(witness.info?.['x-generator']?.contract).toBe(35)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -38,7 +38,9 @@ describe('generator contract 24 (error shapes, scoped codes, typed meta)', () =>
   })
 
   it('names the codes only some operations raise', () => {
-    expectTypeOf<ErrorCodeByOperation['update.articles']>().toEqualTypeOf<'ARTICLE_LOCKED'>()
+    expectTypeOf<
+      Extract<ErrorCodeByOperation['update.articles'], 'ARTICLE_LOCKED'>
+    >().toEqualTypeOf<'ARTICLE_LOCKED'>()
     expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<'ARTICLE_LOCKED'>()
   })
 

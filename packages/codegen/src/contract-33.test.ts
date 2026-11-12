@@ -53,7 +53,7 @@ describe('generator contract 33 (error documents named for the operation)', () =
   const catalogue = readErrorCatalogue(witness)
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(34)
+    expect(witness.info?.['x-generator']?.contract).toBe(35)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -68,15 +68,24 @@ describe('generator contract 33 (error documents named for the operation)', () =
 
   it('maps each operation to the codes its own documents add to the shared ones', () => {
     const payment = ['PAYMENT_REQUIRED', 'SUBSCRIPTION_EXPIRED']
-    expect([...catalogue.byOperation]).toEqual([
-      ['action.articles.export.post', payment],
-      ['action.articles.publish', payment],
-      ['addRelationship.articles.tags', payment],
-      ['atomic.operations', ['ARTICLE_LOCKED', ...payment]],
-      ['create.tags', payment],
-      ['delete.articles', ['ARTICLE_LOCKED']],
-      ['update.articles', ['ARTICLE_LOCKED']],
+    const raising = (code: string) =>
+      [...catalogue.byOperation].filter(([, codes]) => codes.includes(code)).map(([id]) => id)
+    expect(raising('ARTICLE_LOCKED')).toEqual([
+      'atomic.operations',
+      'delete.articles',
+      'update.articles',
     ])
+    for (const code of payment) {
+      expect(raising(code)).toEqual([
+        'action.articles.export.post',
+        'action.articles.publish',
+        'addRelationship.articles.tags',
+        'atomic.operations',
+        'create.tags',
+      ])
+    }
+    expect(catalogue.byOperation.get('delete.articles')).toEqual(['ARTICLE_LOCKED'])
+    expect(catalogue.byOperation.get('action.articles.export.post')).toEqual(payment)
   })
 
   it('files each operation document under the status that answers with it', () => {
@@ -88,11 +97,14 @@ describe('generator contract 33 (error documents named for the operation)', () =
   })
 
   it('types the scoped codes in the generated client', () => {
-    expectTypeOf<ErrorCodeByOperation['update.articles']>().toEqualTypeOf<'ARTICLE_LOCKED'>()
-    expectTypeOf<ErrorCodeByOperation['action.articles.publish']>().toEqualTypeOf<
-      'PAYMENT_REQUIRED' | 'SUBSCRIPTION_EXPIRED'
-    >()
-    expectTypeOf<ErrorCodeByOperation['addRelationship.articles.tags']>().toEqualTypeOf<
+    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<'ARTICLE_LOCKED'>()
+    expectTypeOf<
+      Extract<ErrorCodeByOperation['update.articles'], 'ARTICLE_LOCKED'>
+    >().toEqualTypeOf<'ARTICLE_LOCKED'>()
+    expectTypeOf<
+      Extract<ErrorCodeByOperation['addRelationship.articles.tags'], `${string}_EXPIRED`>
+    >().toEqualTypeOf<'SUBSCRIPTION_EXPIRED'>()
+    expectTypeOf<ErrorCodeByOperation['action.articles.export.post']>().toEqualTypeOf<
       'PAYMENT_REQUIRED' | 'SUBSCRIPTION_EXPIRED'
     >()
     expectTypeOf<ErrorCodeByStatus[402]>().toEqualTypeOf<
@@ -103,7 +115,7 @@ describe('generator contract 33 (error documents named for the operation)', () =
   it('emits no type for an operation document', () => {
     const source = emit(witness, buildDescriptor(witness))
     expect(source).not.toMatch(/\bArticlesUpdate409\b/)
-    expect(source).toContain('  "update.articles": "ARTICLE_LOCKED"')
+    expect(source).toContain('  "delete.articles": "ARTICLE_LOCKED"')
   })
 })
 

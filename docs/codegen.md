@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 34. An older document is refused, because it describes its error codes in a form
+contracts 24 to 35. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -841,6 +841,9 @@ document's structure:
   unions, narrowed by `type`; without a list they cover every type.
 - **`countable`** — the collection's `withCount` tokens and the negotiation
   profile URI (read from the parameter's `x-profile`, never hardcoded).
+- **`resourceCountable`** — the same for each operation answering with one resource that
+  documents `withCount`, keyed `fetchOne`, `create` or `update`, with `_self_` left out of the
+  tokens. Absent when none documents it.
 - **`relatedQuery`** — the reads that take the shared `relatedQuery` parameter, as
   `operations` (`fetchMany`, `fetchOne` or both), and the Relationship Queries profile URI read
   from its `x-profile`. Absent when neither read advertises it. See
