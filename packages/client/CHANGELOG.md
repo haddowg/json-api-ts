@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.20.0...json-api-client-v1.21.0) (2026-11-12)
+
+
+### Features
+
+* **client:** type withCount on get, create and update ([8d16b4a](https://github.com/haddowg/json-api-ts/commit/8d16b4ae26bd9bd39fab0c050df271847f22013e))
+
 ## [1.20.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.19.0...json-api-client-v1.20.0) (2026-11-12)
 
 
