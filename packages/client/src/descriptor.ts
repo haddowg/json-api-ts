@@ -134,9 +134,12 @@ export interface RelationDescriptor {
    * records them on the relation. The codegen does for a polymorphic relation, whose members
    * share no type to read them from, such as a `MorphToMany` sorting by its pivot fields, and for
    * a relation whose reads sort differently from its related type's collection read, such as by a
-   * pivot field or a sort the relation declares. Narrows `sort` on `.get()` and `.related()` as
-   * {@link ResourceDescriptor.sortable} narrows a collection read. Absent, together with
-   * {@link sortFamilies}, means the reads take any sort.
+   * pivot field or a sort the relation declares. It records `[]` for a relation whose reads take no
+   * sort, such as any to-one. Narrows `sort` on `.get()` and `.related()` as
+   * {@link ResourceDescriptor.sortable} narrows a collection read, and `[]` with no
+   * {@link sortFamilies} types `sort` as `never`. Absent, together with {@link sortFamilies}, means
+   * not recorded: a monomorphic relation's reads then take its related type's collection sorts and
+   * a polymorphic relation's take any sort.
    */
   sortable?: readonly string[]
   /** The sort families the relation's reads accept beside {@link sortable}. */

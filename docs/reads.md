@@ -107,6 +107,11 @@ its pivot fields, and each member's `$pivot` is typed from them. In the music ca
 `albums.tracks` sorts by `duration`, which the tracks collection doesn't, so
 `.related({ sort: '-duration' })` compiles on that relation alone.
 
+A relation over one type that records no sorts takes its related type's collection sorts. A
+relation whose reads take no sort, such as any to-one, records an empty `sortable` and its
+`sort` is `never`, so `.related({ sort: 'name' })` on `albums.artist` fails to compile. A
+polymorphic relation that records nothing takes any sort.
+
 ??? note "Going deeper: `.rel(name)` vs direct property access, and suppressed endpoints"
     On a handle you can also reach a relation by property — `client.albums.id('1').tracks`
     — but a relation whose name collides with a reserved handle member (`get`, `update`,

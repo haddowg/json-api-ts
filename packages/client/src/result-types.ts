@@ -549,19 +549,48 @@ type RelationSpec<
   R extends RelationName<D, T>,
 > = D[T]['relations'][R]
 
+/** Whether a descriptor `Spec` records `sortable` or `sortFamilies`, even an empty `sortable`. */
+type RecordsSorts<Spec> = Spec extends { sortable: unknown }
+  ? true
+  : Spec extends { sortFamilies: unknown }
+    ? true
+    : false
+
 /**
- * The `sort` value relation `R`'s related and relationship reads take: one of the tokens its
- * descriptor declares or a tuple of them, as {@link SortQuery} types a collection read. A
- * relation whose descriptor declares no sorts of its own takes any sort, since the descriptor
- * then says nothing either way.
+ * The related type of a relation `Spec` the client can tell is monomorphic, as
+ * {@link isPolymorphic} tells at runtime: flagged `polymorphic: false`, or unflagged with a
+ * literal one-type `types` tuple. `never` otherwise.
+ */
+type MonomorphicTarget<D extends ApiDescriptor, Spec> = Spec extends { polymorphic: true }
+  ? never
+  : Spec extends { polymorphic: false; types: readonly [infer First, ...unknown[]] }
+    ? Extract<First, TypeName<D>>
+    : Spec extends { types: readonly [infer Only] }
+      ? Extract<Only, TypeName<D>>
+      : never
+
+/** One of the tokens `Token` or a tuple of them; `never` when there are none. */
+type SortTokensQuery<Token> = [Token] extends [never] ? never : Token | readonly Token[]
+
+/**
+ * The `sort` value relation `R`'s related and relationship reads take, as {@link SortQuery} types
+ * a collection read. Where the descriptor records the relation's own `sortable` or
+ * `sortFamilies`, they're its tokens, and an empty `sortable` with no families means the reads
+ * take no sort, typed `never`. Where it records neither, a monomorphic relation takes its related
+ * type's collection tokens and a polymorphic one takes any sort.
  */
 export type RelationSortQuery<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = [SortTokenOf<RelationSpec<D, T, R>>] extends [never]
-  ? string | readonly string[]
-  : SortTokenOf<RelationSpec<D, T, R>> | readonly SortTokenOf<RelationSpec<D, T, R>>[]
+> =
+  RecordsSorts<RelationSpec<D, T, R>> extends true
+    ? SortTokensQuery<SortTokenOf<RelationSpec<D, T, R>>>
+    : MonomorphicTarget<D, RelationSpec<D, T, R>> extends infer U extends TypeName<D>
+      ? [U] extends [never]
+        ? string | readonly string[]
+        : SortQuery<D, U>
+      : string | readonly string[]
 
 /**
  * The `filter` object relation `R`'s related and relationship reads take: keyed by the filters its
@@ -596,7 +625,7 @@ export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
   | ReadableRelationName<D, T>
 
-/** A `relatedQuery` entry for a path whose relation declares no vocabulary of its own. */
+/** A `relatedQuery` entry for a path whose relation the types can't resolve. */
 export interface LooseRelatedQueryEntry {
   filter?: Record<string, unknown>
   sort?: string | readonly string[]
