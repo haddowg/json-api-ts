@@ -136,6 +136,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       pivot: false,
       mutations: { set: true },
       sortable: [],
+      filterable: [],
     })
   })
 
@@ -689,8 +690,9 @@ describe('buildDescriptor (music-catalog admin server)', () => {
         tokens: ['tracks'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
       },
-      // the related read takes no sort.
+      // the related read takes no sort and no filter.
       sortable: [],
+      filterable: [],
     })
   })
 
@@ -838,6 +840,7 @@ describe('buildDescriptor — per-relation endpoint suppression', () => {
       pivot: false,
       mutations: { add: true },
       sortable: [],
+      filterable: [],
     })
     // Related endpoint suppressed -> `related: false` (gates `.related()` off).
     expect(relations['gadgets']).toEqual({
@@ -847,6 +850,7 @@ describe('buildDescriptor — per-relation endpoint suppression', () => {
       related: false,
       mutations: { replace: true },
       sortable: [],
+      filterable: [],
     })
     // Relationship endpoint suppressed -> `relationship: false` + closed `mutations: {}` (no verb
     // callable), rather than an absent block that the client would read as "all verbs callable".
@@ -857,6 +861,7 @@ describe('buildDescriptor — per-relation endpoint suppression', () => {
       relationship: false,
       mutations: {},
       sortable: [],
+      filterable: [],
     })
   })
 })
@@ -1611,10 +1616,12 @@ describe('buildDescriptor — generator contract 5', () => {
       types: ['people'],
       pivot: false,
       writeOnly: true,
-      // this document publishes no relation endpoints at all
+      // this document publishes no relation endpoints at all, so no read to sort or filter
       related: false,
       relationship: false,
       mutations: {},
+      sortable: [],
+      filterable: [],
     })
     expect(articles.relations['author']!.writeOnly).toBeUndefined()
     expect(warn).not.toHaveBeenCalled()
@@ -1765,6 +1772,7 @@ describe('buildDescriptor — generator contract 8', () => {
       uriField: 'published-by',
       mutations: { set: true },
       sortable: [],
+      filterable: [],
     })
     expect(articles.paths['fetchRelated']).toBe('/articles/{id}/{rel}')
   })
@@ -1777,6 +1785,8 @@ describe('buildDescriptor — generator contract 8', () => {
       writeOnly: true,
       related: false,
       mutations: { set: true },
+      sortable: [],
+      filterable: [],
     })
   })
 

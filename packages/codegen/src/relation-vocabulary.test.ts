@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs'
-import type { TransportRequest } from '@haddowg/json-api-client'
-import { describe, expect, it } from 'vitest'
-import { createClient as createWitnessClient } from '../test/generated/contract-witness.client.gen'
+import type {
+  RelationFilterQuery,
+  RelationSortQuery,
+  TransportRequest,
+} from '@haddowg/json-api-client'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import {
+  createClient as createWitnessClient,
+  type ResourceMap as WitnessMap,
+} from '../test/generated/contract-witness.client.gen'
 import { createClient as createCatalogClient } from '../test/generated/music-catalog.client.gen'
 import { buildDescriptor } from './build-descriptor'
 import { emit } from './emit'
@@ -40,7 +47,7 @@ function ownVocabularies(descriptor: ReturnType<typeof buildDescriptor>): string
   return Object.entries(descriptor).flatMap(([type, spec]) =>
     Object.entries(spec.relations)
       .filter(([, relation]) => relation.polymorphic !== true)
-      .filter(([, relation]) => relation.sortable?.length || relation.filterable)
+      .filter(([, relation]) => relation.sortable?.length || relation.filterable?.length)
       .map(([name]) => `${type}.${name}`),
   )
 }
@@ -179,13 +186,6 @@ describe('a relation whose reads take no sort', () => {
     expect(relations['cover']!.sortable).toEqual([])
   })
 
-  it('records nothing for a relation with no read at all', () => {
-    expect(relations['reviewer']!.related).toBe(false)
-    expect(relations['reviewer']!.sortable).toBeUndefined()
-    expect(relations['watchers']!.writeOnly).toBe(true)
-    expect(relations['watchers']!.sortable).toBeUndefined()
-  })
-
   it('keeps the sorts of a relation whose reads take them', () => {
     expect(relations['sponsors']!.sortable).toEqual(['rank', '-rank', 'since', '-since'])
     expect(relations['tags']!.sortable).toEqual(['id', '-id', 'label', '-label'])
@@ -225,5 +225,128 @@ describe('a relation whose reads take no sort', () => {
     await client.artists.list({ include: ['albums'], relatedQuery: { albums: { sort: 'status' } } })
     // @ts-expect-error — `duration` is not a sort of the albums collection.
     await client.artists.id('1').albums.related({ sort: 'duration' })
+  })
+})
+
+describe('a relation whose reads take no filter', () => {
+  const descriptor = buildDescriptor(witness)
+  const relations = descriptor['articles']!.relations
+
+  it('records an empty `filterable` on to-one and to-many, monomorphic and polymorphic alike', () => {
+    expect(relations['subject']!.filterable).toEqual([])
+    expect(relations['attachments']!.filterable).toEqual([])
+    expect(relations['gallery']!.filterable).toEqual([])
+    expect(descriptor['people']!.relations['company']!.filterable).toEqual([])
+    expect(relations['attachments']!.filterFamilies).toBeUndefined()
+  })
+
+  it('reads the relationship read when the related endpoint is suppressed', () => {
+    expect(relations['cover']!.related).toBe(false)
+    expect(relations['cover']!.filterable).toEqual([])
+  })
+
+  it('keeps the filters of a relation whose reads take them', () => {
+    expect(relations['sponsors']!.filterable).toEqual(['minRank'])
+    expect(relations['tags']!.filterable).toEqual(['color', 'excludeId', 'label'])
+    expect(relations['author']!.filterable).toBeUndefined()
+  })
+
+  it('emits the empty list', () => {
+    expect(relationBlock(emit(witness, descriptor), 'articles', 'attachments')).toContain(
+      '        filterable: []',
+    )
+  })
+
+  it('records it once a read stops taking a filter', () => {
+    const doc = structuredClone(witness)
+    for (const path of ['/articles/{id}/tags', '/articles/{id}/relationships/tags']) {
+      const read = doc.paths![path]!.get!
+      read.parameters = read.parameters!.filter(
+        (param) => !(param.name === 'filter' || param.name?.startsWith('filter[')),
+      )
+    }
+    const tags = buildDescriptor(doc)['articles']!.relations['tags']!
+    expect(tags.filterable).toEqual([])
+    expect(tags.listFilters).toBeUndefined()
+  })
+
+  it('types `filter` as never on the reads of such a relation', async () => {
+    const { transport } = recording({ data: [] })
+    const client = createCatalogClient({ baseUrl: 'https://api.example.com', transport })
+    await client.tracks.id('1').playlists.related()
+    // @ts-expect-error — the related read takes no filter.
+    await client.tracks.id('1').playlists.related({ filter: { q: 'x' } })
+    // @ts-expect-error — the relationship read takes no filter.
+    await client.tracks.id('1').playlists.get({ filter: {} })
+    await client.tracks.list({
+      include: ['playlists'],
+      // @ts-expect-error — the relatedQuery entry takes no filter.
+      relatedQuery: { playlists: { filter: {} } },
+    })
+    // @ts-expect-error — a polymorphic relation's relatedQuery entry takes no filter either.
+    await client.libraries.list({ include: ['items'], relatedQuery: { items: { filter: {} } } })
+  })
+
+  it("types a monomorphic relation recording no filters with its related type's", async () => {
+    const { transport, urls } = recording({ data: [] })
+    const client = createWitnessClient({ baseUrl: 'https://api.example.com', transport })
+    await client.tags.id('tag-1').articles.related({ filter: { status: 'draft' } })
+    await client.tags.id('tag-1').articles.related({ filter: { categories: ['news', 'tech'] } })
+    // @ts-expect-error — `colour` is not a filter of the articles collection.
+    await client.tags.id('tag-1').articles.related({ filter: { colour: 'red' } })
+    // @ts-expect-error — the articles collection's `categories` filter takes a list.
+    await client.tags.id('tag-1').articles.related({ filter: { categories: 'news' } })
+    expect(urls()[1]).toBe(
+      'https://api.example.com/tags/tag-1/articles?filter[categories][]=news&filter[categories][]=tech',
+    )
+    const catalogClient = createCatalogClient({ baseUrl: 'https://api.example.com', transport })
+    await catalogClient.artists.list({
+      include: ['albums'],
+      relatedQuery: { albums: { filter: { title: 'x' } } },
+    })
+    // @ts-expect-error — `duration` is not a filter of the albums collection.
+    await catalogClient.artists.id('1').albums.related({ filter: { duration: 1 } })
+  })
+})
+
+describe('a relation with no read', () => {
+  const descriptor = buildDescriptor(witness)
+  const relations = descriptor['articles']!.relations
+
+  it('records an empty `sortable` and `filterable`', () => {
+    for (const relation of [
+      relations['reviewer']!,
+      relations['watchers']!,
+      descriptor['credits']!.relations['person']!,
+    ]) {
+      expect(relation.sortable).toEqual([])
+      expect(relation.filterable).toEqual([])
+    }
+    expect(relations['reviewer']!.related).toBe(false)
+    expect(relations['watchers']!.writeOnly).toBe(true)
+    expect(descriptor['credits']!.paths).toEqual({})
+  })
+
+  it('records them on a polymorphic relation too', () => {
+    const doc = structuredClone(witness)
+    for (const path of ['/articles/{id}/attachments', '/articles/{id}/relationships/attachments']) {
+      delete doc.paths![path]!.get
+    }
+    const attachments = buildDescriptor(doc)['articles']!.relations['attachments']!
+    expect(attachments.polymorphic).toBe(true)
+    expect(attachments.sortable).toEqual([])
+    expect(attachments.filterable).toEqual([])
+  })
+
+  it('types `sort` and `filter` as never', () => {
+    expectTypeOf<RelationSortQuery<WitnessMap, 'articles', 'reviewer'>>().toBeNever()
+    expectTypeOf<RelationFilterQuery<WitnessMap, 'articles', 'reviewer'>>().toBeNever()
+    expectTypeOf<RelationSortQuery<WitnessMap, 'articles', 'watchers'>>().toBeNever()
+    expectTypeOf<RelationFilterQuery<WitnessMap, 'articles', 'watchers'>>().toBeNever()
+    expectTypeOf<RelationSortQuery<WitnessMap, 'credits', 'person'>>().toBeNever()
+    expectTypeOf<RelationFilterQuery<WitnessMap, 'credits', 'person'>>().toBeNever()
+    type Reviewer = ReturnType<ReturnType<typeof createWitnessClient>['articles']['id']>['reviewer']
+    expectTypeOf<Reviewer['get']>().toBeNever()
+    expectTypeOf<Reviewer['related']>().toBeNever()
   })
 })
