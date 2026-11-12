@@ -35,7 +35,7 @@ describe('generator contract 19 (discriminated unions)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(33)
+    expect(mcp.contract).toBe(34)
   })
 
   it('keeps the type discriminator out of every tool schema', () => {

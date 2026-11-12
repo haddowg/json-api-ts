@@ -232,16 +232,42 @@ function familyMembers(
       },
       value,
     })
+    const example = familyExample(prefix, family['list'] === true, family['example'])
     const property = nullable({
       type: 'array',
       items: entry,
-      description: `Filters on keys of the form \`${prefix}.<name>\`, one entry per key. Leave null to apply none.`,
+      description: [
+        typeof family['description'] === 'string' ? family['description'].trim() : '',
+        `Filters on keys of the form \`${prefix}.<name>\`, one entry per key${example === undefined ? '' : `, such as \`${example}\``}.`,
+        'Leave null to apply none.',
+      ]
+        .filter((part) => part !== '')
+        .join(' '),
     })
     properties[`${prefix}.`] = isDeprecated(family) ? markDeprecated(property) : property
     props[`${prefix}.`] = { decoder: { kind: 'value' }, nullMeansOmit: true }
     prefixes.push(prefix)
   }
   return prefixes
+}
+
+/**
+ * A family's `x-filter-families` example, whole keys and their values, as the entries the tool's
+ * `<prefix>.` member takes. A list family's string value is its comma-separated members.
+ * `undefined` when the example names no key of the family.
+ */
+function familyExample(prefix: string, list: boolean, example: unknown): string | undefined {
+  if (!isObject(example)) {
+    return undefined
+  }
+  const entries = Object.entries(example).flatMap(([key, value]) => {
+    if (!key.startsWith(`${prefix}.`) || key.length === prefix.length + 1) {
+      return []
+    }
+    const sent = list && typeof value === 'string' ? value.split(',') : value
+    return [{ name: key.slice(prefix.length + 1), value: sent }]
+  })
+  return entries.length === 0 ? undefined : JSON.stringify(entries)
 }
 
 /** The page parameter's size bound and default for the strategy that answers by default. */
@@ -273,8 +299,9 @@ function pageBounds(
  * The item schema of a `sort` argument: the enum of fixed keys, and per sort family a string
  * branch whose description gives the prefix and the suffix pattern, since a pattern keyword isn't
  * portable. The keys the API marks deprecated, in both directions, get an enum branch of their
- * own, and a deprecated family's description says so. `undefined` when the parameter offers
- * neither.
+ * own, and a deprecated family's description says so. A key the API describes in
+ * `x-sort-descriptions` is listed in its branch's description, and a described family's branch
+ * adds its description. `undefined` when the parameter offers neither.
  */
 function sortItems(doc: OpenApiDocument, schema: JsonSchema | undefined): JsonSchema | undefined {
   const items = deref<JsonSchema>(doc, schema?.['items'] as JsonSchema | undefined)
@@ -294,17 +321,35 @@ function sortItems(doc: OpenApiDocument, schema: JsonSchema | undefined): JsonSc
     deprecatedKeys.has(token.startsWith('-') ? token.slice(1) : token)
   const current = tokens.filter((token) => !isDeprecatedToken(token))
   const deprecated = tokens.filter(isDeprecatedToken)
-  const out: JsonSchema[] = current.length > 0 ? [{ type: 'string', enum: current }] : []
+  const described = isObject(schema?.['x-sort-descriptions']) ? schema['x-sort-descriptions'] : {}
+  const enumBranch = (keys: string[]): JsonSchema => {
+    const lines = keys.flatMap((key) => {
+      const text = key.startsWith('-') ? undefined : described[key]
+      return typeof text === 'string' && text.trim() !== '' ? [`- \`${key}\`: ${text.trim()}`] : []
+    })
+    return lines.length === 0
+      ? { type: 'string', enum: keys }
+      : {
+          type: 'string',
+          enum: keys,
+          description: `What each sort orders by, in either direction:\n${lines.join('\n')}`,
+        }
+  }
+  const out: JsonSchema[] = current.length > 0 ? [enumBranch(current)] : []
   if (deprecated.length > 0) {
-    out.push(markDeprecated({ type: 'string', enum: deprecated }))
+    out.push(markDeprecated(enumBranch(deprecated)))
   }
   const families = schema?.['x-sort-families']
   for (const family of Array.isArray(families) ? (families as JsonSchema[]) : []) {
     const { prefix, suffixPattern } = family
     if (typeof prefix === 'string' && typeof suffixPattern === 'string') {
+      const about =
+        typeof family['description'] === 'string' && family['description'].trim() !== ''
+          ? ` ${family['description'].trim()}`
+          : ''
       const branch: JsonSchema = {
         type: 'string',
-        description: `\`${prefix}.\` followed by a name matching the regular expression \`${suffixPattern}\`, optionally with a leading \`-\`.`,
+        description: `\`${prefix}.\` followed by a name matching the regular expression \`${suffixPattern}\`, optionally with a leading \`-\`.${about}`,
       }
       out.push(isDeprecated(family) ? markDeprecated(branch) : branch)
     }

@@ -12,7 +12,7 @@ describe('generator contract 20 (sort families)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(33)
+    expect(mcp.contract).toBe(34)
   })
 
   it('offers the fixed keys and describes each family in its own branch', () => {
@@ -20,7 +20,12 @@ describe('generator contract 20 (sort families)', () => {
       type: ['array', 'null'],
       items: {
         anyOf: [
-          { type: 'string', enum: ['title', '-title', 'wordCount', '-wordCount'] },
+          {
+            type: 'string',
+            enum: ['title', '-title', 'wordCount', '-wordCount'],
+            description:
+              'What each sort orders by, in either direction:\n- `title`: Alphabetical by title.',
+          },
           { type: 'string', enum: ['length', '-length'], description: 'Deprecated.' },
           {
             type: 'string',
@@ -35,7 +40,7 @@ describe('generator contract 20 (sort families)', () => {
           {
             type: 'string',
             description:
-              '`custom.fields.` followed by a name matching the regular expression `[^,]+`, optionally with a leading `-`.',
+              '`custom.fields.` followed by a name matching the regular expression `[^,]+`, optionally with a leading `-`. By a custom field value.',
           },
         ],
       },
