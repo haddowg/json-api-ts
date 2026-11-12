@@ -131,8 +131,8 @@ all records both. A polymorphic relation that records nothing takes any sort and
 ## How the query families compose
 
 A collection read (`list`) accepts the full set; a single read (`get`/`id(id).get`) accepts
-only `include`, `fields` and, where the server advertises it, `relatedQuery` (a single resource
-has no collection to filter, sort or page):
+only `include`, `fields` and, where the server advertises them, `withCount` and `relatedQuery`
+(a single resource has no collection to filter, sort or page, and nothing for `_self_` to count):
 
 | Family      | What it does                                        | Deep dive |
 |-------------|-----------------------------------------------------|-----------|

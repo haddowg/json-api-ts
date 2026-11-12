@@ -120,8 +120,9 @@ ordered[0]!.$pivot?.['position'] // edge-local pivot data
 
 ### `withCount` (the Countable profile)
 
-`withCount` is constrained to the type's count tokens and only available on `list` / related
-reads (no single-`get` endpoint advertises it). The client negotiates the Countable profile in
+`withCount` is constrained to the count tokens of the operation that sends it: `list`, a related
+read, and `get`, `create` and `update` where the server documents it there. One resource has no
+collection, so those three never take `_self_`. The client negotiates the Countable profile in
 `Accept` automatically when `withCount` is present.
 
 ```ts
