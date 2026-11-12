@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.4.2...json-api-query-v1.5.0) (2026-11-12)
+
+
+### Features
+
+* **query:** pass withCount through single reads and write mutations ([3be27ec](https://github.com/haddowg/json-api-ts/commit/3be27ecffebbf8471d0285e94a975e222c9571b2))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.21.0
+
 ## [1.4.2](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.4.1...json-api-query-v1.4.2) (2026-11-12)
 
 
