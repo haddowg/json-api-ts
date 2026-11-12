@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.19.0...json-api-client-v1.20.0) (2026-11-12)
+
+
+### Features
+
+* **client:** type a relation read's filter as never when it takes none ([177a3e3](https://github.com/haddowg/json-api-ts/commit/177a3e3215d2222728cf990af9bac2655ab292c5))
+
 ## [1.19.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.18.0...json-api-client-v1.19.0) (2026-11-12)
 
 
