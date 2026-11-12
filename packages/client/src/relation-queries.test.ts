@@ -7,7 +7,8 @@ const BASE = 'https://api.example'
 
 // Shaped like codegen output for core's witness: `sponsors` is a polymorphic to-many identified
 // by its link rows, with pivot fields and the filters and sorts its reads declare over them.
-// `attachments` is polymorphic too but declares none, and `tags` is monomorphic.
+// `attachments` is polymorphic too but declares none, `tags` is monomorphic and declares none,
+// and `author` is a to-one whose reads take no sort.
 const descriptor = {
   articles: {
     attributes: { title: 'string' },
@@ -37,6 +38,13 @@ const descriptor = {
         pivot: false,
         mutations: { add: true, remove: true, replace: true },
       },
+      author: {
+        cardinality: 'one',
+        types: ['people'],
+        pivot: false,
+        mutations: { set: true },
+        sortable: [],
+      },
     },
     paths: {
       fetchOne: '/articles/{id}',
@@ -52,6 +60,7 @@ const descriptor = {
     paths: { fetchOne: '/people/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
+    sortable: ['name', '-name'],
     filterable: ['name', 'roles'],
     listFilters: ['roles'],
   },
@@ -140,11 +149,23 @@ describe("a relation's own sorts and filters", () => {
     >()
   })
 
-  it('leaves a relation declaring none open', () => {
+  it('leaves a polymorphic relation declaring none open', () => {
     expectTypeOf<Query<'attachments'>['sort']>().toEqualTypeOf<
       string | readonly string[] | undefined
     >()
     expectTypeOf<Query<'tags'>['filter']>().toEqualTypeOf<Record<string, unknown> | undefined>()
+  })
+
+  it("types a monomorphic relation declaring none with its related type's sorts", () => {
+    type Sort = 'name' | '-name' | readonly ('name' | '-name')[] | undefined
+    expectTypeOf<Query<'tags'>['sort']>().toEqualTypeOf<Sort>()
+    expectTypeOf<RelatedQuery<'tags'>['sort']>().toEqualTypeOf<Sort>()
+    expectTypeOf<'rank'>().not.toMatchTypeOf<NonNullable<Query<'tags'>['sort']>>()
+  })
+
+  it('types `sort` as never on a relation whose reads take none', () => {
+    expectTypeOf<Query<'author'>['sort']>().toEqualTypeOf<undefined>()
+    expectTypeOf<RelatedQuery<'author'>['sort']>().toEqualTypeOf<undefined>()
   })
 
   it("matches a monomorphic relation's list filters against its related type", async () => {
@@ -192,5 +213,29 @@ describe('the pivot of a polymorphic relation', () => {
   it('types the writable pivot fields on a write', () => {
     type Add = Parameters<Handle['sponsors']['add']>[0][number]
     expectTypeOf<NonNullable<Add['$pivot']>['rank']>().toEqualTypeOf<number>()
+  })
+})
+
+// Call-site probes: real calls whose types tsc checks. Declared, never run.
+declare const typed: ReturnType<typeof client>
+
+async function sortsEachRelationAsItsReadsDo() {
+  await typed.articles.id('1').sponsors.related({ sort: ['-since', 'rank'] })
+  await typed.articles.id('1').tags.related({ sort: '-name' })
+  await typed.articles.id('1').attachments.get({ sort: 'anything' })
+  await typed.articles.id('1').author.related()
+  // @ts-expect-error a to-one's reads take no sort
+  await typed.articles.id('1').author.related({ sort: 'name' })
+  // @ts-expect-error a to-one's reads take no sort
+  await typed.articles.id('1').author.get({ sort: [] })
+  // @ts-expect-error `title` is not a sort of the people collection
+  await typed.articles.id('1').tags.get({ sort: 'title' })
+  // @ts-expect-error `name` is not a sort the sponsors relation records
+  await typed.articles.id('1').sponsors.get({ sort: 'name' })
+}
+
+describe("a relation's sort at the call site", () => {
+  it("takes what each relation's reads take", () => {
+    expectTypeOf(sortsEachRelationAsItsReadsDo).returns.resolves.toBeVoid()
   })
 })

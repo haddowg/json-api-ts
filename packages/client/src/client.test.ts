@@ -133,7 +133,12 @@ const descriptor = {
   playlists: {
     attributes: {},
     relations: {
-      orderedTracks: { cardinality: 'many', types: ['tracks'], pivot: true },
+      orderedTracks: {
+        cardinality: 'many',
+        types: ['tracks'],
+        pivot: true,
+        sortable: ['position', '-position'],
+      },
       owner: { cardinality: 'one', types: ['users'], pivot: false },
     },
     paths: {

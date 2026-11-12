@@ -10,8 +10,9 @@ const COUNTABLE = 'https://example.test/profiles/countable/'
 const RELATIONSHIP_QUERIES = 'https://example.test/profiles/relationship-queries/'
 
 // A run's `items` declare their own sorts and filters, `states` taking a list. An item's
-// `product` declares sorts only, and a run's `owner` declares nothing. `templates` take
-// relatedQuery on neither read, `drafts` only on the single read.
+// `product` declares sorts only, and a run's `owner` declares nothing, so it takes the users
+// collection's sorts. `templates` take relatedQuery on neither read, `drafts` only on the
+// single read.
 const descriptor = {
   runs: {
     attributes: { name: 'string' },
@@ -54,6 +55,7 @@ const descriptor = {
     paths: { fetchOne: '/users/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
+    sortable: ['name', '-name'],
   },
   templates: {
     attributes: { name: 'string' },
@@ -197,8 +199,9 @@ async function keysEntriesByIncludePath() {
     relatedQuery: {
       items: { filter: { state: 'failed', states: ['a'] }, sort: ['-position'] },
       'items.product': { sort: '-name' },
-      // `owner` declares no vocabulary of its own, so its entry is loose.
-      owner: { filter: { anything: 1 }, sort: 'whatever' },
+      // `owner` declares no vocabulary of its own, so its entry takes any filter and the users
+      // collection's sorts.
+      owner: { filter: { anything: 1 }, sort: '-name' },
     },
   })
   // @ts-expect-error `product` is not an include path of runs
