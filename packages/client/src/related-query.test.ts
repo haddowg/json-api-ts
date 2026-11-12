@@ -11,8 +11,8 @@ const RELATIONSHIP_QUERIES = 'https://example.test/profiles/relationship-queries
 
 // A run's `items` declare their own sorts and filters, `states` taking a list. An item's
 // `product` declares sorts only, and a run's `owner` declares nothing, so it takes the users
-// collection's sorts. `templates` take relatedQuery on neither read, `drafts` only on the
-// single read.
+// collection's sorts and filters. A run's `checker` is read with neither a sort nor a filter.
+// `templates` take relatedQuery on neither read, `drafts` only on the single read.
 const descriptor = {
   runs: {
     attributes: { name: 'string' },
@@ -25,13 +25,14 @@ const descriptor = {
         listFilters: ['states'],
       },
       owner: { cardinality: 'one', types: ['users'] },
+      checker: { cardinality: 'one', types: ['users'], sortable: [], filterable: [] },
     },
     paths: { fetchMany: '/runs', fetchOne: '/runs/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
     countable: { tokens: ['_self_', 'items'], profile: COUNTABLE },
     relatedQuery: { operations: ['fetchMany', 'fetchOne'], profile: RELATIONSHIP_QUERIES },
-    includable: ['items', 'items.product', 'owner'],
+    includable: ['checker', 'items', 'items.product', 'owner'],
   },
   items: {
     attributes: { state: 'string' },
@@ -56,6 +57,8 @@ const descriptor = {
     paginator: 'none',
     clientId: 'forbidden',
     sortable: ['name', '-name'],
+    filterable: ['name', 'roles'],
+    listFilters: ['roles'],
   },
   templates: {
     attributes: { name: 'string' },
@@ -145,6 +148,26 @@ describe('relatedQuery serialisation', () => {
       `${BASE}/runs?relatedQuery[items][filter][states][]=failed&relatedQuery[items][filter][states][]=stuck`,
     )
   })
+
+  it("matches a relation declaring no filters against its related type's", async () => {
+    const { client, requests } = recorder(runs)
+    await client.runs.list({ relatedQuery: { owner: { filter: { roles: ['admin', 'ops'] } } } })
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs?relatedQuery[owner][filter][roles][]=admin&relatedQuery[owner][filter][roles][]=ops`,
+    )
+  })
+
+  it("does not borrow the related type's list filters for a relation read with no filter", async () => {
+    const { client, requests } = recorder(runs)
+    // An untyped caller can still send one; the empty vocabulary names no list filter.
+    const loose = client as unknown as {
+      runs: { list(query: { relatedQuery: unknown }): Promise<unknown> }
+    }
+    await loose.runs.list({ relatedQuery: { checker: { filter: { roles: ['admin', 'ops'] } } } })
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs?relatedQuery[checker][filter][roles]=admin%2Cops`,
+    )
+  })
 })
 
 describe('relatedQuery negotiation', () => {
@@ -199,9 +222,9 @@ async function keysEntriesByIncludePath() {
     relatedQuery: {
       items: { filter: { state: 'failed', states: ['a'] }, sort: ['-position'] },
       'items.product': { sort: '-name' },
-      // `owner` declares no vocabulary of its own, so its entry takes any filter and the users
-      // collection's sorts.
-      owner: { filter: { anything: 1 }, sort: '-name' },
+      // `owner` declares no vocabulary of its own, so its entry takes the users collection's
+      // filters and sorts.
+      owner: { filter: { name: 'ada', roles: ['admin'] }, sort: '-name' },
     },
   })
   // @ts-expect-error `product` is not an include path of runs
@@ -217,6 +240,14 @@ async function narrowsEachEntry() {
   await typed.runs.get('1', { relatedQuery: { 'items.product': { sort: '-position' } } })
   // @ts-expect-error `states` takes a list
   await typed.runs.list({ relatedQuery: { items: { filter: { states: 'failed' } } } })
+  // @ts-expect-error the users collection takes no `anything` filter
+  await typed.runs.list({ relatedQuery: { owner: { filter: { anything: 1 } } } })
+  // @ts-expect-error the users collection's `roles` filter takes a list
+  await typed.runs.list({ relatedQuery: { owner: { filter: { roles: 'admin' } } } })
+  // @ts-expect-error a checker is read with no filter
+  await typed.runs.list({ relatedQuery: { checker: { filter: { name: 'ada' } } } })
+  // @ts-expect-error a checker is read with no sort
+  await typed.runs.list({ relatedQuery: { checker: { sort: 'name' } } })
 }
 
 async function onlyWhereAdvertised() {

@@ -172,8 +172,8 @@ async function run(
 
 /**
  * The filter vocabulary a read's `filter` is matched against: the type's for its collection read.
- * A related or relationship read takes the relation's own when its descriptor declares one, else
- * the related type's when the relation has one related type.
+ * A related or relationship read takes the relation's own when its descriptor declares one, even an
+ * empty one, else the related type's when the relation has one related type.
  */
 function filterSpec(
   ctx: ClientContext,

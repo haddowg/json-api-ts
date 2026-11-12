@@ -592,20 +592,37 @@ export type RelationSortQuery<
         : SortQuery<D, U>
       : string | readonly string[]
 
+/** Whether a descriptor `Spec` records `filterable` or `filterFamilies`, even an empty `filterable`. */
+type RecordsFilters<Spec> = Spec extends { filterable: unknown }
+  ? true
+  : Spec extends { filterFamilies: unknown }
+    ? true
+    : false
+
+/** The filter object a descriptor `Spec` takes; `never` when it declares no key and no family. */
+type SpecFilterQuery<Spec> = [FilterKeyOf<Spec> | FilterFamilyPrefixOf<Spec>] extends [never]
+  ? never
+  : FiltersOf<Spec, FilterKeyOf<Spec>>
+
 /**
- * The `filter` object relation `R`'s related and relationship reads take: keyed by the filters its
- * descriptor declares, as {@link FilterQuery} types a collection read. A relation whose descriptor
- * declares no filters of its own takes any filter.
+ * The `filter` object relation `R`'s related and relationship reads take, as {@link FilterQuery}
+ * types a collection read. Where the descriptor records the relation's own `filterable` or
+ * `filterFamilies`, they're its keys, and an empty `filterable` with no families means the reads
+ * take no filter, typed `never`. Where it records neither, a monomorphic relation takes its related
+ * type's collection filter and a polymorphic one takes any filter.
  */
 export type RelationFilterQuery<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = [FilterKeyOf<RelationSpec<D, T, R>> | FilterFamilyPrefixOf<RelationSpec<D, T, R>>] extends [
-  never,
-]
-  ? Record<string, unknown>
-  : FiltersOf<RelationSpec<D, T, R>, FilterKeyOf<RelationSpec<D, T, R>>>
+> =
+  RecordsFilters<RelationSpec<D, T, R>> extends true
+    ? SpecFilterQuery<RelationSpec<D, T, R>>
+    : MonomorphicTarget<D, RelationSpec<D, T, R>> extends infer U extends TypeName<D>
+      ? [U] extends [never]
+        ? Record<string, unknown>
+        : FilterQuery<D, U>
+      : Record<string, unknown>
 
 /**
  * The element type of the `fields` map for a typed read: a member-name array per wire type,
@@ -793,7 +810,7 @@ export type ReadResult<
 /**
  * A read query for the relationship/related endpoints: loose include/fields/withCount, a `page` of
  * type `Pg` (typed from the relation's paginator on a typed accessor), and a `sort` of type `S`
- * and a `filter` of type `F`, which a typed accessor narrows when the relation declares its own
+ * and a `filter` of type `F`, which a typed accessor narrows to what the relation's reads take
  * (see {@link RelationSortQuery} and {@link RelationFilterQuery}).
  */
 export interface RelationReadQuery<
