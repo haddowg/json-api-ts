@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.19.2](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.19.1...json-api-mcp-v1.19.2) (2026-11-12)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.19.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.12.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.12.0
+
 ## [1.19.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.19.0...json-api-mcp-v1.19.1) (2026-11-12)
 
 
