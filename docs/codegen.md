@@ -147,13 +147,15 @@ A few things the codegen reads from the document that affect the generated clien
   type's filter defaults. Sorts and filters are compared apart, keys and descriptions and
   defaults included, so a relation that only filters differently records only
   `filterable`, `listFilters` and `filterFamilies`. A relation whose reads take what the
-  collection read takes records nothing. One whose reads take no filter records no filters
-  either.
-- **Relations whose reads take no sort.** Every to-one, and any to-many whose reads have no
-  `sort` parameter, gets `sortable: []`, polymorphic or not. The client then types `sort`
-  on its `.get()`, `.related()` and `relatedQuery` entry as `never`, the way a collection
-  that offers no sorting is typed. A relation with neither a related nor a relationship
-  read records nothing.
+  collection read takes records nothing.
+- **Relations whose reads take no sort or no filter.** Every to-one, and any to-many whose
+  reads have no `sort` parameter, gets `sortable: []`, polymorphic or not. A relation whose
+  reads have no `filter[<key>]` parameter and no filter family gets `filterable: []` the
+  same way. The client then types `sort` or `filter` on its `.get()`, `.related()` and
+  `relatedQuery` entry as `never`, the way a collection that offers no sorting or filtering
+  is typed. A relation with neither a related nor a relationship read gets both empty
+  lists, including a relation of a type that has no endpoints of its own, such as
+  `credits.person` in the contract witness.
 - **Polymorphic relations.** A relation whose linkage is a union is marked
   `polymorphic: true` whatever its member count, so a `MorphTo` over a single type is
   polymorphic too. Its related and relationship endpoints don't advertise the related
