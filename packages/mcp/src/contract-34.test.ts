@@ -96,4 +96,13 @@ describe('generator contract 34 (sort and filter documentation)', () => {
       'Filter the collection by `color`.',
     )
   })
+
+  it('says a filter left null still takes its default when any filter has one', () => {
+    expect(argument(mcp, 'tags_list', 'filter')['description']).toBe(
+      'Filters to apply. Leaving a filter null sends nothing for it, and leaving the whole object null sends none. A filter with a default then applies its default.',
+    )
+    expect(argument(mcp, 'articles_tags_list', 'filter')['description']).toBe(
+      'Filters to apply. Leave a filter null to not apply it, or the whole object null for none.',
+    )
+  })
 })
