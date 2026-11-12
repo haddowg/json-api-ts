@@ -62,6 +62,7 @@ const descriptor = {
     paginator: 'none',
     clientId: 'forbidden',
     sortable: ['title', '-title'],
+    filterable: ['title'],
   },
 } as const satisfies ApiDescriptor
 
