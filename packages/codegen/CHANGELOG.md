@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.11.1...json-api-codegen-v2.12.0) (2026-11-12)
+
+
+### Features
+
+* **codegen:** mark relations whose reads take no sort ([241e3c8](https://github.com/haddowg/json-api-ts/commit/241e3c81a56c22ca36a2e078e7a70cd0787347c6))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.19.0
+
 ## [2.11.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.11.0...json-api-codegen-v2.11.1) (2026-11-12)
 
 

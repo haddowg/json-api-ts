@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.18.0...json-api-client-v1.19.0) (2026-11-12)
+
+
+### Features
+
+* **client:** type sort as never on relation reads that take none ([6cfb4f2](https://github.com/haddowg/json-api-ts/commit/6cfb4f25ecee6fcdf728ea6fa0690aa782d6b592))
+
 ## [1.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.17.0...json-api-client-v1.18.0) (2026-11-11)
 
 
