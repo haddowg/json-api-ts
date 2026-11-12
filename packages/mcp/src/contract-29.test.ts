@@ -20,7 +20,7 @@ describe('generator contract 29 (open objects)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(34)
+    expect(mcp.contract).toBe(35)
   })
 
   it.each(['articles_create', 'articles_update'])(

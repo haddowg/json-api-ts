@@ -151,17 +151,17 @@ const document = (contract: unknown): OpenApiDocument => ({
 describe('contract', () => {
   it('reads the range it pins', () => {
     expect(MINIMUM_CONTRACT).toBe(13)
-    expect(MAXIMUM_CONTRACT).toBe(34)
+    expect(MAXIMUM_CONTRACT).toBe(35)
     for (const contract of [
-      13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
+      13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
     ]) {
       expect(assertContract(document(contract))).toBe(contract)
     }
   })
 
   it.each([
-    [12, /older than this package reads \(13 to 34\)/],
-    [35, /newer than this package reads \(13 to 34\)\. Upgrade @haddowg\/json-api-mcp/],
+    [12, /older than this package reads \(13 to 35\)/],
+    [36, /newer than this package reads \(13 to 35\)\. Upgrade @haddowg\/json-api-mcp/],
     [undefined, /declares no generator contract/],
   ])('fails clearly on contract %s', (contract, message) => {
     expect(() => assertContract(document(contract))).toThrow(message)
@@ -169,10 +169,10 @@ describe('contract', () => {
     expect(() => modelOf(document(contract), descriptor)).toThrow(message)
   })
 
-  it.each([12, 35])('refuses a model built from contract %s at runtime', (contract) => {
+  it.each([12, 36])('refuses a model built from contract %s at runtime', (contract) => {
     const { model } = fixture('music-catalog')
     expect(() => createJsonApiMcp({ model: { ...model, contract } })).toThrow(
-      new RegExp(`generator contract ${contract}, and this runtime reads contracts 13 to 34`),
+      new RegExp(`generator contract ${contract}, and this runtime reads contracts 13 to 35`),
     )
   })
 
