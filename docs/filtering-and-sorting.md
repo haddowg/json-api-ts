@@ -37,6 +37,32 @@ A template literal only keeps its type where TypeScript reads it against the sor
 
 A server can mark a filter, a filter family, a sort key or a sort family deprecated. It still accepts them, so they stay in the filter and sort types and compile as before. A member of a string literal union can't carry TSDoc, so your editor won't strike one through. The generated `resourceMap` names them in the TSDoc on the type's `filterable`, `filterFamilies`, `sortable` and `sortFamilies` entries instead. See [deprecation](codegen.md#deprecation).
 
+### What the descriptor says about filters and sorts
+
+The server can describe its sorts and filter families, give a family an example, and give a filter a default. The codegen writes these into the TSDoc of the same `resourceMap` entries, since the union members can't hold it:
+
+- `sortable` lists what each described key orders by, from the `sort` parameter's `x-sort-descriptions`. A key reads the same in either direction.
+- Each entry of `sortFamilies` and `filterFamilies` carries its family's description, and a filter family's example becomes an `@example` holding the key and value as you'd pass them in `filter`.
+- `filterable` names each filter's default, the `default` of its `filter[<key>]` schema, such as "The `language` filter defaults to `"en"`." The server applies it when a read doesn't send the filter, so the client sends nothing for it.
+
+```ts
+/**
+ * What each sort orders by, in either direction:
+ * - `title`: Alphabetical by title.
+ */
+sortable: ["title", "-title", "wordCount", "-wordCount"],
+filterFamilies: [
+  /**
+   * Matches a custom field value.
+   *
+   * @example {"value.cap":["10","20"]}
+   */
+  { prefix: "value", suffixPattern: ".+", list: true },
+],
+```
+
+A collection action that takes filters gets the same TSDoc on its own `filterable` and `filterFamilies`, and so does a polymorphic relation that records its own sorts and filters.
+
 !!! note "No sorting advertised? `sort` is a compile error."
     If a type advertises no `sortable` set (the OpenAPI document declares no sort parameter), its `sort` value is typed `never` — the key cannot be supplied at all. That is a compile-time mirror of the server's `400 SORTING_UNSUPPORTED`. In the example app, `playlists` advertises no sort, so [BrowsePage.tsx](../examples/spotify-clone/src/pages/BrowsePage.tsx) lists them without a `sort`.
 

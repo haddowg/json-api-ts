@@ -72,7 +72,7 @@ describe('generator contract 25 (action filters)', () => {
 
   it('names the deprecated filters of an action as a collection read does', () => {
     expect(source).toContain(
-      '        /** The server marks the `state` filter deprecated. */\n        filterable: [',
+      '         * The server marks the `state` filter deprecated.\n         */\n        filterable: [',
     )
     expect(source.match(/The server marks the `state` filter deprecated/g)).toHaveLength(2)
   })

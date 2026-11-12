@@ -30,7 +30,7 @@ pnpm add -D @haddowg/json-api-codegen
 
 Two bin names are installed: `json-api-codegen` and the short alias `japi`.
 
-The codegen reads documents of generator contracts 24 to 33 (`info.x-generator.contract`). A newer
+The codegen reads documents of generator contracts 24 to 34 (`info.x-generator.contract`). A newer
 document still generates, with a warning that the client may miss what the server added, and an
 older one is refused: it describes its error codes in a form this codegen no longer reads.
 Anything the server marks deprecated gets `@deprecated` TSDoc, so editors strike it through.
