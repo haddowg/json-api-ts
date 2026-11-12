@@ -132,17 +132,21 @@ export interface RelationDescriptor {
   /**
    * The sort tokens the relation's own related and relationship reads accept, when the descriptor
    * records them on the relation. The codegen does for a polymorphic relation, whose members
-   * share no type to read them from, such as a `MorphToMany` sorting by its pivot fields. Narrows
-   * `sort` on `.get()` and `.related()` as {@link ResourceDescriptor.sortable} narrows a
-   * collection read. Absent, together with {@link sortFamilies}, means the reads take any sort.
+   * share no type to read them from, such as a `MorphToMany` sorting by its pivot fields, and for
+   * a relation whose reads sort differently from its related type's collection read, such as by a
+   * pivot field or a sort the relation declares. Narrows `sort` on `.get()` and `.related()` as
+   * {@link ResourceDescriptor.sortable} narrows a collection read. Absent, together with
+   * {@link sortFamilies}, means the reads take any sort.
    */
   sortable?: readonly string[]
   /** The sort families the relation's reads accept beside {@link sortable}. */
   sortFamilies?: readonly SortFamilyDescriptor[]
   /**
    * The filter keys the relation's own related and relationship reads accept, recorded as
-   * {@link sortable} is. Narrows `filter` on `.get()` and `.related()`. Absent, together with
-   * {@link filterFamilies}, means the reads take any filter.
+   * {@link sortable} is, and also when the reads drop a filter default. Narrows `filter` on
+   * `.get()` and `.related()`, and the client matches list filters against it. Absent, together
+   * with {@link filterFamilies}, means the reads take any filter, and a monomorphic relation's list
+   * filters are its related type's.
    */
   filterable?: readonly string[]
   /** The keys of {@link filterable} whose filter takes a list, sent as a collection read sends them. */
