@@ -61,6 +61,7 @@ const descriptor = {
     paths: { fetchOne: '/tracks/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
+    sortable: ['title', '-title'],
   },
 } as const satisfies ApiDescriptor
 

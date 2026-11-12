@@ -9,7 +9,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createQueryApi, relatedQueryOptions, relationshipQueryOptions } from './read'
 
 // A polymorphic to-many identified by its link rows: a pivot, and the sorts and filters its reads
-// declare over the pivot fields. `followers` declares none of its own.
+// declare over the pivot fields. `followers` declares none of its own, so it takes the users
+// collection's sorts.
 const descriptor = {
   teams: {
     attributes: { name: 'string' },
@@ -39,6 +40,7 @@ const descriptor = {
     paths: { fetchOne: '/users/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
+    sortable: ['name', '-name'],
   },
   brands: {
     attributes: { name: 'string' },
@@ -95,7 +97,7 @@ describe("relation reads with the relation's own sorts and filters", () => {
     relatedQueryOptions(client, 'teams', '1', 'sponsors', { sort: 'name' })
     // @ts-expect-error — `name` is not a filter of the relation.
     createQueryApi(client).teams.relationship('1', 'sponsors', { filter: { name: 'x' } })
-    // A relation declaring none of its own takes any sort or filter.
+    // A relation declaring none of its own takes its related type's sorts and any filter.
     createQueryApi(client).teams.related('1', 'followers', { sort: 'name', filter: { name: 'x' } })
     type Query = NonNullable<
       Parameters<typeof relatedQueryOptions<typeof descriptor, unknown, 'teams', 'sponsors'>>[4]
