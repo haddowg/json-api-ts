@@ -26,6 +26,7 @@ import type {
   InputMedia,
   RawOutputMedia,
   RelatedQueryOperation,
+  ResourceCountOperation,
 } from './descriptor'
 import type { ActionLocation } from './location'
 import type {
@@ -296,11 +297,12 @@ type Relations<D extends ApiDescriptor, A, T extends TypeName<D>, Inc, F = unkno
 >
 
 /**
- * The relations of type `T` a `withCount` read can count: its count tokens without `_self_`,
- * which counts the collection rather than a relation.
+ * The relations of type `T` a `withCount` read or write can count: the count tokens of its
+ * collection read and of the operations answering with one resource, without `_self_`, which
+ * counts the collection rather than a relation.
  */
 export type CountedRelationName<D extends ApiDescriptor, T extends TypeName<D>> = Exclude<
-  CountToken<D, T>,
+  CountToken<D, T> | ResourceCountToken<D, T, ResourceCountOperation>,
   '_self_'
 >
 
@@ -433,6 +435,23 @@ export type CountToken<D extends ApiDescriptor, T extends TypeName<D>> = D[T] ex
 }
   ? Tokens extends readonly (infer Token)[]
     ? Token & string
+    : never
+  : never
+
+/**
+ * The relations operation `Op` of type `T` can count with `withCount`: the tokens its
+ * `resourceCountable` entry lists, never `_self_`. `never` when the operation documents no
+ * `withCount`, so `withCount` then takes only an empty list.
+ */
+export type ResourceCountToken<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends ResourceCountOperation,
+> = Op extends ResourceCountOperation
+  ? D[T] extends { resourceCountable: { [K in Op]: { tokens: infer Tokens } } }
+    ? Tokens extends readonly (infer Token)[]
+      ? Exclude<Token & string, '_self_'>
+      : never
     : never
   : never
 
@@ -729,8 +748,7 @@ export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = Pag
  * narrowing), a `page` typed by the collection's paginator (`Pg` drives the `$page` type), a
  * `relatedQuery` keyed by include path, plus the loose JSON:API query families. `Inc`/`F`/`Cnt`
  * are inferred (as `const`) at the call site. Used for the COLLECTION read (`list`); the
- * single-resource read (`get`) uses {@link SingleReadQuery}, which drops `withCount` (no
- * `GET /{type}/{id}` endpoint advertises it).
+ * single-resource read (`get`) uses {@link SingleReadQuery}.
  */
 export interface TypedReadQuery<
   D extends ApiDescriptor,
@@ -769,21 +787,31 @@ export interface TypedReadQuery<
 
 /**
  * A single-resource read query (`GET /{type}/{id}`): `include`, sparse `fields` and, where the
- * read advertises it, `relatedQuery`. A single-resource endpoint advertises neither
- * `sort`/`filter`/`page` (no collection to order, filter or page) nor `withCount` — accepting
- * any of them would be a lying type (the server rejects an unrecognised parameter with `400`
- * under strict query-param validation).
+ * read advertises them, `withCount` and `relatedQuery`. A single-resource endpoint advertises no
+ * `sort`/`filter`/`page` (no collection to order, filter or page), and its `withCount` counts
+ * relations only, never `_self_`; accepting more would be a lying type (the server rejects an
+ * unrecognised parameter with `400` under strict query-param validation).
  */
 export interface SingleReadQuery<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[],
   F extends FieldsMap<D> = FieldsMap<D>,
+  Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = readonly ResourceCountToken<
+    D,
+    T,
+    'fetchOne'
+  >[],
 > {
   /** The relations to include — drives static narrowing; constrained to the advertised paths. */
   include?: Inc
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F
+  /**
+   * The relations to count (the Countable profile), comma-joined onto `withCount`. Each reads back
+   * as a `number` from `$count` on the resource. Present only when the read advertises it.
+   */
+  withCount?: Cnt
   /**
    * A `filter` and `sort` per include path, applied to that relationship (the Relationship
    * Queries profile). Present only when the single-resource read advertises it.
@@ -824,7 +852,7 @@ export interface RelationReadQuery<
   fields?: Record<string, readonly string[]>
   page?: Pg
   /**
-   * Relationship-count tokens (`_self_` + the relation's countable relations) — the related/
+   * Relationship-count tokens (`_self_` on a to-many, and the related type's countable relations) — the related/
    * relationship endpoints advertise their own `withCount`, and the client negotiates the
    * relation's Countable profile so a strict server accepts it.
    */
@@ -1206,16 +1234,26 @@ export type UpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = Upd
 > &
   RelationInputs<D, T>
 
-/** Options for a create/update write — an optional `include`/`fields` narrowing the materialised response. */
+/**
+ * Options for a create/update write: an optional `include`/`fields` narrowing the materialised
+ * response, and the `withCount` write `Op` advertises.
+ */
 export interface WriteOptions<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   Inc extends readonly IncludePath<D, T>[] = [],
   F extends FieldsMap<D> = FieldsMap<D>,
+  Op extends AcceptedOperation = AcceptedOperation,
+  Cnt extends readonly ResourceCountToken<D, T, Op>[] = readonly ResourceCountToken<D, T, Op>[],
 > {
   include?: Inc
   /** Sparse fieldsets per type — narrows the materialised write response. */
   fields?: F
+  /**
+   * The relations to count (the Countable profile), comma-joined onto `withCount`. Each reads back
+   * as a `number` from `$count` on the written resource. Present only when the write advertises it.
+   */
+  withCount?: Cnt
 }
 
 // ── Accepted writes (docs/writes.md) ──────────────────────────────────────────────────────────
@@ -1296,32 +1334,48 @@ export type WaitedWriteResult<
 export type CreateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> = [
   AcceptedOf<D, T, 'create'>,
 ] extends [never]
-  ? <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+  ? <
+      const Inc extends readonly IncludePath<D, T>[] = [],
+      const F extends FieldsMap<D> = {},
+      const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
+    >(
       input: CreateInput<D, W, T>,
-      opts?: WriteOptions<D, T, Inc, F>,
-    ) => Promise<ReadResult<D, A, T, Inc, F>>
+      opts?: WriteOptions<D, T, Inc, F, 'create', Cnt>,
+    ) => Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
   : {
       (input: CreateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
-      <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+      <
+        const Inc extends readonly IncludePath<D, T>[] = [],
+        const F extends FieldsMap<D> = {},
+        const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
+      >(
         input: CreateInput<D, W, T>,
-        opts?: WriteOptions<D, T, Inc, F> & { wait?: false },
-      ): Promise<WriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>>>
+        opts?: WriteOptions<D, T, Inc, F, 'create', Cnt> & { wait?: false },
+      ): Promise<WriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>>>
     }
 
 /** `client.<type>.id(id).update`, which takes `wait` as {@link CreateMethod} does. */
 export type UpdateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> = [
   AcceptedOf<D, T, 'update'>,
 ] extends [never]
-  ? <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+  ? <
+      const Inc extends readonly IncludePath<D, T>[] = [],
+      const F extends FieldsMap<D> = {},
+      const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
+    >(
       patch: UpdateInput<D, W, T>,
-      opts?: WriteOptions<D, T, Inc, F>,
-    ) => Promise<ReadResult<D, A, T, Inc, F>>
+      opts?: WriteOptions<D, T, Inc, F, 'update', Cnt>,
+    ) => Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
   : {
       (patch: UpdateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
-      <const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+      <
+        const Inc extends readonly IncludePath<D, T>[] = [],
+        const F extends FieldsMap<D> = {},
+        const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
+      >(
         patch: UpdateInput<D, W, T>,
-        opts?: WriteOptions<D, T, Inc, F> & { wait?: false },
-      ): Promise<WriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>>>
+        opts?: WriteOptions<D, T, Inc, F, 'update', Cnt> & { wait?: false },
+      ): Promise<WriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>>>
     }
 
 // ── Atomic results (docs/atomic-operations.md) ─────────────────────────────────────────────────
@@ -1766,9 +1820,13 @@ export type ResourceHandle<
 > = {
   readonly type: T
   readonly id: string
-  get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
-    query?: SingleReadQuery<D, T, Inc, F>,
-  ): Promise<ReadResult<D, A, T, Inc, F>>
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
   update: UpdateMethod<D, A, W, T>
   delete(): Promise<void>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
@@ -1792,10 +1850,14 @@ export interface TypeAccessor<
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
   ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
-  get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
     id: string,
-    query?: SingleReadQuery<D, T, Inc, F>,
-  ): Promise<ReadResult<D, A, T, Inc, F>>
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
   create: CreateMethod<D, A, W, T>
   id(id: string): ResourceHandle<D, A, W, T, Act>
   /** The type's collection-scoped custom actions, keyed by name. */

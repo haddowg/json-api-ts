@@ -108,7 +108,8 @@ export interface RelationDescriptor {
   mutations?: RelationMutations
   /**
    * The `withCount` count tokens + negotiation profile this relation's related/relationship reads
-   * advertise (`_self_` + the relation's own countable relations). Lets `.related()`/`.get()` send
+   * advertise: `_self_` on a to-many, and the relations of the related type it can count. Lets
+   * `.related()`/`.get()` send
    * `withCount` and negotiate the right profile; absent when the relation advertises no Countable
    * profile.
    */
@@ -363,6 +364,9 @@ export interface CountableDescriptor {
   profile: string
 }
 
+/** An operation answering with one resource that may take `withCount`. */
+export type ResourceCountOperation = 'fetchOne' | 'create' | 'update'
+
 /** A read that takes `relatedQuery`: the collection read or the single-resource read. */
 export type RelatedQueryOperation = 'fetchMany' | 'fetchOne'
 
@@ -411,6 +415,12 @@ export interface ResourceDescriptor {
    * Absent when no read endpoint advertises `withCount`.
    */
   countable?: CountableDescriptor
+  /**
+   * The `withCount` of the operations that answer with one resource, keyed `fetchOne`, `create`
+   * or `update`: the relations each can count and the profile it negotiates. An operation that
+   * documents no `withCount` has no entry, and the map is absent when none does.
+   */
+  resourceCountable?: Readonly<Partial<Record<ResourceCountOperation, CountableDescriptor>>>
   /**
    * The reads that take `relatedQuery` and the profile it needs. Absent when neither the
    * collection read nor the single-resource read advertises it.

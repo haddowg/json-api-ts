@@ -191,6 +191,21 @@ albums[0]!.$count('tracks') // number
 
 The array's `$count` isn't narrowed by `withCount`, so prefer the resource's. To count a filtered subset of a relationship, such as a run's failed items, add a [relationship query](filtering-and-sorting.md#relationship-queries).
 
+A read or write that answers with one resource takes `withCount` too, where the server documents it: `get`, `id(id).get`, `create` and `id(id).update`. Each is typed to the relations that operation counts, never `_self_`, since there is no collection to count. The client negotiates the Countable profile in `Accept` and leaves it off `Content-Type`, and `$count` narrows the same way:
+
+```ts
+const album = await client.albums.get('1', { withCount: ['tracks'] })
+album.$count('tracks') // number
+
+const created = await client.albums.create(
+  { title: 'Kid A', status: 'released' },
+  { withCount: ['tracks'] },
+)
+created.$count('tracks') // number
+```
+
+An operation that documents no `withCount` takes only an empty list. A related read sends its relation's own tokens with `.related({ withCount })`: `_self_` and the related type's countable relations on a to-many, and on a to-one, such as a track's album, just the related type's.
+
 ## Paginating a related collection
 
 A related collection paginates the same way. Fetch a to-many relation with `.related()` and pass `page`; the returned array carries its own `$page`, and it reports the **relation's** paginator — which the spec may declare differently from the related type's own top-level collection. The `page` argument is typed from that paginator too, and a to-one relation takes no `page`:

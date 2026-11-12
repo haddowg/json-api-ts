@@ -7,6 +7,7 @@ import type {
   ApiDescriptor,
   AtomicDescriptor,
   InputMediaKind,
+  ResourceCountOperation,
 } from './descriptor'
 import { JsonApiError } from './errors'
 import { type FilterSpec, listFilterMatcher } from './filters'
@@ -145,7 +146,7 @@ async function run(
     if (signal !== undefined) {
       req.signal = signal
     }
-    negotiateProfiles(ctx, type, params, req, relationForCount)
+    negotiateProfiles(ctx, type, params, req, relationForCount, operation)
   }
   const doc = await execute(ctx.request, req)
   // Resolve the strategy that answers from the endpoint's paginator and the `page` sent, so an
@@ -238,10 +239,11 @@ function sendsRelatedQuery(relatedQuery: ReadQuery['relatedQuery']): boolean {
 
 /**
  * Add any profiles a query's parameters require to the request's negotiated `profiles`. A
- * `withCount` read needs the type's Countable profile in `Accept` — else the server rejects it
- * (400) under strict query-param validation. The profile URI is read from the descriptor's
- * `countable` block (never hardcoded); absent when the type advertises no Countable profile. A
- * `relatedQuery` on a collection or single read likewise adds the type's Relationship Queries
+ * `withCount` read or write needs the Countable profile in `Accept`, else the server rejects it
+ * (400) under strict query-param validation. The profile URI is read from the descriptor (never
+ * hardcoded): the relation's `countable` for a related or relationship read, the operation's
+ * `resourceCountable` entry for a single-resource read or a write, else the type's `countable`.
+ * A `relatedQuery` on a collection or single read likewise adds the type's Relationship Queries
  * profile, after any Countable one.
  */
 function negotiateProfiles(
@@ -250,15 +252,17 @@ function negotiateProfiles(
   query: ReadQuery,
   req: JsonApiRequest,
   relationForCount?: string,
+  operation?: string,
 ): void {
   const profiles: string[] = []
   if (query.withCount !== undefined && query.withCount.length > 0) {
-    // A related/relationship read negotiates the RELATION's Countable profile (its tokens differ
-    // from the collection's); a top-level collection read uses the type's.
+    const descriptor = ctx.descriptor[type]
     const profile =
       relationForCount !== undefined
-        ? ctx.descriptor[type]?.relations[relationForCount]?.countable?.profile
-        : ctx.descriptor[type]?.countable?.profile
+        ? descriptor?.relations[relationForCount]?.countable?.profile
+        : ((isResourceCountOperation(operation)
+            ? descriptor?.resourceCountable?.[operation]?.profile
+            : undefined) ?? descriptor?.countable?.profile)
     if (profile !== undefined) {
       profiles.push(profile)
     }
@@ -274,17 +278,28 @@ function negotiateProfiles(
   }
 }
 
+/** Whether an operation is one answering with one resource that may take `withCount`. */
+function isResourceCountOperation(
+  operation: string | undefined,
+): operation is ResourceCountOperation {
+  return operation === 'fetchOne' || operation === 'create' || operation === 'update'
+}
+
 /**
- * A write opts object: an optional `include`/`fields` narrowing the materialised response, and
- * `wait` to poll a `202 Accepted` job until it's done.
+ * A write opts object: an optional `include`/`fields` narrowing the materialised response, the
+ * relations to count, and `wait` to poll a `202 Accepted` job until it's done.
  */
 interface WriteOpts {
   include?: readonly string[]
   fields?: Record<string, readonly string[]>
+  withCount?: readonly string[]
   wait?: boolean | PollOptions
 }
 
-/** Project a write's opts to the read-query families the response honours (`include`/`fields`). */
+/**
+ * Project a write's opts to the read-query families the response honours: `include`, `fields`
+ * and `withCount`.
+ */
 function writeQuery(opts: WriteOpts | undefined): ReadQuery | undefined {
   if (opts === undefined) {
     return undefined
@@ -292,6 +307,9 @@ function writeQuery(opts: WriteOpts | undefined): ReadQuery | undefined {
   const query: ReadQuery = {}
   if (opts.include !== undefined) {
     query.include = [...opts.include]
+  }
+  if (opts.withCount !== undefined) {
+    query.withCount = [...opts.withCount]
   }
   if (opts.fields !== undefined) {
     const fields: Record<string, string[]> = {}
@@ -372,6 +390,11 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
   }
   if (spec.query !== undefined) {
     req.query = spec.query
+    negotiateProfiles(ctx, spec.type, spec.query, req, undefined, spec.operation)
+    if (req.profiles !== undefined) {
+      // The Countable profile shapes the response, not the body, so only `Accept` names it.
+      req.contentType = JSON_API_MEDIA_TYPE
+    }
   }
   if (spec.wait?.signal !== undefined) {
     req.signal = spec.wait.signal

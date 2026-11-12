@@ -56,7 +56,7 @@ The client enforces this when it builds the document: under `forbidden` an `id` 
     created.artist?.name // hydrated in the create response
     ```
 
-    The same rules as [reads](includes-and-sparse-fieldsets.md) apply: an `include`d relation is hydrated in the result type; a sparse fieldset narrows which attributes come back.
+    The same rules as [reads](includes-and-sparse-fieldsets.md) apply: an `include`d relation is hydrated in the result type; a sparse fieldset narrows which attributes come back. Where the write documents it, `withCount` counts the written resource's relations, read back with `$count` (see [counting relationships](pagination.md#counting-relationships-with-withcount)).
 
 ## Update
 

@@ -560,14 +560,14 @@ async function narrowsListFields() {
 }
 
 // Call-site withCount: the token is constrained to the type's COLLECTION count tokens; a bogus
-// token errs, and `withCount` is rejected on a single-resource `get` (collection-only).
+// token errs, and a single-resource `get` whose read documents no `withCount` takes none.
 async function withCountIsTokenConstrained() {
   await client.albums.list({ withCount: ['tracks'] })
   // @ts-expect-error — `_self_` is not a collection count token for albums (only `tracks`).
   await client.albums.list({ withCount: ['_self_'] })
   // @ts-expect-error — `artist` is not a declared count token for albums.
   await client.albums.list({ withCount: ['artist'] })
-  // @ts-expect-error — `withCount` is not accepted on a single-resource get (collection-only).
+  // @ts-expect-error — this descriptor's single-resource read documents no `withCount`.
   await client.albums.get('1', { withCount: ['tracks'] })
 }
 

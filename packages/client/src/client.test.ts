@@ -262,11 +262,8 @@ describe('createClient — withCount', () => {
     expect(req.headers['Accept']).toBe(`application/vnd.api+json; profile="${COUNTABLE_PROFILE}"`)
   })
 
-  it('a single-resource get is a plain read (withCount is collection-only — see result-types.test)', async () => {
-    // No `GET /{type}/{id}` endpoint advertises `withCount`, so the typed `get` drops it (a
-    // single-resource withCount would be rejected 400 under strict validation). The type-level
-    // rejection is asserted in result-types.test.ts; here we confirm a plain `get` negotiates no
-    // profile.
+  it('a single-resource get without withCount negotiates no profile', async () => {
+    // A single read that counts is covered in relationship-counts.test.ts.
     const { transport, requests } = mockTransport({
       [`${BASE}/albums/1`]: fixtureBody('album-compound.json'),
     })
@@ -295,9 +292,7 @@ describe('createClient — withCount', () => {
 
   it('exposes the relationship count via meta.total on the materialised relationship', async () => {
     // A withCount read renders the relationship counts under each relationship's `meta.total`,
-    // reachable via $rel(name).meta — confirm the runtime preserves them (does not drop them). It
-    // is exercised on the COLLECTION read, where withCount is supported (a single-resource get
-    // does not advertise it).
+    // reachable via $rel(name).meta — confirm the runtime preserves them (does not drop them).
     const { transport } = mockTransport({
       [`${BASE}/albums?withCount=tracks`]: JSON.stringify({
         data: [
