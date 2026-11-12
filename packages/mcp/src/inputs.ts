@@ -149,6 +149,7 @@ function filterInput(
   const props: Record<string, PropertyDecoder> = {}
   const listKeys = new Set(params.flatMap((param) => listFilterKey(param) ?? []))
   const families: string[] = []
+  let defaulted = false
   for (const param of params) {
     if (param.in !== 'query') {
       continue
@@ -163,6 +164,7 @@ function filterInput(
     if (key === undefined || (listKey === undefined && listKeys.has(key))) {
       continue
     }
+    defaulted ||= deref<JsonSchema>(doc, param.schema)?.['default'] !== undefined
     const converted = toPortable(doc, param.schema ?? {}, [], 1)
     const schema = { ...converted.schema }
     if (typeof param.description === 'string' && schema['description'] === undefined) {
@@ -182,7 +184,10 @@ function filterInput(
     schema: nullable(
       closedObject(
         properties,
-        'Filters to apply. Leave a filter null to not apply it, or the whole object null for none.',
+        // The server applies a filter's default when the request sends nothing for it.
+        defaulted
+          ? 'Filters to apply. Leaving a filter null sends nothing for it, and leaving the whole object null sends none. A filter with a default then applies its default.'
+          : 'Filters to apply. Leave a filter null to not apply it, or the whole object null for none.',
       ),
     ),
     decoder: { kind: 'object', props },
