@@ -1,7 +1,7 @@
 {
   "packages/angular": "1.2.16",
   "packages/client": "1.18.0",
-  "packages/codegen": "2.11.0",
-  "packages/mcp": "1.19.0",
+  "packages/codegen": "2.11.1",
+  "packages/mcp": "1.19.1",
   "packages/query": "1.4.0"
 }

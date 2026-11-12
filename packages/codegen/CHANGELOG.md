@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.11.0...json-api-codegen-v2.11.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **codegen:** record a monomorphic relation's own sorts and filters ([49af171](https://github.com/haddowg/json-api-ts/commit/49af1719158537624fce60a4b326fe335d89abe9))
+
 ## [2.11.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.10.0...json-api-codegen-v2.11.0) (2026-11-12)
 
 

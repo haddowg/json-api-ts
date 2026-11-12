@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.19.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.19.0...json-api-mcp-v1.19.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **mcp:** say a filter left null still takes its default ([0052f7b](https://github.com/haddowg/json-api-ts/commit/0052f7bf9f9ef2edd7827fd56844b7c546fb1de3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.11.1
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.11.1
+
 ## [1.19.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.18.1...json-api-mcp-v1.19.0) (2026-11-12)
 
 
