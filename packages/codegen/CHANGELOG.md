@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.13.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.12.0...json-api-codegen-v2.13.0) (2026-11-12)
+
+
+### Features
+
+* **codegen:** record empty sort and filter lists on a relation that takes none ([2765b13](https://github.com/haddowg/json-api-ts/commit/2765b137f41353705f6483f808cfe6a53579523b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.20.0
+
 ## [2.12.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.11.1...json-api-codegen-v2.12.0) (2026-11-12)
 
 
