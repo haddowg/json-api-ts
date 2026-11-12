@@ -91,7 +91,7 @@ describe('generator contract 30 (identified pivots and fixed membership)', () =>
   const sponsors = descriptor['articles']!.relations['sponsors']!
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(35)
+    expect(witness.info?.['x-generator']?.contract).toBe(36)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -179,7 +179,7 @@ describe('generator contract 30 from identified pivots alone', () => {
   const alone = buildDescriptor(doc)
 
   it('reads the document without a warning', () => {
-    expect(doc.info?.['x-generator']?.contract).toBe(35)
+    expect(doc.info?.['x-generator']?.contract).toBe(36)
     expect(checkContract(doc)).toBeUndefined()
   })
 
@@ -200,7 +200,7 @@ describe('generator contract 30 from fixed membership alone', () => {
   const alone = buildDescriptor(doc)
 
   it('reads the document without a warning', () => {
-    expect(doc.info?.['x-generator']?.contract).toBe(35)
+    expect(doc.info?.['x-generator']?.contract).toBe(36)
     expect(checkContract(doc)).toBeUndefined()
   })
 

@@ -18,7 +18,7 @@ const source = emit(witness, buildDescriptor(witness))
 
 describe('generator contract 24 (error shapes, scoped codes, typed meta)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(35)
+    expect(witness.info?.['x-generator']?.contract).toBe(36)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -41,7 +41,9 @@ describe('generator contract 24 (error shapes, scoped codes, typed meta)', () =>
     expectTypeOf<
       Extract<ErrorCodeByOperation['update.articles'], 'ARTICLE_LOCKED'>
     >().toEqualTypeOf<'ARTICLE_LOCKED'>()
-    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<'ARTICLE_LOCKED'>()
+    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<
+      'ARTICLE_LOCKED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND'
+    >()
   })
 
   it('types a declared meta through findError', () => {

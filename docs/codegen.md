@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 35. An older document is refused, because it describes its error codes in a form
+contracts 24 to 36. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -214,8 +214,8 @@ type (`fetchCollection`, `fetchOne`, `create`, `update`, `delete`, and
 `removeRelationship.<relation>`), and `actions`, keyed by action name. Each entry
 has a `request` and `responses` keyed by status, and each of those maps a media
 type to its example. A body is the whole wire document, not the flat input or
-materialised result the client works with. Error responses are shared components
-in the document rather than per operation, so they are left out.
+materialised result the client works with. Error responses are left out, because their
+codes reach the client through the [error catalogue](#error-codes).
 
 Anything without an example is left out: a type, an operation, a request or a
 status. A document with no examples writes no module and warns that it has none. The module is off by
@@ -627,10 +627,13 @@ A `haddowg/json-api` document catalogues the error codes the server can send. Ea
 `components.schemas.ErrorDocument<NNN>` offers, after the open generic `Error`, the error
 *shapes* at that status: components grouping the codes that share a `source` member and a
 `meta` declaration, whose `code` is an `anyOf` of one `const` branch per code, each with the
-code's `title` and `description`. An operation raising codes only it raises answers that status
-with an error document of its own, such as `ArticlesUpdate409`, which offers the shared codes
-plus its own. The codegen finds that document through the operation's response, inline or a
-response component, so the document's name doesn't matter to it. Each code's example lives in
+code's `title` and `description`. A code is offered only on the operations that can raise it,
+so most operations answer a status with an error document of their own, such as
+`ArticlesUpdate409` or `AlbumsFetchOne404`, which offers the shared codes plus its own. A shared
+document may offer no specific code, and a server drops it, with its response component such as
+`NotFound`, when no operation answers from it. The codegen finds each operation's document
+through its response, inline or a response component, so the document's name doesn't matter to
+it. Each code's example lives in
 `components.examples` under the code. The codegen reads them into these exports:
 
 ```ts
@@ -674,7 +677,7 @@ export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByC
   `never`.
 - `ErrorCodeByOperation` maps each operation id with an error document of its own to the codes
   it adds to the ones every operation raises: the document's codes less the shared
-  `ErrorDocument<NNN>` ones. The generated client exports no type per operation document, so a
+  `ErrorDocument<NNN>` ones, or all of them where the status has no shared document. The generated client exports no type per operation document, so a
   server renaming one changes nothing a client imports.
 - `ErrorMetaByCode` types the `meta` each code declares. A code whose `meta` is optional
   types as `… | undefined`.
