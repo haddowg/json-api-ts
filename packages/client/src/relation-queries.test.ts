@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient } from './client'
 import type { ApiDescriptor } from './descriptor'
+import type { RelationFilterQuery, RelationSortQuery } from './result-types'
 import type { TransportRequest, TransportResponse } from './transport'
 
 const BASE = 'https://api.example'
@@ -8,7 +9,7 @@ const BASE = 'https://api.example'
 // Shaped like codegen output for core's witness: `sponsors` is a polymorphic to-many identified
 // by its link rows, with pivot fields and the filters and sorts its reads declare over them.
 // `attachments` is polymorphic too but declares none, `tags` is monomorphic and declares none,
-// and `author` is a to-one whose reads take no sort.
+// `author` is a to-one whose reads take no sort and no filter, and `editor` has no read at all.
 const descriptor = {
   articles: {
     attributes: { title: 'string' },
@@ -44,6 +45,18 @@ const descriptor = {
         pivot: false,
         mutations: { set: true },
         sortable: [],
+        filterable: [],
+      },
+      editor: {
+        cardinality: 'one',
+        types: ['people'],
+        pivot: false,
+        writeOnly: true,
+        related: false,
+        relationship: false,
+        mutations: {},
+        sortable: [],
+        filterable: [],
       },
     },
     paths: {
@@ -153,7 +166,17 @@ describe("a relation's own sorts and filters", () => {
     expectTypeOf<Query<'attachments'>['sort']>().toEqualTypeOf<
       string | readonly string[] | undefined
     >()
-    expectTypeOf<Query<'tags'>['filter']>().toEqualTypeOf<Record<string, unknown> | undefined>()
+    expectTypeOf<Query<'attachments'>['filter']>().toEqualTypeOf<
+      Record<string, unknown> | undefined
+    >()
+  })
+
+  it("types a monomorphic relation declaring none with its related type's filters", () => {
+    type Filter = NonNullable<Query<'tags'>['filter']>
+    expectTypeOf<keyof Filter>().toEqualTypeOf<'name' | 'roles'>()
+    expectTypeOf<Filter['name']>().toEqualTypeOf<unknown>()
+    expectTypeOf<Filter['roles']>().toEqualTypeOf<readonly string[] | undefined>()
+    expectTypeOf<RelatedQuery<'tags'>['filter']>().toEqualTypeOf<Query<'tags'>['filter']>()
   })
 
   it("types a monomorphic relation declaring none with its related type's sorts", () => {
@@ -163,9 +186,18 @@ describe("a relation's own sorts and filters", () => {
     expectTypeOf<'rank'>().not.toMatchTypeOf<NonNullable<Query<'tags'>['sort']>>()
   })
 
-  it('types `sort` as never on a relation whose reads take none', () => {
+  it('types `sort` and `filter` as never on a relation whose reads take none', () => {
     expectTypeOf<Query<'author'>['sort']>().toEqualTypeOf<undefined>()
     expectTypeOf<RelatedQuery<'author'>['sort']>().toEqualTypeOf<undefined>()
+    expectTypeOf<Query<'author'>['filter']>().toEqualTypeOf<undefined>()
+    expectTypeOf<RelatedQuery<'author'>['filter']>().toEqualTypeOf<undefined>()
+  })
+
+  it('types `sort` and `filter` as never on a relation with no read', () => {
+    expectTypeOf<Handle['editor']['get']>().toBeNever()
+    expectTypeOf<Handle['editor']['related']>().toBeNever()
+    expectTypeOf<RelationSortQuery<typeof descriptor, 'articles', 'editor'>>().toBeNever()
+    expectTypeOf<RelationFilterQuery<typeof descriptor, 'articles', 'editor'>>().toBeNever()
   })
 
   it("matches a monomorphic relation's list filters against its related type", async () => {
@@ -234,8 +266,25 @@ async function sortsEachRelationAsItsReadsDo() {
   await typed.articles.id('1').sponsors.get({ sort: 'name' })
 }
 
-describe("a relation's sort at the call site", () => {
+async function filtersEachRelationAsItsReadsDo() {
+  await typed.articles.id('1').sponsors.related({ filter: { minRank: 1, ranks: ['1'] } })
+  await typed.articles.id('1').tags.related({ filter: { name: 'ada', roles: ['admin'] } })
+  await typed.articles.id('1').attachments.get({ filter: { anything: 1 } })
+  // @ts-expect-error `name` is not a filter the sponsors relation records
+  await typed.articles.id('1').sponsors.get({ filter: { name: 'ada' } })
+  // @ts-expect-error `title` is not a filter of the people collection
+  await typed.articles.id('1').tags.get({ filter: { title: 'x' } })
+  // @ts-expect-error the people collection's `roles` filter takes a list
+  await typed.articles.id('1').tags.related({ filter: { roles: 'admin' } })
+  // @ts-expect-error a to-one's reads take no filter
+  await typed.articles.id('1').author.related({ filter: { name: 'ada' } })
+  // @ts-expect-error a to-one's reads take no filter
+  await typed.articles.id('1').author.get({ filter: {} })
+}
+
+describe("a relation's sort and filter at the call site", () => {
   it("takes what each relation's reads take", () => {
     expectTypeOf(sortsEachRelationAsItsReadsDo).returns.resolves.toBeVoid()
+    expectTypeOf(filtersEachRelationAsItsReadsDo).returns.resolves.toBeVoid()
   })
 })

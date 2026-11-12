@@ -135,7 +135,8 @@ export interface RelationDescriptor {
    * share no type to read them from, such as a `MorphToMany` sorting by its pivot fields, and for
    * a relation whose reads sort differently from its related type's collection read, such as by a
    * pivot field or a sort the relation declares. It records `[]` for a relation whose reads take no
-   * sort, such as any to-one. Narrows `sort` on `.get()` and `.related()` as
+   * sort, such as any to-one, and for a relation with no related or relationship read at all.
+   * Narrows `sort` on `.get()`, `.related()` and `relatedQuery` as
    * {@link ResourceDescriptor.sortable} narrows a collection read, and `[]` with no
    * {@link sortFamilies} types `sort` as `never`. Absent, together with {@link sortFamilies}, means
    * not recorded: a monomorphic relation's reads then take its related type's collection sorts and
@@ -146,10 +147,12 @@ export interface RelationDescriptor {
   sortFamilies?: readonly SortFamilyDescriptor[]
   /**
    * The filter keys the relation's own related and relationship reads accept, recorded as
-   * {@link sortable} is, and also when the reads drop a filter default. Narrows `filter` on
-   * `.get()` and `.related()`, and the client matches list filters against it. Absent, together
-   * with {@link filterFamilies}, means the reads take any filter, and a monomorphic relation's list
-   * filters are its related type's.
+   * {@link sortable} is, and also when the reads drop a filter default. The codegen records `[]`
+   * for a relation whose reads take no filter, and for a relation with no read at all. Narrows
+   * `filter` on `.get()`, `.related()` and `relatedQuery`, and `[]` with no {@link filterFamilies}
+   * types `filter` as `never`. The client matches list filters against it. Absent, together with
+   * {@link filterFamilies}, means not recorded: a monomorphic relation's reads then take its related
+   * type's collection filters, list filters included, and a polymorphic relation's take any filter.
    */
   filterable?: readonly string[]
   /** The keys of {@link filterable} whose filter takes a list, sent as a collection read sends them. */
