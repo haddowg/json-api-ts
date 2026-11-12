@@ -10,7 +10,7 @@ import { createQueryApi, relatedQueryOptions, relationshipQueryOptions } from '.
 
 // A polymorphic to-many identified by its link rows: a pivot, and the sorts and filters its reads
 // declare over the pivot fields. `followers` declares none of its own, so it takes the users
-// collection's sorts.
+// collection's sorts and filters.
 const descriptor = {
   teams: {
     attributes: { name: 'string' },
@@ -41,6 +41,7 @@ const descriptor = {
     paginator: 'none',
     clientId: 'forbidden',
     sortable: ['name', '-name'],
+    filterable: ['name'],
   },
   brands: {
     attributes: { name: 'string' },
@@ -97,7 +98,7 @@ describe("relation reads with the relation's own sorts and filters", () => {
     relatedQueryOptions(client, 'teams', '1', 'sponsors', { sort: 'name' })
     // @ts-expect-error — `name` is not a filter of the relation.
     createQueryApi(client).teams.relationship('1', 'sponsors', { filter: { name: 'x' } })
-    // A relation declaring none of its own takes its related type's sorts and any filter.
+    // A relation declaring none of its own takes its related type's sorts and filters.
     createQueryApi(client).teams.related('1', 'followers', { sort: 'name', filter: { name: 'x' } })
     type Query = NonNullable<
       Parameters<typeof relatedQueryOptions<typeof descriptor, unknown, 'teams', 'sponsors'>>[4]
