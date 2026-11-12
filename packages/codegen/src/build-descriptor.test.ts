@@ -135,6 +135,10 @@ describe('buildDescriptor (music-catalog default server)', () => {
       polymorphic: true,
       pivot: false,
       mutations: { set: true },
+      countable: {
+        tokens: ['playlists', 'tracks', 'tracklist'],
+        profile: 'https://haddowg.github.io/json-api/profiles/countable/',
+      },
       sortable: [],
       filterable: [],
     })
@@ -394,6 +398,60 @@ describe('buildDescriptor — withCount (Countable) capability', () => {
     })
     expect(descriptor['albums']!.countable!.tokens).toContain('tracks')
     expect(descriptor['albums']!.countable!.profile).toBe(COUNTABLE_PROFILE)
+  })
+
+  it('records the withCount of the single read, the create and the update (albums)', () => {
+    const counts = { tokens: ['tracks', 'tracklist'], profile: COUNTABLE_PROFILE }
+    expect(descriptor['albums']!.resourceCountable).toEqual({
+      fetchOne: counts,
+      create: counts,
+      update: counts,
+    })
+    expect(descriptor['genres']!.resourceCountable).toBeUndefined()
+  })
+
+  it('leaves `_self_` out of a single-resource count, and an operation without withCount out', () => {
+    const withCount = (tokens: string[]) => [
+      {
+        name: 'withCount',
+        in: 'query' as const,
+        schema: { type: 'array', items: { type: 'string', enum: tokens } },
+        'x-profile': COUNTABLE_PROFILE,
+      },
+    ]
+    const synthetic: OpenApiDocument = {
+      components: {
+        schemas: {
+          WidgetsResource: {
+            type: 'object',
+            properties: { type: { type: 'string', const: 'widgets' }, id: { type: 'string' } },
+          },
+          WidgetsCollection: { type: 'object' },
+        },
+      },
+      paths: {
+        '/widgets': {
+          get: {
+            responses: {
+              '200': {
+                content: {
+                  'application/vnd.api+json': {
+                    schema: { $ref: '#/components/schemas/WidgetsCollection' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        '/widgets/{id}': {
+          get: { parameters: withCount(['_self_', 'gadgets']) },
+          patch: {},
+        },
+      },
+    }
+    expect(buildDescriptor(synthetic)['widgets']!.resourceCountable).toEqual({
+      fetchOne: { tokens: ['gadgets'], profile: COUNTABLE_PROFILE },
+    })
   })
 
   it('omits `countable` when the collection GET lacks withCount, even if a related GET has one (artists)', () => {
@@ -1406,12 +1464,12 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(MINIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
     expect(MINIMUM_CONTRACT).toBe(24)
-    expect(MAXIMUM_CONTRACT).toBe(34)
+    expect(MAXIMUM_CONTRACT).toBe(35)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(35))).toContain(
-      'declares contract 35 and this codegen reads up to 34',
+    expect(checkContract(contractDoc(36))).toContain(
+      'declares contract 36 and this codegen reads up to 35',
     )
     // A document from before error shapes describes its codes in a way this codegen no longer reads.
     expect(() => checkContract(contractDoc(23))).toThrow('predates what this codegen reads')
