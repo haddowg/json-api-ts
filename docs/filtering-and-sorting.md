@@ -61,7 +61,7 @@ filterFamilies: [
 ],
 ```
 
-A collection action that takes filters gets the same TSDoc on its own `filterable` and `filterFamilies`, and so does a polymorphic relation that records its own sorts and filters.
+A collection action that takes filters gets the same TSDoc on its own `filterable` and `filterFamilies`, and so does a relation that records its own sorts and filters.
 
 !!! note "No sorting advertised? `sort` is a compile error."
     If a type advertises no `sortable` set (the OpenAPI document declares no sort parameter), its `sort` value is typed `never` — the key cannot be supplied at all. That is a compile-time mirror of the server's `400 SORTING_UNSUPPORTED`. In the example app, `playlists` advertises no sort, so [BrowsePage.tsx](../examples/spotify-clone/src/pages/BrowsePage.tsx) lists them without a `sort`.
@@ -140,7 +140,7 @@ runs[0]!.$count('items') // number: the run's failed items
 
 The server applies the entry wherever it renders that relationship: its linkage, its `included` members and its `withCount` total. So the count above is the failed items, not all of them. See [counting relationships](pagination.md#counting-relationships-with-withcount) for `$count`.
 
-An entry's `filter` and `sort` are typed the way that relation's own `.related()` read types them. Where the descriptor records the relation's own `filterable` and `sortable`, as the codegen does for a polymorphic relation, they're narrowed to those keys and a key the relation doesn't take fails to compile. Otherwise they're loose: any key, any token. An include path the type doesn't advertise fails to compile either way.
+An entry's `filter` and `sort` are typed the way that relation's own `.related()` read types them. Where the descriptor records the relation's own `filterable` and `sortable`, they're narrowed to those keys and a key the relation doesn't take fails to compile. The codegen records them for a polymorphic relation, and for a relation whose related read sorts or filters differently from its related type's collection read. Otherwise they're loose: any key, any token. An include path the type doesn't advertise fails to compile either way.
 
 On the wire each entry becomes `relatedQuery[<path>][filter][<key>]=<value>` and `relatedQuery[<path>][sort]=<tokens>`, with a list value sent as the primary `filter` sends it. The client adds the profile URI from the descriptor to `Accept`, after the Countable one when `withCount` is set too:
 

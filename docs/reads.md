@@ -99,10 +99,13 @@ A literal relation name (`'tracks'`) narrows the return to the related type, so 
 are typed without a cast. `.related()` and `.get()` accept the same query families as a
 collection read (`filter`/`sort`/`include`/`fields`/`page`/`withCount`) — the related and
 relationship endpoints advertise their own vocabulary. When the descriptor records a
-relation's own `sortable` and `filterable`, as the codegen does for a polymorphic relation
-whose reads declare them, `sort` and `filter` are narrowed to those keys. A `MorphToMany`
-identified by its link rows is one: it sorts and filters by its pivot fields, and each
-member's `$pivot` is typed from them.
+relation's own `sortable` and `filterable`, `sort` and `filter` are narrowed to those keys.
+The codegen records them for a polymorphic relation whose reads declare them, and for any
+other relation whose reads take different sorts or filters than its related type's
+collection read. A `MorphToMany` identified by its link rows is one: it sorts and filters by
+its pivot fields, and each member's `$pivot` is typed from them. In the music catalog,
+`albums.tracks` sorts by `duration`, which the tracks collection doesn't, so
+`.related({ sort: '-duration' })` compiles on that relation alone.
 
 ??? note "Going deeper: `.rel(name)` vs direct property access, and suppressed endpoints"
     On a handle you can also reach a relation by property — `client.albums.id('1').tracks`

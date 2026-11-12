@@ -138,6 +138,16 @@ A few things the codegen reads from the document that affect the generated clien
   filter family's example as an `@example`. A filter's default, the `default` of its
   `filter[<key>]` schema, is named on `filterable`. See
   [filtering and sorting](filtering-and-sorting.md#what-the-descriptor-says-about-filters-and-sorts).
+- **A relation's own sorts and filters.** The client reads a relation over one type with
+  that type's collection vocabulary. When the relation's related read, or its relationship
+  read if it has no related endpoint, takes other sorts or filters, the codegen records the
+  relation's own on it. That covers a sort the relation declares, such as the music
+  catalog's `duration` on `albums.tracks`, sorts and filters by pivot fields, and a
+  relation that drops its related type's filter defaults. Sorts and filters are compared
+  apart, keys and descriptions and defaults included, so a relation that only filters
+  differently records only `filterable`, `listFilters` and `filterFamilies`. A relation
+  whose reads take what the collection read takes records nothing, and neither does one
+  whose reads take no sort or no filter at all, since the descriptor has no way to say so.
 - **Polymorphic relations.** A relation whose linkage is a union is marked
   `polymorphic: true` whatever its member count, so a `MorphTo` over a single type is
   polymorphic too. Its related and relationship endpoints don't advertise the related

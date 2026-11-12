@@ -121,10 +121,10 @@ describe('generator contract 30 (identified pivots and fixed membership)', () =>
     expect(attachments.filterable).toBeUndefined()
   })
 
-  it("leaves a monomorphic relation's reads to its related type", () => {
-    const tags = descriptor['articles']!.relations['tags']!
-    expect(tags.sortable).toBeUndefined()
-    expect(tags.filterable).toBeUndefined()
+  it("leaves a monomorphic relation's reads to its related type when they match", () => {
+    const author = descriptor['articles']!.relations['author']!
+    expect(author.sortable).toBeUndefined()
+    expect(author.filterable).toBeUndefined()
   })
 
   it('sends the sorts and filters and reads each pivot', async () => {
@@ -214,12 +214,12 @@ describe('generator contract 30 from fixed membership alone', () => {
     expect(alone['articles']!.relations).toEqual(others)
   })
 
-  it('reads no relation sorts or filters', () => {
-    for (const type of Object.values(alone)) {
-      for (const relation of Object.values(type.relations)) {
-        expect(relation.sortable).toBeUndefined()
-        expect(relation.filterable).toBeUndefined()
-      }
-    }
+  it('reads relation sorts and filters only where a read differs from its related type', () => {
+    const own = Object.entries(alone).flatMap(([type, spec]) =>
+      Object.entries(spec.relations)
+        .filter(([, relation]) => relation.sortable ?? relation.filterable)
+        .map(([name]) => `${type}.${name}`),
+    )
+    expect(own).toEqual(['articles.tags'])
   })
 })
