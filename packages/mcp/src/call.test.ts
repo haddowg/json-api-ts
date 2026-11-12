@@ -232,7 +232,8 @@ describe('reads', () => {
     })
     expect(result.isError).toBe(true)
     expect(json(result)).toEqual({
-      error: 'include can\'t name "artist.albums"; this tool includes only artist, tracks',
+      error:
+        'include can\'t name "artist.albums"; this tool includes only artist, tracks, tracklist',
     })
     expect(requests).toHaveLength(0)
   })

@@ -23,7 +23,7 @@ describe('generateMcpModel', () => {
     const model = await generateMcpModel(document)
     expect(model.format).toBe(MODEL_FORMAT)
     expect(model.generator).toBe(MODEL_GENERATOR)
-    expect(model.contract).toBe(27)
+    expect(model.contract).toBe(34)
     expect(model.source.hash).toBe(hashJson(document))
     expect(model.baseUrl).toBe('https://music.example')
     expect(model.descriptor).toEqual(
@@ -71,7 +71,7 @@ describe('generateMcpModel', () => {
   it('loads the generated model the way a CommonJS host would, with require', () => {
     const require = createRequire(import.meta.url)
     const mcp = createJsonApiMcp({ model: require(generated) })
-    expect(mcp.contract).toBe(27)
+    expect(mcp.contract).toBe(34)
     expect(mcp.tools.map((t) => t.name)).toContain('albums_list')
   })
 })

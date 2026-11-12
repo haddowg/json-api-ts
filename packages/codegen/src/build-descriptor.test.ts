@@ -365,7 +365,7 @@ describe('buildDescriptor — withCount (Countable) capability', () => {
 
   it('captures the count tokens and profile from a collection withCount param (albums)', () => {
     expect(descriptor['albums']!.countable).toEqual({
-      tokens: ['tracks'],
+      tokens: ['tracks', 'tracklist'],
       profile: COUNTABLE_PROFILE,
     })
     expect(descriptor['albums']!.countable!.tokens).toContain('tracks')
@@ -557,6 +557,9 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
       'tracks',
       'tracks.album',
       'tracks.playlists',
+      'tracklist',
+      'tracklist.album',
+      'tracklist.playlists',
     ])
   })
 
@@ -590,10 +593,15 @@ describe('buildDescriptor — include/sort/filter capabilities', () => {
 
   it('captures the capabilities of a type whose relation became includable (artists)', () => {
     // artists.albums is includable (and reaches deeper), and the collection GET advertises
-    // its full-text `q` filter alongside `slug`.
-    expect(descriptor['artists']!.includable).toEqual(['albums', 'albums.artist', 'albums.tracks'])
+    // its full-text `q` filter alongside `slug` and the `albumTitle` filter through albums.
+    expect(descriptor['artists']!.includable).toEqual([
+      'albums',
+      'albums.artist',
+      'albums.tracks',
+      'albums.tracklist',
+    ])
     expect(descriptor['artists']!.sortable).toContain('name')
-    expect(descriptor['artists']!.filterable).toEqual(['q', 'slug'])
+    expect(descriptor['artists']!.filterable).toEqual(['albumTitle', 'q', 'slug'])
   })
 
   it('omits `sortable` and `filterable` when the collection advertises neither (playlists)', () => {
