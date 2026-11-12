@@ -60,6 +60,10 @@ const descriptor = {
     includable: ['artist', 'tracks'],
     sortable: ['title', '-title'],
     filterable: ['q'],
+    resourceCountable: {
+      create: { tokens: ['tracks'], profile: 'https://music.example/profiles/countable/' },
+      update: { tokens: ['tracks'], profile: 'https://music.example/profiles/countable/' },
+    },
   },
   artists: {
     attributes: { name: 'string' },
@@ -175,6 +179,49 @@ describe('createMutationOptions — invalidate the list subtree', () => {
     // Both lists (the whole `[albums, fetchMany]` subtree) are invalidated by the create.
     expect(qc.getQueryState(listA.queryKey)?.isInvalidated).toBe(true)
     expect(qc.getQueryState(listB.queryKey)?.isInvalidated).toBe(true)
+  })
+})
+
+describe('write mutations with withCount', () => {
+  it('sends the counts on a create and an update and types them as numbers', async () => {
+    const counted = {
+      data: {
+        ...resource('albums', '1', { title: 'New' }),
+        relationships: { tracks: { meta: { total: 3 } } },
+      },
+    }
+    const { client, requests } = makeClient({ 'POST /albums': counted, 'PATCH /albums/1': counted })
+    const qc = new QueryClient()
+
+    const created = await runMutation(
+      qc,
+      createMutationApi(qc, client, descriptor).albums.create({ withCount: ['tracks'] }),
+      { title: 'New' },
+    )
+    expect(requests[0]!.url).toBe(`${BASE}/albums?withCount=tracks`)
+    expect(requests[0]!.headers['Accept']).toBe(
+      'application/vnd.api+json; profile="https://music.example/profiles/countable/"',
+    )
+    expect(created.$count('tracks')).toBe(3)
+    expectTypeOf(created.$count('tracks')).toEqualTypeOf<number>()
+
+    const updated = await runMutation(
+      qc,
+      updateMutationOptions(qc, client, descriptor, 'albums', '1', { withCount: ['tracks'] }),
+      { title: 'New' },
+    )
+    expect(requests[1]!.url).toBe(`${BASE}/albums/1?withCount=tracks`)
+    expectTypeOf(updated.$count('tracks')).toEqualTypeOf<number>()
+  })
+
+  it('takes only the relations the write counts', () => {
+    const { client } = makeClient({})
+    const qc = new QueryClient()
+    // @ts-expect-error `_self_` counts a collection, which a created album is not
+    createMutationOptions(qc, client, descriptor, 'albums', { withCount: ['_self_'] })
+    const album = createMutationApi(qc, client, descriptor).albums.id('1')
+    // @ts-expect-error `artist` is not a relation the update counts
+    album.update({ withCount: ['artist'] })
   })
 })
 

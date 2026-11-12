@@ -25,6 +25,7 @@ import type {
   RelationName,
   RelationReadQuery,
   RelationshipAccessor,
+  ResourceCountToken,
   SingleReadQuery,
   TypedReadQuery,
   TypedRelationReadQuery,
@@ -79,10 +80,14 @@ type TypedClient<D extends ApiDescriptor, A> = {
     >(
       query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
     ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
-    get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+    get<
+      const Inc extends readonly IncludePath<D, T>[] = [],
+      const F extends FieldsMap<D> = {},
+      const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+    >(
       id: string,
-      query?: SingleReadQuery<D, T, Inc, F>,
-    ): Promise<ReadResult<D, A, T, Inc, F>>
+      query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+    ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
     id(id: string): {
       rel(name: RelationName<D, T>): {
         get(query?: RelationReadQuery): Promise<unknown>
@@ -121,9 +126,9 @@ export function listQueryOptions<
 
 /**
  * The single-resource read (`GET /{type}/{id}`): options resolving the typed resource view,
- * narrowed by `include`/`fields` as `client.<type>.get(id, query)`. Key: `[type, 'fetchOne', id,
- * <params>]` — the `id` sits at a fixed position so {@link keyFor}'s prefix matches a resource's
- * reads.
+ * narrowed by `include`/`fields` and counted by `withCount` as `client.<type>.get(id, query)`.
+ * Key: `[type, 'fetchOne', id, <params>]` — the `id` sits at a fixed position so {@link keyFor}'s
+ * prefix matches a resource's reads.
  */
 export function getQueryOptions<
   D extends ApiDescriptor,
@@ -131,16 +136,17 @@ export function getQueryOptions<
   T extends TypeName<D>,
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
+  const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
 >(
   client: TypedClient<D, A>,
   type: T,
   id: string,
-  query?: SingleReadQuery<D, T, Inc, F>,
-): QueryOptions<ReadResult<D, A, T, Inc, F>> {
+  query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>> {
   const accessor = client[type]
   return {
     queryKey: keyFor({ type, operation: 'fetchOne', id }, query),
-    queryFn: () => accessor.get<Inc, F>(id, query),
+    queryFn: () => accessor.get<Inc, F, Cnt>(id, query),
   }
 }
 
@@ -209,10 +215,14 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
   ): QueryOptions<
     Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>
   >
-  get<const Inc extends readonly IncludePath<D, T>[] = [], const F extends FieldsMap<D> = {}>(
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
     id: string,
-    query?: SingleReadQuery<D, T, Inc, F>,
-  ): QueryOptions<ReadResult<D, A, T, Inc, F>>
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>>
   relationship<R extends RelationName<D, T>>(
     id: string,
     rel: R,
