@@ -36,6 +36,7 @@ import {
   type LinkageRef,
   type ReadResult,
   type RelationName,
+  type ResourceCountToken,
   type TypeName,
   type UpdateInput,
   type UpdateMethod,
@@ -157,8 +158,8 @@ function invalidateParentRelations(
 type LooseWrite = (body: unknown, opts?: unknown) => Promise<unknown>
 
 /**
- * The write options a create or update mutation takes: `include`/`fields`, and `wait` for a write
- * that declares a `202`.
+ * The write options a create or update mutation takes: `include`/`fields`, the `withCount` write
+ * `Op` advertises, and `wait` for a write that declares a `202`.
  */
 export type WriteMutationOpts<
   D extends ApiDescriptor,
@@ -166,7 +167,9 @@ export type WriteMutationOpts<
   Inc extends readonly IncludePath<D, T>[] = [],
   F extends FieldsMap<D> = FieldsMap<D>,
   Wt = undefined,
-> = WriteOptions<D, T, Inc, F> & { wait?: Wt }
+  Op extends 'create' | 'update' = 'create',
+  Cnt extends readonly ResourceCountToken<D, T, Op>[] = readonly ResourceCountToken<D, T, Op>[],
+> = WriteOptions<D, T, Inc, F, Op, Cnt> & { wait?: Wt }
 
 /**
  * The create mutation (`POST /{type}`): `mutationFn` runs `client.<type>.create(input, opts)`;
@@ -187,21 +190,22 @@ export function createMutationOptions<
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
   const Wt extends WaitValue<D, T, 'create'> = undefined,
+  const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
 >(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
-  opts?: WriteMutationOpts<D, T, Inc, F, Wt>,
+  opts?: WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt>,
 ): MutationOptions<
-  WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>, Wt>,
+  WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
   CreateInput<D, W, T>
 > {
   const accessor = client[type]
   return {
     mutationFn: (input) =>
       (accessor.create as LooseWrite)(input, opts) as Promise<
-        WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>, Wt>
+        WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>
       >,
     onSuccess: (data) => {
       if (!isAccepted(data)) {
@@ -231,28 +235,29 @@ export function updateMutationOptions<
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
   const Wt extends WaitValue<D, T, 'update'> = undefined,
+  const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
 >(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
   id: string,
-  opts?: UpdateMutationOpts<D, T, Inc, F, Wt>,
+  opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
 ): MutationOptions<
-  WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>,
+  WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
   UpdateInput<D, W, T>,
   MutationContext
 > {
   const accessor = client[type]
   const optimistic = opts?.optimistic === true
   const base: MutationOptions<
-    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>,
+    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
     UpdateInput<D, W, T>,
     MutationContext
   > = {
     mutationFn: (patch) =>
       (accessor.id(id).update as LooseWrite)(patch, opts) as Promise<
-        WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>
+        WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>
       >,
     onSuccess: (data) => {
       if (!isAccepted(data)) {
@@ -597,8 +602,8 @@ function attributesFromPatch(
 // ── Bound per-type mutation API (sugar over the standalone factories) ────────────────────────
 
 /**
- * Extra options for an `update(...)` mutation: the write `include`/`fields`, `wait` for an update
- * that declares a `202`, plus the optimistic toggle.
+ * Extra options for an `update(...)` mutation: the write `include`/`fields`, the update's
+ * `withCount`, `wait` for an update that declares a `202`, plus the optimistic toggle.
  */
 export type UpdateMutationOpts<
   D extends ApiDescriptor,
@@ -606,7 +611,12 @@ export type UpdateMutationOpts<
   Inc extends readonly IncludePath<D, T>[] = [],
   F extends FieldsMap<D> = FieldsMap<D>,
   Wt = undefined,
-> = WriteMutationOpts<D, T, Inc, F, Wt> & { optimistic?: boolean }
+  Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = readonly ResourceCountToken<
+    D,
+    T,
+    'update'
+  >[],
+> = WriteMutationOpts<D, T, Inc, F, Wt, 'update', Cnt> & { optimistic?: boolean }
 
 /**
  * The relationship-mutation option factories for one relation (`api.<type>.id(id).rel(rel).add(...)`).
@@ -636,10 +646,11 @@ export interface HandleMutationApi<D extends ApiDescriptor, A, W, T extends Type
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Wt extends WaitValue<D, T, 'update'> = undefined,
+    const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
   >(
-    opts?: UpdateMutationOpts<D, T, Inc, F, Wt>,
+    opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
   ): MutationOptions<
-    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F>, Wt>,
+    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
     UpdateInput<D, W, T>,
     MutationContext
   >
@@ -653,10 +664,11 @@ export interface TypeMutationApi<D extends ApiDescriptor, A, W, T extends TypeNa
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Wt extends WaitValue<D, T, 'create'> = undefined,
+    const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
   >(
-    opts?: WriteMutationOpts<D, T, Inc, F, Wt>,
+    opts?: WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt>,
   ): MutationOptions<
-    WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F>, Wt>,
+    WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
     CreateInput<D, W, T>
   >
   id(id: string): HandleMutationApi<D, A, W, T>

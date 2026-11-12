@@ -39,7 +39,7 @@ That is exactly how the example app bootstraps its data layer — see [client.ts
 
 ## A basic query
 
-Each read factory returns a plain `{ queryKey, queryFn }`, structurally compatible with query-core's `QueryOptions`. Spread it into `useQuery` — the result type is the client's own materialised view, so `include` and `fields` narrow it exactly as a direct client call would.
+Each read factory returns a plain `{ queryKey, queryFn }`, structurally compatible with query-core's `QueryOptions`. Spread it into `useQuery` — the result type is the client's own materialised view, so `include`, `fields` and `withCount` narrow it exactly as a direct client call would. The create and update mutation factories take `withCount` in their options too.
 
 ```ts
 import { useQuery } from '@tanstack/react-query'

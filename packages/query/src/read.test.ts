@@ -43,6 +43,9 @@ const descriptor = {
     sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['q'],
     countable: { tokens: ['tracks'], profile: 'https://music.example/profiles/countable/' },
+    resourceCountable: {
+      fetchOne: { tokens: ['tracks'], profile: 'https://music.example/profiles/countable/' },
+    },
     relatedQuery: {
       operations: ['fetchMany', 'fetchOne'],
       profile: 'https://music.example/profiles/relationship-queries/',
@@ -218,6 +221,40 @@ describe('listQueryOptions with withCount and relatedQuery', () => {
     expect(options.queryKey).toEqual(listQueryOptions(client, 'albums', query).queryKey)
     const [album] = await new QueryClient().fetchQuery(options)
     expectTypeOf(album!.$count('tracks')).toEqualTypeOf<number>()
+  })
+})
+
+describe('getQueryOptions with withCount', () => {
+  it('keys a single read by its withCount and reads the count as a number', async () => {
+    const { client, requests } = makeClient({
+      'GET /albums/1': {
+        data: { ...resource('albums', '1'), relationships: { tracks: { meta: { total: 6 } } } },
+      },
+    })
+    const options = getQueryOptions(client, 'albums', '1', { withCount: ['tracks'] })
+    expect(options.queryKey).toEqual(
+      keyFor({ type: 'albums', operation: 'fetchOne', id: '1' }, { withCount: ['tracks'] }),
+    )
+    const album = await new QueryClient().fetchQuery(options)
+    expect(requests[0]!.url).toBe(`${BASE}/albums/1?withCount=tracks`)
+    expect(requests[0]!.headers['Accept']).toBe(
+      'application/vnd.api+json; profile="https://music.example/profiles/countable/"',
+    )
+    expect(album.$count('tracks')).toBe(6)
+    expectTypeOf(album.$count('tracks')).toEqualTypeOf<number>()
+
+    const bound = await new QueryClient().fetchQuery(
+      createQueryApi(client).albums.get('1', { withCount: ['tracks'] }),
+    )
+    expectTypeOf(bound.$count('tracks')).toEqualTypeOf<number>()
+  })
+
+  it('takes only the relations the single read counts', () => {
+    const { client } = makeClient({})
+    // @ts-expect-error `_self_` counts a collection, which one album is not
+    getQueryOptions(client, 'albums', '1', { withCount: ['_self_'] })
+    // @ts-expect-error artists document no single-resource withCount
+    createQueryApi(client).artists.get('1', { withCount: ['albums'] })
   })
 })
 
