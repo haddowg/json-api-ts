@@ -24,7 +24,7 @@ describe('generator contract 22 (deprecation)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(33)
+    expect(mcp.contract).toBe(34)
   })
 
   it('starts a deprecated operation tool description with Deprecated.', () => {
@@ -100,7 +100,12 @@ describe('generator contract 22 (deprecation)', () => {
   it('offers deprecated sort keys and families in branches noted as deprecated', () => {
     const items = argument(mcp, 'articles_list', 'sort')['items'] as JsonSchema
     expect((items['anyOf'] as JsonSchema[]).slice(0, 3)).toEqual([
-      { type: 'string', enum: ['title', '-title', 'wordCount', '-wordCount'] },
+      {
+        type: 'string',
+        enum: ['title', '-title', 'wordCount', '-wordCount'],
+        description:
+          'What each sort orders by, in either direction:\n- `title`: Alphabetical by title.',
+      },
       { type: 'string', enum: ['length', '-length'], description: 'Deprecated.' },
       {
         type: 'string',

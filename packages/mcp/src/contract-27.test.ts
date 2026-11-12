@@ -22,7 +22,7 @@ describe('generator contract 27 (list filters and filter families)', () => {
   const members = (name: string) => filter(name)['properties'] as Record<string, JsonSchema>
 
   it('reads the document', () => {
-    expect(mcp.contract).toBe(33)
+    expect(mcp.contract).toBe(34)
   })
 
   it('takes a list filter as one array member', () => {
@@ -40,7 +40,7 @@ describe('generator contract 27 (list filters and filter families)', () => {
     expect(properties['value.']).toEqual({
       type: ['array', 'null'],
       description:
-        'Filters on keys of the form `value.<name>`, one entry per key. Leave null to apply none.',
+        'Matches a custom field value. Filters on keys of the form `value.<name>`, one entry per key, such as `[{"name":"cap","value":["10","20"]}]`. Leave null to apply none.',
       items: {
         type: 'object',
         properties: {
