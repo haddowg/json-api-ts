@@ -440,7 +440,7 @@ export class DescriptorBuilder {
       }
       out[name] =
         collection === undefined
-          ? descriptor
+          ? this.withoutCollection(descriptor, endpoints.get(name))
           : this.withRelationExposure(descriptor, collection, name, endpoints.get(name))
     }
 
@@ -556,6 +556,21 @@ export class DescriptorBuilder {
   }
 
   /**
+   * A relation of a type with no collection endpoint, such as one only an action returns. When no
+   * related or relationship read reaches it, it takes neither sort nor filter.
+   */
+  private withoutCollection(
+    descriptor: RelationDescriptor,
+    endpoints: RelationEndpoints | undefined,
+  ): RelationDescriptor {
+    const read = (path: string | undefined): OperationObject | undefined =>
+      path === undefined ? undefined : this.operation(path, 'get')
+    return read(endpoints?.related) === undefined && read(endpoints?.relationship) === undefined
+      ? { ...descriptor, sortable: [], filterable: [] }
+      : descriptor
+  }
+
+  /**
    * Attach the per-relation endpoint-exposure signal to a relation descriptor. The bundle
    * can suppress a relation's related or relationship endpoint (`withoutRelatedEndpoint()` /
    * `withoutRelationshipEndpoint()`), which the OpenAPI reflects by simply omitting that
@@ -604,14 +619,21 @@ export class DescriptorBuilder {
       out.countable = countable
     }
     const reads = relatedGet ?? this.operation(relationshipPath, 'get')
-    // An empty `sortable` tells the client the reads take no sort, so it types `sort` as `never`.
-    if (reads !== undefined && paramSchema(reads, 'sort') === undefined) {
+    // An empty `sortable` or `filterable` tells the client the reads take no sort or no filter, so
+    // it types `sort` or `filter` as `never`. A relation with no read takes neither.
+    if (reads === undefined || paramSchema(reads, 'sort') === undefined) {
       out.sortable = []
+    }
+    if (
+      reads === undefined ||
+      (filterKeys(reads) === undefined && filterFamiliesOf(reads) === undefined)
+    ) {
+      out.filterable = []
     }
     if (isPolymorphic(descriptor)) {
       Object.assign(out, sortQueries(reads), filterQueries(reads))
     } else {
-      // The client reads a monomorphic relation with its related type's collection sorts and list
+      // The client reads a monomorphic relation with its related type's collection sorts and
       // filters, so the relation records its own only where its reads take different ones.
       const collectionRead =
         descriptor.types[0] === undefined ? undefined : this.collectionRead(descriptor.types[0])
