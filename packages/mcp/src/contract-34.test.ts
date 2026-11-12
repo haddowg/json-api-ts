@@ -32,7 +32,7 @@ describe('generator contract 34 (sort and filter documentation)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(35)
+    expect(mcp.contract).toBe(36)
   })
 
   it('lists what each described sort key orders by on its branch, not the markdown table', () => {

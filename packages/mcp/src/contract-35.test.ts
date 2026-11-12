@@ -15,8 +15,8 @@ describe('generator contract 35 (single-resource counts)', () => {
     mcp.tools.find((t) => t.name === name)!.inputSchema['properties'] as Record<string, JsonSchema>
 
   it('reads the witness', () => {
-    expect(source('contract-witness').document.info?.['x-generator']?.contract).toBe(35)
-    expect(mcp.contract).toBe(35)
+    expect(source('contract-witness').document.info?.['x-generator']?.contract).toBe(36)
+    expect(mcp.contract).toBe(36)
   })
 
   it('offers withCount on a collection tool and on no single-resource tool', () => {

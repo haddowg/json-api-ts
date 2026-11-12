@@ -59,7 +59,7 @@ describe('generator contract 31 (unions)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(35)
+    expect(mcp.contract).toBe(36)
   })
 
   it.each(['articles_create', 'articles_update'])('takes %s each member of a union', (tool) => {
