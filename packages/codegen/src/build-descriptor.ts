@@ -89,6 +89,8 @@ export class DescriptorBuilder {
   private readonly paths: Record<string, PathItemObject>
   /** Lazily-built wire-type -> collection-level paginator kind (for per-relation divergence, D6a). */
   private typePaginators?: Map<string, PaginatorDescriptor>
+  /** Lazily-built wire-type -> its resource schema's base name. */
+  private typeBases?: Map<string, string>
   /** The names of the document's `oauth2` security schemes, under which operations list scopes. */
   private readonly scopeSchemes: ReadonlySet<string>
   /** The document's default security, which an operation without its own inherits. */
@@ -174,14 +176,32 @@ export class DescriptorBuilder {
   private typePaginator(wireType: string): PaginatorDescriptor {
     if (this.typePaginators === undefined) {
       this.typePaginators = new Map()
-      for (const [name, schema] of Object.entries(this.schemas)) {
-        const type = this.resourceType(name, schema)
-        if (type !== undefined) {
-          this.typePaginators.set(type, this.paginator(name.slice(0, -'Resource'.length)))
-        }
+      for (const [type, base] of this.bases()) {
+        this.typePaginators.set(type, this.paginator(base))
       }
     }
     return this.typePaginators.get(wireType) ?? 'none'
+  }
+
+  /** Each wire type's resource schema base name (`Track` for `tracks`), memoised. */
+  private bases(): Map<string, string> {
+    if (this.typeBases === undefined) {
+      this.typeBases = new Map()
+      for (const [name, schema] of Object.entries(this.schemas)) {
+        const type = this.resourceType(name, schema)
+        if (type !== undefined) {
+          this.typeBases.set(type, name.slice(0, -'Resource'.length))
+        }
+      }
+    }
+    return this.typeBases
+  }
+
+  /** The collection read of a wire type, or `undefined` when it has no collection endpoint. */
+  private collectionRead(wireType: string): OperationObject | undefined {
+    const base = this.bases().get(wireType)
+    const collection = base === undefined ? undefined : this.collectionPath(base)
+    return collection === undefined ? undefined : this.operation(collection, 'get')
   }
 
   build(): ApiDescriptor {
@@ -583,8 +603,20 @@ export class DescriptorBuilder {
     if (countable !== undefined) {
       out.countable = countable
     }
+    const reads = relatedGet ?? this.operation(relationshipPath, 'get')
     if (isPolymorphic(descriptor)) {
-      Object.assign(out, relationQueries(relatedGet ?? this.operation(relationshipPath, 'get')))
+      Object.assign(out, sortQueries(reads), filterQueries(reads))
+    } else {
+      // The client reads a monomorphic relation with its related type's collection vocabulary, so
+      // the relation records its own only where its reads take different sorts or filters.
+      const collectionRead =
+        descriptor.types[0] === undefined ? undefined : this.collectionRead(descriptor.types[0])
+      if (sortVocabulary(reads) !== sortVocabulary(collectionRead)) {
+        Object.assign(out, sortQueries(reads))
+      }
+      if (filterVocabulary(reads) !== filterVocabulary(collectionRead)) {
+        Object.assign(out, filterQueries(reads))
+      }
     }
     // A to-many related endpoint can advertise a DIFFERENT paginator than the related type's
     // top-level collection (D6a). Read the related-endpoint kind (preferring the related over the
@@ -1559,22 +1591,11 @@ function paramSchema(op: OperationObject | undefined, paramName: string): Schema
   return op?.parameters?.find((param) => param.name === paramName)?.schema
 }
 
-/**
- * The sorts and filters a polymorphic relation's own reads accept, read off its related read, or
- * its relationship read when it has no related endpoint. Its members share no type whose
- * collection read could name them, and an identified `MorphToMany` sorts and filters its link rows
- * by pivot fields no member type has (generator contract 30). Empty when the reads take none.
- */
-function relationQueries(
+/** The sort keys and families a relation's own reads accept, read off `op`. */
+function sortQueries(
   op: OperationObject | undefined,
-): Pick<
-  RelationDescriptor,
-  'sortable' | 'sortFamilies' | 'filterable' | 'listFilters' | 'filterFamilies'
-> {
-  const out: Pick<
-    RelationDescriptor,
-    'sortable' | 'sortFamilies' | 'filterable' | 'listFilters' | 'filterFamilies'
-  > = {}
+): Pick<RelationDescriptor, 'sortable' | 'sortFamilies'> {
+  const out: Pick<RelationDescriptor, 'sortable' | 'sortFamilies'> = {}
   const sortable = sortTokens(op)
   if (sortable !== undefined) {
     out.sortable = sortable
@@ -1583,6 +1604,14 @@ function relationQueries(
   if (sortFamilies !== undefined) {
     out.sortFamilies = sortFamilies
   }
+  return out
+}
+
+/** The filter keys, list filters and filter families a relation's own reads accept, read off `op`. */
+function filterQueries(
+  op: OperationObject | undefined,
+): Pick<RelationDescriptor, 'filterable' | 'listFilters' | 'filterFamilies'> {
+  const out: Pick<RelationDescriptor, 'filterable' | 'listFilters' | 'filterFamilies'> = {}
   const filterable = filterKeys(op)
   if (filterable !== undefined) {
     out.filterable = filterable
@@ -1596,6 +1625,42 @@ function relationQueries(
     out.filterFamilies = filterFamilies
   }
   return out
+}
+
+/**
+ * What an operation says about its sorts, as a string to compare two reads by: the keys, the
+ * families with their descriptions, and what each key orders by. The sort `default`, a relation's
+ * read order, is left out because the descriptor doesn't carry it.
+ */
+function sortVocabulary(op: OperationObject | undefined): string {
+  const schema = paramSchema(op, 'sort')
+  return JSON.stringify([
+    sortTokens(op) ?? [],
+    schema?.['x-sort-families'] ?? [],
+    schema?.['x-sort-descriptions'] ?? {},
+  ])
+}
+
+/**
+ * What an operation says about its filters, as a string to compare two reads by: the keys, the list
+ * filters, the families with their descriptions and examples, and each filter's default.
+ */
+function filterVocabulary(op: OperationObject | undefined): string {
+  const defaults: [string, unknown][] = []
+  for (const param of op?.parameters ?? []) {
+    const key = filterParamKey(param)
+    if (key !== undefined && param.schema !== undefined && 'default' in param.schema) {
+      defaults.push([key, param.schema['default']])
+    }
+  }
+  // oxlint-disable-next-line no-array-sort -- sorting a freshly-built array
+  defaults.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return JSON.stringify([
+    filterKeys(op) ?? [],
+    listFilterKeys(op) ?? [],
+    paramSchema(op, 'filter')?.['x-filter-families'] ?? [],
+    defaults,
+  ])
 }
 
 /**

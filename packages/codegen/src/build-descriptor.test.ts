@@ -38,6 +38,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       mutations: { set: true },
       // the types the related read's typed `included` lists.
       included: ['albums', 'artists', 'tracks'],
+      // the related read filters by `name`, which the artists collection doesn't.
+      filterable: ['albumTitle', 'name', 'q', 'slug'],
     })
     expect(albums.relations['tracks']).toEqual({
       cardinality: 'many',
@@ -54,6 +56,10 @@ describe('buildDescriptor (music-catalog default server)', () => {
         tokens: ['_self_', 'playlists'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
       },
+      // the related read sorts by `duration` and filters by `longerThan`, which the tracks
+      // collection doesn't.
+      sortable: ['title', '-title', 'trackNumber', '-trackNumber', 'duration', '-duration'],
+      filterable: ['explicit', 'genres', 'longerThan', 'q', 'title'],
     })
 
     // the types an albums compound document's typed `included` lists.
@@ -96,6 +102,20 @@ describe('buildDescriptor (music-catalog default server)', () => {
         tokens: ['playlists'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
       },
+      // the related read also sorts and filters by the pivot fields.
+      sortable: [
+        'title',
+        '-title',
+        'trackNumber',
+        '-trackNumber',
+        'position',
+        '-position',
+        'weight',
+        '-weight',
+        'addedAt',
+        '-addedAt',
+      ],
+      filterable: ['explicit', 'genres', 'position', 'q', 'title', 'weight'],
     })
   })
 
