@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 33. An older document is refused, because it describes its error codes in a form
+contracts 24 to 34. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -132,6 +132,12 @@ A few things the codegen reads from the document that affect the generated clien
   parameter on its related and relationship reads. The relation's JSDoc names it, for
   example "Without a `sort`, the server reads its members ordered by `position`". The
   client sends nothing for it, since the server applies the order either way.
+- **Sort and filter docs.** What each described sort key orders by, read from the `sort`
+  parameter's `x-sort-descriptions`, goes into the TSDoc on `sortable`. A sort or filter
+  family's description goes on its entry in `sortFamilies` or `filterFamilies`, with a
+  filter family's example as an `@example`. A filter's default, the `default` of its
+  `filter[<key>]` schema, is named on `filterable`. See
+  [filtering and sorting](filtering-and-sorting.md#what-the-descriptor-says-about-filters-and-sorts).
 - **Polymorphic relations.** A relation whose linkage is a union is marked
   `polymorphic: true` whatever its member count, so a `MorphTo` over a single type is
   polymorphic too. Its related and relationship endpoints don't advertise the related
@@ -380,7 +386,8 @@ Every constraint the schema declares becomes a TSDoc tag on the member, so it sh
 on hover: `@format`, `@pattern`, `@minLength`/`@maxLength`,
 `@minimum`/`@maximum`, `@exclusiveMinimum`/`@exclusiveMaximum`, `@multipleOf`,
 `@minItems`/`@maxItems`, `@uniqueItems`, `@minProperties`/`@maxProperties`, plus
-`@defaultValue`, `@example` and `@deprecated`. The tags document the rule; the
+`@defaultValue`, `@example` and `@deprecated`. An `@example` comes from the schema's `examples`
+list, one tag per value, or from a singular `example`. The tags document the rule; the
 client doesn't enforce them (use [validation](validation.md) for that). One
 constraint changes the type: an array with `minItems` of 1 or more is a non-empty
 tuple, `[T, ...T[]]`, on reads and writes alike, so a create can't send an empty

@@ -13,6 +13,7 @@ import { readsNamedComponents } from './contract'
 import { emitErrorCodes, readErrorCatalogue } from './error-codes'
 import type { OpenApiDocument, OperationObject, SchemaObject, SchemaOrBool } from './openapi'
 import { deriveProvenance, provenanceLines, type Provenance } from './provenance'
+import { filterDefaultsDoc, filterFamilyDocs, sortFamilyDocs, sortKeysDoc } from './query-docs'
 import { commentLines, isTypeName, propertyKey, stringLiteral } from './source'
 import { unwrapRefs } from './unwrap-refs'
 
@@ -372,6 +373,14 @@ function joinDoc(...parts: (string | undefined)[]): string | undefined {
   return present.length === 0 ? undefined : present.join('\n\n')
 }
 
+/** The sort and filter keys a type, relation or action records, which carry query JSDoc. */
+interface QuerySpec {
+  readonly sortable?: readonly string[]
+  readonly sortFamilies?: readonly { prefix: string }[]
+  readonly filterable?: readonly string[]
+  readonly filterFamilies?: readonly { prefix: string }[]
+}
+
 /** The descriptor's `paths` keys, by the operation whose scopes they carry. */
 const PATH_OPERATIONS: Readonly<Record<string, string>> = {
   fetchMany: 'fetchCollection',
@@ -633,7 +642,7 @@ export class Emitter {
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}`, doc)
         }
-        const filterDoc = deprecations.operationFilters(op)
+        const filterDoc = joinDoc(filterDefaultsDoc(op), deprecations.operationFilters(op))
         if (filterDoc !== undefined && action.filterable !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}/filterable`, filterDoc)
         }
@@ -641,6 +650,7 @@ export class Emitter {
         if (familyDoc !== undefined && action.filterFamilies !== undefined) {
           this.literalDocs.set(`${type}/actions/${name}/filterFamilies`, familyDoc)
         }
+        this.familyDocs(`${type}/actions/${name}`, action, op)
       }
       const scopes = descriptor[type]?.scopes
       for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
@@ -649,7 +659,11 @@ export class Emitter {
           this.literalDocs.set(`${type}/paths/${key}`, doc)
         }
       }
-      for (const relation of Object.keys(descriptor[type]?.relations ?? {})) {
+      for (const [relation, spec] of Object.entries(descriptor[type]?.relations ?? {})) {
+        const reads =
+          operations.get(`fetchRelated.${type}.${relation}`) ??
+          operations.get(`fetchRelationship.${type}.${relation}`)
+        this.queryDocs(`${type}/relations/${relation}`, spec, reads)
         const doc = joinDoc(
           defaultOrderDoc(operations, type, relation),
           relationScopeDoc(scopes, relation),
@@ -663,18 +677,52 @@ export class Emitter {
       if (typeDoc !== undefined) {
         this.literalDocs.set(type, typeDoc)
       }
-      const keyDocs: [string, string | undefined][] = [
-        ['filterable', deprecations.filters(type)],
-        ['sortable', deprecations.sorts(type)],
-        ['sortFamilies', deprecations.sortFamilies(type)],
-        ['filterFamilies', deprecations.filterFamilies(type)],
-      ]
-      for (const [key, doc] of keyDocs) {
-        if (
-          doc !== undefined &&
-          descriptor[type]?.[key as keyof ResourceDescriptor] !== undefined
-        ) {
-          this.literalDocs.set(`${type}/${key}`, doc)
+      const collection = operations.get(`fetchCollection.${type}`)
+      this.queryDocs(type, descriptor[type] ?? {}, collection, {
+        filterable: deprecations.filters(type),
+        sortable: deprecations.sorts(type),
+        sortFamilies: deprecations.sortFamilies(type),
+        filterFamilies: deprecations.filterFamilies(type),
+      })
+    }
+  }
+
+  /**
+   * JSDoc for the sort and filter keys of a type, relation or action read from the operation that
+   * takes them: what each sort orders by, the filter defaults, and each family's description and
+   * example on its entry. `deprecated` adds the deprecation sentence for each key.
+   */
+  private queryDocs(
+    path: string,
+    spec: QuerySpec,
+    op: OperationObject | undefined,
+    deprecated: Readonly<Partial<Record<keyof QuerySpec, string | undefined>>> = {},
+  ): void {
+    const docs: [keyof QuerySpec, string | undefined][] = [
+      ['filterable', joinDoc(filterDefaultsDoc(op), deprecated.filterable)],
+      ['sortable', joinDoc(sortKeysDoc(op), deprecated.sortable)],
+      ['sortFamilies', deprecated.sortFamilies],
+      ['filterFamilies', deprecated.filterFamilies],
+    ]
+    for (const [key, doc] of docs) {
+      if (doc !== undefined && spec[key] !== undefined) {
+        this.literalDocs.set(`${path}/${key}`, doc)
+      }
+    }
+    this.familyDocs(path, spec, op)
+  }
+
+  /** JSDoc on each sort and filter family entry that the operation describes or exemplifies. */
+  private familyDocs(path: string, spec: QuerySpec, op: OperationObject | undefined): void {
+    const lists: [string, readonly { prefix: string }[] | undefined, Map<string, string>][] = [
+      ['sortFamilies', spec.sortFamilies, sortFamilyDocs(op)],
+      ['filterFamilies', spec.filterFamilies, filterFamilyDocs(op)],
+    ]
+    for (const [key, families, docs] of lists) {
+      for (const [index, family] of (families ?? []).entries()) {
+        const doc = docs.get(family.prefix)
+        if (doc !== undefined) {
+          this.literalDocs.set(`${path}/${key}/${index}`, doc)
         }
       }
     }
@@ -1767,7 +1815,12 @@ export class Emitter {
       if (value.length === 0) {
         return '[]'
       }
-      const items = value.map((item) => `${inner}${this.literal(item, depth + 1)}`)
+      const items = value.map((item, index) => {
+        const childPath = path === undefined ? undefined : `${path}/${index}`
+        const line = `${inner}${this.literal(item, depth + 1, childPath)}`
+        const doc = childPath === undefined ? undefined : this.literalDocs.get(childPath)
+        return doc === undefined ? line : `${jsDoc(doc, inner)}\n${line}`
+      })
       return `[\n${items.join(',\n')}\n${indent}]`
     }
 

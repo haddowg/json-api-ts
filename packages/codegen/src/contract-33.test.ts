@@ -53,7 +53,7 @@ describe('generator contract 33 (error documents named for the operation)', () =
   const catalogue = readErrorCatalogue(witness)
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(33)
+    expect(witness.info?.['x-generator']?.contract).toBe(34)
     expect(checkContract(witness)).toBeUndefined()
   })
 

@@ -25,7 +25,7 @@ function operation(doc: OpenApiDocument, path: string, method: 'get' | 'post'): 
 
 describe('generator contract 22 (deprecation)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(33)
+    expect(witness.info?.['x-generator']?.contract).toBe(34)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -63,10 +63,10 @@ describe('generator contract 22 (deprecation)', () => {
 
   it('names the deprecated filters, sorts and sort families of a collection', () => {
     expect(source).toContain(
-      '    /** The server marks the `state` filter deprecated. */\n    filterable: [',
+      '     * The server marks the `state` filter deprecated.\n     */\n    filterable: [',
     )
     expect(source).toContain(
-      '    /** The server marks the `length` sort deprecated, in either direction. */\n    sortable: [',
+      '     * The server marks the `length` sort deprecated, in either direction.\n     */\n    sortable: [',
     )
     expect(source).toContain(
       '    /** The server marks the `legacy` sort family deprecated. */\n    sortFamilies: [',
