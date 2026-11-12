@@ -343,7 +343,7 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
     )
     expect(source).toContain('  RESOURCE_NOT_FOUND: "RESOURCE_NOT_FOUND",')
     expect(source).toContain(
-      'export interface ErrorCodeByStatus {\n  400:\n    | "ATOMIC_OPERATIONS_INVALID"',
+      'export interface ErrorCodeByStatus {\n  400:\n    | "ATOMIC_HREF_INVALID"',
     )
     expect(source).toContain('  404: ')
     expect(source).toContain(

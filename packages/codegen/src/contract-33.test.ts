@@ -53,7 +53,7 @@ describe('generator contract 33 (error documents named for the operation)', () =
   const catalogue = readErrorCatalogue(witness)
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(35)
+    expect(witness.info?.['x-generator']?.contract).toBe(36)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -84,7 +84,11 @@ describe('generator contract 33 (error documents named for the operation)', () =
         'create.tags',
       ])
     }
-    expect(catalogue.byOperation.get('delete.articles')).toEqual(['ARTICLE_LOCKED'])
+    expect(catalogue.byOperation.get('delete.articles')).toEqual([
+      'ARTICLE_LOCKED',
+      'INSUFFICIENT_SCOPE',
+      'RESOURCE_NOT_FOUND',
+    ])
     expect(catalogue.byOperation.get('action.articles.export.post')).toEqual(payment)
   })
 
@@ -97,7 +101,9 @@ describe('generator contract 33 (error documents named for the operation)', () =
   })
 
   it('types the scoped codes in the generated client', () => {
-    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<'ARTICLE_LOCKED'>()
+    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<
+      'ARTICLE_LOCKED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND'
+    >()
     expectTypeOf<
       Extract<ErrorCodeByOperation['update.articles'], 'ARTICLE_LOCKED'>
     >().toEqualTypeOf<'ARTICLE_LOCKED'>()
