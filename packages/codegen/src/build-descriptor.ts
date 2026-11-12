@@ -604,11 +604,15 @@ export class DescriptorBuilder {
       out.countable = countable
     }
     const reads = relatedGet ?? this.operation(relationshipPath, 'get')
+    // An empty `sortable` tells the client the reads take no sort, so it types `sort` as `never`.
+    if (reads !== undefined && paramSchema(reads, 'sort') === undefined) {
+      out.sortable = []
+    }
     if (isPolymorphic(descriptor)) {
       Object.assign(out, sortQueries(reads), filterQueries(reads))
     } else {
-      // The client reads a monomorphic relation with its related type's collection vocabulary, so
-      // the relation records its own only where its reads take different sorts or filters.
+      // The client reads a monomorphic relation with its related type's collection sorts and list
+      // filters, so the relation records its own only where its reads take different ones.
       const collectionRead =
         descriptor.types[0] === undefined ? undefined : this.collectionRead(descriptor.types[0])
       if (sortVocabulary(reads) !== sortVocabulary(collectionRead)) {

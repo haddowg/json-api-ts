@@ -40,7 +40,7 @@ function ownVocabularies(descriptor: ReturnType<typeof buildDescriptor>): string
   return Object.entries(descriptor).flatMap(([type, spec]) =>
     Object.entries(spec.relations)
       .filter(([, relation]) => relation.polymorphic !== true)
-      .filter(([, relation]) => relation.sortable ?? relation.filterable)
+      .filter(([, relation]) => relation.sortable?.length || relation.filterable)
       .map(([name]) => `${type}.${name}`),
   )
 }
@@ -159,5 +159,71 @@ describe("a monomorphic relation's own sorts and filters (music catalog)", () =>
     // @ts-expect-error — `name` is not a sort of the tracks relation.
     await client.albums.id('1').tracks.related({ sort: 'name' })
     expect(urls()[0]).toBe('https://api.example.com/albums/1/tracks?sort=-duration')
+  })
+})
+
+describe('a relation whose reads take no sort', () => {
+  const descriptor = buildDescriptor(witness)
+  const relations = descriptor['articles']!.relations
+
+  it('records an empty `sortable` on to-one and to-many, monomorphic and polymorphic alike', () => {
+    expect(relations['author']!.sortable).toEqual([])
+    expect(relations['subject']!.sortable).toEqual([])
+    expect(relations['contributors']!.sortable).toEqual([])
+    expect(relations['attachments']!.sortable).toEqual([])
+    expect(relations['author']!.sortFamilies).toBeUndefined()
+  })
+
+  it('reads the relationship read when the related endpoint is suppressed', () => {
+    expect(relations['cover']!.related).toBe(false)
+    expect(relations['cover']!.sortable).toEqual([])
+  })
+
+  it('records nothing for a relation with no read at all', () => {
+    expect(relations['reviewer']!.related).toBe(false)
+    expect(relations['reviewer']!.sortable).toBeUndefined()
+    expect(relations['watchers']!.writeOnly).toBe(true)
+    expect(relations['watchers']!.sortable).toBeUndefined()
+  })
+
+  it('keeps the sorts of a relation whose reads take them', () => {
+    expect(relations['sponsors']!.sortable).toEqual(['rank', '-rank', 'since', '-since'])
+    expect(relations['tags']!.sortable).toEqual(['id', '-id', 'label', '-label'])
+  })
+
+  it('emits the empty list', () => {
+    expect(relationBlock(emit(witness, descriptor), 'articles', 'author')).toContain(
+      '        sortable: []',
+    )
+  })
+
+  it('records it once a to-many read stops taking a sort', () => {
+    const doc = structuredClone(witness)
+    for (const path of ['/articles/{id}/tags', '/articles/{id}/relationships/tags']) {
+      const read = doc.paths![path]!.get!
+      read.parameters = read.parameters!.filter((param) => param.name !== 'sort')
+    }
+    expect(buildDescriptor(doc)['articles']!.relations['tags']!.sortable).toEqual([])
+  })
+
+  it('types `sort` as never on the reads of such a relation', async () => {
+    const { transport } = recording({ data: null })
+    const client = createCatalogClient({ baseUrl: 'https://api.example.com', transport })
+    await client.albums.id('1').artist.related()
+    // @ts-expect-error — a to-one related read takes no sort.
+    await client.albums.id('1').artist.related({ sort: 'name' })
+    // @ts-expect-error — a to-one relationship read takes no sort.
+    await client.albums.id('1').artist.get({ sort: 'name' })
+    // @ts-expect-error — a to-one relatedQuery entry takes no sort.
+    await client.albums.list({ include: ['artist'], relatedQuery: { artist: { sort: 'name' } } })
+  })
+
+  it("types a monomorphic relation recording no sorts with its related type's", async () => {
+    const { transport } = recording({ data: [] })
+    const client = createCatalogClient({ baseUrl: 'https://api.example.com', transport })
+    await client.artists.id('1').albums.related({ sort: ['-releasedAt', 'title'] })
+    await client.artists.list({ include: ['albums'], relatedQuery: { albums: { sort: 'status' } } })
+    // @ts-expect-error — `duration` is not a sort of the albums collection.
+    await client.artists.id('1').albums.related({ sort: 'duration' })
   })
 })

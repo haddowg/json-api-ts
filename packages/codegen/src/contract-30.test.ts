@@ -117,13 +117,13 @@ describe('generator contract 30 (identified pivots and fixed membership)', () =>
     const attachments = descriptor['articles']!.relations['attachments']!
     expect(attachments.polymorphic).toBe(true)
     expect(attachments.pivot).toBe(false)
-    expect(attachments.sortable).toBeUndefined()
+    expect(attachments.sortable).toEqual([])
     expect(attachments.filterable).toBeUndefined()
   })
 
   it("leaves a monomorphic relation's reads to its related type when they match", () => {
     const author = descriptor['articles']!.relations['author']!
-    expect(author.sortable).toBeUndefined()
+    expect(author.sortable).toEqual([])
     expect(author.filterable).toBeUndefined()
   })
 
@@ -217,7 +217,7 @@ describe('generator contract 30 from fixed membership alone', () => {
   it('reads relation sorts and filters only where a read differs from its related type', () => {
     const own = Object.entries(alone).flatMap(([type, spec]) =>
       Object.entries(spec.relations)
-        .filter(([, relation]) => relation.sortable ?? relation.filterable)
+        .filter(([, relation]) => relation.sortable?.length || relation.filterable)
         .map(([name]) => `${type}.${name}`),
     )
     expect(own).toEqual(['articles.tags'])

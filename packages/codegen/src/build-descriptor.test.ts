@@ -38,6 +38,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       mutations: { set: true },
       // the types the related read's typed `included` lists.
       included: ['albums', 'artists', 'tracks'],
+      // a to-one's reads take no sort.
+      sortable: [],
       // the related read filters by `name`, which the artists collection doesn't.
       filterable: ['albumTitle', 'name', 'q', 'slug'],
     })
@@ -133,6 +135,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       polymorphic: true,
       pivot: false,
       mutations: { set: true },
+      sortable: [],
     })
   })
 
@@ -686,6 +689,8 @@ describe('buildDescriptor (music-catalog admin server)', () => {
         tokens: ['tracks'],
         profile: 'https://haddowg.github.io/json-api/profiles/countable/',
       },
+      // the related read takes no sort.
+      sortable: [],
     })
   })
 
@@ -832,6 +837,7 @@ describe('buildDescriptor — per-relation endpoint suppression', () => {
       types: ['parts'],
       pivot: false,
       mutations: { add: true },
+      sortable: [],
     })
     // Related endpoint suppressed -> `related: false` (gates `.related()` off).
     expect(relations['gadgets']).toEqual({
@@ -840,6 +846,7 @@ describe('buildDescriptor — per-relation endpoint suppression', () => {
       pivot: false,
       related: false,
       mutations: { replace: true },
+      sortable: [],
     })
     // Relationship endpoint suppressed -> `relationship: false` + closed `mutations: {}` (no verb
     // callable), rather than an absent block that the client would read as "all verbs callable".
@@ -849,6 +856,7 @@ describe('buildDescriptor — per-relation endpoint suppression', () => {
       pivot: false,
       relationship: false,
       mutations: {},
+      sortable: [],
     })
   })
 })
@@ -1756,6 +1764,7 @@ describe('buildDescriptor — generator contract 8', () => {
       pivot: false,
       uriField: 'published-by',
       mutations: { set: true },
+      sortable: [],
     })
     expect(articles.paths['fetchRelated']).toBe('/articles/{id}/{rel}')
   })
