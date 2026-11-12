@@ -155,7 +155,7 @@ describe('every input schema is portable', () => {
     )['include']
     expect(include).toMatchObject({
       type: ['array', 'null'],
-      items: { type: 'string', enum: ['artist', 'tracks'] },
+      items: { type: 'string', enum: ['artist', 'tracks', 'tracklist'] },
     })
   })
 

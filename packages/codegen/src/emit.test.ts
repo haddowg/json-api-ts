@@ -46,9 +46,9 @@ describe('emit (music-catalog default server)', () => {
     expect(source).toContain('status: AlbumStatus\n')
     expect(source).toContain('availableFrom: string | null')
     // Nested object attribute with its own members (source order preserved), nullable.
-    // It renders through a hook, so the server lists no child as always present.
+    // It renders through a hook that keeps the declared shape, so both children are always present.
     expect(source).toContain(
-      'releaseInfo: { label?: string | null; catalogueNumber?: string | null } | null',
+      'releaseInfo: { label: string | null; catalogueNumber: string | null } | null',
     )
   })
 
@@ -596,6 +596,12 @@ describe('emit (const members and structured list elements)', () => {
   })
 })
 
+// The albums entry of a related const, which also holds the bounds of its other relations.
+const albumsBlock = (body: string): string => {
+  const start = body.indexOf('  albums: {')
+  return body.slice(start, body.indexOf('\n  },', start))
+}
+
 describe('emit (related page limits and kinds)', () => {
   // The fixture's related collections all page by number; swap in the other shapes per path.
   const withPage = (paths: Record<string, SchemaObject | undefined>): string => {
@@ -650,10 +656,9 @@ describe('emit (related page limits and kinds)', () => {
   }
 
   it("emits each related collection's bounds keyed by parent type, then relation", () => {
-    const albums = constBody(source, 'relatedPageLimits')
+    const albums = albumsBlock(constBody(source, 'relatedPageLimits'))
     expect(albums).toContain(
       [
-        '  albums: {',
         '    tracks: {',
         '      /**',
         '       * The page number to retrieve.',
@@ -675,9 +680,7 @@ describe('emit (related page limits and kinds)', () => {
     expect(albums).toContain('      size: { default: 25, minimum: 1, maximum: 100 },')
     expect(albums).not.toContain('after:')
     expect(albums).not.toContain('before:')
-    expect(constBody(out, 'relatedPageKinds')).toContain(
-      '  albums: {\n    tracks: ["cursor"],\n  },',
-    )
+    expect(albumsBlock(constBody(out, 'relatedPageKinds'))).toContain('    tracks: ["cursor"],')
   })
 
   it('nests a related strategy menu by kind and lists the default kind first', () => {
@@ -702,7 +705,7 @@ describe('emit (related page limits and kinds)', () => {
     expect(constBody(out, 'pageKinds')).toContain('  albums: ["cursor"],')
     expect(constBody(out, 'pageLimits')).not.toContain('\n  albums: {')
     expect(constBody(out, 'relatedPageKinds')).toContain('    tracks: ["cursor"],')
-    expect(constBody(out, 'relatedPageLimits')).not.toContain('\n  albums: {')
+    expect(albumsBlock(constBody(out, 'relatedPageLimits'))).not.toContain('    tracks: {')
   })
 
   it('leaves out an unstamped page schema and a menu whose default is not an arm', () => {
@@ -710,7 +713,7 @@ describe('emit (related page limits and kinds)', () => {
     const strayDefault = { ...menuPage, 'x-paginator': { strategy: 'multi', default: 'offset' } }
     const out = withPage({ '/albums': unstamped, '/albums/{id}/tracks': strayDefault })
     expect(constBody(out, 'pageKinds')).not.toContain('\n  albums:')
-    expect(constBody(out, 'relatedPageKinds')).not.toContain('\n  albums:')
+    expect(albumsBlock(constBody(out, 'relatedPageKinds'))).not.toContain('    tracks:')
   })
 
   it('emits empty related consts when no related collection paginates', () => {
