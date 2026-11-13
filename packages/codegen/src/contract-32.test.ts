@@ -16,6 +16,7 @@ import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
+import { retype } from '../test/typed-references'
 
 const witness = JSON.parse(
   readFileSync(documentPath('contract-witness.json'), 'utf8'),
@@ -103,6 +104,7 @@ function settings(
 }
 
 const scalar = { type: ['string', 'number'] }
+const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type: 'null' }] })
 const change = {
   type: 'object',
   properties: { field: { type: 'string' }, to: ref('Scalar') },
@@ -281,6 +283,124 @@ describe('generator contract 32 use sites', () => {
     const out = emit(older, buildDescriptor(older))
     expect(out).toContain('  values: (string | number)[]\n')
     expect(out).not.toContain('export type Scalar')
+  })
+})
+
+describe('generator contract 38 references with their component type beside them', () => {
+  const shapes = {
+    Status: { enum: ['draft', 'published'] },
+    Priority: { enum: [1, 2] },
+    Reviewer: {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    Labels: { type: 'object', additionalProperties: { type: 'string' } },
+    Tags: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+    Scalar: scalar,
+  }
+  const uses: Record<string, unknown> = {
+    status: ref('Status'),
+    maybeStatus: nullable(ref('Status')),
+    priority: ref('Priority'),
+    maybePriority: nullable(ref('Priority')),
+    reviewer: { allOf: [ref('Reviewer')], description: 'Who reviewed it.' },
+    maybeReviewer: { ...nullable(ref('Reviewer')), description: 'Who reviewed it.' },
+    labels: ref('Labels'),
+    maybeLabels: nullable(ref('Labels')),
+    tags: { allOf: [ref('Tags')], minItems: 1 },
+    maybeTags: nullable(ref('Tags')),
+    value: ref('Scalar'),
+    maybeValue: nullable(ref('Scalar')),
+    priorities: { type: 'array', items: ref('Priority') },
+    maybePriorities: { type: ['array', 'null'], items: ref('Priority') },
+    level: { oneOf: [ref('Status'), { type: 'integer' }] },
+    maybeLevel: { oneOf: [ref('Status'), { type: 'integer' }, { type: 'null' }] },
+  }
+  const untyped = settings(uses, shapes, 37)
+  const typed = retype(untyped, Object.keys(shapes))
+  const typedSource = emit(typed, buildDescriptor(typed))
+  const untypedSource = emit(untyped, buildDescriptor(untyped))
+  const members = [
+    '  status: Status\n',
+    '  maybeStatus: Status | null\n',
+    '  priority: Priority\n',
+    '  maybePriority: Priority | null\n',
+    '  /** Who reviewed it. */\n  reviewer: Reviewer\n',
+    '  /** Who reviewed it. */\n  maybeReviewer: Reviewer | null\n',
+    '  labels: Labels\n',
+    '  maybeLabels: Labels | null\n',
+    '  /** @minItems 1 */\n  tags: Tags\n',
+    '  maybeTags: Tags | null\n',
+    '  value: Scalar\n',
+    '  maybeValue: Scalar | null\n',
+    '  priorities: Priority[]\n',
+    '  maybePriorities: Priority[] | null\n',
+    '  level: Status | number\n',
+    '  maybeLevel: Status | number | null\n',
+  ]
+
+  it('writes each use with its type, the way core does', () => {
+    const properties = typed.components!.schemas!['SettingsAttributes']!.properties!
+    expect(properties['maybeStatus']).toEqual({
+      type: ['string', 'null'],
+      anyOf: [ref('Status'), { type: 'null' }],
+    })
+    expect(properties['priority']).toEqual({ type: 'integer', allOf: [ref('Priority')] })
+    expect(properties['labels']).toEqual({ type: 'object', allOf: [ref('Labels')] })
+    expect(properties['maybeTags']).toEqual({
+      type: ['array', 'null'],
+      anyOf: [ref('Tags'), { type: 'null' }],
+    })
+    expect(properties['maybeValue']).toEqual({
+      type: ['string', 'number', 'null'],
+      anyOf: [ref('Scalar'), { type: 'null' }],
+    })
+    expect(properties['maybePriorities']).toEqual({
+      type: ['array', 'null'],
+      items: { type: 'integer', allOf: [ref('Priority')] },
+    })
+  })
+
+  it.each(members)('keeps the named type in %j', (member) => {
+    expect(typedSource).toContain(member)
+  })
+
+  it('declares each named type', () => {
+    expect(typedSource).toContain('export type Status = "draft" | "published"\n')
+    expect(typedSource).toContain('export type Priority = 1 | 2\n')
+    expect(typedSource).toContain('export interface Reviewer {\n  name: string\n}')
+    expect(typedSource).toContain('export type Labels = Record<string, string>\n')
+    expect(typedSource).toContain('/** @maxItems 5 */\nexport type Tags = string[]\n')
+    expect(typedSource).toContain('export type Scalar = string | number\n')
+  })
+
+  it('emits exactly what the untyped references emit', () => {
+    expect(buildDescriptor(typed)).toEqual(buildDescriptor(untyped))
+    expect(typedSource.slice(typedSource.indexOf(' */\n'))).toBe(
+      untypedSource.slice(untypedSource.indexOf(' */\n')),
+    )
+  })
+
+  it.each(members)('still reads the untyped reference in %j', (member) => {
+    expect(untypedSource).toContain(member)
+  })
+
+  it('keeps a type that disagrees with its component, as before', () => {
+    const document = settings(
+      {
+        named: { type: 'string', allOf: [ref('Reviewer')] },
+        maybeNamed: { type: ['string', 'null'], anyOf: [ref('Reviewer'), { type: 'null' }] },
+        scalar: { type: 'integer', allOf: [ref('Scalar')] },
+      },
+      { Reviewer: shapes.Reviewer, Scalar: scalar },
+      38,
+    )
+    const source = emit(document, buildDescriptor(document))
+    expect(source).toContain('  named: string\n')
+    expect(source).toContain('  maybeNamed: string | null\n')
+    expect(source).toContain('  scalar: number\n')
   })
 })
 

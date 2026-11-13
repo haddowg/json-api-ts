@@ -4,6 +4,7 @@ import { buildDescriptor } from './build-descriptor'
 import { detectVerbCollisions, emit } from './emit'
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { OpenApiDocument, SchemaObject } from './openapi'
+import { unwrapRefs } from './unwrap-refs'
 import { type DocumentName, documentPath } from '../test/documents'
 
 function loadFixture(name: DocumentName): OpenApiDocument {
@@ -1010,5 +1011,99 @@ describe('emit (generator contract 9)', () => {
       description: 'Where the article is in its lifecycle.',
       example: 'draft',
     })
+  })
+})
+
+describe('unwrapRefs (generator contract 38)', () => {
+  const NULL = { type: 'null' }
+
+  /** The given schema, read through unwrapRefs from a document holding the components. */
+  const read = (schema: unknown): unknown => {
+    const shapes = {
+      openapi: '3.1.0',
+      info: { title: 'Shapes', version: '1' },
+      components: {
+        schemas: {
+          Status: { enum: ['draft', 'published'] },
+          Priority: { type: 'integer', enum: [1, 2] },
+          Reviewer: { type: 'object', properties: { name: { type: 'string' } } },
+          Scalar: { type: ['string', 'number'] },
+          Maybe: { type: ['string', 'null'] },
+          Chained: ref('Status'),
+          Use: schema,
+        },
+      },
+    } as unknown as OpenApiDocument
+    return unwrapRefs(shapes).components!.schemas!['Use']
+  }
+
+  it('drops a type beside an allOf $ref that agrees with the component', () => {
+    expect(read({ type: 'string', allOf: [ref('Status')], description: 'Where.' })).toEqual({
+      $ref: '#/components/schemas/Status',
+      description: 'Where.',
+    })
+    expect(read({ type: 'integer', allOf: [ref('Priority')] })).toEqual(ref('Priority'))
+    expect(read({ type: 'object', allOf: [ref('Reviewer')], minProperties: 1 })).toEqual({
+      ...ref('Reviewer'),
+      minProperties: 1,
+    })
+    expect(read({ type: ['number', 'string'], allOf: [ref('Scalar')] })).toEqual(ref('Scalar'))
+    expect(read({ type: 'string', allOf: [ref('Maybe')] })).toEqual(ref('Maybe'))
+    expect(read({ type: 'string', allOf: [ref('Chained')] })).toEqual(ref('Chained'))
+  })
+
+  it('drops a nullable type beside an anyOf of the $ref and null that agrees', () => {
+    expect(
+      read({ type: ['string', 'null'], anyOf: [ref('Status'), NULL], examples: ['a'] }),
+    ).toEqual({
+      anyOf: [ref('Status'), NULL],
+      examples: ['a'],
+    })
+    expect(read({ type: ['object', 'null'], anyOf: [ref('Reviewer'), NULL] })).toEqual({
+      anyOf: [ref('Reviewer'), NULL],
+    })
+    expect(read({ type: ['string', 'number', 'null'], anyOf: [ref('Scalar'), NULL] })).toEqual({
+      anyOf: [ref('Scalar'), NULL],
+    })
+  })
+
+  it('keeps a type that disagrees with the component', () => {
+    for (const schema of [
+      { type: 'string', allOf: [ref('Reviewer')] },
+      { type: 'string', allOf: [ref('Priority')] },
+      { type: 'string', allOf: [ref('Scalar')] },
+      { type: ['string', 'null'], allOf: [ref('Status')] },
+      { type: ['string', 'null'], anyOf: [ref('Reviewer'), NULL] },
+      { type: ['integer', 'null'], anyOf: [ref('Scalar'), NULL] },
+    ]) {
+      expect(read(schema)).toEqual(schema)
+    }
+  })
+
+  it('keeps a type beside a $ref no local component holds', () => {
+    for (const schema of [
+      { type: 'string', allOf: [ref('Missing')] },
+      { type: 'string', allOf: [{ $ref: 'other.json#/Status' }] },
+      { type: ['string', 'null'], anyOf: [ref('Missing'), NULL] },
+    ]) {
+      expect(read(schema)).toEqual(schema)
+    }
+  })
+
+  it('leaves every other shape as it was', () => {
+    for (const schema of [
+      { type: 'object', allOf: [ref('Reviewer')], properties: { extra: { type: 'string' } } },
+      { type: 'string', allOf: [ref('Status'), ref('Status')] },
+      { type: 'string', allOf: [{ ...ref('Status'), description: 'Inner.' }] },
+      { type: 'string', allOf: [ref('Status')], maxLength: 3 },
+      { type: ['string', 'null'], anyOf: [NULL, ref('Status')] },
+      { type: ['string', 'null'], anyOf: [ref('Status'), { type: 'null', description: 'None.' }] },
+      { type: ['string', 'null'], anyOf: [ref('Status'), NULL, { type: 'integer' }] },
+      { type: ['string', 'null'], anyOf: [ref('Status'), NULL], minimum: 1 },
+      { type: 'string', anyOf: [ref('Status'), NULL] },
+      { anyOf: [ref('Status'), NULL] },
+    ]) {
+      expect(read(schema)).toEqual(schema)
+    }
   })
 })
