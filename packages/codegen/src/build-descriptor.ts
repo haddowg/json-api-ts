@@ -16,7 +16,6 @@ import type {
   PaginatorStrategy,
   PivotDescriptor,
   RawMediaKind,
-  RelatedQueryDescriptor,
   RelatedQueryOperation,
   RawOutputMedia,
   RelationDescriptor,
@@ -98,6 +97,11 @@ export class DescriptorBuilder {
   private readonly defaultSecurity: readonly SecurityRequirement[]
   /** The shared parameters an operation's parameter `$ref` points at. */
   private readonly sharedParameters: Record<string, ParameterObject>
+  /**
+   * The `relatedQuery` each rendered type takes, collected from every operation that documents it
+   * while {@link build} runs: the type's addressable relations and the profile to negotiate.
+   */
+  private readonly relatedQueries = new Map<string, { relations: string[]; profile: string }>()
 
   constructor(source: OpenApiDocument) {
     const doc = unwrapRefs(source)
@@ -230,9 +234,11 @@ export class DescriptorBuilder {
       if (resourceCountable !== undefined) {
         descriptor.resourceCountable = resourceCountable
       }
-      const relatedQuery = this.relatedQuery(collection)
-      if (relatedQuery !== undefined) {
-        descriptor.relatedQuery = relatedQuery
+      // Filled in once every operation has been read, since a type's related reads and actions
+      // render other types. The key is set now to keep its place in the output.
+      descriptor.relatedQuery = {
+        operations: this.relatedQueryOperations(wireType, collection),
+        profile: '',
       }
       const includable = this.includable(collection)
       if (includable !== undefined) {
@@ -289,6 +295,14 @@ export class DescriptorBuilder {
         continue
       }
       out[wireType] = descriptor
+    }
+    for (const [wireType, descriptor] of Object.entries(out)) {
+      const shape = this.relatedQueries.get(wireType)
+      if (shape === undefined) {
+        delete descriptor.relatedQuery
+      } else {
+        descriptor.relatedQuery = { ...descriptor.relatedQuery!, ...shape }
+      }
     }
     return sortRecord(out)
   }
@@ -604,6 +618,10 @@ export class DescriptorBuilder {
     if (relatedGet === undefined) {
       out.related = false
     }
+    const target = isPolymorphic(descriptor) ? undefined : descriptor.types[0]
+    if (target !== undefined && this.takesRelatedQuery(relatedGet, target)) {
+      out.relatedQuery = true
+    }
     const mutations = this.relationMutations(relationshipPath, descriptor.cardinality)
     if (mutations === undefined) {
       out.relationship = false
@@ -764,6 +782,9 @@ export class DescriptorBuilder {
       if (primary !== undefined) {
         action.outputType = primary.type
         action.outputCardinality = primary.cardinality
+        if (primary.cardinality === 'one' && this.takesRelatedQuery(op, primary.type)) {
+          action.relatedQuery = true
+        }
         // A `200` and a `201` naming different types can't share one output view; the first wins.
         for (const ref of this.okJsonApiRefs(op).slice(1)) {
           const other = this.documentPrimary(ref)
@@ -1378,33 +1399,53 @@ export class DescriptorBuilder {
   }
 
   /**
-   * The reads of a type that take `relatedQuery` (the Relationship Queries profile): the
-   * collection GET and the single-resource GET, each when its parameters carry `relatedQuery`
-   * with an `x-profile`, inline or through a shared parameter `$ref`. The profile is read from
-   * that `x-profile`. Returns `undefined` when neither read advertises it.
+   * The operations of a type that take `relatedQuery` for the resources they answer with: the
+   * collection and single reads, the create and the update.
    */
-  private relatedQuery(collection: string | undefined): RelatedQueryDescriptor | undefined {
+  private relatedQueryOperations(
+    wireType: string,
+    collection: string | undefined,
+  ): RelatedQueryOperation[] {
     if (collection === undefined) {
-      return undefined
+      return []
     }
-    const reads: readonly [RelatedQueryOperation, OperationObject | undefined][] = [
+    const item = `${collection}/{id}`
+    const operations: readonly [RelatedQueryOperation, OperationObject | undefined][] = [
       ['fetchMany', this.operation(collection, 'get')],
-      ['fetchOne', this.operation(`${collection}/{id}`, 'get')],
+      ['fetchOne', this.operation(item, 'get')],
+      ['create', this.operation(collection, 'post')],
+      ['update', this.operation(item, 'patch')],
     ]
-    const operations: RelatedQueryOperation[] = []
-    let profile: string | undefined
-    for (const [operation, op] of reads) {
-      const param = (op?.parameters ?? [])
-        .map((p) => this.resolveParameter(p))
-        .find((p) => p?.name === 'relatedQuery' && p.in === 'query')
-      const paramProfile = param?.['x-profile']
-      if (typeof paramProfile !== 'string') {
-        continue
-      }
-      operations.push(operation)
-      profile ??= paramProfile
+    return operations
+      .filter(([, op]) => this.takesRelatedQuery(op, wireType))
+      .map(([operation]) => operation)
+  }
+
+  /**
+   * Whether `op` documents `relatedQuery` (the Relationship Queries profile) for the resources of
+   * `renderedType` it answers with. The parameter is a `<Type>RelatedQuery` component shared by
+   * every operation rendering that type, so its addressable relations, the keys of its schema's
+   * `properties`, and its `x-profile` are recorded once per type.
+   */
+  private takesRelatedQuery(op: OperationObject | undefined, renderedType: string): boolean {
+    const param = (op?.parameters ?? [])
+      .map((p) => this.resolveParameter(p))
+      .find((p) => p?.name === 'relatedQuery' && p.in === 'query')
+    const profile = param?.['x-profile']
+    if (typeof profile !== 'string') {
+      return false
     }
-    return profile === undefined ? undefined : { operations, profile }
+    const relations = Object.keys(param?.schema?.properties ?? {})
+    const known = this.relatedQueries.get(renderedType)
+    if (known === undefined) {
+      this.relatedQueries.set(renderedType, { relations, profile })
+    } else if (known.relations.join() !== relations.join()) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `json-api codegen: operations rendering "${renderedType}" document different relatedQuery relations; keeping ${JSON.stringify(known.relations)}.`,
+      )
+    }
+    return true
   }
 
   /** A parameter with a `#/components/parameters/` `$ref` followed, else the parameter as is. */

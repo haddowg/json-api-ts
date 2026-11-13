@@ -283,7 +283,7 @@ describe('a relation whose reads take no filter', () => {
       // @ts-expect-error — the relatedQuery entry takes no filter.
       relatedQuery: { playlists: { filter: {} } },
     })
-    // @ts-expect-error — a polymorphic relation's relatedQuery entry takes no filter either.
+    // @ts-expect-error — relatedQuery doesn't address a polymorphic relation.
     await client.libraries.list({ include: ['items'], relatedQuery: { items: { filter: {} } } })
   })
 
