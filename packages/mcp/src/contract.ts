@@ -4,7 +4,7 @@ import type { OpenApiDocument } from './openapi'
 export const MINIMUM_CONTRACT = 13
 
 /** The newest generator contract this package reads. */
-export const MAXIMUM_CONTRACT = 36
+export const MAXIMUM_CONTRACT = 37
 
 /**
  * Throw unless the document's `info.x-generator.contract` is in the range this package reads. A
