@@ -115,6 +115,13 @@ fails to compile. A relation whose reads take no filter records an empty `filter
 its `filter` is `never` in the same way, as on `tracks.playlists`. A relation with no read at
 all records both. A polymorphic relation that records nothing takes any sort and any filter.
 
+`.related()` on a relation over one type also takes a `relatedQuery`, keyed by the related
+type's relations, where the server documents it (see
+[relationship queries](filtering-and-sorting.md#relationship-queries)).
+`client.tracks.id('1').album.related({ relatedQuery: { tracks: { sort: 'trackNumber' } } })`
+reads a track's album with that album's tracks in order. `.get()` answers with linkage and takes
+none.
+
 ??? note "Going deeper: `.rel(name)` vs direct property access, and suppressed endpoints"
     On a handle you can also reach a relation by property — `client.albums.id('1').tracks`
     — but a relation whose name collides with a reserved handle member (`get`, `update`,
@@ -142,7 +149,7 @@ only `include`, `fields` and, where the server advertises them, `withCount` and 
 | `fields`    | narrow which members each type returns               | [includes and sparse fieldsets](includes-and-sparse-fieldsets.md) |
 | `page`      | window the collection                                | [pagination](pagination.md) |
 | `withCount` | ask for relationship counts (Countable profile)      | [pagination](pagination.md#counting-relationships-with-withcount) |
-| `relatedQuery` | filter and sort a relationship by include path (Relationship Queries profile) | [filtering and sorting](filtering-and-sorting.md#relationship-queries) |
+| `relatedQuery` | filter and sort a relationship by relation name (Relationship Queries profile) | [filtering and sorting](filtering-and-sorting.md#relationship-queries) |
 
 They compose freely on a `list`. This is a real, tested call combining all of them:
 

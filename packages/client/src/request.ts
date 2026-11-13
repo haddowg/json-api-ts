@@ -20,8 +20,8 @@ export interface ReadQuery {
   /** Relationship-count tokens (the Countable profile) — serialised comma-joined onto `withCount`. */
   withCount?: readonly string[]
   /**
-   * A `filter` and `sort` per include path (the Relationship Queries profile), serialised as
-   * `relatedQuery[<path>][filter][<key>]` and `relatedQuery[<path>][sort]`.
+   * A `filter` and `sort` per relation (the Relationship Queries profile), serialised as
+   * `relatedQuery[<relation>][filter][<key>]` and `relatedQuery[<relation>][sort]`.
    */
   relatedQuery?: Readonly<
     Record<
@@ -74,9 +74,9 @@ export interface JsonApiRequest {
   listFilter?: (key: string) => boolean
   /**
    * The filter keys of a {@link ReadQuery.relatedQuery} entry that take a list, by the entry's
-   * include path. The client sets it from the relation the path ends on.
+   * relation. The client sets it from that relation's related-read vocabulary.
    */
-  relatedListFilter?: (path: string, key: string) => boolean
+  relatedListFilter?: (relation: string, key: string) => boolean
   body?: unknown
   /**
    * Override the request `Content-Type`, which defaults to the negotiated JSON:API media type on
@@ -199,13 +199,13 @@ const appendFilterValue = (parts: string[], key: string, value: unknown, list = 
  * (`filter[title]`, `page[number]`, `fields[albums]`) are kept literal; only values
  * are percent-encoded. `isListFilter` names the filter keys that take a list, whose array value
  * goes out as `filter[<key>][]` once per member, and `isRelatedListFilter` does the same for a
- * `relatedQuery` entry's filters by include path. Empty/undefined entries are skipped; key order is deterministic
+ * `relatedQuery` entry's filters by relation. Empty/undefined entries are skipped; key order is deterministic
  * (family order, then insertion order within a family) so URLs are stable for caching.
  */
 export function serializeQuery(
   query: ReadQuery,
   isListFilter?: (key: string) => boolean,
-  isRelatedListFilter?: (path: string, key: string) => boolean,
+  isRelatedListFilter?: (relation: string, key: string) => boolean,
 ): string {
   const parts: string[] = []
 
@@ -237,19 +237,19 @@ export function serializeQuery(
     append(parts, 'withCount', query.withCount.join(','))
   }
 
-  for (const [path, entry] of Object.entries(query.relatedQuery ?? {})) {
+  for (const [relation, entry] of Object.entries(query.relatedQuery ?? {})) {
     for (const [key, value] of Object.entries(entry?.filter ?? {})) {
       appendFilterValue(
         parts,
-        `relatedQuery[${path}][filter][${key}]`,
+        `relatedQuery[${relation}][filter][${key}]`,
         value,
-        isRelatedListFilter?.(path, key) ?? false,
+        isRelatedListFilter?.(relation, key) ?? false,
       )
     }
     if (entry?.sort !== undefined) {
       append(
         parts,
-        `relatedQuery[${path}][sort]`,
+        `relatedQuery[${relation}][sort]`,
         typeof entry.sort === 'string' ? entry.sort : entry.sort.join(','),
       )
     }

@@ -1,13 +1,14 @@
 import { type PollOptions, toAccepted } from './accepted'
 import { type AtomicRecorder, runAtomic } from './atomic'
-import type {
-  AcceptedDescriptor,
-  ActionDescriptor,
-  ActionScope,
-  ApiDescriptor,
-  AtomicDescriptor,
-  InputMediaKind,
-  ResourceCountOperation,
+import {
+  type AcceptedDescriptor,
+  type ActionDescriptor,
+  type ActionScope,
+  type ApiDescriptor,
+  type AtomicDescriptor,
+  type InputMediaKind,
+  isPolymorphic,
+  type ResourceCountOperation,
 } from './descriptor'
 import { JsonApiError } from './errors'
 import { type FilterSpec, listFilterMatcher } from './filters'
@@ -140,13 +141,11 @@ async function run(
     if (listFilter !== undefined) {
       req.listFilter = listFilter
     }
-    if (params.relatedQuery !== undefined) {
-      req.relatedListFilter = relatedListFilter(ctx, type)
-    }
     if (signal !== undefined) {
       req.signal = signal
     }
     negotiateProfiles(ctx, type, params, req, relationForCount, operation)
+    applyRelatedQuery(ctx, renderedType(ctx, type, operation, vars['rel']), params, req)
   }
   const doc = await execute(ctx.request, req)
   // Resolve the strategy that answers from the endpoint's paginator and the `page` sent, so an
@@ -194,41 +193,27 @@ function filterSpec(
 }
 
 /**
- * Whether a `relatedQuery` entry's filter key takes a list, matched against the vocabulary of the
- * relation its include path ends on, as that relation's related read matches it. A path through a
- * polymorphic relation continues from the first member type declaring the next relation.
+ * The type whose resources an operation answers with, which keys its `relatedQuery`: the type
+ * itself, or a related read's related type when the relation is monomorphic. A relationship read
+ * answers with linkage, so it has none.
  */
-function relatedListFilter(
+function renderedType(
   ctx: ClientContext,
   type: string,
-): (path: string, key: string) => boolean {
-  const matchers = new Map<string, ((key: string) => boolean) | undefined>()
-  return (path, key) => {
-    if (!matchers.has(path)) {
-      matchers.set(path, listFilterMatcher(relatedQuerySpec(ctx, type, path)))
-    }
-    return matchers.get(path)?.(key) ?? false
+  operation: string,
+  rel: string | undefined,
+): string | undefined {
+  if (operation === 'fetchRelationship') {
+    return undefined
   }
+  if (operation !== 'fetchRelated') {
+    return type
+  }
+  const relation = rel === undefined ? undefined : ctx.descriptor[type]?.relations[rel]
+  return relation === undefined || isPolymorphic(relation) ? undefined : relation.types[0]
 }
 
-/** The filter vocabulary of the relation an include path from `type` ends on. */
-function relatedQuerySpec(ctx: ClientContext, type: string, path: string): FilterSpec | undefined {
-  const names = path.split('.')
-  let owners: readonly string[] = [type]
-  for (const [index, name] of names.entries()) {
-    const owner = owners.find((t) => ctx.descriptor[t]?.relations[name] !== undefined)
-    if (owner === undefined) {
-      return undefined
-    }
-    if (index === names.length - 1) {
-      return filterSpec(ctx, owner, 'fetchRelated', name)
-    }
-    owners = ctx.descriptor[owner]!.relations[name]!.types
-  }
-  return undefined
-}
-
-/** Whether a `relatedQuery` carries a filter or sort for any path, so it reaches the wire. */
+/** Whether a `relatedQuery` carries a filter or sort for any relation, so it reaches the wire. */
 function sendsRelatedQuery(relatedQuery: ReadQuery['relatedQuery']): boolean {
   return Object.values(relatedQuery ?? {}).some(
     (entry) =>
@@ -238,13 +223,38 @@ function sendsRelatedQuery(relatedQuery: ReadQuery['relatedQuery']): boolean {
 }
 
 /**
- * Add any profiles a query's parameters require to the request's negotiated `profiles`. A
- * `withCount` read or write needs the Countable profile in `Accept`, else the server rejects it
- * (400) under strict query-param validation. The profile URI is read from the descriptor (never
+ * Prepare a request's `relatedQuery` for resources of type `rendered`: match each entry's list
+ * filters against its relation's related-read vocabulary, and negotiate the type's Relationship
+ * Queries profile, after any Countable one, when the query sends an entry.
+ */
+function applyRelatedQuery(
+  ctx: ClientContext,
+  rendered: string | undefined,
+  query: ReadQuery,
+  req: JsonApiRequest,
+): void {
+  if (rendered === undefined || !sendsRelatedQuery(query.relatedQuery)) {
+    return
+  }
+  const matchers = new Map<string, ((key: string) => boolean) | undefined>()
+  req.relatedListFilter = (rel, key) => {
+    if (!matchers.has(rel)) {
+      matchers.set(rel, listFilterMatcher(filterSpec(ctx, rendered, 'fetchRelated', rel)))
+    }
+    return matchers.get(rel)?.(key) ?? false
+  }
+  const profile = ctx.descriptor[rendered]?.relatedQuery?.profile
+  if (profile !== undefined && !(req.profiles ?? []).includes(profile)) {
+    req.profiles = [...(req.profiles ?? []), profile]
+  }
+}
+
+/**
+ * Add the Countable profile a query's `withCount` requires to the request's negotiated
+ * `profiles`. A `withCount` read or write needs it in `Accept`, else the server rejects it (400)
+ * under strict query-param validation. The profile URI is read from the descriptor (never
  * hardcoded): the relation's `countable` for a related or relationship read, the operation's
  * `resourceCountable` entry for a single-resource read or a write, else the type's `countable`.
- * A `relatedQuery` on a collection or single read likewise adds the type's Relationship Queries
- * profile, after any Countable one.
  */
 function negotiateProfiles(
   ctx: ClientContext,
@@ -267,12 +277,6 @@ function negotiateProfiles(
       profiles.push(profile)
     }
   }
-  if (relationForCount === undefined && sendsRelatedQuery(query.relatedQuery)) {
-    const profile = ctx.descriptor[type]?.relatedQuery?.profile
-    if (profile !== undefined && !profiles.includes(profile)) {
-      profiles.push(profile)
-    }
-  }
   if (profiles.length > 0) {
     req.profiles = [...(req.profiles ?? []), ...profiles]
   }
@@ -287,18 +291,20 @@ function isResourceCountOperation(
 
 /**
  * A write opts object: an optional `include`/`fields` narrowing the materialised response, the
- * relations to count, and `wait` to poll a `202 Accepted` job until it's done.
+ * relations to count, a `relatedQuery` for its relationships, and `wait` to poll a
+ * `202 Accepted` job until it's done.
  */
 interface WriteOpts {
   include?: readonly string[]
   fields?: Record<string, readonly string[]>
   withCount?: readonly string[]
+  relatedQuery?: ReadQuery['relatedQuery']
   wait?: boolean | PollOptions
 }
 
 /**
- * Project a write's opts to the read-query families the response honours: `include`, `fields`
- * and `withCount`.
+ * Project a write's opts to the read-query families the response honours: `include`, `fields`,
+ * `withCount` and `relatedQuery`.
  */
 function writeQuery(opts: WriteOpts | undefined): ReadQuery | undefined {
   if (opts === undefined) {
@@ -310,6 +316,9 @@ function writeQuery(opts: WriteOpts | undefined): ReadQuery | undefined {
   }
   if (opts.withCount !== undefined) {
     query.withCount = [...opts.withCount]
+  }
+  if (opts.relatedQuery !== undefined) {
+    query.relatedQuery = opts.relatedQuery
   }
   if (opts.fields !== undefined) {
     const fields: Record<string, string[]> = {}
@@ -391,8 +400,9 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
   if (spec.query !== undefined) {
     req.query = spec.query
     negotiateProfiles(ctx, spec.type, spec.query, req, undefined, spec.operation)
+    applyRelatedQuery(ctx, spec.type, spec.query, req)
     if (req.profiles !== undefined) {
-      // The Countable profile shapes the response, not the body, so only `Accept` names it.
+      // The profiles shape the response, not the body, so only `Accept` names them.
       req.contentType = JSON_API_MEDIA_TYPE
     }
   }
@@ -437,7 +447,8 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
  * `ActionLocation` and never follows it. An action declaring `rawOutput` answers in the media type
  * the caller picks with `options.accept`: JSON:API as above, or a `string`, a `Blob` or
  * `ArrayBuffer`, or parsed JSON by the media type's kind. A collection action that takes filters
- * sends `options.filter` in the query string as a collection read does. A `202` the action
+ * sends `options.filter` in the query string as a collection read does, and an action answering
+ * with a resource sends `options.relatedQuery` as a read does. A `202` the action
  * declares resolves to an `Accepted` job, or with `options.wait` to the value its job URL ends at.
  */
 async function runAction(
@@ -457,6 +468,10 @@ async function runAction(
     if (listFilter !== undefined) {
       req.listFilter = listFilter
     }
+  }
+  if (options.relatedQuery !== undefined) {
+    req.query = { ...req.query, relatedQuery: options.relatedQuery }
+    applyRelatedQuery(ctx, action.outputType, req.query, req)
   }
   let remap: ((error: JsonApiError) => JsonApiError) | undefined
   const media = requestMedia(action, options.contentType)
@@ -480,6 +495,10 @@ async function runAction(
     // wildcard only when the spec declared none.
     req.contentType = sentContentType(action.contentType ?? '*/*', undefined, req.body)
     req.raw = true
+  }
+  if (req.profiles !== undefined && req.contentType === undefined) {
+    // The Relationship Queries profile shapes the response, so only `Accept` names it.
+    req.contentType = JSON_API_MEDIA_TYPE
   }
 
   const raw = responseMedia(action, options.accept)

@@ -661,16 +661,10 @@ export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
   | ReadableRelationName<D, T>
 
-/** A `relatedQuery` entry for a path whose relation the types can't resolve. */
-export interface LooseRelatedQueryEntry {
-  filter?: Record<string, unknown>
-  sort?: string | readonly string[]
-}
-
 /**
  * The `relatedQuery` entry for relation `R` of type `T`: its `filter` and `sort` typed as the
  * relation's own related read types them (see {@link RelationFilterQuery} and
- * {@link RelationSortQuery}).
+ * {@link RelationSortQuery}). A to-one takes no `sort`.
  */
 export interface RelatedQueryEntry<
   D extends ApiDescriptor,
@@ -678,54 +672,39 @@ export interface RelatedQueryEntry<
   R extends RelationName<D, T>,
 > {
   filter?: RelationFilterQuery<D, T, R>
-  sort?: RelationSortQuery<D, T, R>
+  sort?: IsMany<D, T, R> extends true ? RelationSortQuery<D, T, R> : never
 }
 
-/** The most relationships deep {@link RelatedQueryEntryAt} follows a path before it goes loose. */
-type MaxRelatedQueryDepth = 8
+/** The relations of type `T` the client can tell are monomorphic. */
+type MonomorphicRelationName<D extends ApiDescriptor, T extends TypeName<D>> = {
+  [R in ReadableRelationName<D, T>]: [MonomorphicTarget<D, RelationSpec<D, T, R>>] extends [never]
+    ? never
+    : R
+}[ReadableRelationName<D, T>]
 
 /**
- * The entry for include path `P` from type `T`, typed from the relation the path ends on. A
- * polymorphic relation part way along continues from each member type declaring the next
- * relation. `never` when no type along the path declares it.
+ * The relations a `relatedQuery` for resources of type `T` addresses: those the type's
+ * `relatedQuery.relations` names, or, where the descriptor doesn't record them, its monomorphic
+ * relations a response renders.
  */
-type RelatedQueryEntryAt<
-  D extends ApiDescriptor,
-  T extends TypeName<D>,
-  P extends string,
-  Depth extends readonly unknown[] = [],
-> = Depth['length'] extends MaxRelatedQueryDepth
-  ? LooseRelatedQueryEntry
-  : P extends `${infer Head}.${infer Rest}`
-    ? Head extends RelationName<D, T>
-      ? RelatedType<D, T, Head> extends infer U
-        ? U extends TypeName<D>
-          ? RelatedQueryEntryAt<D, U, Rest, [...Depth, unknown]>
-          : never
-        : never
-      : never
-    : P extends RelationName<D, T>
-      ? RelatedQueryEntry<D, T, P>
-      : never
-
-/** The entry for include path `P` from type `T`, loose when its relation can't be resolved. */
-type RelatedQueryEntryFor<D extends ApiDescriptor, T extends TypeName<D>, P extends string> = [
-  RelatedQueryEntryAt<D, T, P>,
-] extends [never]
-  ? LooseRelatedQueryEntry
-  : RelatedQueryEntryAt<D, T, P>
+export type RelatedQueryRelation<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  relatedQuery: { relations: readonly (infer R)[] }
+}
+  ? Extract<R, RelationName<D, T>>
+  : MonomorphicRelationName<D, T>
 
 /**
- * The `relatedQuery` object for type `T` (the Relationship Queries profile): keyed by the type's
- * include paths, each entry a `filter` and `sort` for the relationship the path ends on.
+ * The `relatedQuery` object for resources of type `T` (the Relationship Queries profile): keyed by
+ * the relations it addresses, each entry a `filter`, and on a to-many a `sort`, applied to that
+ * relationship's members.
  */
 export type RelatedQuery<D extends ApiDescriptor, T extends TypeName<D>> = {
-  readonly [P in IncludePath<D, T>]?: RelatedQueryEntryFor<D, T, P>
+  readonly [R in RelatedQueryRelation<D, T>]?: RelatedQueryEntry<D, T, R>
 }
 
 /**
- * The `relatedQuery` read `Op` of type `T` takes: {@link RelatedQuery} when the type's
- * descriptor names the read in `relatedQuery.operations`, else `never`, so it can't be sent.
+ * The `relatedQuery` operation `Op` of type `T` takes: {@link RelatedQuery} when the type's
+ * descriptor names the operation in `relatedQuery.operations`, else `never`, so it can't be sent.
  */
 export type RelatedQueryParam<
   D extends ApiDescriptor,
@@ -737,6 +716,23 @@ export type RelatedQueryParam<
     : never
   : never
 
+/**
+ * The `relatedQuery` relation `R`'s related read takes: {@link RelatedQuery} for its related type
+ * when the relation's descriptor marks `relatedQuery`, else `never`.
+ */
+export type RelatedReadRelatedQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> =
+  RelationSpec<D, T, R> extends { relatedQuery: true }
+    ? MonomorphicTarget<D, RelationSpec<D, T, R>> extends infer U extends TypeName<D>
+      ? [U] extends [never]
+        ? never
+        : RelatedQuery<D, U>
+      : never
+    : never
+
 /** The `page` argument a collection read of type `T` accepts (see {@link PageParams}). */
 export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = PageParams<
   D[T]['paginator']
@@ -746,7 +742,7 @@ export type ListPageParams<D extends ApiDescriptor, T extends TypeName<D>> = Pag
  * A read query carrying a typed, narrowing `include`, a typed `fields` (drives sparse-fieldset
  * return narrowing), a `withCount` constrained to the type's count tokens (`Cnt` drives `$count`
  * narrowing), a `page` typed by the collection's paginator (`Pg` drives the `$page` type), a
- * `relatedQuery` keyed by include path, plus the loose JSON:API query families. `Inc`/`F`/`Cnt`
+ * `relatedQuery` keyed by relation name, plus the loose JSON:API query families. `Inc`/`F`/`Cnt`
  * are inferred (as `const`) at the call site. Used for the COLLECTION read (`list`); the
  * single-resource read (`get`) uses {@link SingleReadQuery}.
  */
@@ -772,8 +768,8 @@ export interface TypedReadQuery<
    */
   withCount?: Cnt
   /**
-   * A `filter` and `sort` per include path, applied to that relationship (the Relationship
-   * Queries profile). Present only when the collection read advertises it.
+   * A `filter` and `sort` per relation, applied to that relationship (the Relationship Queries
+   * profile). Present only when the collection read advertises it.
    */
   relatedQuery?: RelatedQueryParam<D, T, 'fetchMany'>
   /**
@@ -813,8 +809,8 @@ export interface SingleReadQuery<
    */
   withCount?: Cnt
   /**
-   * A `filter` and `sort` per include path, applied to that relationship (the Relationship
-   * Queries profile). Present only when the single-resource read advertises it.
+   * A `filter` and `sort` per relation, applied to that relationship (the Relationship Queries
+   * profile). Present only when the single-resource read advertises it.
    */
   relatedQuery?: RelatedQueryParam<D, T, 'fetchOne'>
   /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
@@ -835,16 +831,29 @@ export type ReadResult<
   Counted = never,
 > = ResourceObjectView<D, A, T, IncludedRelations<D, T, Inc>, F, Counted>
 
+/** A `relatedQuery` whose relations and vocabularies the types don't know. */
+export type LooseRelatedQuery = Readonly<
+  Record<
+    string,
+    { filter?: Record<string, unknown>; sort?: string | readonly string[] } | undefined
+  >
+>
+
+/** @deprecated Use the entry type of {@link LooseRelatedQuery}. */
+export type LooseRelatedQueryEntry = NonNullable<LooseRelatedQuery[string]>
+
 /**
  * A read query for the relationship/related endpoints: loose include/fields/withCount, a `page` of
- * type `Pg` (typed from the relation's paginator on a typed accessor), and a `sort` of type `S`
- * and a `filter` of type `F`, which a typed accessor narrows to what the relation's reads take
- * (see {@link RelationSortQuery} and {@link RelationFilterQuery}).
+ * type `Pg` (typed from the relation's paginator on a typed accessor), a `sort` of type `S` and a
+ * `filter` of type `F`, which a typed accessor narrows to what the relation's reads take (see
+ * {@link RelationSortQuery} and {@link RelationFilterQuery}), and a `relatedQuery` of type `RQ`,
+ * which a typed related read narrows to its related type's (see {@link RelatedReadRelatedQuery}).
  */
 export interface RelationReadQuery<
   Pg = Readonly<Record<string, unknown>>,
   S = string | readonly string[],
   F = Record<string, unknown>,
+  RQ = LooseRelatedQuery,
 > {
   filter?: F
   sort?: S
@@ -857,6 +866,11 @@ export interface RelationReadQuery<
    * relation's Countable profile so a strict server accepts it.
    */
   withCount?: readonly string[]
+  /**
+   * A `filter` and `sort` per relation of the related resources (the Relationship Queries
+   * profile). A related read of a monomorphic relation may take it; a relationship read never does.
+   */
+  relatedQuery?: RQ
   /** Cancels the read when signalled (e.g. a superseded request). Not sent to the server. */
   signal?: AbortSignal
 }
@@ -996,15 +1010,31 @@ type LinkageValue<
     : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>, EdgeMetaOf<D, T, R>> | null
 
 /**
- * The query relation `R`'s related and relationship reads take, its `sort` and `filter` narrowed
- * to what the relation declares and its `page` of type `Pg`.
+ * The query relation `R`'s relationship read takes, its `sort` and `filter` narrowed to what the
+ * relation declares and its `page` of type `Pg`. It takes no `relatedQuery`.
  */
 export type TypedRelationReadQuery<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   Pg = Readonly<Record<string, unknown>>,
-> = RelationReadQuery<Pg, RelationSortQuery<D, T, R>, RelationFilterQuery<D, T, R>>
+> = RelationReadQuery<Pg, RelationSortQuery<D, T, R>, RelationFilterQuery<D, T, R>, never>
+
+/**
+ * The query relation `R`'s related read takes: a {@link TypedRelationReadQuery} that also takes
+ * the `relatedQuery` of its related type where the relation's descriptor marks it.
+ */
+export type TypedRelatedReadQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Pg = Readonly<Record<string, unknown>>,
+> = RelationReadQuery<
+  Pg,
+  RelationSortQuery<D, T, R>,
+  RelationFilterQuery<D, T, R>,
+  RelatedReadRelatedQuery<D, T, R>
+>
 
 /** The `page` argument relation `R`'s to-many reads accept; `never` for a to-one. */
 export type RelationPageParams<
@@ -1038,7 +1068,7 @@ export interface RelationshipAccessor<
     : never
   related: ExposesRelated<D, T, R> extends true
     ? <const Pg extends RelationPageParams<D, T, R> | undefined = undefined>(
-        query?: TypedRelationReadQuery<D, T, R, ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
+        query?: TypedRelatedReadQuery<D, T, R, ExactPageParams<Pg, RelationPageParams<D, T, R>>>,
       ) => Promise<RelatedValue<D, A, T, R, Pg>>
     : never
   add: RelationMutation<D, T, R, 'add', readonly WriteRef<D, T, R>[]>
@@ -1254,6 +1284,11 @@ export interface WriteOptions<
    * as a `number` from `$count` on the written resource. Present only when the write advertises it.
    */
   withCount?: Cnt
+  /**
+   * A `filter` and `sort` per relation of the written resource (the Relationship Queries
+   * profile). Present only when the write advertises it.
+   */
+  relatedQuery?: RelatedQueryParam<D, T, Op>
 }
 
 // ── Accepted writes (docs/writes.md) ──────────────────────────────────────────────────────────
@@ -1536,6 +1571,11 @@ export interface ActionCallOptions {
   responseType?: BinaryResponseType
   /** The filters of a collection action that takes them, sent as `filter[...]` like a read's. */
   filter?: Readonly<Record<string, unknown>>
+  /**
+   * A `filter` and `sort` per relation of the resource the action answers with (the Relationship
+   * Queries profile), for an action that takes it.
+   */
+  relatedQuery?: LooseRelatedQuery
   /** Poll a `202 Accepted` job until it's done, for an action that declares one. */
   wait?: boolean | PollOptions
 }
@@ -1552,6 +1592,21 @@ type ActionFilterKey<Act> = Act extends { filterable: readonly (infer Key)[] }
 type ActionFilterOptions<Act> = [ActionFilterKey<Act> | FilterFamilyPrefixOf<Act>] extends [never]
   ? unknown
   : { filter?: FiltersOf<Act, ActionFilterKey<Act>> }
+
+/**
+ * The `relatedQuery` option of an action that takes it, typed by its output type's
+ * {@link RelatedQuery}; `unknown` (adding nothing) for one that takes none.
+ */
+type ActionRelatedQueryOptions<D extends ApiDescriptor, Act> = Act extends {
+  relatedQuery: true
+  outputType: infer OT extends TypeName<D>
+}
+  ? { relatedQuery?: RelatedQuery<D, OT> }
+  : unknown
+
+/** The options an action takes beside its media and `wait` choices: `filter` and `relatedQuery`. */
+type ActionQueryOptions<D extends ApiDescriptor, Act> = ActionFilterOptions<Act> &
+  ActionRelatedQueryOptions<D, Act>
 
 /** The raw response media types an action declares (`[]` when none). */
 type RawOutputOf<Act> = Act extends { rawOutput: infer R extends readonly RawOutputMedia[] }
@@ -1700,7 +1755,8 @@ type WithInput<D extends ApiDescriptor, W, Act, E> = Act extends { input: 'docum
  * The result is shaped by the action's `output` (see {@link ActionResult}). An action that answers
  * in raw media types takes an `accept` naming one, and resolves to that media type's value. An
  * action listing several request media types takes a `contentType` naming one, and its body is
- * typed by that media type. An action that takes filters takes a `filter` option keyed by them.
+ * typed by that media type. An action that takes filters takes a `filter` option keyed by them,
+ * and one that takes `relatedQuery` takes it typed by its output type.
  */
 type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E> = Act extends {
   inputMedia: readonly InputMedia[]
@@ -1712,7 +1768,7 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
     >(
       input: InputBodyFor<D, W, Act, E, C>,
       options?: { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT> &
-        ActionFilterOptions<Act> &
+        ActionQueryOptions<D, Act> &
         ActionWaitOption<Act>,
     ) => ActionResultIn<D, A, Act, E, M, RT>
   : Act extends { rawOutput: readonly RawOutputMedia[] }
@@ -1722,7 +1778,7 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
           RT extends BinaryResponseType = 'blob',
         >(
           options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
-            ActionFilterOptions<Act> &
+            ActionQueryOptions<D, Act> &
             ActionWaitOption<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
       : <
@@ -1731,19 +1787,22 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
         >(
           input: WithInput<D, W, Act, E>,
           options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
-            ActionFilterOptions<Act> &
+            ActionQueryOptions<D, Act> &
             ActionWaitOption<Act>,
         ) => ActionResultIn<D, A, Act, E, M, RT>
     : Act extends { accepted: object }
       ? AcceptedActionMethod<D, A, W, Act, E>
-      : Act extends { filterable: readonly string[] } | { filterFamilies: readonly unknown[] }
+      : Act extends
+            | { filterable: readonly string[] }
+            | { filterFamilies: readonly unknown[] }
+            | { relatedQuery: true }
         ? Act extends { input: 'none' }
           ? (
-              options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
+              options?: { signal?: AbortSignal } & ActionQueryOptions<D, Act>,
             ) => ActionResult<D, A, Act, E>
           : (
               input: WithInput<D, W, Act, E>,
-              options?: { signal?: AbortSignal } & ActionFilterOptions<Act>,
+              options?: { signal?: AbortSignal } & ActionQueryOptions<D, Act>,
             ) => ActionResult<D, A, Act, E>
         : Act extends { input: 'none' }
           ? () => ActionResult<D, A, Act, E>
@@ -1762,20 +1821,20 @@ type AcceptedActionMethod<
 > = Act extends { input: 'none' }
   ? {
       (
-        options: { signal?: AbortSignal } & ActionFilterOptions<Act> & WaitOptions,
+        options: { signal?: AbortSignal } & ActionQueryOptions<D, Act> & WaitOptions,
       ): Promise<ActionValue<D, A, Act, E>>
       (
-        options?: { signal?: AbortSignal; wait?: false } & ActionFilterOptions<Act>,
+        options?: { signal?: AbortSignal; wait?: false } & ActionQueryOptions<D, Act>,
       ): ActionResult<D, A, Act, E>
     }
   : {
       (
         input: WithInput<D, W, Act, E>,
-        options: { signal?: AbortSignal } & ActionFilterOptions<Act> & WaitOptions,
+        options: { signal?: AbortSignal } & ActionQueryOptions<D, Act> & WaitOptions,
       ): Promise<ActionValue<D, A, Act, E>>
       (
         input: WithInput<D, W, Act, E>,
-        options?: { signal?: AbortSignal; wait?: false } & ActionFilterOptions<Act>,
+        options?: { signal?: AbortSignal; wait?: false } & ActionQueryOptions<D, Act>,
       ): ActionResult<D, A, Act, E>
     }
 

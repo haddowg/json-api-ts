@@ -127,7 +127,7 @@ An empty term simply omits `filter`, so the reads return the full catalogue.
 
 ## Relationship queries
 
-A read can filter and sort a relationship's members from the primary request, through `relatedQuery` (the Relationship Queries profile). It's there on `list` and `get` only for a type whose descriptor advertises it, keyed by the type's include paths, dotted ones too. Each entry takes a `filter` and a `sort` for the relationship the path ends on:
+A request can filter and sort a relationship's members through `relatedQuery` (the Relationship Queries profile). It's there wherever the server documents it, which is every operation answering with resources of one type: `list` and `get`, `create` and `update`, the `.related()` read of a relation over one type, and a custom action answering with a resource. Each entry is keyed by a relation of the type being answered with, and takes a `filter` and, on a to-many, a `sort`:
 
 ```ts
 const runs = await client['campaign-template-runs'].list({
@@ -140,14 +140,33 @@ runs[0]!.$count('items') // number: the run's failed items
 
 The server applies the entry wherever it renders that relationship: its linkage, its `included` members and its `withCount` total. So the count above is the failed items, not all of them. See [counting relationships](pagination.md#counting-relationships-with-withcount) for `$count`.
 
-An entry's `filter` and `sort` are typed the way that relation's own `.related()` read types them. Where the descriptor records the relation's own `filterable` and `sortable`, they're narrowed to those keys and a key the relation doesn't take fails to compile. The codegen records them for a polymorphic relation, and for a relation whose related read sorts or filters differently from its related type's collection read. A relation whose reads take no sort, which includes every to-one, records an empty `sortable`, so its entry takes no `sort` at all. A relation whose reads take no filter records an empty `filterable`, so its entry takes no `filter`, and a relation with no read records both. Where nothing is recorded, a relation over one type takes its related type's collection filters and sorts, and a polymorphic one takes any filter key and any sort token. An include path the type doesn't advertise fails to compile either way.
+The keys are the relations the server's `<Type>RelatedQuery` parameter lists for that type, which are its relations over one type that a response renders. A relation you can't `include` is still a key. A dotted path, a polymorphic relation, a write-only relation and a `sort` on a to-one all fail to compile, because the server answers each with `400 QUERY_PARAM_UNRECOGNIZED`.
 
-On the wire each entry becomes `relatedQuery[<path>][filter][<key>]=<value>` and `relatedQuery[<path>][sort]=<tokens>`, with a list value sent as the primary `filter` sends it. The client adds the profile URI from the descriptor to `Accept`, after the Countable one when `withCount` is set too:
+The other operations take the same object, keyed by the relations of whatever type they answer with:
+
+```ts
+// A write: keyed by the album's relations.
+await client.albums.id('1').update(patch, { relatedQuery: { tracks: { sort: 'trackNumber' } } })
+
+// A related read: keyed by the related type's relations, here a track's.
+await client.albums.id('1').tracks.related({ relatedQuery: { album: { filter: { q: 'live' } } } })
+
+// An action answering with an album: keyed by the album's relations.
+await client.albums.id('1').actions.reissue(input, { relatedQuery: { artist: { filter: { q: 'x' } } } })
+```
+
+A relationship read (`.get()` on a relation) answers with linkage, so it takes no `relatedQuery`, and neither does the related read of a polymorphic relation.
+
+An entry's `filter` and `sort` are typed the way that relation's own `.related()` read types them. Where the descriptor records the relation's own `filterable` and `sortable`, they're narrowed to those keys and a key the relation doesn't take fails to compile. The codegen records them for a relation whose related read sorts or filters differently from its related type's collection read. A relation whose reads take no filter records an empty `filterable`, so its entry takes no `filter`, and a relation with no read records both. Where nothing is recorded, the relation takes its related type's collection filters and sorts.
+
+On the wire each entry becomes `relatedQuery[<relation>][filter][<key>]=<value>` and `relatedQuery[<relation>][sort]=<tokens>`, with a list value sent as the primary `filter` sends it. Whenever an entry is sent, the client adds the profile URI from the descriptor to `Accept`, after the Countable one when `withCount` is set too:
 
 ```
 GET /campaign-template-runs?withCount=items&relatedQuery[items][filter][state]=failed
 Accept: application/vnd.api+json; profile="…/countable/ …/relationship-queries/"
 ```
+
+A write or an action names the profile in `Accept` only. It shapes the response, so `Content-Type` stays plain `application/vnd.api+json`.
 
 ## How the wire is serialised
 

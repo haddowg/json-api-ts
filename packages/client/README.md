@@ -136,10 +136,12 @@ the same value as `$count`. Both are `undefined` when the server sent no finite 
 
 ### `relatedQuery` (the Relationship Queries profile)
 
-Where a type's `list` or `get` advertises it, `relatedQuery` filters and sorts a relationship
-from the primary read, keyed by include path. Each entry's `filter` and `sort` take what the
-relation's own related read takes. The client negotiates the profile in `Accept`, beside the
-Countable one when `withCount` is set too.
+Where the server documents it, `relatedQuery` filters and sorts a relationship of the resources
+an operation answers with: `list`, `get`, `create`, `update`, the `.related()` read of a relation
+over one type, and an action answering with a resource. It's keyed by relation name, and each
+entry's `filter` and `sort` take what the relation's own related read takes, with no `sort` on a
+to-one. The client negotiates the profile in `Accept`, beside the Countable one when `withCount`
+is set too.
 
 ```ts
 const runs = await client['campaign-template-runs'].list({

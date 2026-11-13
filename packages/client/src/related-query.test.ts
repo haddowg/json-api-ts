@@ -8,11 +8,15 @@ import type { TransportRequest, TransportResponse } from './transport'
 const BASE = 'https://api.example'
 const COUNTABLE = 'https://example.test/profiles/countable/'
 const RELATIONSHIP_QUERIES = 'https://example.test/profiles/relationship-queries/'
+const JSON_API = 'application/vnd.api+json'
+const NEGOTIATED = `${JSON_API}; profile="${RELATIONSHIP_QUERIES}"`
 
-// A run's `items` declare their own sorts and filters, `states` taking a list. An item's
-// `product` declares sorts only, and a run's `owner` declares nothing, so it takes the users
-// collection's sorts and filters. A run's `checker` is read with neither a sort nor a filter.
-// `templates` take relatedQuery on neither read, `drafts` only on the single read.
+// A run's `items` declare their own sorts and filters, `states` taking a list. A run's `owner`
+// declares nothing, so it takes the users collection's sorts and filters, and its `checker` is
+// read with neither a sort nor a filter and can't be included. `subject` is polymorphic and
+// `secret` write-only, so a run's relatedQuery addresses neither. An item's `product` declares
+// sorts only. `templates` take relatedQuery nowhere, and `drafts` only on the single read, with no
+// recorded relations.
 const descriptor = {
   runs: {
     attributes: { name: 'string' },
@@ -23,25 +27,81 @@ const descriptor = {
         sortable: ['position', '-position'],
         filterable: ['state', 'states'],
         listFilters: ['states'],
+        countable: { tokens: ['_self_'], profile: COUNTABLE },
+        relatedQuery: true,
       },
-      owner: { cardinality: 'one', types: ['users'] },
+      owner: { cardinality: 'one', types: ['users'], relatedQuery: true },
       checker: { cardinality: 'one', types: ['users'], sortable: [], filterable: [] },
+      subject: { cardinality: 'one', types: ['items', 'users'], polymorphic: true },
+      secret: { cardinality: 'one', types: ['users'], writeOnly: true },
     },
-    paths: { fetchMany: '/runs', fetchOne: '/runs/{id}' },
+    paths: {
+      fetchMany: '/runs',
+      fetchOne: '/runs/{id}',
+      create: '/runs',
+      update: '/runs/{id}',
+      fetchRelated: '/runs/{id}/{rel}',
+      fetchRelationship: '/runs/{id}/relationships/{rel}',
+    },
     paginator: 'none',
     clientId: 'forbidden',
     countable: { tokens: ['_self_', 'items'], profile: COUNTABLE },
-    relatedQuery: { operations: ['fetchMany', 'fetchOne'], profile: RELATIONSHIP_QUERIES },
-    includable: ['checker', 'items', 'items.product', 'owner'],
+    resourceCountable: {
+      create: { tokens: ['items'], profile: COUNTABLE },
+    },
+    relatedQuery: {
+      operations: ['fetchMany', 'fetchOne', 'create', 'update'],
+      profile: RELATIONSHIP_QUERIES,
+      relations: ['items', 'owner', 'checker'],
+    },
+    includable: ['items', 'items.product', 'owner'],
+    actions: {
+      rerun: {
+        scope: 'resource',
+        path: '/runs/{id}/-actions/rerun',
+        input: 'none',
+        output: 'document',
+        outputType: 'runs',
+        outputCardinality: 'one',
+        relatedQuery: true,
+      },
+      cancel: {
+        scope: 'resource',
+        path: '/runs/{id}/-actions/cancel',
+        input: 'none',
+        output: 'document',
+        outputType: 'runs',
+        outputCardinality: 'one',
+      },
+      latest: {
+        scope: 'collection',
+        path: '/runs/-actions/latest',
+        method: 'GET',
+        input: 'none',
+        output: 'document',
+        outputType: 'runs',
+        outputCardinality: 'one',
+        filterable: ['name'],
+        relatedQuery: true,
+      },
+    },
   },
   items: {
     attributes: { state: 'string' },
     relations: {
-      product: { cardinality: 'one', types: ['products'], sortable: ['name', '-name'] },
+      product: {
+        cardinality: 'one',
+        types: ['products'],
+        sortable: ['name', '-name'],
+        filterable: ['names'],
+        listFilters: ['names'],
+      },
+      runs: { cardinality: 'many', types: ['runs'] },
     },
     paths: { fetchOne: '/items/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
+    relatedQuery: { operations: [], profile: RELATIONSHIP_QUERIES, relations: ['product'] },
   },
   products: {
     attributes: { name: 'string' },
@@ -70,7 +130,10 @@ const descriptor = {
   },
   drafts: {
     attributes: { name: 'string' },
-    relations: { owner: { cardinality: 'one', types: ['users'] } },
+    relations: {
+      owner: { cardinality: 'one', types: ['users'] },
+      reviewers: { cardinality: 'many', types: ['users'] },
+    },
     paths: { fetchMany: '/drafts', fetchOne: '/drafts/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
@@ -100,39 +163,37 @@ function recorder(body: unknown) {
   }
 }
 
-const runs = {
-  data: [
-    {
-      type: 'runs',
-      id: '1',
-      attributes: { name: 'Nightly' },
-      relationships: { items: { meta: { total: 2 } } },
-    },
-  ],
+const run = {
+  type: 'runs',
+  id: '1',
+  attributes: { name: 'Nightly' },
+  relationships: { items: { meta: { total: 2 } } },
 }
+const runs = { data: [run] }
+const items = { data: [{ type: 'items', id: '7', attributes: { state: 'failed' } }] }
 
 describe('relatedQuery serialisation', () => {
-  it('sends a filter and sort per include path', () => {
+  it('sends a filter and sort per relation', () => {
     expect(
       decodeURI(
         serializeQuery({
           relatedQuery: {
             items: { filter: { state: 'failed' }, sort: ['-position', 'state'] },
-            'items.product': { sort: 'name' },
+            owner: { filter: { name: 'ada' } },
           },
         }),
       ),
     ).toBe(
-      'relatedQuery[items][filter][state]=failed&relatedQuery[items][sort]=-position%2Cstate&relatedQuery[items.product][sort]=name',
+      'relatedQuery[items][filter][state]=failed&relatedQuery[items][sort]=-position%2Cstate&relatedQuery[owner][filter][name]=ada',
     )
   })
 
-  it('comma-joins a list value unless the path names it a list filter', () => {
+  it('comma-joins a list value unless the relation names it a list filter', () => {
     const query = { relatedQuery: { items: { filter: { states: ['a', 'b,c'] } } } }
     expect(decodeURI(serializeQuery(query))).toBe('relatedQuery[items][filter][states]=a%2Cb%2Cc')
     expect(
       decodeURI(
-        serializeQuery(query, undefined, (path, key) => path === 'items' && key === 'states'),
+        serializeQuery(query, undefined, (rel, key) => rel === 'items' && key === 'states'),
       ),
     ).toBe('relatedQuery[items][filter][states][]=a&relatedQuery[items][filter][states][]=b%2Cc')
   })
@@ -141,7 +202,7 @@ describe('relatedQuery serialisation', () => {
     expect(serializeQuery({ relatedQuery: { items: {}, owner: { sort: [] } } })).toBe('')
   })
 
-  it("sends a list filter in the array form the path's relation names", async () => {
+  it("sends a list filter in the array form the relation's vocabulary names", async () => {
     const { client, requests } = recorder(runs)
     await client.runs.list({ relatedQuery: { items: { filter: { states: ['failed', 'stuck'] } } } })
     expect(decodeURI(requests[0]!.url)).toBe(
@@ -174,14 +235,12 @@ describe('relatedQuery negotiation', () => {
   it('negotiates the Relationship Queries profile on a collection read', async () => {
     const { client, requests } = recorder(runs)
     await client.runs.list({ relatedQuery: { items: { filter: { state: 'failed' } } } })
-    expect(requests[0]!.headers['Accept']).toBe(
-      `application/vnd.api+json; profile="${RELATIONSHIP_QUERIES}"`,
-    )
+    expect(requests[0]!.headers['Accept']).toBe(NEGOTIATED)
   })
 
   it('composes it after the Countable profile when withCount is also set', async () => {
     const { client, requests } = recorder(runs)
-    const [run] = await client.runs.list({
+    const [first] = await client.runs.list({
       withCount: ['items'],
       relatedQuery: { items: { filter: { state: 'failed' } } },
     })
@@ -189,20 +248,18 @@ describe('relatedQuery negotiation', () => {
       `${BASE}/runs?withCount=items&relatedQuery[items][filter][state]=failed`,
     )
     expect(requests[0]!.headers['Accept']).toBe(
-      `application/vnd.api+json; profile="${COUNTABLE} ${RELATIONSHIP_QUERIES}"`,
+      `${JSON_API}; profile="${COUNTABLE} ${RELATIONSHIP_QUERIES}"`,
     )
-    expect(run!.$count('items')).toBe(2)
+    expect(first!.$count('items')).toBe(2)
   })
 
   it('negotiates it on a single read', async () => {
-    const { client, requests } = recorder({ data: runs.data[0] })
+    const { client, requests } = recorder({ data: run })
     await client.runs.get('1', { relatedQuery: { items: { sort: '-position' } } })
     await client.runs.id('1').get({ relatedQuery: { items: { sort: '-position' } } })
     for (const req of requests) {
       expect(decodeURI(req.url)).toBe(`${BASE}/runs/1?relatedQuery[items][sort]=-position`)
-      expect(req.headers['Accept']).toBe(
-        `application/vnd.api+json; profile="${RELATIONSHIP_QUERIES}"`,
-      )
+      expect(req.headers['Accept']).toBe(NEGOTIATED)
     }
   })
 
@@ -210,25 +267,145 @@ describe('relatedQuery negotiation', () => {
     const { client, requests } = recorder(runs)
     await client.runs.list({ relatedQuery: { items: {} } })
     expect(requests[0]!.url).toBe(`${BASE}/runs`)
-    expect(requests[0]!.headers['Accept']).toBe('application/vnd.api+json')
+    expect(requests[0]!.headers['Accept']).toBe(JSON_API)
+  })
+})
+
+describe('relatedQuery on writes', () => {
+  it('sends it on a create and names the profile in Accept only', async () => {
+    const { client, requests } = recorder({ data: run })
+    await client.runs.create(
+      { name: 'Nightly' },
+      { relatedQuery: { items: { filter: { states: ['failed'] }, sort: '-position' } } },
+    )
+    expect(requests[0]!.method).toBe('POST')
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs?relatedQuery[items][filter][states][]=failed&relatedQuery[items][sort]=-position`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(NEGOTIATED)
+    expect(requests[0]!.headers['Content-Type']).toBe(JSON_API)
+  })
+
+  it('composes it after the Countable profile on a create', async () => {
+    const { client, requests } = recorder({ data: run })
+    await client.runs.create(
+      { name: 'Nightly' },
+      { withCount: ['items'], relatedQuery: { owner: { filter: { name: 'ada' } } } },
+    )
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs?withCount=items&relatedQuery[owner][filter][name]=ada`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(
+      `${JSON_API}; profile="${COUNTABLE} ${RELATIONSHIP_QUERIES}"`,
+    )
+    expect(requests[0]!.headers['Content-Type']).toBe(JSON_API)
+  })
+
+  it('sends it on an update', async () => {
+    const { client, requests } = recorder({ data: run })
+    await client.runs
+      .id('1')
+      .update({ name: 'Weekly' }, { relatedQuery: { owner: { filter: { roles: ['admin'] } } } })
+    expect(requests[0]!.method).toBe('PATCH')
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs/1?relatedQuery[owner][filter][roles][]=admin`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(NEGOTIATED)
+    expect(requests[0]!.headers['Content-Type']).toBe(JSON_API)
+  })
+})
+
+describe('relatedQuery on related reads', () => {
+  it("sends it keyed by the related type's relations and negotiates the profile", async () => {
+    const { client, requests } = recorder(items)
+    await client.runs
+      .id('1')
+      .items.related({ relatedQuery: { product: { filter: { names: ['a', 'b'] } } } })
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs/1/items?relatedQuery[product][filter][names][]=a&relatedQuery[product][filter][names][]=b`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(NEGOTIATED)
+  })
+
+  it("composes it after the relation's Countable profile", async () => {
+    const { client, requests } = recorder(items)
+    await client.runs.id('1').items.related({
+      withCount: ['_self_'],
+      relatedQuery: { product: { filter: { names: ['a'] } } },
+    })
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs/1/items?withCount=_self_&relatedQuery[product][filter][names][]=a`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(
+      `${JSON_API}; profile="${COUNTABLE} ${RELATIONSHIP_QUERIES}"`,
+    )
+  })
+
+  it('negotiates nothing on a relationship read', async () => {
+    const { client, requests } = recorder({ data: [{ type: 'items', id: '7' }] })
+    const loose = client.runs.id('1').rel('items') as unknown as {
+      get(query: unknown): Promise<unknown>
+    }
+    await loose.get({ relatedQuery: { product: { filter: { names: 'a' } } } })
+    expect(requests[0]!.headers['Accept']).toBe(JSON_API)
+  })
+})
+
+describe('relatedQuery on actions', () => {
+  it('sends it on an action answering with a resource and negotiates the profile', async () => {
+    const { client, requests } = recorder({ data: run })
+    await client.runs.id('1').actions.rerun({ relatedQuery: { items: { sort: '-position' } } })
+    expect(requests[0]!.method).toBe('POST')
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs/1/-actions/rerun?relatedQuery[items][sort]=-position`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(NEGOTIATED)
+    expect(requests[0]!.headers['Content-Type']).toBe(JSON_API)
+  })
+
+  it("sends it beside a collection action's filters", async () => {
+    const { client, requests } = recorder({ data: run })
+    await client.runs.actions.latest({
+      filter: { name: 'Nightly' },
+      relatedQuery: { owner: { filter: { roles: ['ops'] } } },
+    })
+    expect(requests[0]!.method).toBe('GET')
+    expect(decodeURI(requests[0]!.url)).toBe(
+      `${BASE}/runs/-actions/latest?filter[name]=Nightly&relatedQuery[owner][filter][roles][]=ops`,
+    )
+    expect(requests[0]!.headers['Accept']).toBe(NEGOTIATED)
   })
 })
 
 // Call-site probes: real calls whose types tsc checks. Declared, never run.
 declare const typed: Client<typeof descriptor, Attributes>
 
-async function keysEntriesByIncludePath() {
+async function keysEntriesByRelation() {
   await typed.runs.list({
     relatedQuery: {
       items: { filter: { state: 'failed', states: ['a'] }, sort: ['-position'] },
-      'items.product': { sort: '-name' },
       // `owner` declares no vocabulary of its own, so its entry takes the users collection's
-      // filters and sorts.
-      owner: { filter: { name: 'ada', roles: ['admin'] }, sort: '-name' },
+      // filters. A to-one takes no sort.
+      owner: { filter: { name: 'ada', roles: ['admin'] } },
+      // `checker` can't be included, but the server sorts and filters it all the same.
+      checker: {},
     },
   })
-  // @ts-expect-error `product` is not an include path of runs
-  await typed.runs.list({ relatedQuery: { product: { sort: 'name' } } })
+}
+
+async function rejectsWhatTheServerRejects() {
+  // @ts-expect-error a dotted path is not a relation
+  await typed.runs.list({ relatedQuery: { 'items.product': { sort: 'name' } } })
+  // @ts-expect-error `subject` is polymorphic
+  await typed.runs.list({ relatedQuery: { subject: {} } })
+  // @ts-expect-error `secret` is write-only
+  await typed.runs.list({ relatedQuery: { secret: {} } })
+  // @ts-expect-error a to-one takes no sort
+  await typed.runs.list({ relatedQuery: { owner: { sort: 'name' } } })
+  // @ts-expect-error a dotted path is not a relation
+  await typed.runs.get('1', { relatedQuery: { 'items.product': {} } })
+  // @ts-expect-error a to-one takes no sort
+  await typed.runs.id('1').get({ relatedQuery: { owner: { sort: '-name' } } })
 }
 
 async function narrowsEachEntry() {
@@ -236,8 +413,6 @@ async function narrowsEachEntry() {
   await typed.runs.list({ relatedQuery: { items: { filter: { colour: 'red' } } } })
   // @ts-expect-error items declare no `state` sort
   await typed.runs.list({ relatedQuery: { items: { sort: 'state' } } })
-  // @ts-expect-error an item's product declares no `-position` sort
-  await typed.runs.get('1', { relatedQuery: { 'items.product': { sort: '-position' } } })
   // @ts-expect-error `states` takes a list
   await typed.runs.list({ relatedQuery: { items: { filter: { states: 'failed' } } } })
   // @ts-expect-error the users collection takes no `anything` filter
@@ -246,37 +421,97 @@ async function narrowsEachEntry() {
   await typed.runs.list({ relatedQuery: { owner: { filter: { roles: 'admin' } } } })
   // @ts-expect-error a checker is read with no filter
   await typed.runs.list({ relatedQuery: { checker: { filter: { name: 'ada' } } } })
-  // @ts-expect-error a checker is read with no sort
-  await typed.runs.list({ relatedQuery: { checker: { sort: 'name' } } })
+}
+
+async function typesWrites() {
+  await typed.runs.create({ name: 'Nightly' }, { relatedQuery: { items: { sort: '-position' } } })
+  await typed.runs.id('1').update({ name: 'Weekly' }, { relatedQuery: { owner: {} } })
+  // @ts-expect-error a dotted path is not a relation
+  await typed.runs.create({ name: 'x' }, { relatedQuery: { 'items.product': {} } })
+  // @ts-expect-error `subject` is polymorphic
+  await typed.runs.create({ name: 'x' }, { relatedQuery: { subject: {} } })
+  // @ts-expect-error `secret` is write-only
+  await typed.runs.id('1').update({ name: 'x' }, { relatedQuery: { secret: {} } })
+  // @ts-expect-error a to-one takes no sort
+  await typed.runs.id('1').update({ name: 'x' }, { relatedQuery: { owner: { sort: 'name' } } })
+}
+
+async function typesRelatedReads() {
+  await typed.runs
+    .id('1')
+    .items.related({ relatedQuery: { product: { filter: { names: ['a'] } } } })
+  await typed.runs.id('1').owner.related({ relatedQuery: {} })
+  // @ts-expect-error a dotted path is not a relation
+  await typed.runs.id('1').items.related({ relatedQuery: { 'product.x': {} } })
+  // @ts-expect-error an item's `runs` is not among the relations its relatedQuery addresses
+  await typed.runs.id('1').items.related({ relatedQuery: { runs: {} } })
+  // @ts-expect-error a to-one takes no sort
+  await typed.runs.id('1').items.related({ relatedQuery: { product: { sort: 'name' } } })
+  // @ts-expect-error the related read of `checker` takes no relatedQuery
+  await typed.runs.id('1').checker.related({ relatedQuery: {} })
+  // @ts-expect-error a relationship read takes no relatedQuery
+  await typed.runs.id('1').items.get({ relatedQuery: { product: {} } })
+}
+
+async function typesActions() {
+  await typed.runs.id('1').actions.rerun({ relatedQuery: { items: { sort: 'position' } } })
+  await typed.runs.actions.latest({ filter: { name: 'x' }, relatedQuery: { owner: {} } })
+  // @ts-expect-error a dotted path is not a relation
+  await typed.runs.id('1').actions.rerun({ relatedQuery: { 'items.product': {} } })
+  // @ts-expect-error `subject` is polymorphic
+  await typed.runs.id('1').actions.rerun({ relatedQuery: { subject: {} } })
+  // @ts-expect-error `secret` is write-only
+  await typed.runs.actions.latest({ relatedQuery: { secret: {} } })
+  // @ts-expect-error a to-one takes no sort
+  await typed.runs.actions.latest({ relatedQuery: { owner: { sort: 'name' } } })
+  // @ts-expect-error `cancel` takes no relatedQuery
+  await typed.runs.id('1').actions.cancel({ relatedQuery: { items: {} } })
 }
 
 async function onlyWhereAdvertised() {
   // @ts-expect-error templates take no relatedQuery
-  await typed.templates.list({ relatedQuery: { owner: { sort: 'name' } } })
+  await typed.templates.list({ relatedQuery: { owner: {} } })
   // @ts-expect-error drafts take relatedQuery only on the single read
-  await typed.drafts.list({ relatedQuery: { owner: { sort: 'name' } } })
-  await typed.drafts.get('1', { relatedQuery: { owner: { sort: 'name' } } })
-  await typed.drafts.id('1').get({ relatedQuery: { owner: { sort: 'name' } } })
+  await typed.drafts.list({ relatedQuery: { owner: {} } })
+  // Without recorded relations, a draft's relatedQuery takes any relation it renders.
+  await typed.drafts.get('1', { relatedQuery: { owner: {}, reviewers: { sort: 'name' } } })
+  await typed.drafts.id('1').get({ relatedQuery: { owner: { filter: { name: 'ada' } } } })
 }
 
 async function countsFailedItems() {
-  const [run] = await typed.runs.list({
+  const [first] = await typed.runs.list({
     withCount: ['items'],
     relatedQuery: { items: { filter: { state: 'failed' } } },
   })
-  expectTypeOf(run!.$count('items')).toEqualTypeOf<number>()
+  expectTypeOf(first!.$count('items')).toEqualTypeOf<number>()
 }
 
 describe('relatedQuery types', () => {
-  it("keys entries by the type's include paths, dotted ones included", () => {
-    expectTypeOf(keysEntriesByIncludePath).returns.resolves.toBeVoid()
+  it('keys entries by the relations the type addresses, includable or not', () => {
+    expectTypeOf(keysEntriesByRelation).returns.resolves.toBeVoid()
+  })
+
+  it('rejects dotted paths, polymorphic and write-only relations, and sort on a to-one', () => {
+    expectTypeOf(rejectsWhatTheServerRejects).returns.resolves.toBeVoid()
   })
 
   it("narrows each entry's filter and sort to its relation's vocabulary", () => {
     expectTypeOf(narrowsEachEntry).returns.resolves.toBeVoid()
   })
 
-  it('is absent from a read that does not advertise it', () => {
+  it('types it on create and update', () => {
+    expectTypeOf(typesWrites).returns.resolves.toBeVoid()
+  })
+
+  it('types it on a related read by the related type', () => {
+    expectTypeOf(typesRelatedReads).returns.resolves.toBeVoid()
+  })
+
+  it('types it on an action by its output type', () => {
+    expectTypeOf(typesActions).returns.resolves.toBeVoid()
+  })
+
+  it('is absent from an operation that does not advertise it', () => {
     expectTypeOf(onlyWhereAdvertised).returns.resolves.toBeVoid()
   })
 
