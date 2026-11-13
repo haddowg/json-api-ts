@@ -28,6 +28,7 @@ import type {
   ResourceCountToken,
   SingleReadQuery,
   TypedReadQuery,
+  TypedRelatedReadQuery,
   TypedRelationReadQuery,
   TypeName,
 } from '@haddowg/json-api-client'
@@ -192,7 +193,7 @@ export function relatedQueryOptions<
   type: T,
   id: string,
   rel: R,
-  query?: TypedRelationReadQuery<D, T, R>,
+  query?: TypedRelatedReadQuery<D, T, R>,
 ): QueryOptions<RelatedResult<D, A, T, R>> {
   const accessor = client[type]
   return {
@@ -231,7 +232,7 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
   related<R extends RelationName<D, T>>(
     id: string,
     rel: R,
-    query?: TypedRelationReadQuery<D, T, R>,
+    query?: TypedRelatedReadQuery<D, T, R>,
   ): QueryOptions<RelatedResult<D, A, T, R>>
 }
 
@@ -283,7 +284,7 @@ function typeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
     related<R extends RelationName<D, T>>(
       id: string,
       rel: R,
-      query?: TypedRelationReadQuery<D, T, R>,
+      query?: TypedRelatedReadQuery<D, T, R>,
     ) {
       return relatedQueryOptions(client, type, id, rel, query)
     },
