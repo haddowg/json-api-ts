@@ -10,11 +10,11 @@ import { fixture, source } from './test-fixtures'
 describe('generator contract 37 (relatedQuery wherever resources of one type answer)', () => {
   it.each(['contract-witness', 'music-catalog'] as const)('reads the %s document', (name) => {
     const { document } = source(name)
-    expect(document.info?.['x-generator']?.contract).toBe(37)
+    expect(document.info?.['x-generator']?.contract).toBe(38)
     const components = Object.keys(document.components?.parameters ?? {})
     expect(components.some((component) => component.endsWith('RelatedQuery'))).toBe(true)
     expect(components).not.toContain('relatedQuery')
-    expect(createJsonApiMcp(fixture(name)).contract).toBe(37)
+    expect(createJsonApiMcp(fixture(name)).contract).toBe(38)
   })
 
   it('offers relatedQuery on no tool', () => {

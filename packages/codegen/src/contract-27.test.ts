@@ -45,7 +45,7 @@ describe('generator contract 27 (list filters and filter families)', () => {
   const articles = descriptor['articles']!
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(37)
+    expect(witness.info?.['x-generator']?.contract).toBe(38)
     expect(checkContract(witness)).toBeUndefined()
   })
 

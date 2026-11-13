@@ -60,7 +60,7 @@ describe('generator contract 32 (named components)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(37)
+    expect(mcp.contract).toBe(38)
   })
 
   it('leaves no reference to a document component in any tool schema', () => {
@@ -106,11 +106,12 @@ describe('generator contract 32 (named components)', () => {
     const props = articles['properties'] as Record<string, JsonSchema>
     expect(props['defaultValue']).toEqual({
       type: ['string', 'number', 'boolean'],
-      maxLength: 200,
       description: 'The value a placeholder takes when nothing is bound.',
       minLength: 1,
+      allOf: [{ type: ['string', 'number', 'boolean'], maxLength: 200 }],
     })
     expect(props['reviewedBy']).toEqual({
+      type: ['object', 'null'],
       description: 'Who reviewed the article.',
       anyOf: [
         {

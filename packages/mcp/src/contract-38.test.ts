@@ -6,21 +6,8 @@ import type { JsonSchema, OpenApiDocument } from './openapi'
 import { toPortable } from './portable'
 import { modelOf, retype, source } from './test-fixtures'
 
-/** The witness's named value shapes: its enums, a union, an object and its variants, raw bodies. */
-const SHAPES = [
-  'Status',
-  'Priority',
-  'PlaceholderValue',
-  'Reviewer',
-  'ReviewerCreate',
-  'ReviewerUpdate',
-  'ArticleSummary',
-  'ArticleImportRow',
-]
-
 const { document } = source('contract-witness')
-const untyped = createJsonApiMcp(modelOf(document))
-const typed = createJsonApiMcp(modelOf(retype(document, SHAPES)))
+const typed = createJsonApiMcp(modelOf(document))
 
 const tool = (mcp: ReturnType<typeof createJsonApiMcp>, name: string) =>
   mcp.tools.find((t) => t.name === name)!
@@ -43,16 +30,9 @@ describe('generator contract 38 (typed references to named value shapes)', () =>
   it('reads a document stamped 38', () => {
     expect(MAXIMUM_CONTRACT).toBe(38)
     expect(typed.contract).toBe(38)
-    const newer = retype(document, SHAPES)
+    const newer = structuredClone(document)
     newer.info!['x-generator']!.contract = 39
     expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
-  })
-
-  it('takes the same input on every tool', () => {
-    expect(typed.tools.map((t) => t.name)).toEqual(untyped.tools.map((t) => t.name))
-    for (const t of typed.tools) {
-      expect(t.inputSchema, t.name).toEqual(tool(untyped, t.name).inputSchema)
-    }
   })
 
   it('keeps the enums in the inputs', () => {
