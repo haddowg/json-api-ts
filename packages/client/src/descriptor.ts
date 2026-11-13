@@ -160,6 +160,11 @@ export interface RelationDescriptor {
   listFilters?: readonly string[]
   /** The filter families the relation's reads accept beside {@link filterable}. */
   filterFamilies?: readonly FilterFamilyDescriptor[]
+  /**
+   * `true` when the related read takes `relatedQuery`, keyed by the relations of the related
+   * type's {@link ResourceDescriptor.relatedQuery}. Only a monomorphic relation's can.
+   */
+  relatedQuery?: boolean
 }
 
 /** A built-in pagination strategy. */
@@ -291,6 +296,11 @@ export interface ActionDescriptor {
   /** Whether a `document`-output action returns a single resource (`one`) or a collection (`many`). */
   outputCardinality?: Cardinality
   /**
+   * `true` when the action takes `relatedQuery` for the resource it answers with, keyed by the
+   * relations of its {@link outputType}'s {@link ResourceDescriptor.relatedQuery}.
+   */
+  relatedQuery?: boolean
+  /**
    * The declared request media type for a `raw`-input action (e.g. `application/octet-stream`),
    * sent verbatim as the `Content-Type` so the server accepts the non-JSON:API body. Absent for
    * `document` (the JSON:API media type) and `none` (no body) inputs.
@@ -367,18 +377,29 @@ export interface CountableDescriptor {
 /** An operation answering with one resource that may take `withCount`. */
 export type ResourceCountOperation = 'fetchOne' | 'create' | 'update'
 
-/** A read that takes `relatedQuery`: the collection read or the single-resource read. */
-export type RelatedQueryOperation = 'fetchMany' | 'fetchOne'
+/**
+ * An operation of a type that takes `relatedQuery` for the resources it answers with: the
+ * collection read, the single-resource read, the create or the update.
+ */
+export type RelatedQueryOperation = 'fetchMany' | 'fetchOne' | 'create' | 'update'
 
 /**
- * The `relatedQuery` parameter of a type's reads (the Relationship Queries profile): a `filter`
- * and `sort` per include path, applied to that relationship's members. `operations` names the
- * reads that advertise it, and `profile` is the URI a client negotiates in `Accept` before the
- * server honours it, read from the parameter's `x-profile`.
+ * The `relatedQuery` parameter for the resources of a type (the Relationship Queries profile): a
+ * `filter` and `sort` per relation, applied to that relationship's members. `relations` names the
+ * relations it addresses, `operations` names the type's own operations that take it, and
+ * `profile` is the URI a client negotiates in `Accept` before the server honours it, read from the
+ * parameter's `x-profile`. A related read or an action answering with resources of the type takes
+ * the same parameter when its {@link RelationDescriptor.relatedQuery} or
+ * {@link ActionDescriptor.relatedQuery} is `true`.
  */
 export interface RelatedQueryDescriptor {
   operations: readonly RelatedQueryOperation[]
   profile: string
+  /**
+   * The relations an entry may be keyed by: the type's monomorphic relations a response renders.
+   * Absent in a descriptor that doesn't record them, which then takes any such relation.
+   */
+  relations?: readonly string[]
 }
 
 /**
@@ -422,8 +443,8 @@ export interface ResourceDescriptor {
    */
   resourceCountable?: Readonly<Partial<Record<ResourceCountOperation, CountableDescriptor>>>
   /**
-   * The reads that take `relatedQuery` and the profile it needs. Absent when neither the
-   * collection read nor the single-resource read advertises it.
+   * The `relatedQuery` an operation answering with resources of this type takes, the operations
+   * of this type that take it, and the profile it needs. Absent when no operation documents it.
    */
   relatedQuery?: RelatedQueryDescriptor
   /**

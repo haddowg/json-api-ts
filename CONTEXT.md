@@ -104,7 +104,7 @@ A relationship's `meta.total` from a `withCount` read, read as `$count(name)` on
 _Avoid_: relation total, count meta
 
 **Relationship query**:
-The `filter` and `sort` a collection or single read sends for one of its include paths through
+The `filter` and `sort` a request sends for one relation of the resources it answers with through
 `relatedQuery`, under the Relationship Queries profile.
 _Avoid_: nested filter, include filter
 

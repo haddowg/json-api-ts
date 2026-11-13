@@ -117,6 +117,19 @@ await client.articles.actions.relabel(input, { filter: { labels: ['draft'] } })
 
 A key the action doesn't take is a compile error, even when the collection read takes it. The descriptor's JSDoc names any of the action's filters the server marks deprecated, as it does for the read. An action without filters takes the same arguments it always has.
 
+## Relationship queries on an action's result
+
+An action answering with a resource takes `relatedQuery` where the server documents it, typed by the resource's type as a read of it would be (see [relationship queries](filtering-and-sorting.md#relationship-queries)). The descriptor marks such an action `relatedQuery: true`. The option goes last, beside any `filter`, and the client negotiates the Relationship Queries profile in `Accept`:
+
+```ts
+// POST /albums/1/-actions/reissue?relatedQuery[tracklist][sort]=-trackNumber
+await client.albums.id('1').actions.reissue(input, {
+  relatedQuery: { tracklist: { sort: '-trackNumber' } },
+})
+```
+
+An action answering with another type, such as the witness's `videos` action `credit` answering with a credit, takes that type's relations.
+
 ## Safety
 
 An action's method doesn't say whether it changes anything: a search sent as `POST` reads like a write. An action can declare it, and the descriptor carries each declared flag as `readOnly`, `destructive` or `idempotent`. A flag the server doesn't declare is absent, so `undefined` means unknown, not `false`. The action's JSDoc repeats them, so an editor hover on `client.articles.id(id).actions.purge` reads "The server declares this action destructive."
