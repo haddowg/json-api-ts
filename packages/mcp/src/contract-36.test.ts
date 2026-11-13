@@ -10,8 +10,8 @@ import { fixture, source } from './test-fixtures'
  */
 describe('generator contract 36 (error codes offered where the runtime raises them)', () => {
   it.each(['contract-witness', 'music-catalog'] as const)('reads the %s document', (name) => {
-    expect(source(name).document.info?.['x-generator']?.contract).toBe(36)
-    expect(createJsonApiMcp(fixture(name)).contract).toBe(36)
+    expect(source(name).document.info?.['x-generator']?.contract).toBe(37)
+    expect(createJsonApiMcp(fixture(name)).contract).toBe(37)
   })
 
   it('builds the same tools whichever error documents an operation answers with', () => {
