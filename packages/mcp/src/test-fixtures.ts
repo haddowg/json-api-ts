@@ -147,3 +147,41 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
   ;((out['info'] as Json)['x-generator'] as Json)['contract'] = 38
   return out as OpenApiDocument
 }
+
+/**
+ * A copy of a document with the enums inside its `<Type>RelatedQuery` parameter components
+ * written the way generator contract 39 writes them, and stamped 39. An inline enum repeating a
+ * named enum component's values becomes `{ type, allOf: [{ $ref }] }`, the shape a top-level
+ * filter parameter takes, and keeps its other keywords.
+ */
+export function typeRelatedQueries(original: OpenApiDocument): OpenApiDocument {
+  const doc = structuredClone(original) as Json
+  const components = doc['components'] as Json
+  const schemas = (components['schemas'] ?? {}) as Record<string, Json>
+  const named = (values: unknown[]): string | undefined =>
+    Object.keys(schemas).find(
+      (name) => JSON.stringify(schemas[name]!['enum']) === JSON.stringify(values),
+    )
+  const visit = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(visit)
+    if (typeof node !== 'object' || node === null) return node
+    const n = node as Json
+    const values = n['enum']
+    const name = Array.isArray(values) ? named(values) : undefined
+    if (name !== undefined) {
+      const rest = Object.fromEntries(
+        Object.entries(n).filter(([key]) => key !== 'enum' && !key.startsWith('x-enum-')),
+      )
+      return { type: componentType(schemas[name]!), allOf: [{ $ref: PREFIX + name }], ...rest }
+    }
+    return Object.fromEntries(Object.entries(n).map(([key, value]) => [key, visit(value)]))
+  }
+  const parameters = (components['parameters'] ?? {}) as Record<string, Json>
+  for (const [name, parameter] of Object.entries(parameters)) {
+    if (name.endsWith('RelatedQuery')) {
+      parameter['schema'] = visit(parameter['schema'])
+    }
+  }
+  ;((doc['info'] as Json)['x-generator'] as Json)['contract'] = 39
+  return doc as OpenApiDocument
+}
