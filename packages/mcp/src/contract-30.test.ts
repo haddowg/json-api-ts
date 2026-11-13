@@ -72,7 +72,7 @@ describe('generator contract 30 (identified pivots and fixed membership)', () =>
   const mcp = toolsOf(witness)
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(37)
+    expect(mcp.contract).toBe(38)
   })
 
   it("offers the relation's own filters and sorts on its related read", () => {
@@ -192,9 +192,9 @@ describe('generator contract 30 from identified pivots alone', () => {
   const mcp = toolsOf(document)
 
   it('reads the document', () => {
-    expect(document.info?.['x-generator']?.contract).toBe(37)
+    expect(document.info?.['x-generator']?.contract).toBe(38)
     expect(JSON.stringify(document)).not.toContain(MEMBERSHIP)
-    expect(mcp.contract).toBe(37)
+    expect(mcp.contract).toBe(38)
   })
 
   it('offers the same sponsors inputs as the full witness', () => {
@@ -214,9 +214,9 @@ describe('generator contract 30 from fixed membership alone', () => {
   const mcp = toolsOf(document)
 
   it('reads the document', () => {
-    expect(document.info?.['x-generator']?.contract).toBe(37)
+    expect(document.info?.['x-generator']?.contract).toBe(38)
     expect(JSON.stringify(document)).toContain(MEMBERSHIP)
-    expect(mcp.contract).toBe(37)
+    expect(mcp.contract).toBe(38)
   })
 
   it('offers no sponsors and no pivot', () => {

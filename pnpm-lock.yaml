@@ -15,11 +15,11 @@ importers:
         specifier: ^0.18.0
         version: 0.18.4
       '@haddowg/json-api-symfony-specs':
-        specifier: 2.13.0
-        version: 2.13.0
+        specifier: 2.14.0
+        version: 2.14.0
       '@haddowg/json-api-witness':
-        specifier: 2.17.0
-        version: 2.17.0
+        specifier: 2.18.0
+        version: 2.18.0
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.0
@@ -770,11 +770,11 @@ packages:
     resolution: {integrity: sha512-GmzA9ckNokPypTg10pgpeHNQe7ph+iIKKmhKu3Ob9ANkswreCx7R3cKmY781K8QK3AqVL3xVh9A42JvIAbkkSA==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  '@haddowg/json-api-symfony-specs@2.13.0':
-    resolution: {integrity: sha512-8gVh83K/Re5Z94OPAYgCXXVmGDFUIktigIWhs/rQzPP+mgAYAbpUqprF0DHULcavDLQGVFmKRaMyq41yokHBSw==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-symfony-specs/2.13.0/71b69db43f3e18048e68f0d886d1f802c43257d5}
+  '@haddowg/json-api-symfony-specs@2.14.0':
+    resolution: {integrity: sha512-IpY1do4f00tN063/NBvNAKuGlThffs+PLCGT7o57r4fMeHgqWkBZsVMrKALBgtJbaykF7gte8Ym0WmUla9INIQ==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-symfony-specs/2.14.0/c9d4e6ec16cd5632c8aa128f2a45a3693c538aea}
 
-  '@haddowg/json-api-witness@2.17.0':
-    resolution: {integrity: sha512-7FVnPRqZLxM5nEvBoyTmxkWZhGXB/jarDUmvZnbYurZVXGZcWCtA2UXPgHhy+2UywunvWCeKuGsAUsy0j6ZOrw==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-witness/2.17.0/cafa207a852174e4ef239c85e068d90a05b0fe06}
+  '@haddowg/json-api-witness@2.18.0':
+    resolution: {integrity: sha512-9fc/Qdac/xGAWsULWKrYWSZY6sI+Pw5ByTkH9aI9rykLIMyQybsJlCO96/zbCedS/Fcpqkamzkpcro4/U5srLw==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-witness/2.18.0/ea04a4f5b4bdb42ea7b06a0668c0cffef4669624}
 
   '@harperfast/extended-iterable@1.0.5':
     resolution: {integrity: sha512-4ScXlphaKEa49RpHmqwATq9QI9aUTdWVYDlJkzxhsD7ShJP+pHCYLznMO9n/wREY8jPjRZ59wLJY6HM5yB5Gkw==}
@@ -4327,9 +4327,9 @@ snapshots:
 
   '@gar/promise-retry@1.0.3': {}
 
-  '@haddowg/json-api-symfony-specs@2.13.0': {}
+  '@haddowg/json-api-symfony-specs@2.14.0': {}
 
-  '@haddowg/json-api-witness@2.17.0': {}
+  '@haddowg/json-api-witness@2.18.0': {}
 
   '@harperfast/extended-iterable@1.0.5':
     optional: true

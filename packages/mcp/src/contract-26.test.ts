@@ -14,7 +14,7 @@ describe('generator contract 26 (actions answering 201 Created)', () => {
   const tool = (name: string) => mcp.tools.find((t) => t.name === name)!
 
   it('reads the document', () => {
-    expect(mcp.contract).toBe(37)
+    expect(mcp.contract).toBe(38)
   })
 
   it('describes the created resource as the tool output', () => {
