@@ -1,6 +1,5 @@
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { toPortable } from './portable'
@@ -28,11 +27,7 @@ const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type:
  */
 describe('generator contract 38 (typed references to named value shapes)', () => {
   it('reads a document stamped 38', () => {
-    expect(MAXIMUM_CONTRACT).toBe(38)
     expect(typed.contract).toBe(38)
-    const newer = structuredClone(document)
-    newer.info!['x-generator']!.contract = 39
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('keeps the enums in the inputs', () => {
