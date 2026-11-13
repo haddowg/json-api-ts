@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.16.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.16.0...json-api-codegen-v2.16.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **codegen:** keep named types beside a sibling type ([ed2b3f9](https://github.com/haddowg/json-api-ts/commit/ed2b3f9bcc46d196dbe77c1fb195f5070e543bb6))
+
 ## [2.16.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.15.0...json-api-codegen-v2.16.0) (2026-11-13)
 
 
