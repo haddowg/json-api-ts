@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.5.0...json-api-query-v1.6.0) (2026-11-13)
+
+
+### Features
+
+* **query:** pass relatedQuery through related reads and write mutations ([9f406eb](https://github.com/haddowg/json-api-ts/commit/9f406eb326001cef79d5a911794b1dd298dbb071))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.22.0
+
 ## [1.5.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.4.2...json-api-query-v1.5.0) (2026-11-12)
 
 

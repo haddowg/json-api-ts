@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.21.0...json-api-client-v1.22.0) (2026-11-13)
+
+
+### Features
+
+* **client:** type relatedQuery on every call the server offers it ([57270a3](https://github.com/haddowg/json-api-ts/commit/57270a388c80665488dfa94b46861d24e8ec1c2d))
+
 ## [1.21.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.20.0...json-api-client-v1.21.0) (2026-11-12)
 
 
