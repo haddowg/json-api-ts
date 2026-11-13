@@ -42,6 +42,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       sortable: [],
       // the related read filters by `name`, which the artists collection doesn't.
       filterable: ['albumTitle', 'name', 'q', 'slug'],
+      // the related read takes the artists' relatedQuery.
+      relatedQuery: true,
     })
     expect(albums.relations['tracks']).toEqual({
       cardinality: 'many',
@@ -62,6 +64,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
       // collection doesn't.
       sortable: ['title', '-title', 'trackNumber', '-trackNumber', 'duration', '-duration'],
       filterable: ['explicit', 'genres', 'longerThan', 'q', 'title'],
+      relatedQuery: true,
     })
 
     // the types an albums compound document's typed `included` lists.
@@ -118,6 +121,7 @@ describe('buildDescriptor (music-catalog default server)', () => {
         '-addedAt',
       ],
       filterable: ['explicit', 'genres', 'position', 'q', 'title', 'weight'],
+      relatedQuery: true,
     })
   })
 
@@ -199,6 +203,8 @@ describe('buildDescriptor — custom actions', () => {
       inputType: 'reissues',
       outputType: 'albums',
       outputCardinality: 'one',
+      // it answers with an album, so it takes the albums' relatedQuery.
+      relatedQuery: true,
       scopes: ['catalog:write'],
     })
   })
@@ -583,11 +589,15 @@ const widgetsWith = (
   },
 })
 
-const relatedQueryParam = (profile?: string): ParameterObject => ({
+const relatedQueryParam = (profile?: string, relations: string[] = []): ParameterObject => ({
   name: 'relatedQuery',
   in: 'query',
   style: 'deepObject',
-  schema: { type: 'object' },
+  schema: {
+    type: 'object',
+    properties: Object.fromEntries(relations.map((name) => [name, { type: 'object' }])),
+    additionalProperties: false,
+  },
   ...(profile === undefined ? {} : { 'x-profile': profile }),
 })
 
@@ -595,39 +605,64 @@ describe('buildDescriptor — relatedQuery (Relationship Queries) capability', (
   const RELATIONSHIP_QUERIES_PROFILE =
     'https://haddowg.github.io/json-api/profiles/relationship-queries/'
 
-  it('records the reads that take relatedQuery and its profile (albums)', () => {
+  it('records the operations that take relatedQuery, its relations and its profile (albums)', () => {
     expect(descriptor['albums']!.relatedQuery).toEqual({
-      operations: ['fetchMany', 'fetchOne'],
+      operations: ['fetchMany', 'fetchOne', 'create', 'update'],
       profile: RELATIONSHIP_QUERIES_PROFILE,
+      relations: ['artist', 'tracks', 'tracklist'],
     })
   })
 
-  it('omits relatedQuery for a type whose reads do not advertise it (genres)', () => {
+  it('omits relatedQuery for a type no operation renders with it (genres)', () => {
     expect(descriptor['genres']!.relatedQuery).toBeUndefined()
   })
 
   it('follows a shared parameter $ref and reads the profile from its x-profile', () => {
-    const ref = { $ref: '#/components/parameters/relatedQuery' }
+    const ref = { $ref: '#/components/parameters/WidgetsRelatedQuery' }
     const doc = widgetsWith([ref], [ref], {
-      relatedQuery: relatedQueryParam('https://example.test/profiles/custom-relq/'),
+      WidgetsRelatedQuery: relatedQueryParam('https://example.test/profiles/custom-relq/', [
+        'parts',
+        'owner',
+      ]),
     })
     expect(buildDescriptor(doc)['widgets']!.relatedQuery).toEqual({
       operations: ['fetchMany', 'fetchOne'],
       profile: 'https://example.test/profiles/custom-relq/',
+      relations: ['parts', 'owner'],
     })
   })
 
-  it('names only the reads that advertise it', () => {
+  it('names only the operations that advertise it', () => {
     const doc = widgetsWith([], [relatedQueryParam('https://example.test/profiles/relq/')])
     expect(buildDescriptor(doc)['widgets']!.relatedQuery).toEqual({
       operations: ['fetchOne'],
       profile: 'https://example.test/profiles/relq/',
+      relations: [],
     })
   })
 
   it('omits relatedQuery when the parameter carries no x-profile', () => {
     const doc = widgetsWith([relatedQueryParam()], [relatedQueryParam()])
     expect(buildDescriptor(doc)['widgets']!.relatedQuery).toBeUndefined()
+  })
+
+  it('marks the related reads of monomorphic relations and leaves polymorphic ones out', () => {
+    expect(descriptor['tracks']!.relations['album']!.relatedQuery).toBe(true)
+    expect(descriptor['libraries']!.relations['items']!.relatedQuery).toBeUndefined()
+    expect(descriptor['favorites']!.relations['favoritable']!.relatedQuery).toBeUndefined()
+  })
+
+  it('records a type rendered only by related reads and actions with no operations of its own', () => {
+    const witness = buildDescriptor(loadFixture('contract-witness.json'))
+    expect(witness['videos']!.actions?.['credit']).toMatchObject({
+      outputType: 'credits',
+      relatedQuery: true,
+    })
+    expect(witness['credits']!.relatedQuery).toEqual({
+      operations: [],
+      profile: RELATIONSHIP_QUERIES_PROFILE,
+      relations: ['person'],
+    })
   })
 })
 
@@ -751,6 +786,7 @@ describe('buildDescriptor (music-catalog admin server)', () => {
       // the related read takes no sort and no filter.
       sortable: [],
       filterable: [],
+      relatedQuery: true,
     })
   })
 
@@ -1464,12 +1500,12 @@ describe('checkContract', () => {
     expect(checkContract(contractDoc(MINIMUM_CONTRACT))).toBeUndefined()
     expect(checkContract(contractDoc(MAXIMUM_CONTRACT))).toBeUndefined()
     expect(MINIMUM_CONTRACT).toBe(24)
-    expect(MAXIMUM_CONTRACT).toBe(36)
+    expect(MAXIMUM_CONTRACT).toBe(37)
   })
 
   it('warns about a newer contract and rejects an older one', () => {
-    expect(checkContract(contractDoc(37))).toContain(
-      'declares contract 37 and this codegen reads up to 36',
+    expect(checkContract(contractDoc(38))).toContain(
+      'declares contract 38 and this codegen reads up to 37',
     )
     // A document from before error shapes describes its codes in a way this codegen no longer reads.
     expect(() => checkContract(contractDoc(23))).toThrow('predates what this codegen reads')

@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 36. An older document is refused, because it describes its error codes in a form
+contracts 24 to 37. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -153,7 +153,7 @@ A few things the codegen reads from the document that affect the generated clien
   reads have no `filter[<key>]` parameter and no filter family gets `filterable: []` the
   same way. The client then types `sort` or `filter` on its `.get()`, `.related()` and
   `relatedQuery` entry as `never`, the way a collection that offers no sorting or filtering
-  is typed. A relation with neither a related nor a relationship read gets both empty
+  is typed. A to-one `relatedQuery` entry takes no `sort` whatever the descriptor records. A relation with neither a related nor a relationship read gets both empty
   lists, including a relation of a type that has no endpoints of its own, such as
   `credits.person` in the contract witness.
 - **Polymorphic relations.** A relation whose linkage is a union is marked
@@ -847,9 +847,15 @@ document's structure:
 - **`resourceCountable`** — the same for each operation answering with one resource that
   documents `withCount`, keyed `fetchOne`, `create` or `update`, with `_self_` left out of the
   tokens. Absent when none documents it.
-- **`relatedQuery`** — the reads that take the shared `relatedQuery` parameter, as
-  `operations` (`fetchMany`, `fetchOne` or both), and the Relationship Queries profile URI read
-  from its `x-profile`. Absent when neither read advertises it. See
+- **`relatedQuery`** — the `relatedQuery` parameter for resources of this type, read from the
+  `<Type>RelatedQuery` component the documents share between every operation answering with
+  them. `relations` lists the relations it addresses, the keys of the component schema's
+  `properties`. `operations` names the type's own operations that take it (`fetchMany`,
+  `fetchOne`, `create`, `update`), and is empty for a type only related reads or actions answer
+  with, such as `credits` in the contract witness. `profile` is the Relationship Queries profile
+  URI read from its `x-profile`. A relation over one type whose related read takes it carries
+  `relatedQuery: true`, and so does an action answering with a resource that takes it. Absent
+  when no operation documents it. See
   [relationship queries](filtering-and-sorting.md#relationship-queries).
 - **`actions`** — custom actions keyed by name, each carrying `scope`
   (`resource`/`collection`), `path`, `input` (`document`/`none`/`raw`) and
