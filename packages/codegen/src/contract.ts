@@ -4,7 +4,7 @@ import type { OpenApiDocument } from './openapi'
 export const MINIMUM_CONTRACT = 24
 
 /** Above this the document carries structures this codegen does not read. */
-export const MAXIMUM_CONTRACT = 37
+export const MAXIMUM_CONTRACT = 38
 
 /**
  * From this contract a non-enum component a field `$ref`s is a shape its author named, which the
