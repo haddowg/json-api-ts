@@ -30,6 +30,27 @@ the codegen, not a changelog: describe what the codegen reads and the client doe
 write which contract introduced it ("from generator contract 17…") in `docs/`, `CONTEXT.md`, this
 file or a code comment. The server's changelog records when it arrived.
 
+## Release passes
+
+A release ships only when its work is complete across every repo it touches: core
+(`haddowg/json-api`), the Symfony bundle, the Laravel adapter and json-api-ts. A feature,
+enhancement or fix is not released while it has open questions, known bugs or follow-up tasks.
+Related work found while building it, in any of those repos, belongs to the same pass. Separate
+PRs keep each change small and reviewable and merge when green, but the release PRs wait until
+the whole pass is polished.
+
+- Before releasing, every caveat, edge case and deferred item from the pass is either done or
+  decided. Each new rule has its consumers in step: documented parameters and the error codes
+  they cause, runtime behaviour in both adapters, the TS client types and the MCP.
+- Build the adapters against unreleased core locally, so Laravel parity and byte-compatibility
+  hold before core releases.
+- A generator contract bump ships with codegen and MCP already accepting it, released ahead of
+  the documents that carry it.
+- Release core, then the bundle, then Laravel, then json-api-ts, approving each release PR's
+  workflow runs and reviewing its generated output.
+- A released regression that blocks a consumer ships as a patch straight away, and it is complete
+  too: related bugs or gaps found while fixing it go into the same patch pass across every repo.
+
 ## Commits, PRs and merges
 
 release-please files each commit on `main` under every package whose files it changes, so how a PR
@@ -46,4 +67,7 @@ every package's notes, and a `BEGIN_COMMIT_OVERRIDE` block can't scope them per 
 - Mark a breaking change with `!` or a `BREAKING CHANGE:` footer only when the published
   API breaks for generated-client users. Tightening types that were too loose, which only affects
   hand-written descriptors or mocks, ships as a minor with a note in the commit body.
-- Never merge a release-please PR yourself; it publishes to npm.
+- A release-please PR publishes to npm. Merge it only as the last step of a complete release
+  pass, with its workflow runs approved and its generated output reviewed. It follows core, the
+  bundle and Laravel, except when codegen and MCP must accept a new generator contract: that
+  release goes out before the core release that carries the contract.
