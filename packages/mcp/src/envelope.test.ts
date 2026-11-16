@@ -188,6 +188,7 @@ describe('named links on a resource', () => {
       articles: ['publish', 'download'],
       credits: ['profile'],
       images: ['download', 'thumbnail'],
+      inboxes: ['mark-all-read'],
     })
   })
 

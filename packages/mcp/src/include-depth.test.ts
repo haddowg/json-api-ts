@@ -170,6 +170,8 @@ function formatTwo() {
             operation: op.operation,
             security: op.security,
             ...(op.scopes === undefined ? {} : { scopes: op.scopes }),
+            // A format 2 model stores each operation's security in full, its read's included.
+            ...(op.reads === undefined ? {} : { reads: op.reads }),
           },
         }
       }),

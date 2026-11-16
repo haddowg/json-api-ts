@@ -105,7 +105,7 @@ const fallback = {
  */
 describe('generator contract 31 (unions)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(38)
+    expect(witness.info?.['x-generator']?.contract).toBe(40)
     expect(checkContract(witness)).toBeUndefined()
   })
 
