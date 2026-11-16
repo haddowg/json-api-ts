@@ -136,6 +136,11 @@ describe('app smoke', () => {
     // reaching the store proves the id rode the body.
     expect(await screen.findByText('Ada Lovelace · ada@example.com')).toBeInTheDocument()
     expect(mockStore?.account().displayName).toBe('Ada Lovelace')
+    // The sidebar's own read, with its own fieldset, re-renders from the write-through patch the
+    // update's response makes, with no refetch.
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Account' })).toHaveTextContent('Ada Lovelace')
+    })
   })
 
   it('lists liked tracks by the polymorphic relation, dated ones unless asked for both', async () => {
