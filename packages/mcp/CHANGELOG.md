@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.25.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.24.0...json-api-mcp-v1.25.0) (2026-11-16)
+
+
+### Features
+
+* **mcp:** read generator contract 40 and serve singleton tools ([1152642](https://github.com/haddowg/json-api-ts/commit/1152642ef2dd021cc576533090b1c3a6b734bebc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.23.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.18.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.18.0
+
 ## [1.24.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.23.0...json-api-mcp-v1.24.0) (2026-11-13)
 
 
