@@ -6,7 +6,11 @@ import { type BuildModelOptions, buildMcpModel } from './build'
 import type { McpModel } from './model'
 import type { OpenApiDocument } from './openapi'
 
-type FixtureName = 'music-catalog' | 'music-catalog-admin' | 'contract-witness'
+type FixtureName =
+  | 'music-catalog'
+  | 'music-catalog-admin'
+  | 'contract-witness'
+  | 'contract-witness-baseline'
 
 const require = createRequire(import.meta.url)
 
@@ -15,6 +19,7 @@ const DOCUMENTS: Record<FixtureName, string> = {
   'music-catalog': '@haddowg/json-api-symfony-specs/music-catalog.openapi.json',
   'music-catalog-admin': '@haddowg/json-api-symfony-specs/music-catalog-admin.openapi.json',
   'contract-witness': '@haddowg/json-api-witness/contract-witness.json',
+  'contract-witness-baseline': '@haddowg/json-api-witness/contract-witness-baseline.json',
 }
 
 /** The installed path of a fixture document, from the exact version pinned at the root. */
@@ -146,68 +151,4 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
   )
   ;((out['info'] as Json)['x-generator'] as Json)['contract'] = 38
   return out as OpenApiDocument
-}
-
-/**
- * A copy of a document with the enums inside its `<Type>RelatedQuery` parameter components
- * written the way generator contract 39 writes them, and stamped 39. An inline enum repeating a
- * named enum component's values becomes `{ type, allOf: [{ $ref }] }`, the shape a top-level
- * filter parameter takes, and keeps its other keywords.
- */
-export function typeRelatedQueries(original: OpenApiDocument): OpenApiDocument {
-  const doc = structuredClone(original) as Json
-  const components = doc['components'] as Json
-  const schemas = (components['schemas'] ?? {}) as Record<string, Json>
-  const named = (values: unknown[]): string | undefined =>
-    Object.keys(schemas).find(
-      (name) => JSON.stringify(schemas[name]!['enum']) === JSON.stringify(values),
-    )
-  const visit = (node: unknown): unknown => {
-    if (Array.isArray(node)) return node.map(visit)
-    if (typeof node !== 'object' || node === null) return node
-    const n = node as Json
-    const values = n['enum']
-    const name = Array.isArray(values) ? named(values) : undefined
-    if (name !== undefined) {
-      const rest = Object.fromEntries(
-        Object.entries(n).filter(([key]) => key !== 'enum' && !key.startsWith('x-enum-')),
-      )
-      return { type: componentType(schemas[name]!), allOf: [{ $ref: PREFIX + name }], ...rest }
-    }
-    return Object.fromEntries(Object.entries(n).map(([key, value]) => [key, visit(value)]))
-  }
-  const parameters = (components['parameters'] ?? {}) as Record<string, Json>
-  for (const [name, parameter] of Object.entries(parameters)) {
-    if (name.endsWith('RelatedQuery')) {
-      parameter['schema'] = visit(parameter['schema'])
-    }
-  }
-  ;((doc['info'] as Json)['x-generator'] as Json)['contract'] = 39
-  return doc as OpenApiDocument
-}
-
-/**
- * A copy of a witness with core's `inboxes` singleton added, stamped 40: the `/inbox` paths and
- * `Inboxes*` components the codegen's tests cut from the witness of haddowg/json-api#369.
- */
-export function withInbox(original: OpenApiDocument): OpenApiDocument {
-  const inbox = JSON.parse(
-    readFileSync(new URL('../../codegen/test/inbox-singleton.json', import.meta.url), 'utf8'),
-  ) as { paths: Json; schemas: Json; parameters: Json }
-  const doc = structuredClone(original) as Json
-  ;(doc['info'] as Json)['x-generator'] = { contract: 40 }
-  Object.assign(doc['paths'] as Json, inbox.paths)
-  const components = doc['components'] as Json
-  Object.assign(components['schemas'] as Json, inbox.schemas)
-  Object.assign(components['parameters'] as Json, inbox.parameters)
-  const schemas = components['schemas'] as Record<string, Json>
-  const union = (node: Json, ref: string): void => {
-    ;(node['oneOf'] as Json[]).push({ $ref: ref })
-    ;((node['discriminator'] as Json)['mapping'] as Json)['inboxes'] = ref
-  }
-  const result = ((schemas['AtomicResult']!['properties'] as Json)['data'] as Json)['anyOf']
-  union((result as Json[])[0]!, '#/components/schemas/InboxesResource')
-  const update = (schemas['AtomicUpdateOperation']!['properties'] as Json)['data'] as Json
-  union(update, '#/components/schemas/InboxesAtomicUpdate')
-  return doc as OpenApiDocument
 }
