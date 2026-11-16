@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.23.0...json-api-client-v1.24.0) (2026-11-16)
+
+
+### Features
+
+* **client:** take numbers and booleans in a list filter ([bfba258](https://github.com/haddowg/json-api-ts/commit/bfba258d5c06554bc4183f5912ba2966611eb185))
+
 ## [1.23.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.22.0...json-api-client-v1.23.0) (2026-11-16)
 
 
