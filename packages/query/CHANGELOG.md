@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.6.0...json-api-query-v1.7.0) (2026-11-16)
+
+
+### Features
+
+* **query:** read and write singleton types without an id ([8b0b7f2](https://github.com/haddowg/json-api-ts/commit/8b0b7f249efcd9e05fc80cde6f6841196f4a3714))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.23.0
+
 ## [1.6.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.5.0...json-api-query-v1.6.0) (2026-11-13)
 
 

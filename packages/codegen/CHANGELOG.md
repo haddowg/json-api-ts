@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.18.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.17.0...json-api-codegen-v2.18.0) (2026-11-16)
+
+
+### Features
+
+* **codegen:** read generator contract 40 and singleton types ([c0f1abb](https://github.com/haddowg/json-api-ts/commit/c0f1abb352960adf0ce6cb64068ad0114cc4c150))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.23.0
+
 ## [2.17.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.16.1...json-api-codegen-v2.17.0) (2026-11-13)
 
 

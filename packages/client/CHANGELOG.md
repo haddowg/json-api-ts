@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.22.0...json-api-client-v1.23.0) (2026-11-16)
+
+
+### Features
+
+* **client:** reach singleton types without an id ([19ebeae](https://github.com/haddowg/json-api-ts/commit/19ebeae2f5cddcd0757efba4cc58360b5fb35236))
+
 ## [1.22.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.21.0...json-api-client-v1.22.0) (2026-11-13)
 
 
