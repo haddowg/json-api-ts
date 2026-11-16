@@ -687,7 +687,7 @@ describe('emit (related page limits and kinds)', () => {
   it('nests a related strategy menu by kind and lists the default kind first', () => {
     const out = withPage({ '/playlists/{id}/tracks': menuPage })
     const limits = constBody(out, 'relatedPageLimits')
-    const start = limits.indexOf('    tracks: {', limits.indexOf('  playlists: {'))
+    const start = limits.indexOf('    tracks: {', limits.indexOf('\n  playlists: {'))
     const tracks = limits.slice(start, limits.indexOf('\n    },', start))
     expect(tracks).toContain('      cursor: {')
     expect(tracks).toContain('        size: { default: 20, maximum: 40 },')
@@ -721,7 +721,7 @@ describe('emit (related page limits and kinds)', () => {
     const out = withPage(
       Object.fromEntries(
         Object.keys(doc.paths!)
-          .filter((path) => /^\/[^/]+\/\{id\}\/[^/]+$/.test(path) && doc.paths![path]!.get)
+          .filter((path) => doc.paths![path]!.get?.operationId?.startsWith('fetchRelated.'))
           .map((path) => [path, undefined]),
       ),
     )

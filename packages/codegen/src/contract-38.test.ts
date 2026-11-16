@@ -30,7 +30,7 @@ function parameter(doc: OpenApiDocument, path: string, name: string): Json {
  */
 describe('generator contract 38 (witness references to named value shapes)', () => {
   it('reads a document stamped 38 without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(38)
+    expect(witness.info?.['x-generator']?.contract).toBe(40)
     expect(checkContract(witness)).toBeUndefined()
   })
 
