@@ -35,6 +35,7 @@ import type {
   RelationReadQuery,
   RelationshipAccessor,
   ResourceHandle,
+  SingletonAccessor,
   TypeAccessor,
 } from './result-types'
 import {
@@ -743,7 +744,8 @@ function actionsAccessor(
 }
 
 /**
- * Build the relationship accessor for `client.<type>.id(id).<rel>`: reads
+ * Build the relationship accessor for `client.<type>.id(id).<rel>`, or a singleton's
+ * `client.<type>.<rel>` with no `id` in `vars`: reads
  * (`.get()` linkage / `.related()` collection) plus mutations — to-many `.add` (POST) /
  * `.remove` (DELETE) / `.replace` (PATCH) and to-one `.set` (PATCH). Every mutation posts
  * a `{ data: <linkage> }` body to `fetchRelationship` and materialises the response as
@@ -753,10 +755,10 @@ function actionsAccessor(
 function relationshipAccessor(
   ctx: ClientContext,
   type: string,
-  id: string,
+  owner: Record<string, string>,
   rel: string,
 ): RelationshipAccessor<ApiDescriptor, unknown, string, never> {
-  const vars = { id, rel }
+  const vars = { ...owner, rel }
   const relation = ctx.descriptor[type]?.relations[rel]
   const cardinality = relation?.cardinality ?? 'many'
   const hasPivot = relation?.pivot === true
@@ -829,50 +831,106 @@ export const HANDLE_RESERVED: ReadonlySet<string> = new Set([
   'then',
 ])
 
+/**
+ * Run a type's update. `vars` fill its path (`{ id }`, or nothing for a singleton) and `id` is
+ * the one the body carries.
+ */
+function runUpdate(
+  ctx: ClientContext,
+  type: string,
+  vars: Record<string, string>,
+  id: string,
+  patch: Record<string, unknown>,
+  opts: WriteOpts | undefined,
+): Promise<unknown> {
+  return runWrite(ctx, {
+    type,
+    operation: 'update',
+    vars,
+    method: 'PATCH',
+    body: toDocument(ctx.descriptor, type, patch, { id }),
+    query: writeQuery(opts),
+    remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+    accepted: ctx.descriptor[type]?.accepted?.update,
+    wait: waitOptions(opts?.wait),
+  })
+}
+
+/**
+ * Wrap a handle's verbs in a Proxy resolving each relation not shadowed by a reserved member to
+ * its relationship accessor, addressed by `vars`.
+ */
+function withRelations<T extends object>(
+  ctx: ClientContext,
+  type: string,
+  vars: Record<string, string>,
+  base: T,
+): T {
+  const relations = ctx.descriptor[type]?.relations ?? {}
+  return new Proxy(base, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && !HANDLE_RESERVED.has(prop) && prop in relations) {
+        return relationshipAccessor(ctx, type, vars, prop)
+      }
+      return Reflect.get(target, prop, receiver)
+    },
+  })
+}
+
 /** Build the id-scoped resource handle (a Proxy resolving relation accessors by name). */
 function resourceHandle(
   ctx: ClientContext,
   type: string,
   id: string,
 ): ResourceHandle<ApiDescriptor, unknown, unknown, string> {
-  const relations = ctx.descriptor[type]?.relations ?? {}
-  const base = {
+  const vars = { id }
+  return withRelations(ctx, type, vars, {
     type,
     id,
-    get: (query?: ReadQuery) => run(ctx, type, 'fetchOne', { id }, query),
+    get: (query?: ReadQuery) => run(ctx, type, 'fetchOne', vars, query),
     update: (patch: Record<string, unknown>, opts?: WriteOpts) =>
-      runWrite(ctx, {
-        type,
-        operation: 'update',
-        vars: { id },
-        method: 'PATCH',
-        body: toDocument(ctx.descriptor, type, patch, { id }),
-        query: writeQuery(opts),
-        remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
-        accepted: ctx.descriptor[type]?.accepted?.update,
-        wait: waitOptions(opts?.wait),
-      }),
+      runUpdate(ctx, type, vars, id, patch, opts),
     delete: () =>
       runWrite(ctx, {
         type,
         operation: 'delete',
-        vars: { id },
+        vars,
         method: 'DELETE',
         body: undefined,
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
       }) as never,
-    rel: (name: string) => relationshipAccessor(ctx, type, id, name),
-    actions: actionsAccessor(ctx, type, 'resource', { id }),
-  }
-
-  return new Proxy(base, {
-    get(target, prop, receiver) {
-      if (typeof prop === 'string' && !HANDLE_RESERVED.has(prop) && prop in relations) {
-        return relationshipAccessor(ctx, type, id, prop)
-      }
-      return Reflect.get(target, prop, receiver)
-    },
+    rel: (name: string) => relationshipAccessor(ctx, type, vars, name),
+    actions: actionsAccessor(ctx, type, 'resource', vars),
   }) as unknown as ResourceHandle<ApiDescriptor, unknown, unknown, string>
+}
+
+/**
+ * Build the accessor of a singleton type (`client.inboxes`): a handle on the caller's one
+ * resource, whose paths carry no id. Its update takes the resource's `id` in the input, since
+ * the server reads it from the body.
+ */
+function singletonAccessor(
+  ctx: ClientContext,
+  type: string,
+): SingletonAccessor<ApiDescriptor, unknown, unknown, string> {
+  const vars = {}
+  return withRelations(ctx, type, vars, {
+    type,
+    get: (query?: ReadQuery) => run(ctx, type, 'fetchOne', vars, query),
+    update: (input: Record<string, unknown>, opts?: WriteOpts) => {
+      const { id, ...patch } = input
+      if (typeof id !== 'string' || id === '') {
+        return Promise.reject(
+          new Error(
+            `Updating the "${type}" singleton needs its id in the input, such as the id of the resource its get() read.`,
+          ),
+        )
+      }
+      return runUpdate(ctx, type, vars, id, patch, opts)
+    },
+    rel: (name: string) => relationshipAccessor(ctx, type, vars, name),
+    actions: actionsAccessor(ctx, type, 'resource', vars),
+  }) as unknown as SingletonAccessor<ApiDescriptor, unknown, unknown, string>
 }
 
 /** Build the collection-scoped accessor for one wire type (`client.albums`). */
@@ -903,7 +961,8 @@ function typeAccessor(
 
 /**
  * Build a descriptor-driven read client. Generic at runtime (a Proxy over the descriptor),
- * not per-type codegen: `client.<type>` yields a {@link TypeAccessor}, `.id(id)` a handle,
+ * not per-type codegen: `client.<type>` yields a {@link TypeAccessor}, or a
+ * {@link SingletonAccessor} for a singleton type, `.id(id)` a handle,
  * and a handle's relation accessors drive the relationship/related endpoints. Navigation
  * (`$next()`/`$prev()`, related links) is wired through `materialise`'s `navigate` seam,
  * which resolves the server's link against `baseUrl`, executes it and re-materialises.
@@ -964,7 +1023,11 @@ export function createClient<
     )
   }
 
-  const accessors = new Map<string, TypeAccessor<ApiDescriptor, unknown, unknown, string>>()
+  const accessors = new Map<
+    string,
+    | TypeAccessor<ApiDescriptor, unknown, unknown, string>
+    | SingletonAccessor<ApiDescriptor, unknown, unknown, string>
+  >()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
       if (prop === 'atomic') {
@@ -975,7 +1038,10 @@ export function createClient<
       }
       let accessor = accessors.get(prop)
       if (accessor === undefined) {
-        accessor = typeAccessor(ctx, prop)
+        accessor =
+          descriptor[prop]?.singleton === true
+            ? singletonAccessor(ctx, prop)
+            : typeAccessor(ctx, prop)
         accessors.set(prop, accessor)
       }
       return accessor

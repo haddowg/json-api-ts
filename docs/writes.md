@@ -69,6 +69,20 @@ updated.title // 'OK Computer (Remaster)'
 
 The handle's `id` always wins as the document id, so you never repeat it in the patch body. Omitted keys are left untouched server-side (JSON:API PATCH semantics). The input is typed as a `Partial` of the type's write attributes.
 
+### Updating a singleton
+
+A [singleton](reads.md#singletons) is updated at its own path, `PATCH /inbox`, but the request
+body still carries the resource's id, and the server rejects a body without it. The accessor has no
+id to put there, so the input takes it, usually from the resource a read returned:
+
+```ts
+const inbox = await client.inboxes.get()
+await client.inboxes.update({ id: inbox.id, seenUpTo: new Date().toISOString() })
+```
+
+`id` is required in the input's type, and a call without one rejects before it sends anything. The
+client never reads the resource to find the id for you, so an update is one request.
+
 ## Writes accepted for later
 
 A server can accept a create or update for later and answer `202 Accepted` with a job to poll. The codegen reads the `202` from the spec, so only the writes that declare one change type: they resolve to their usual result or an `Accepted` job, and `isAccepted()` tells them apart.
