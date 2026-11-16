@@ -86,10 +86,22 @@ export interface McpOperation {
    */
   security: readonly SecurityRequirement[]
   /**
+   * The operation the tool calls first, when it makes a call before this one: a singleton's
+   * update reads the resource to learn the id its body needs. The tool is listed only for a
+   * caller who may make both calls, so `security` is the read's own, else the document's.
+   */
+  reads?: McpPrecedingRead
+  /**
    * The OAuth scopes the operation needs, as the descriptor carries them (generator contract
    * 16): the ones its `security` lists under an `oauth2` scheme. Absent when it needs none.
    */
   scopes?: readonly string[]
+}
+
+/** A call a tool makes before its own operation, which the caller must be allowed too. */
+export interface McpPrecedingRead {
+  operationId: string
+  security: readonly SecurityRequirement[]
 }
 
 /** What the host's capabilities resource says about one operation for this caller. */

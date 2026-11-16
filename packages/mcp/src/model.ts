@@ -49,6 +49,11 @@ export interface McpModelOperation {
    */
   security?: readonly SecurityRequirement[]
   /**
+   * The operation the tool calls first, as {@link McpOperation.reads} describes it, with its
+   * `security` absent when the read declares none, as above.
+   */
+  reads?: { operationId: string; security?: readonly SecurityRequirement[] }
+  /**
    * Formats 1 and 2: the OAuth scopes the descriptor says the operation needs. From format 3
    * the runtime reads them from the descriptor.
    */
@@ -173,7 +178,8 @@ export function assertModel(value: unknown): McpModel {
 export function inferCredentialSchemes(model: McpModel): string[] {
   const schemes = new Set<string>()
   for (const tool of model.tools) {
-    for (const requirement of tool.operation.security ?? []) {
+    const security = [...(tool.operation.security ?? []), ...(tool.operation.reads?.security ?? [])]
+    for (const requirement of security) {
       for (const [scheme, scopes] of Object.entries(requirement)) {
         if (scopes.length > 0) schemes.add(scheme)
       }

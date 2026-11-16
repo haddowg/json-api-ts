@@ -218,6 +218,16 @@ export function buildCatalogue(
         operation,
         includes: capIncludePaths(includePaths(doc, operation), includeDepth),
       }
+      if (parsed.kind === 'update' && resource.singleton === true) {
+        // The update tool reads the singleton first for the id its body needs.
+        const read = readOperation(doc, resource.paths['fetchOne'])
+        if (read?.operationId !== undefined) {
+          op.reads = {
+            operationId: read.operationId,
+            security: read.security ?? doc.security ?? [],
+          }
+        }
+      }
       const built = buildEntry(op, parsed, inputCtx, outputCtx, descriptor, overrides)
       if (typeof built === 'string') {
         skipped.push({ operationId, reason: built })
@@ -233,6 +243,14 @@ export function buildCatalogue(
   return { entries, skipped, resourceLinks }
 }
 
+/** The `GET` operation at a path of the document, such as a singleton's single read. */
+export function readOperation(
+  doc: OpenApiDocument,
+  path: string | undefined,
+): OperationObject | undefined {
+  return path === undefined ? undefined : doc.paths?.[path]?.get
+}
+
 function buildEntry(
   op: McpOperation,
   parsed: ParsedOperationId,
@@ -245,6 +263,8 @@ function buildEntry(
   let output: JsonSchema | undefined
   let result: ResultShape
   let key: string | undefined
+  // A singleton's paths carry no id, so neither do its tools.
+  const singleton = op.resource.singleton === true
 
   switch (parsed.kind) {
     case 'list':
@@ -253,7 +273,10 @@ function buildEntry(
       result = 'collection'
       break
     case 'get':
-      input = singleInput(inputCtx, `The id of the \`${op.type}\` resource to get.`)
+      input = singleInput(
+        inputCtx,
+        singleton ? undefined : `The id of the \`${op.type}\` resource to get.`,
+      )
       output = resourceOutput(outputCtx, [op.type])
       result = 'item'
       break
@@ -285,7 +308,7 @@ function buildEntry(
         input = collectionInput(
           inputCtx,
           paginator,
-          { type: op.type, relation: parsed.relation! },
+          singleton ? undefined : { type: op.type, relation: parsed.relation! },
           relation.countable,
         )
         output = collectionOutput(outputCtx, relation.types)
@@ -293,7 +316,9 @@ function buildEntry(
       } else {
         input = singleInput(
           inputCtx,
-          `The id of the \`${op.type}\` resource whose ${parsed.relation} to get.`,
+          singleton
+            ? undefined
+            : `The id of the \`${op.type}\` resource whose ${parsed.relation} to get.`,
         )
         output = resourceOutput(
           outputCtx,
