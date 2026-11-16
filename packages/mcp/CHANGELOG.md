@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.26.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.25.1...json-api-mcp-v1.26.0) (2026-11-16)
+
+
+### Features
+
+* **mcp:** say an included to-many is its first page ([00f43f3](https://github.com/haddowg/json-api-ts/commit/00f43f309495a0d665e848001d74823615eccf83))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.25.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.19.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.19.0
+
 ## [1.25.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.25.0...json-api-mcp-v1.25.1) (2026-11-16)
 
 
