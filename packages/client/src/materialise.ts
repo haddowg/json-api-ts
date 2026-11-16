@@ -314,15 +314,15 @@ function hydrateRelation(
   const data = rel.data
 
   if (Array.isArray(data)) {
-    const members = (data as RawResource[]).map((member) =>
-      resolveMember(member, env, index, nodes, ctx),
-    )
-    return augmentRelationArray(members, rel, related, ctx)
+    const raws = data as RawResource[]
+    const members = raws.map((member) => resolveMember(member, env, index, nodes, ctx))
+    const hydrated = raws.some((member) => index.has(key(member.type, member.id)))
+    return augmentRelationArray(members, rel, related, ctx, hydrated)
   }
 
   // A declared to-many with no array yet (count-free / lazy) still reads as an array.
   if (data === undefined && cardinality === 'many') {
-    return augmentRelationArray([], rel, related, ctx)
+    return augmentRelationArray([], rel, related, ctx, false)
   }
 
   if (data === null || data === undefined) {
@@ -505,20 +505,51 @@ function augmentArray(
  * `paginator` is the relation's (so an in-document compound-include to-many reports the same
  * discriminant it would when fetched at its own relationship/related endpoint — "one model,
  * three surfaces").
+ *
+ * A rendered to-many holds only its first page, and its page links usually address the
+ * relationship endpoint, which answers with identifiers. So `$next()`/`$prev()` keep the shape the
+ * array has: an included (`hydrated`) array reads the same page from the related endpoint, which
+ * answers with the resources, and an array of identifiers reads the page as linkage.
  */
 function augmentRelationArray(
   members: object[],
   rel: RawRelationship,
   paginator: ResolvedPaginator,
   ctx: MaterialiseContext,
+  hydrated: boolean,
 ): object[] {
   const arr = [...members]
   const links = rel.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => rel.meta)
   defineGetter(arr, '$count', () => relationTotal(rel))
-  attachPage(arr, paginator, pageMeta(rel.meta), links, ctx, false)
+  attachPage(
+    arr,
+    paginator,
+    pageMeta(rel.meta),
+    links,
+    ctx,
+    !hydrated,
+    hydrated ? (link) => relatedPageLink(link, links) : undefined,
+  )
   return arr
+}
+
+/**
+ * A relationship page link moved to the related endpoint: a link addressing the relationship's
+ * `self` path takes its `related` path and keeps its query, so it reads the same page as
+ * resources. Any other link, such as one already addressing the related endpoint, is unchanged.
+ */
+function relatedPageLink(link: string, links: Record<string, unknown> | undefined): string {
+  const self = linkHref(links?.['self'])
+  const related = linkHref(links?.['related'])
+  if (self === undefined || related === undefined) {
+    return link
+  }
+  const at = link.indexOf('?')
+  const path = at < 0 ? link : link.slice(0, at)
+  const selfPath = self.split('?')[0]
+  return path === selfPath ? `${related.split('?')[0]}${at < 0 ? '' : link.slice(at)}` : link
 }
 
 /** Attach `$page` + `$next()`/`$prev()` driven by link presence (count-free-safe). */
@@ -529,17 +560,16 @@ function attachPage(
   links: Record<string, unknown> | undefined,
   ctx: MaterialiseContext,
   linkage: boolean,
+  follow: (link: string) => string = (link) => link,
 ): void {
   const page: Page = { kind: paginator.kind, keys: paginator.keys, links: pageLinks(links) }
   if (paginator.arm !== undefined) page.arm = paginator.arm
   if (meta !== undefined) page.meta = meta
   defineGetter(arr, '$page', () => page)
-  define(arr, '$next', (options?: NavigateOptions) =>
-    navigateLink(page.links.next, ctx, linkage, paginator, options?.signal),
-  )
-  define(arr, '$prev', (options?: NavigateOptions) =>
-    navigateLink(page.links.prev, ctx, linkage, paginator, options?.signal),
-  )
+  const go = (link: string | undefined, signal: AbortSignal | undefined) =>
+    navigateLink(link === undefined ? undefined : follow(link), ctx, linkage, paginator, signal)
+  define(arr, '$next', (options?: NavigateOptions) => go(page.links.next, options?.signal))
+  define(arr, '$prev', (options?: NavigateOptions) => go(page.links.prev, options?.signal))
 }
 
 const navigateLink = (
