@@ -118,6 +118,12 @@ The id-scoped accessor `client.<type>.id(id)`, which reads, writes and opens rel
 fetching anything first.
 _Avoid_: reference, proxy
 
+**Singleton accessor**:
+`client.<type>` for a singleton type, whose one resource per caller is served at a path with no
+id: a handle with no `id`, no `delete` and no type accessor beside it. Its update takes the id the
+request body needs in the input.
+_Avoid_: singleton handle
+
 **Relationship accessor**:
 The object `.rel(name)` returns from a handle, carrying a relation's reads and mutation verbs.
 
