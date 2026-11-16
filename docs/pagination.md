@@ -220,7 +220,7 @@ tracks.length     // 2
 tracks.$page.kind // 'page'
 ```
 
-`$next()` / `$prev()` work on a related collection too, following the relation-endpoint links. See [reads](reads.md) for the full related-read surface and [includes-and-sparse-fieldsets](includes-and-sparse-fieldsets.md) for hydrating relations in one round-trip instead.
+`$next()` / `$prev()` work on a related collection too, following the relation-endpoint links. They work on a to-many a resource renders as well, which holds only its first page; see [an included to-many is its first page](includes-and-sparse-fieldsets.md#an-included-to-many-is-its-first-page). `loadAll(collection)` follows `next` from any of these until the last page. See [reads](reads.md) for the full related-read surface and [includes-and-sparse-fieldsets](includes-and-sparse-fieldsets.md) for hydrating relations in one round-trip instead.
 
 !!! warning "One model, three surfaces"
     The same augmented-array model backs top-level collections, related-endpoint collections, and to-many relation values hydrated in a compound document. So `$page` behaves consistently wherever a to-many array appears — but a related array reports the *relation's* declared paginator, which can diverge from the related type's collection paginator. The descriptor carries the per-relation kind precisely so the discriminant is right on every surface.

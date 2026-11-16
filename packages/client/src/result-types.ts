@@ -761,7 +761,10 @@ export interface TypedReadQuery<
   Pg extends ListPageParams<D, T> | undefined = ListPageParams<D, T> | undefined,
   Cnt extends readonly CountToken<D, T>[] = readonly CountToken<D, T>[],
 > {
-  /** The relations to include — drives static narrowing; constrained to the advertised paths. */
+  /**
+   * The relations to include — drives static narrowing; constrained to the advertised paths. An
+   * included to-many holds the first page of its members; `$next()` and `loadAll` read the rest.
+   */
   include?: Inc
   /** Filter the collection — keys constrained to the type's advertised `filter[...]` params. */
   filter?: FilterQuery<D, T>
@@ -806,7 +809,10 @@ export interface SingleReadQuery<
     'fetchOne'
   >[],
 > {
-  /** The relations to include — drives static narrowing; constrained to the advertised paths. */
+  /**
+   * The relations to include — drives static narrowing; constrained to the advertised paths. An
+   * included to-many holds the first page of its members; `$next()` and `loadAll` read the rest.
+   */
   include?: Inc
   /** Sparse fieldsets per type — drives return-type narrowing (unrequested members are absent). */
   fields?: F

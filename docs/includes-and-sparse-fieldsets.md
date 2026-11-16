@@ -83,7 +83,34 @@ included). A to-many you include is a `Collection` of hydrated members — the s
 model used for top-level collections, so it still carries `$page` / `$links` / `$meta` and
 `$next()` / `$prev()`. A to-many you *don't* include stays a `Collection`, but of identifiers.
 
-This is exactly what the spotify-clone's album page does — the album, its artist, and its full
+### An included to-many is its first page
+
+A paginated to-many renders only the **first page** of its members, whether you include it or
+the server renders its linkage anyway. The relationship object carries the links to the other
+pages, `first`, `next` and, on a counted page, `last`, and a countable relation's `meta.total`.
+So `album.tracks` may be the first two of twelve tracks: read its size from `$count`, not
+`length`, and don't treat the array as the whole set.
+
+```ts
+// GET /albums/1?include=tracks&withCount=tracks
+const album = await client.albums.get('1', { include: ['tracks'], withCount: ['tracks'] })
+
+album.tracks.length       // 2, the first page
+album.tracks.$count       // 12, the relationship's meta.total
+album.tracks.$page.links  // { first, next, last }
+
+const more = await album.tracks.$next() // the second page, as Track resources
+const all = await loadAll(album.tracks) // every track, following each next link
+```
+
+`$next()` and `$prev()` return the page in the shape the array has. The page links address the
+relationship endpoint, which answers with identifiers, so an included array reads its next page
+from the related endpoint instead, with the same page query, and gets resources. That page carries
+none of the original request's nested includes. An array of identifiers reads its next page as
+linkage. `loadAll`, from `@haddowg/json-api-client`, follows `next` from any collection until the
+last page, and takes a `signal` and a `maxPages` guard.
+
+This is exactly what the spotify-clone's album page does — the album, its artist, and its
 tracklist in a single compound read:
 
 ```ts
