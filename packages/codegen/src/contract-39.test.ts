@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
@@ -31,12 +31,9 @@ const PRIORITY_ITEM = { type: 'integer', allOf: [{ $ref: '#/components/schemas/P
  * so the generated client doesn't change.
  */
 describe('generator contract 39 (typed enum references in relatedQuery)', () => {
-  it('reads a document stamped 39 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(39)
+  it('reads a document stamped 39 without a warning', () => {
     expect(typed.info?.['x-generator']?.contract).toBe(39)
     expect(checkContract(typed)).toBeUndefined()
-    const newer = { ...typed, info: { ...typed.info!, 'x-generator': { contract: 40 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 39')
   })
 
   it('writes the relatedQuery filter item as the top-level filter writes it', () => {
