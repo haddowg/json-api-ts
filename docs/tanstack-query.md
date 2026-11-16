@@ -103,6 +103,25 @@ queryClient.invalidateQueries({ queryKey: typeKey('albums') }) // every albums r
 queryClient.invalidateQueries({ queryKey: resourceKey('albums', '1') }) // one album's reads
 ```
 
+A [singleton](reads.md#singletons) is addressed without an id, so its keys leave it out:
+`[type, 'fetchOne', params?]` for its read and `[type, 'fetchRelated', rel, params?]` for a
+relation. The factories take `undefined` for its id, which the types allow only for a singleton,
+and the bound API drops the argument, as the client does:
+
+```ts
+const api = createQueryApi(client)
+api.inboxes.get()               // key ['inboxes', 'fetchOne']
+api.inboxes.related('owner')    // key ['inboxes', 'fetchRelated', 'owner']
+getQueryOptions(client, 'inboxes', undefined) // the same read, standalone
+
+const mutations = createMutationApi(queryClient, client, resourceMap)
+mutations.inboxes.update({ optimistic: true }) // mutate({ id: inbox.id, seenUpTo })
+```
+
+The update's variables carry the resource's `id`, as the client's singleton update does, and an
+optimistic update patches the resource that id names. `singletonRelationReadKeys(type, rel)` gives
+a singleton relation's two read prefixes.
+
 You rarely build a key yourself — the factories embed the right key, and normalisation drives invalidation from mutations. The helpers (`keyFor`, `typeKey`, `operationKey`, `resourceKey`, `relationKey`, `relationReadKeys`, `normalizeParams`) are exported for the cases where you need a targeted invalidation of your own.
 
 ## Normalisation: `type:id` write-through patching
