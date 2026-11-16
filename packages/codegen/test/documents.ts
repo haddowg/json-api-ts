@@ -15,6 +15,7 @@ const DOCUMENTS = {
   'music-catalog-admin.schemas.json':
     '@haddowg/json-api-symfony-specs/music-catalog-admin.schemas.json',
   'contract-witness.json': '@haddowg/json-api-witness/contract-witness.json',
+  'contract-witness-baseline.json': '@haddowg/json-api-witness/contract-witness-baseline.json',
 } as const
 
 export type DocumentName = keyof typeof DOCUMENTS

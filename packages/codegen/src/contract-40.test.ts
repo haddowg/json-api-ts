@@ -9,12 +9,12 @@ import { checkContract, MAXIMUM_CONTRACT } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
-import { withInbox } from '../test/singleton'
 
-const witness = JSON.parse(
-  readFileSync(documentPath('contract-witness.json'), 'utf8'),
-) as OpenApiDocument
-const singleton = withInbox(witness)
+const load = (name: 'contract-witness.json' | 'contract-witness-baseline.json') =>
+  JSON.parse(readFileSync(documentPath(name), 'utf8')) as OpenApiDocument
+const singleton = load('contract-witness.json')
+// Core's second witness leaves out every structure only some documents carry, the singleton too.
+const baseline = load('contract-witness-baseline.json')
 
 const scratch = mkdtempSync(join(tmpdir(), 'json-api-singleton-'))
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
@@ -108,10 +108,11 @@ describe('generator contract 40 (singleton types)', () => {
     })
   })
 
-  it('leaves every other type as it was', () => {
-    const { inboxes, ...others } = buildDescriptor(singleton)
-    expect(inboxes).toBeDefined()
-    expect(others).toEqual(buildDescriptor(witness))
+  it('marks no type of a document without a singleton', () => {
+    expect(baseline.info?.['x-generator']?.contract).toBe(39)
+    const descriptor = buildDescriptor(baseline)
+    expect(descriptor['inboxes']).toBeUndefined()
+    expect(Object.values(descriptor).some((type) => type.singleton !== undefined)).toBe(false)
   })
 
   it('generates the singleton beside the other types', () => {

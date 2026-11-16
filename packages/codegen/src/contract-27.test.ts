@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import type { FilterQuery, TransportRequest } from '@haddowg/json-api-client'
+import type { FilterQuery, ListFilterMember, TransportRequest } from '@haddowg/json-api-client'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient, type resourceMap } from '../test/generated/contract-witness.client.gen'
 import { buildDescriptor } from './build-descriptor'
@@ -45,7 +45,7 @@ describe('generator contract 27 (list filters and filter families)', () => {
   const articles = descriptor['articles']!
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(38)
+    expect(witness.info?.['x-generator']?.contract).toBe(40)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -92,7 +92,7 @@ describe('generator contract 27 (list filters and filter families)', () => {
 
   it('types a list filter as a list and a family key by its prefix', () => {
     type Filter = FilterQuery<typeof resourceMap, 'articles'>
-    expectTypeOf<NonNullable<Filter['columns']>>().toEqualTypeOf<readonly string[]>()
+    expectTypeOf<NonNullable<Filter['columns']>>().toEqualTypeOf<readonly ListFilterMember[]>()
     expectTypeOf<Filter['status']>().toEqualTypeOf<unknown>()
     expectTypeOf<NonNullable<Filter[`value.${string}`]>>().toEqualTypeOf<readonly string[]>()
     expectTypeOf<NonNullable<Filter[`meta.${string}`]>>().toEqualTypeOf<string>()
