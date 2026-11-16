@@ -33,6 +33,8 @@ function withDefaultOrder(
 
 const TAGS_DOC = [
   '      /**',
+  "       * Its `data`, when present, is the first page of the relationship's members in the order its related endpoint serves them, its `links` reach the other pages, and a countable relation's `meta.total` is the member count when that page is counted.",
+  '       *',
   '       * Without a `sort`, the server reads its members ordered by `label`, then `-id`.',
   '       *',
   '       * OAuth scopes:',

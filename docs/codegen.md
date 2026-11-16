@@ -132,6 +132,11 @@ A few things the codegen reads from the document that affect the generated clien
   parameter on its related and relationship reads. The relation's JSDoc names it, for
   example "Without a `sort`, the server reads its members ordered by `position`". The
   client sends nothing for it, since the server applies the order either way.
+- **Relationship descriptions.** A relationship object's description, the one beside its
+  `$ref` on the resource or its `<Type><Rel>Relationship` component's, opens the relation's
+  JSDoc. A paginated to-many's says its `data` is the
+  [first page](includes-and-sparse-fieldsets.md#an-included-to-many-is-its-first-page) of its
+  members, so a hover on `resourceMap.albums.relations.tracks` shows it.
 - **Sort and filter docs.** What each described sort key orders by, read from the `sort`
   parameter's `x-sort-descriptions`, goes into the TSDoc on `sortable`. A sort or filter
   family's description goes on its entry in `sortFamilies` or `filterFamilies`, with a
