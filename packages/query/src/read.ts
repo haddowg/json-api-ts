@@ -64,10 +64,15 @@ type LinkageResult<
  * zero-arg `queryFn` resolving the materialised result `R`. Structurally assignable to
  * `query-core`'s `QueryOptions`/`UseQueryOptions` (the user merges in `staleTime` etc.), so the
  * binding needn't import or re-export query-core's option type — it stays a peer.
+ *
+ * `structuralSharing` is off. A materialised value carries non-enumerable accessors such as
+ * `$page`, `$next` and `$self`, and TanStack's structural sharing rebuilds a value that changed on
+ * refetch as plain arrays and objects, which drops them.
  */
 export interface QueryOptions<R> {
   queryKey: QueryKey
   queryFn: () => Promise<R>
+  structuralSharing: false
 }
 
 /**
@@ -183,6 +188,7 @@ export function listQueryOptions<
   const accessor = readsOf(client, type)
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
+    structuralSharing: false,
     queryFn: () => accessor.list<Inc, F, Pg, Cnt>(query),
   }
 }
@@ -211,6 +217,7 @@ export function getQueryOptions<
   const resource: string | undefined = id
   return {
     queryKey: keyFor(target(type, 'fetchOne', resource), query),
+    structuralSharing: false,
     queryFn: () =>
       resource === undefined
         ? accessor.get<Inc, F, Cnt>(query)
@@ -240,6 +247,7 @@ export function relationshipQueryOptions<
 ): QueryOptions<LinkageResult<D, A, T, R>> {
   return {
     queryKey: keyFor(target(type, 'fetchRelationship', id, rel), query),
+    structuralSharing: false,
     queryFn: () =>
       relationReads(client, type, id, rel).get(query) as Promise<LinkageResult<D, A, T, R>>,
   }
@@ -266,6 +274,7 @@ export function relatedQueryOptions<
 ): QueryOptions<RelatedResult<D, A, T, R>> {
   return {
     queryKey: keyFor(target(type, 'fetchRelated', id, rel), query),
+    structuralSharing: false,
     queryFn: () =>
       relationReads(client, type, id, rel).related(query) as Promise<RelatedResult<D, A, T, R>>,
   }

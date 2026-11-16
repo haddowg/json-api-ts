@@ -435,7 +435,7 @@ export function applyOptimisticMembership(
   transform: MembershipTransform,
 ): Snapshot {
   const prefixes = parentRelationReadKeys(type, id, rel)
-  const edits: { key: QueryKey; previous: unknown }[] = []
+  const edits: { query: Query; previous: unknown }[] = []
 
   for (const query of queryClient.getQueryCache().getAll()) {
     const key = query.queryKey as QueryKey
@@ -447,20 +447,38 @@ export function applyOptimisticMembership(
       // Only a to-many read caches an array; skip anything else (e.g. an in-flight/empty entry).
       continue
     }
-    edits.push({ key, previous: data })
-    // Set a fresh array (the augmented `$page`/`$links` accessors are dropped until the settle
-    // refetch reconciles — the same trade-off a hand-rolled `setQueryData(next)` makes; the UI
-    // renders the members immediately and the real page envelope returns on reconcile).
-    queryClient.setQueryData(key, transform(data as readonly MembershipRef[]))
+    edits.push({ query, previous: data })
+    // The new members keep the array's `$page`, `$links` and `$next()`, which still describe the
+    // page the server sent until the settle refetch reconciles it.
+    query.setState({ data: withEnvelope(data, transform(data as readonly MembershipRef[])) })
   }
 
   return {
     restore() {
       for (const edit of edits) {
-        queryClient.setQueryData(edit.key, edit.previous)
+        edit.query.setState({ data: edit.previous })
       }
     },
   }
+}
+
+/**
+ * The `members` as an array carrying `source`'s own non-index properties, the non-enumerable
+ * `$`-accessors of an augmented array. They are set directly on the query's state, since
+ * `setQueryData`'s structural sharing would rebuild a changed array as a plain one.
+ */
+function withEnvelope(source: readonly unknown[], members: readonly unknown[]): unknown[] {
+  const out = [...members]
+  for (const key of Reflect.ownKeys(source)) {
+    if (key === 'length' || (typeof key === 'string' && /^\d+$/.test(key))) {
+      continue
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(source, key)
+    if (descriptor !== undefined) {
+      Object.defineProperty(out, key, descriptor)
+    }
+  }
+  return out
 }
 
 /** True when two refs address the same resource (`type:id`). Ignores `$pivot`/attributes. */
@@ -485,7 +503,7 @@ export function applyOptimisticToOne(
   next: MembershipRef | null | undefined,
 ): Snapshot {
   const prefixes = parentRelationReadKeys(type, id, rel)
-  const edits: { key: QueryKey; previous: unknown }[] = []
+  const edits: { query: Query; previous: unknown }[] = []
   if (next === undefined) {
     return { restore() {} }
   }
@@ -500,14 +518,14 @@ export function applyOptimisticToOne(
     if (Array.isArray(data)) {
       continue
     }
-    edits.push({ key, previous: data })
-    queryClient.setQueryData(key, next)
+    edits.push({ query, previous: data })
+    query.setState({ data: next })
   }
 
   return {
     restore() {
       for (const edit of edits) {
-        queryClient.setQueryData(edit.key, edit.previous)
+        edit.query.setState({ data: edit.previous })
       }
     },
   }
