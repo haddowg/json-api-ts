@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.24.0...json-api-client-v1.25.0) (2026-11-16)
+
+
+### Features
+
+* **client:** page through a to-many that renders its first page ([627a720](https://github.com/haddowg/json-api-ts/commit/627a72010f2ce7475c1c390296bc6c6b53d32fa5))
+
 ## [1.24.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.23.0...json-api-client-v1.24.0) (2026-11-16)
 
 

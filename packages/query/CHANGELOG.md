@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.2](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.7.1...json-api-query-v1.7.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **query:** keep a materialised value's accessors through refetch and optimistic edits ([48977e9](https://github.com/haddowg/json-api-ts/commit/48977e9d0c1a6d69dd52d61b4df138d32741cb6e))
+* **query:** re-render observers of a read a write-through patch reaches ([b5f1ba5](https://github.com/haddowg/json-api-ts/commit/b5f1ba59acd8fdd45cb1c9b2733c9b3a320f0a2d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.25.0
+
 ## [1.7.1](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.7.0...json-api-query-v1.7.1) (2026-11-16)
 
 

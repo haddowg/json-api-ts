@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.19.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.18.1...json-api-codegen-v2.19.0) (2026-11-16)
+
+
+### Features
+
+* **codegen:** carry a relationship's description into the relation's JSDoc ([67bcadf](https://github.com/haddowg/json-api-ts/commit/67bcadf92cbeb4fdbc036ba01816c8a161cd8d02))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.25.0
+
 ## [2.18.1](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.18.0...json-api-codegen-v2.18.1) (2026-11-16)
 
 
