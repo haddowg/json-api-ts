@@ -41,7 +41,7 @@ export function includeDescription(depth: number | null): string {
       : depth === 1
         ? ' Only direct relationships can be included, so relations of an included resource come back as ids.'
         : ` Paths reach at most ${depth} relationships deep, and relations below that come back as ids.`
-  return `Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id.${reach} Leave null to include nothing.`
+  return `Relationship paths to include in the result (JSON:API compound documents). An included relation comes back as the related resource in place of its id.${reach} An included to-many relationship holds only the first page of its members, so read the rest with the tool that lists that relationship. Leave null to include nothing.`
 }
 
 export const FIELDS_DESCRIPTION =

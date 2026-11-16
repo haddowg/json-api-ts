@@ -205,3 +205,18 @@ describe('older formats', () => {
     expect(requests[0]).toContain('include=tracks.playlists.anything')
   })
 })
+
+describe('an included to-many is its first page', () => {
+  it('says so in every include argument', () => {
+    const tools = createJsonApiMcp(fixture('music-catalog')).tools
+    const includes = tools
+      .map((tool) => (tool.inputSchema['properties'] as Record<string, JsonSchema>)['include'])
+      .filter((include): include is JsonSchema => include !== undefined)
+    expect(includes.length).toBeGreaterThan(0)
+    for (const include of includes) {
+      expect(include['description']).toContain(
+        'An included to-many relationship holds only the first page of its members, so read the rest with the tool that lists that relationship.',
+      )
+    }
+  })
+})
