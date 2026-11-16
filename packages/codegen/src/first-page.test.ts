@@ -3,7 +3,9 @@ import { loadAll, type TransportRequest, type TransportResponse } from '@haddowg
 import { describe, expect, it } from 'vitest'
 import { createClient as catalogClient } from '../test/generated/music-catalog.client.gen'
 import { createClient as witnessClient } from '../test/generated/contract-witness.client.gen'
+import { buildDescriptor } from './build-descriptor'
 import { checkContract } from './contract'
+import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
 
@@ -121,5 +123,26 @@ describe('a rendered to-many is its first page', () => {
     const next = await linkage.$next()
     expect(requests[1]).toBe(href(links['next']))
     expect(next).toEqual([{ type: 'tracks', id: '1' }])
+  })
+
+  it("carries a relationship object's description onto the relation in the generated client", () => {
+    const source = emit(witness, buildDescriptor(witness))
+    const relationDoc = (type: string, relation: string): string => {
+      const start = source.indexOf(`  ${type}: {\n    attributes:`)
+      const relations = source.indexOf('    relations: {\n', start)
+      const at = source.indexOf(`\n      ${relation}: {\n`, relations)
+      const docStart = source.lastIndexOf('{\n', at)
+      return source.slice(docStart, at)
+    }
+    expect(relationDoc('articles', 'tags')).toContain(
+      "Its `data`, when present, is the first page of the relationship's members",
+    )
+    expect(relationDoc('articles', 'sponsors')).toContain('is the first page')
+    // An author's own description of a relationship object rides along the same way.
+    expect(relationDoc('articles', 'author')).toContain('Who wrote it.')
+    const catalogSource = emit(catalog, buildDescriptor(catalog))
+    expect(catalogSource).toContain(
+      "      /** Its `data`, when present, is the first page of the relationship's members in the order its related endpoint serves them, its `links` reach the other pages, and a countable relation's `meta.total` is the member count when that page is counted. */\n      playlists: {",
+    )
   })
 })

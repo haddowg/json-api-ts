@@ -665,6 +665,7 @@ export class Emitter {
           operations.get(`fetchRelationship.${type}.${relation}`)
         this.queryDocs(`${type}/relations/${relation}`, spec, reads)
         const doc = joinDoc(
+          this.relationshipDescription(type, relation),
           defaultOrderDoc(operations, type, relation),
           relationScopeDoc(scopes, relation),
           deprecations.relation(type, relation, RELATION_OPERATIONS),
@@ -1340,6 +1341,34 @@ export class Emitter {
     ].join('\n')
     const value = this.atomic === null ? 'null' : `${this.literal(this.atomic, 0)} as const`
     return `${doc}\nexport const atomic = ${value}`
+  }
+
+  /**
+   * The description of the relationship object a type's resource renders for `relation`: the
+   * one beside its `$ref`, else its component's, such as a paginated to-many's note that its
+   * `data` is the first page of its members. `undefined` when it has none, or the relation is
+   * write-only and no resource renders it.
+   */
+  private relationshipDescription(type: string, relation: string): string | undefined {
+    const base = this.baseByType.get(type)
+    const relationships = base === undefined ? undefined : this.schemas[`${base}Resource`]
+    const container = relationships?.properties?.['relationships']
+    const property =
+      typeof container === 'object' && container !== null
+        ? container.properties?.[relation]
+        : undefined
+    if (typeof property !== 'object' || property === null) {
+      return undefined
+    }
+    if (typeof property.description === 'string' && property.description !== '') {
+      return property.description
+    }
+    const ref = typeof property.$ref === 'string' ? property.$ref : undefined
+    const component = ref?.startsWith('#/components/schemas/')
+      ? this.schemas[ref.slice('#/components/schemas/'.length)]
+      : undefined
+    const description = component?.description
+    return typeof description === 'string' && description !== '' ? description : undefined
   }
 
   /**
