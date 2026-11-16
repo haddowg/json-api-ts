@@ -662,9 +662,15 @@ export function collectionInput(
   return { schema: root({ ...props, ...properties }, required), query: plan }
 }
 
-/** A get or to-one related read. */
-export function singleInput(ctx: InputContext, description: string): ToolInput {
+/**
+ * A get or to-one related read, taking the resource's id described as `description`. A
+ * singleton's read takes no id, so it passes `undefined`.
+ */
+export function singleInput(ctx: InputContext, description: string | undefined): ToolInput {
   const { properties, plan } = queryInput(ctx, undefined, false)
+  if (description === undefined) {
+    return { schema: root(properties, []), query: plan }
+  }
   return { schema: root({ id: idSchema(description), ...properties }, ['id']), query: plan }
 }
 
@@ -684,14 +690,18 @@ export function createInput(ctx: InputContext, type: string): ToolInput {
   return { schema: root({ ...properties, ...write.properties }, required), write: write.plan }
 }
 
-/** An update, from the type's update request body. */
+/**
+ * An update, from the type's update request body. A singleton's update takes no id: the tool
+ * reads the resource first and sends the id the server answers with.
+ */
 export function updateInput(ctx: InputContext, type: string): ToolInput {
   const body = deref<RequestBodyObject>(ctx.doc, ctx.operation.requestBody)
   const schema = body?.content?.['application/vnd.api+json']?.schema
   const write = writeInput(ctx.doc, ctx.descriptor, type, schema, 'update')
-  const properties: Record<string, JsonSchema> = {
-    id: idSchema(`The id of the \`${type}\` resource to update.`),
-  }
+  const singleton = ctx.descriptor[type]?.singleton === true
+  const properties: Record<string, JsonSchema> = singleton
+    ? {}
+    : { id: idSchema(`The id of the \`${type}\` resource to update.`) }
   const clearable = 'clear' in write.properties ? [] : write.plan.clearable
   const extra: Record<string, JsonSchema> = {}
   if (clearable.length > 0) {
@@ -702,7 +712,7 @@ export function updateInput(ctx: InputContext, type: string): ToolInput {
     })
   }
   return {
-    schema: root({ ...properties, ...write.properties, ...extra }, ['id']),
+    schema: root({ ...properties, ...write.properties, ...extra }, singleton ? [] : ['id']),
     write: { ...write.plan, clearable },
   }
 }
@@ -754,7 +764,8 @@ function pickBody(
 }
 
 /**
- * A custom action's input: the resource id at resource scope, then the body. A JSON:API body
+ * A custom action's input: the resource id at resource scope, except on a singleton, then the
+ * body. A JSON:API body
  * whose type the descriptor knows is flat, like a create; any other body is one `body` argument.
  * A collection action that takes filters also takes `filter`, as a list tool does.
  * `undefined` when every media type the action takes is one a model can't send, such as binary.
@@ -798,7 +809,7 @@ function actionBodyInput(
 ): ToolInput | undefined {
   const properties: Record<string, JsonSchema> = {}
   const required: string[] = []
-  if (action.scope === 'resource') {
+  if (action.scope === 'resource' && ctx.descriptor[type]?.singleton !== true) {
     properties['id'] = idSchema(`The id of the \`${type}\` resource to run ${name} on.`)
     required.push('id')
   }

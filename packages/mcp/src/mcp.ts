@@ -106,6 +106,12 @@ function hydrate(model: McpModel, tool: McpModelTool): ToolEntry {
     const action = resource.actions?.[source.actionKey ?? source.action]
     if (action !== undefined) op.actionDescriptor = action
   }
+  if (source.reads !== undefined) {
+    op.reads = {
+      operationId: source.reads.operationId,
+      security: source.reads.security ?? model.security ?? [],
+    }
+  }
   const scopes = source.scopes ?? descriptorScopes(op)
   if (scopes !== undefined) op.scopes = scopes
   const entry: ToolEntry = { op, tool: tool.tool, input: tool.plan, result: tool.result }
@@ -135,8 +141,11 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
     if (request.grantedScopes !== undefined) {
       // null grants nothing, so the filter fails closed.
       const granted = request.grantedScopes ?? []
+      // A tool that reads first is listed only when the caller may make both calls.
       entries = entries.filter((e) =>
-        satisfiesSecurity(e.op.security, granted, hooks.scopeMatcher, credentialSchemes),
+        [e.op.security, ...(e.op.reads === undefined ? [] : [e.op.reads.security])].every(
+          (security) => satisfiesSecurity(security, granted, hooks.scopeMatcher, credentialSchemes),
+        ),
       )
     }
     if (hooks.capabilities !== undefined) {
@@ -145,7 +154,11 @@ export function createJsonApiMcp<Ctx = unknown>(options: JsonApiMcpOptions<Ctx>)
         capabilities instanceof Map
           ? (capabilities as ReadonlyMap<string, McpCapability>).get(id)
           : (capabilities as Readonly<Record<string, McpCapability>>)[id]
-      entries = entries.filter((e) => lookup(e.op.operationId) !== 'denied')
+      entries = entries.filter(
+        (e) =>
+          lookup(e.op.operationId) !== 'denied' &&
+          (e.op.reads === undefined || lookup(e.op.reads.operationId) !== 'denied'),
+      )
     }
     if (hooks.includeOperation !== undefined) {
       const include = hooks.includeOperation

@@ -60,6 +60,32 @@ interface LooseAccessor {
   actions: Record<string, Call | undefined>
 }
 
+/** A singleton's accessor: a handle on the caller's one resource, addressed with no id. */
+interface LooseSingleton extends LooseHandle {
+  get(query?: ReadQuery): Promise<unknown>
+}
+
+/** The handle a tool's call acts on: the resource its `id` argument names, or a singleton. */
+function handleOf(
+  entry: ToolEntry,
+  accessor: LooseAccessor,
+  args: Record<string, unknown>,
+): LooseHandle {
+  return entry.op.resource.singleton === true
+    ? (accessor as unknown as LooseSingleton)
+    : accessor.id(requireId(args))
+}
+
+/** The id of a singleton's resource, read from the server, which the update body must carry. */
+async function singletonId(accessor: LooseAccessor, type: string): Promise<string> {
+  const read = await (accessor as unknown as LooseSingleton).get()
+  const id = isObject(read) ? read['id'] : undefined
+  if (typeof id !== 'string' || id === '') {
+    throw new Error(`Reading the \`${type}\` singleton returned no id to update it by.`)
+  }
+  return id
+}
+
 export interface CallEnvironment {
   descriptor: ApiDescriptor
   baseUrl: string | undefined
@@ -459,7 +485,7 @@ async function callApi(
     case 'list':
     case 'related': {
       if (entry.result === 'item') {
-        const related = await accessor.id(requireId(args)).rel(op.relation!).related(query)
+        const related = await handleOf(entry, accessor, args).rel(op.relation!).related(query)
         return { kind: 'bare', envelope: resourceEnvelope(related, flat) }
       }
       let collection: unknown
@@ -496,15 +522,17 @@ async function callApi(
       } else if (op.kind === 'list') {
         collection = await accessor.list(query)
       } else {
-        collection = await accessor.id(requireId(args)).rel(op.relation!).related(query)
+        collection = await handleOf(entry, accessor, args).rel(op.relation!).related(query)
       }
       return envelope(collectionEnvelope(Array.isArray(collection) ? collection : [], flat))
     }
-    case 'get':
-      return {
-        kind: 'bare',
-        envelope: resourceEnvelope(await accessor.get(requireId(args), query), flat),
-      }
+    case 'get': {
+      const read =
+        op.resource.singleton === true
+          ? (accessor as unknown as LooseSingleton).get(query)
+          : accessor.get(requireId(args), query)
+      return { kind: 'bare', envelope: resourceEnvelope(await read, flat) }
+    }
     case 'create': {
       const input = writeInput(args, entry.input.write!)
       const created = jobOrResult(await accessor.create(input))
@@ -518,10 +546,19 @@ async function callApi(
       }
     }
     case 'update': {
-      const id = requireId(args)
-      const updated = jobOrResult(
-        await accessor.id(id).update(writeInput(args, entry.input.write!)),
-      )
+      const patch = writeInput(args, entry.input.write!)
+      let id: string
+      let updated: unknown
+      if (op.resource.singleton === true) {
+        // The body carries the id although the path doesn't, and only a read tells the tool it.
+        id = await singletonId(accessor, op.type)
+        updated = jobOrResult(
+          await (accessor as unknown as LooseSingleton).update({ ...patch, id }),
+        )
+      } else {
+        id = requireId(args)
+        updated = jobOrResult(await accessor.id(id).update(patch))
+      }
       return {
         kind: 'bare',
         envelope: resourceEnvelope(isObject(updated) ? updated : { id, type: op.type }, flat),
@@ -549,7 +586,7 @@ async function runAction(
   const { op } = entry
   const action = op.actionDescriptor!
   const actions =
-    action.scope === 'resource' ? accessor.id(requireId(args)).actions : accessor.actions
+    action.scope === 'resource' ? handleOf(entry, accessor, args).actions : accessor.actions
   const call = actions[entry.actionKey!]!
   const options = {
     ...(env.signal === undefined ? {} : { signal: env.signal }),

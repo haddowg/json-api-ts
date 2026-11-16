@@ -1,5 +1,5 @@
 import type { ApiDescriptor } from '@haddowg/json-api-client'
-import { buildCatalogue } from './catalogue'
+import { buildCatalogue, readOperation } from './catalogue'
 import { assertContract } from './contract'
 import { MODEL_FORMAT, MODEL_GENERATOR, type McpModel, type McpModelOperation } from './model'
 import { deref, isObject, type OpenApiDocument, type OperationObject } from './openapi'
@@ -94,6 +94,13 @@ export function buildMcpModel(
       if (op.relation !== undefined) operation.relation = op.relation
       if (op.action !== undefined) operation.action = op.action
       if (entry.actionKey !== undefined) operation.actionKey = entry.actionKey
+      if (op.reads !== undefined) {
+        const read = readOperation(document, op.resource.paths['fetchOne'])
+        operation.reads =
+          read?.security === undefined
+            ? { operationId: op.reads.operationId }
+            : { operationId: op.reads.operationId, security: read.security }
+      }
       const { schema: _schema, ...plan } = entry.input
       return { operation, tool: entry.tool, plan, result: entry.result }
     }),

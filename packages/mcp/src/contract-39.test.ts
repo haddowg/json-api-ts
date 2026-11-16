@@ -1,6 +1,5 @@
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { toPortable } from './portable'
@@ -19,12 +18,8 @@ const relatedQuery = (doc: OpenApiDocument, name: string): JsonSchema =>
  * `allOf`, so the component converts to a valid schema with the enum kept.
  */
 describe('generator contract 39 (typed enum references in relatedQuery)', () => {
-  it('reads a document stamped 39, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(39)
+  it('reads a document stamped 39', () => {
     expect(createJsonApiMcp(modelOf(typed)).contract).toBe(39)
-    const newer = structuredClone(typed)
-    newer.info!['x-generator']!.contract = 40
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('gives every tool the input and output it had', () => {

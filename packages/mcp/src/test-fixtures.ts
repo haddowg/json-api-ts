@@ -185,3 +185,29 @@ export function typeRelatedQueries(original: OpenApiDocument): OpenApiDocument {
   ;((doc['info'] as Json)['x-generator'] as Json)['contract'] = 39
   return doc as OpenApiDocument
 }
+
+/**
+ * A copy of a witness with core's `inboxes` singleton added, stamped 40: the `/inbox` paths and
+ * `Inboxes*` components the codegen's tests cut from the witness of haddowg/json-api#369.
+ */
+export function withInbox(original: OpenApiDocument): OpenApiDocument {
+  const inbox = JSON.parse(
+    readFileSync(new URL('../../codegen/test/inbox-singleton.json', import.meta.url), 'utf8'),
+  ) as { paths: Json; schemas: Json; parameters: Json }
+  const doc = structuredClone(original) as Json
+  ;(doc['info'] as Json)['x-generator'] = { contract: 40 }
+  Object.assign(doc['paths'] as Json, inbox.paths)
+  const components = doc['components'] as Json
+  Object.assign(components['schemas'] as Json, inbox.schemas)
+  Object.assign(components['parameters'] as Json, inbox.parameters)
+  const schemas = components['schemas'] as Record<string, Json>
+  const union = (node: Json, ref: string): void => {
+    ;(node['oneOf'] as Json[]).push({ $ref: ref })
+    ;((node['discriminator'] as Json)['mapping'] as Json)['inboxes'] = ref
+  }
+  const result = ((schemas['AtomicResult']!['properties'] as Json)['data'] as Json)['anyOf']
+  union((result as Json[])[0]!, '#/components/schemas/InboxesResource')
+  const update = (schemas['AtomicUpdateOperation']!['properties'] as Json)['data'] as Json
+  union(update, '#/components/schemas/InboxesAtomicUpdate')
+  return doc as OpenApiDocument
+}
