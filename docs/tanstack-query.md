@@ -137,6 +137,8 @@ const teardown = installNormalization(queryClient, resourceMap)
 
 A patch replaces a node's **attributes** (the descriptor knows attributes from relations) while **preserving** each materialised object's edge-local `$pivot` / `$edge` and its identity — the same Track in two playlists keeps its own per-edge pivot data while its shared attributes update.
 
+Each query a patch touches is then published again under a new root reference, a transparent proxy over the same materialised value, so its `$page`, `$next()` and the objects inside it are unchanged. React Query's default tracked mode re-renders a component only when a value it read changes reference, so without a new `data` reference a patched read would hold the new title and still show the old one. The new root is set on the query's state directly, which keeps a query you invalidated invalidated and doesn't count as a fresh fetch. An optimistic patch and its rollback publish the same way.
+
 !!! warning "One descriptor per QueryClient"
     The patch matches by `type:id` alone, so two descriptors sharing a QueryClient would cross-contaminate attributes (e.g. a `default` and an `admin` server whose `users` differ). Installing a *different* descriptor on the same QueryClient throws. Give each typed client/server its own QueryClient.
 

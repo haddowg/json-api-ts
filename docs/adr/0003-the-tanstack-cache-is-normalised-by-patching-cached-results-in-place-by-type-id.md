@@ -4,4 +4,4 @@ TanStack Query caches per query key, and JSON:API's `type` and `id` on every res
 
 ## Consequences
 
-A patch only updates existing resources, and preserves edge-local `$pivot` and `$edge`. A create or delete changes collection membership, so it invalidates, or optimistically edits, the affected list and relationship queries instead.
+A patch only updates existing resources, and preserves edge-local `$pivot` and `$edge`. The nodes change in place, but a touched query is published again under a new root reference, a transparent proxy over the same value, set on the query's state directly. React Query's observers compare `data` by reference, so writing the same root back would leave components showing the old values, and `setQueryData` would collapse a copy back to the old root through structural sharing, clear `isInvalidated` and re-run normalisation as a fresh success. A create or delete changes collection membership, so it invalidates, or optimistically edits, the affected list and relationship queries instead.

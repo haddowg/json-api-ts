@@ -15,18 +15,44 @@
  * shared node's attributes change, and those live as own enumerable props that we overwrite
  * key-by-key, leaving the non-enumerable per-edge getters untouched.
  *
+ * The nodes are patched in place, but each touched query's data is then republished under a new
+ * root reference that reads through to the same graph, so an observer comparing `data` by
+ * reference, as React Query's tracked mode does, sees the change and re-renders.
+ *
  * This only covers UPDATES to existing resources (a node patch). Creates/deletes change
  * collection membership, which is not a node patch — those invalidate the relevant list/
  * relationship queries instead (see ./mutate.ts).
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
-import type { QueryClient } from '@tanstack/query-core'
+import type { Query, QueryClient } from '@tanstack/query-core'
 import { keyHasPrefix, parentRelationReadKeys, type QueryKey } from './keys'
 
 /** A `type:id` cache key for a resource. */
 type ResourceKey = string
 
 const resourceKey = (type: string, id: string): ResourceKey => `${type}:${id}`
+
+/** The materialised value each republished root reads through to. */
+const roots = new WeakMap<object, object>()
+
+/**
+ * Publish a query's patched data again under a new root reference. The root is a transparent
+ * proxy of the materialised value, so its accessors, its array-ness and the graph below it are the
+ * same objects, and a later patch or rollback of those objects shows through it. The state is set
+ * directly rather than through `setQueryData`, whose structural sharing would hand the old root
+ * back because nothing differs by value, and which would clear the query's `isInvalidated` and
+ * re-run normalisation as a fresh success.
+ */
+function republish(query: Query): void {
+  const data = query.state.data
+  if (typeof data !== 'object' || data === null) {
+    return
+  }
+  const target = roots.get(data) ?? data
+  const root = new Proxy(target, {})
+  roots.set(root, target)
+  query.setState({ data: root })
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -239,13 +265,10 @@ export function normalize(
 
 /**
  * Patch every cached query with a `type:id -> fresh attributes` map. We walk the query cache
- * explicitly and only `setQueryData` back the queries that {@link patchCached} actually mutated —
- * NOT a blanket `setQueriesData({}, ...)`. The blanket form writes data back to every cached
- * query, and TanStack's `setQueryData` unconditionally clears `isInvalidated` on the written
- * query: a normalize pass over one type would silently un-invalidate untouched queries of other
- * types, undoing the create/delete membership invalidation. Gating the write on the
- * `changed` flag keeps touched queries' in-place identity (so their observers notify) while
- * leaving untouched queries — and their `isInvalidated` flags — completely alone.
+ * explicitly and republish only the queries that {@link patchCached} actually mutated, under a new
+ * root (see {@link republish}), so their observers notify. Untouched queries keep their data
+ * reference, and every query keeps its `isInvalidated` flag, so a patch never undoes the
+ * invalidation a create or delete made.
  */
 function patchAll(
   queryClient: QueryClient,
@@ -258,9 +281,7 @@ function patchAll(
       continue
     }
     if (patchCached(data, fresh, descriptor)) {
-      // Write the same (mutated-in-place) reference back so this query's observers see the change;
-      // only touched queries are written, so untouched queries' isInvalidated flags survive.
-      queryClient.setQueryData(query.queryKey, data)
+      republish(query)
     }
   }
 }
@@ -310,6 +331,7 @@ export function applyOptimisticPatch(
 ): Snapshot {
   const key = resourceKey(type, id)
   const edits: NodeEdit[] = []
+  const touchedQueries: Query[] = []
 
   // Walk the cache explicitly (not `setQueriesData({}, ...)`) so we only write back queries that
   // actually hold this `type:id` — preserving untouched queries' identity and `isInvalidated`
@@ -341,7 +363,8 @@ export function applyOptimisticPatch(
       touched = true
     })
     if (touched) {
-      queryClient.setQueryData(query.queryKey, data)
+      republish(query)
+      touchedQueries.push(query)
     }
   }
 
@@ -362,6 +385,9 @@ export function applyOptimisticPatch(
             delete edit.target[k]
           }
         }
+      }
+      for (const query of touchedQueries) {
+        republish(query)
       }
     },
   }
