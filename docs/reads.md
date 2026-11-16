@@ -76,6 +76,26 @@ does: one compound read pulls the album, its artist, and its tracklist so
     from the result even though you asked to hydrate it. See
     [includes and sparse fieldsets](includes-and-sparse-fieldsets.md).
 
+## Singletons
+
+A singleton type serves each caller one resource at a path with no id, such as `/inbox` for the
+caller's inbox. Its accessor is a handle on that resource rather than a collection, so it has no
+`list`, `create`, `id()` or `delete`, and every call drops the id:
+
+```ts
+const inbox = await client.inboxes.get({ fields: { inboxes: ['unread'] } }) // GET /inbox
+inbox.id // the resource still has its id, so other resources can link to it
+
+const owner = await client.inboxes.owner.related()     // GET /inbox/owner
+const linkage = await client.inboxes.rel('owner').get() // GET /inbox/relationships/owner
+await client.inboxes.actions['mark-all-read']()         // POST /inbox/-actions/mark-all-read
+```
+
+The verbs are the handle's, so relations are properties beside them and `.rel(name)` reaches a
+relation whose name collides with one. A generated client types the accessor as a
+`SingletonAccessor`, so calling `list` or `id()` on one fails to compile.
+[Updating a singleton](writes.md#updating-a-singleton) takes the id the read returned.
+
 ## Following a relationship
 
 From an id-scoped handle, `.rel(name)` opens a relationship accessor with two reads:

@@ -108,6 +108,18 @@ tracks.$page.kind
 const linkage = await client.albums.id('1').rel('tracks').get()
 ```
 
+### A singleton
+
+A singleton type serves each caller one resource at a path with no id (`/inbox`). Its accessor is
+a handle on that resource, with no `list`, `create`, `id()` or `delete`. The update body needs the
+resource's id, so the input carries it:
+
+```ts
+const inbox = await client.inboxes.get() // GET /inbox
+await client.inboxes.update({ id: inbox.id, seenUpTo: new Date().toISOString() }) // PATCH /inbox
+const owner = await client.inboxes.owner.related() // GET /inbox/owner
+```
+
 ### Pivot data on a many-to-many edge
 
 Each member of a `belongsToMany` to-many carries its per-edge pivot under `$pivot` (typed sugar

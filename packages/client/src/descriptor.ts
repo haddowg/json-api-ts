@@ -432,6 +432,12 @@ export interface ResourceDescriptor {
   paginator: PaginatorDescriptor
   clientId: ClientIdPolicy
   /**
+   * `true` for a singleton type, which serves each caller one resource at a path with no `{id}`
+   * (`/inbox`). Its {@link paths} are those of the single read, the update, and the related and
+   * relationship reads, with no collection, create or delete. Absent for any other type.
+   */
+  singleton?: boolean
+  /**
    * The `withCount` count tokens + negotiation profile for this type's read endpoints.
    * Absent when no read endpoint advertises `withCount`.
    */

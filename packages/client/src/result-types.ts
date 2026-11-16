@@ -1265,6 +1265,17 @@ export type UpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = Upd
   RelationInputs<D, T>
 
 /**
+ * The flat input to a singleton's `client.<type>.update(input)`: the {@link UpdateInput} plus the
+ * resource's `id`, which the request body must carry although the path has none. Take it from the
+ * resource `get()` read.
+ */
+export type SingletonUpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = UpdateInput<
+  D,
+  W,
+  T
+> & { id: string }
+
+/**
  * Options for a create/update write: an optional `include`/`fields` narrowing the materialised
  * response, and the `withCount` write `Op` advertises.
  */
@@ -1389,26 +1400,33 @@ export type CreateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> =
       ): Promise<WriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>>>
     }
 
-/** `client.<type>.id(id).update`, which takes `wait` as {@link CreateMethod} does. */
-export type UpdateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> = [
-  AcceptedOf<D, T, 'update'>,
-] extends [never]
+/**
+ * `client.<type>.id(id).update`, which takes `wait` as {@link CreateMethod} does. `I` is the input
+ * it takes: a singleton's update takes {@link SingletonUpdateInput}.
+ */
+export type UpdateMethod<
+  D extends ApiDescriptor,
+  A,
+  W,
+  T extends TypeName<D>,
+  I = UpdateInput<D, W, T>,
+> = [AcceptedOf<D, T, 'update'>] extends [never]
   ? <
       const Inc extends readonly IncludePath<D, T>[] = [],
       const F extends FieldsMap<D> = {},
       const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
     >(
-      patch: UpdateInput<D, W, T>,
+      patch: I,
       opts?: WriteOptions<D, T, Inc, F, 'update', Cnt>,
     ) => Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
   : {
-      (patch: UpdateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
+      (patch: I, opts: WaitOptions): Promise<ReadResult<D, A, T>>
       <
         const Inc extends readonly IncludePath<D, T>[] = [],
         const F extends FieldsMap<D> = {},
         const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
       >(
-        patch: UpdateInput<D, W, T>,
+        patch: I,
         opts?: WriteOptions<D, T, Inc, F, 'update', Cnt> & { wait?: false },
       ): Promise<WriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>>>
     }
@@ -1893,6 +1911,41 @@ export type ResourceHandle<
   readonly actions: ActionsAccessor<D, A, W, T, 'resource', Act>
 } & RelationshipAccessors<D, A, T>
 
+/**
+ * The accessor of a singleton type (`client.inboxes`), a handle on the caller's one resource
+ * served at a path with no id. It has the {@link ResourceHandle} verbs the server offers a
+ * singleton, `get`, `update`, `rel` and `.actions`, and each relation by name. It has no `id`,
+ * since the caller learns it only from a read, and no `delete`. Its `update` takes that `id` in
+ * the input, because the request body carries it.
+ */
+export type SingletonAccessor<
+  D extends ApiDescriptor,
+  A,
+  W,
+  T extends TypeName<D>,
+  Act = DefaultActionTypes,
+> = {
+  readonly type: T
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  update: UpdateMethod<D, A, W, T, SingletonUpdateInput<D, W, T>>
+  rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
+  /** The type's resource-scoped custom actions, keyed by name. */
+  readonly actions: ActionsAccessor<D, A, W, T, 'resource', Act>
+} & RelationshipAccessors<D, A, T>
+
+/** Whether type `T` is a singleton, served with no id. */
+export type IsSingleton<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  singleton: true
+}
+  ? true
+  : false
+
 /** The collection-scoped accessor for one wire type (`client.albums`). */
 export interface TypeAccessor<
   D extends ApiDescriptor,
@@ -1924,7 +1977,8 @@ export interface TypeAccessor<
 }
 
 /**
- * The descriptor-driven client surface: one {@link TypeAccessor} per wire type. `W` is the
+ * The descriptor-driven client surface: one {@link TypeAccessor} per wire type, or a
+ * {@link SingletonAccessor} for a singleton type. `W` is the
  * generated `WriteAttributes` map (per-type `{ create; update }` attribute pairs) and `Act`
  * the generated per-action body-type map; both thread through to the write/action surfaces and
  * default so read-only / codegen-less callers compile. `E` is the server's documented
@@ -1939,13 +1993,9 @@ export type Client<
   L = Record<never, never>,
 > = {
   // Mapped over the descriptor's own keys so each member keeps the JSDoc the codegen writes there.
-  -readonly [T in keyof D as Extract<T, string>]: TypeAccessor<
-    D,
-    WithLinks<A, L>,
-    W,
-    Extract<T, string>,
-    Act
-  >
+  -readonly [T in keyof D as Extract<T, string>]: D[T] extends { singleton: true }
+    ? SingletonAccessor<D, WithLinks<A, L>, W, Extract<T, string>, Act>
+    : TypeAccessor<D, WithLinks<A, L>, W, Extract<T, string>, Act>
 } & {
   /**
    * Run an Atomic Operations batch (docs/atomic-operations.md): the
