@@ -55,12 +55,29 @@ export interface PlaylistTrackEdge {
   addedAt: string
 }
 
+/** The caller's account, the one resource the `/me` singleton serves. */
+export interface AccountRow {
+  id: string
+  email: string
+  displayName: string
+}
+
+/** A favorite of a track, album or artist. An undated one has no `favoritedAt`. */
+export interface FavoriteRow {
+  id: string
+  favoritableType: 'tracks' | 'albums' | 'artists'
+  favoritableId: string
+  favoritedAt: string | null
+}
+
 export interface SeedData {
   artists: ArtistRow[]
   albums: AlbumRow[]
   tracks: TrackRow[]
   playlists: PlaylistRow[]
   playlistTracks: PlaylistTrackEdge[]
+  account: AccountRow
+  favorites: FavoriteRow[]
 }
 
 export const PLAYLIST_ID = '00000000-0000-4000-8000-000000000001'
@@ -187,7 +204,26 @@ export function createSeed(): SeedData {
     { playlistId: PLAYLIST_ID_2, trackId: '8', position: 2, addedAt: '2024-05-02T09:00:00+00:00' },
   ]
 
-  return { artists, albums, tracks, playlists, playlistTracks }
+  const account: AccountRow = { id: '1', email: 'ada@example.com', displayName: 'Ada' }
+
+  // Two dated liked tracks, an undated one, and a liked album the tracks view leaves out.
+  const favorites: FavoriteRow[] = [
+    favorite('1', 'tracks', '2', '2026-11-01T09:00:00+00:00'),
+    favorite('2', 'tracks', '10', '2026-11-02T09:00:00+00:00'),
+    favorite('3', 'tracks', '7', null),
+    favorite('4', 'albums', '1', '2026-11-03T09:00:00+00:00'),
+  ]
+
+  return { artists, albums, tracks, playlists, playlistTracks, account, favorites }
+}
+
+function favorite(
+  id: string,
+  favoritableType: FavoriteRow['favoritableType'],
+  favoritableId: string,
+  favoritedAt: string | null,
+): FavoriteRow {
+  return { id, favoritableType, favoritableId, favoritedAt }
 }
 
 function album(

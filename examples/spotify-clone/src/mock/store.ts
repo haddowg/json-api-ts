@@ -5,9 +5,11 @@
  * shapes the app reads and writes.
  */
 import {
+  type AccountRow,
   type AlbumRow,
   type ArtistRow,
   createSeed,
+  type FavoriteRow,
   type PlaylistRow,
   type PlaylistTrackEdge,
   type SeedData,
@@ -78,6 +80,12 @@ export class MockStore {
   }
   playlist(id: string): PlaylistRow | undefined {
     return this.data.playlists.find((p) => p.id === id)
+  }
+  account(): AccountRow {
+    return this.data.account
+  }
+  favorites(): FavoriteRow[] {
+    return this.data.favorites
   }
 
   albumsByArtist(artistId: string): AlbumRow[] {
@@ -197,6 +205,37 @@ export class MockStore {
     }
   }
 
+  /** The caller's account, served at `/me` with no id in its links, though it keeps one. */
+  serializeAccount(): Resource {
+    const row = this.data.account
+    return {
+      type: 'accounts',
+      id: row.id,
+      links: { self: `${SELF}/me` },
+      attributes: { email: row.email, displayName: row.displayName },
+      relationships: {
+        playlists: {
+          links: { self: `${SELF}/me/relationships/playlists`, related: `${SELF}/me/playlists` },
+        },
+      },
+    }
+  }
+
+  serializeFavorite(row: FavoriteRow): Resource {
+    return {
+      type: 'favorites',
+      id: row.id,
+      links: { self: `${SELF}/favorites/${row.id}` },
+      attributes: { favoritedAt: row.favoritedAt },
+      relationships: {
+        favoritable: {
+          links: relLinks('favorites', row.id, 'favoritable'),
+          data: { type: row.favoritableType, id: row.favoritableId },
+        },
+      },
+    }
+  }
+
   /** Serialise any resource by type+id (used to hydrate `included` for a compound document). */
   serialize(type: string, id: string): Resource | undefined {
     switch (type) {
@@ -222,6 +261,11 @@ export class MockStore {
   }
 
   // --- writes -----------------------------------------------------------------------------
+
+  updateAccount(attrs: { displayName?: string }): AccountRow {
+    if (attrs.displayName !== undefined) this.data.account.displayName = attrs.displayName
+    return this.data.account
+  }
 
   createPlaylist(attrs: {
     title: string

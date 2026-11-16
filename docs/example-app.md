@@ -111,8 +111,14 @@ const rename = useMutation(writes.playlists.id(id).update({ optimistic: true }))
 
 → [Relationship mutation](relationship-mutation.md) · [Writes](writes.md) · [TanStack Query bindings](tanstack-query.md)
 
+### Account and Liked: a singleton and polymorphic filters
+
+The caller's account is a [singleton](reads.md#singletons) the server serves at `/me`. The sidebar names the caller from `reads.accounts.get()`, which takes no id, and [`AccountPage.tsx`](../examples/spotify-clone/src/pages/AccountPage.tsx) renames them with `writes.accounts.update()`, passing the id the read returned because the request body needs it. The mock answers `409` to a body without that id, as the bundle does.
+
+[`LikedPage.tsx`](../examples/spotify-clone/src/pages/LikedPage.tsx) lists the caller's liked tracks. `filter: { favoritable: { type: 'tracks' } }` is a `WhereMorph` filter on the polymorphic `favoritable` relation, so liked albums and artists stay out. `dated` is a `WhereSet` filter that defaults to dated favorites; the "Include undated likes" box sends `dated: [true, false]` to ask for both. See [list filters](filtering-and-sorting.md#list-filters).
+
 ??? note "Going deeper: the routes"
-    [`App.tsx`](../examples/spotify-clone/src/App.tsx) wires the routes — `/` (Browse), `/search`, `/playlists`, `/playlists/:id`, `/albums/:id`, `/artists/:id`. `PlaylistsPage.tsx` lists playlists and creates new ones; each detail route maps to the page above.
+    [`App.tsx`](../examples/spotify-clone/src/App.tsx) wires the routes — `/` (Browse), `/search`, `/playlists`, `/playlists/:id`, `/albums/:id`, `/artists/:id`, `/liked` and `/account`. `PlaylistsPage.tsx` lists playlists and creates new ones; each detail route maps to the page above.
 
 ## See it in the example app
 

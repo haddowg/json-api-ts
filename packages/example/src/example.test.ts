@@ -17,6 +17,9 @@
  *   5. run an atomic batch with a cross-op `lid` reference;
  *   6. bind it to TanStack Query (option factories + write-through normalization);
  *   7. opt into per-field validation with ajv.
+ *
+ * It also reads and updates the caller's account, a singleton served at `/me` with no id, and
+ * filters favorites by a polymorphic relation and a set of booleans.
  */
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -171,6 +174,67 @@ describe('reads', () => {
     // `$pivot` accessor — the same Track in another playlist would carry a different position.
     expect(ordered[0]!.title).toBe('Airbag')
     expect(ordered[0]!.$pivot?.['position']).toBe(2)
+  })
+})
+
+describe('a singleton', () => {
+  // The caller's account is served at /me. The resource still carries its id.
+  const account = (displayName: string) => ({
+    data: {
+      type: 'accounts',
+      id: '1',
+      attributes: { email: 'ada@example.com', displayName },
+      relationships: {
+        playlists: { data: [{ type: 'playlists', id: PLAYLIST }] },
+      },
+    },
+  })
+
+  it("reads and updates the caller's account with no id in the path", async () => {
+    const { transport, requests } = mockTransport({
+      [`GET ${BASE}/me`]: account('Ada'),
+      [`PATCH ${BASE}/me`]: account('Ada Lovelace'),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+
+    // `client.accounts` is a singleton accessor: no `list`, `create`, `id()` or `delete`.
+    const me = await client.accounts.get()
+    expect(me.id).toBe('1')
+    expect(me.displayName).toBe('Ada')
+
+    // The PATCH body must carry the id, so the input takes the one the read returned.
+    const renamed = await client.accounts.update({ id: me.id, displayName: 'Ada Lovelace' })
+    expect(renamed.displayName).toBe('Ada Lovelace')
+    expect(JSON.parse(requests[1]!.body!)).toEqual({
+      data: { type: 'accounts', id: '1', attributes: { displayName: 'Ada Lovelace' } },
+    })
+  })
+
+  it('follows its relations under its own path', async () => {
+    const { transport } = mockTransport({
+      [`${BASE}/me/playlists`]: {
+        data: [{ type: 'playlists', id: PLAYLIST, attributes: { name: 'Road trip' } }],
+      },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const playlists = await client.accounts.playlists.related()
+    expect(playlists.map((playlist) => playlist.id)).toEqual([PLAYLIST])
+  })
+})
+
+describe('filtering by a polymorphic relation and a set of booleans', () => {
+  it('sends WhereMorph as nested keys and WhereSet once per member', async () => {
+    const { transport, requests } = mockTransport({
+      [`${BASE}/favorites?filter[favoritable][type]=tracks&filter[favoritable][id]=1%2C2&filter[dated][]=true&filter[dated][]=false`]:
+        { data: [] },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    // `dated` has a default of [true]; sending both values asks for every favorite.
+    const favorites = await client.favorites.list({
+      filter: { favoritable: { type: 'tracks', id: ['1', '2'] }, dated: [true, false] },
+    })
+    expect(favorites).toHaveLength(0)
+    expect(requests).toHaveLength(1)
   })
 })
 

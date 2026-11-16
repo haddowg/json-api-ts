@@ -1,13 +1,15 @@
 import { Component, inject } from '@angular/core'
+import { Account } from './account'
 import { AlbumList } from './album-list'
 import { RequestTracker } from './request-tracker'
 
 @Component({
   selector: 'app-root',
-  imports: [AlbumList],
+  imports: [Account, AlbumList],
   template: `
     <header>
       <h1>Music catalogue</h1>
+      <app-account />
       <p class="muted">
         Requests through the interceptor: {{ tracker.sent() }} sent, {{ tracker.inFlight() }} in
         flight, {{ tracker.cancelled() }} cancelled
