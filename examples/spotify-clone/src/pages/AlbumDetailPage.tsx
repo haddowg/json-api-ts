@@ -1,3 +1,4 @@
+import { loadAll } from '@haddowg/json-api-client'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { reads } from '../api/client'
@@ -9,11 +10,21 @@ import { formatDuration, formatYear } from '../lib/format'
  * Album detail: the album + its tracklist + its artist, all in one compound read. `include` widens
  * `artist`/`tracks` to hydrated resources, so `album.artist.name` and each `track.title` are typed
  * off the client with no cast (the relations narrow to their related types).
+ *
+ * The server renders an included to-many as its first page, two tracks here, so the page shows
+ * those at once and `loadAll` follows the relationship's `next` links for the rest of the tracklist.
  */
 export function AlbumDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const albumQuery = useQuery(reads.albums.get(id, { include: ['artist', 'tracks'] }))
   const album = albumQuery.data
+  const tracklistQuery = useQuery({
+    queryKey: ['albums', id, 'tracklist'],
+    queryFn: () => loadAll(album!.tracks),
+    enabled: album !== undefined,
+    structuralSharing: false,
+  })
+  const tracks = tracklistQuery.data ?? album?.tracks ?? []
 
   return (
     <QueryState isPending={albumQuery.isPending} error={albumQuery.error}>
@@ -33,16 +44,16 @@ export function AlbumDetailPage() {
                   'Unknown artist'
                 )}
                 {formatYear(album.releasedAt) ? ` · ${formatYear(album.releasedAt)}` : ''}
-                {` · ${album.tracks.length} tracks`}
+                {` · ${tracks.length} tracks`}
               </div>
             </div>
           </header>
 
-          {album.tracks.length === 0 ? (
+          {tracks.length === 0 ? (
             <p className="state">No tracks on this album.</p>
           ) : (
             <div className="tracklist">
-              {album.tracks.map((track, i) => (
+              {tracks.map((track, i) => (
                 <div key={track.id} className="track-row">
                   <span className="track-row__index">{i + 1}</span>
                   <span className="track-row__title">

@@ -73,14 +73,14 @@ const albumsQuery = useQuery(
 
 ### Album detail — get-one with a compound `include`
 
-[`AlbumDetailPage.tsx`](../examples/spotify-clone/src/pages/AlbumDetailPage.tsx) fetches the album, its artist, and its full tracklist in **one compound read**:
+[`AlbumDetailPage.tsx`](../examples/spotify-clone/src/pages/AlbumDetailPage.tsx) fetches the album, its artist, and the first page of its tracklist in **one compound read**:
 
 ```ts
 const albumQuery = useQuery(reads.albums.get(id, { include: ['artist', 'tracks'] }))
 // album.artist.name and album.tracks[i].title are typed off the client, no cast, no second request.
 ```
 
-`include` widens the requested relations into hydrated resources on the result type, so the whole page renders from a single request.
+`include` widens the requested relations into hydrated resources on the result type. The server renders an included to-many as its first page, two tracks for an album, so the page renders those at once and reads the rest with `loadAll(album.tracks)`, which follows the relationship's `next` links. The mock renders included to-manys the same way. See [an included to-many is its first page](includes-and-sparse-fieldsets.md#an-included-to-many-is-its-first-page).
 
 → [Includes and sparse fieldsets](includes-and-sparse-fieldsets.md) · [Reading](reads.md)
 
