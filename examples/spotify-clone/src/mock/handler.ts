@@ -2,7 +2,9 @@
  * A focused JSON:API request handler over the {@link MockStore}. It supports exactly the query
  * patterns the app uses — collection list (filter/sort/page/include/fields), get-one (+include),
  * related/relationship reads, create/update/delete, and relationship add/remove/replace including
- * the pivot `position`. It returns JSON:API documents shaped like the real bundle's.
+ * the pivot `position`. It also serves the caller's account at `/me`, a singleton, and favorites
+ * filtered by the item they favor and by whether they are dated. It returns JSON:API documents
+ * shaped like the real bundle's.
  */
 import type { TransportRequest, TransportResponse } from '@haddowg/json-api-client'
 import type { MockStore, Resource, ResourceIdentifier } from './store'
@@ -251,6 +253,12 @@ export function handle(store: MockStore, req: TransportRequest): TransportRespon
 
   if (!type) return error(404, 'not found')
 
+  if (type === 'me') return accountEndpoint(store, req, method, id, page)
+  if (type === 'favorites' && !id && method === 'GET') {
+    const { window, meta, links } = paginate(filterFavorites(store, req.url), page)
+    return ok({ data: window, meta, links, jsonapi: { version: '1.1' } })
+  }
+
   // Relationship reads/mutations: /{type}/{id}/relationships/{rel}
   if (third === 'relationships' && id && fourth) {
     return relationshipEndpoint(store, req, method, type, id, fourth)
@@ -299,6 +307,63 @@ export function handle(store: MockStore, req: TransportRequest): TransportRespon
   if (method === 'POST') return createResource(store, req, type)
 
   return error(404, 'not found')
+}
+
+/**
+ * The caller's account at `/me`: read it, update it, or read its playlists at `/me/playlists`.
+ * The path carries no id, but an update's body must carry the account's, as the bundle checks.
+ */
+function accountEndpoint(
+  store: MockStore,
+  req: TransportRequest,
+  method: string,
+  rel: string | undefined,
+  page: ParsedUrl['page'],
+): TransportResponse {
+  if (rel === 'playlists' && method === 'GET') {
+    const { window, meta, links } = paginate(
+      store.playlists().map((row) => store.serializePlaylist(row)),
+      page,
+    )
+    return ok({ data: window, meta, links, jsonapi: { version: '1.1' } })
+  }
+  if (rel !== undefined) return error(404, 'not found')
+  if (method === 'GET') return ok({ data: store.serializeAccount(), jsonapi: { version: '1.1' } })
+  if (method === 'PATCH') {
+    const body = parseBody<WriteDoc>(req)
+    if (body?.data.id !== store.account().id) {
+      return error(409, 'the id must be the account the path serves', '/data/id')
+    }
+    const name = body.data.attributes?.['displayName']
+    if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+      return error(422, 'must not be blank', '/data/attributes/displayName')
+    }
+    store.updateAccount(typeof name === 'string' ? { displayName: name } : {})
+    return ok({ data: store.serializeAccount(), jsonapi: { version: '1.1' } })
+  }
+  return error(405, `method ${method} not allowed`)
+}
+
+/**
+ * The favorites a list read asks for. `filter[favoritable][type]` and `[id]` keep the favorites of
+ * one type, and of some of its ids, as the bundle's WhereMorph filter does. `filter[dated]` is a
+ * set of booleans, as its WhereSet filter is, and defaults to dated favorites only.
+ */
+function filterFavorites(store: MockStore, url: string): Resource[] {
+  const params = new URL(url, SELF).searchParams
+  const type = params.get('filter[favoritable][type]')
+  const ids = params.get('filter[favoritable][id]')?.split(',').filter(Boolean)
+  const datedValues = [
+    ...params.getAll('filter[dated][]'),
+    ...(params.get('filter[dated]')?.split(',') ?? []),
+  ]
+  const dated = datedValues.length === 0 ? ['true'] : datedValues
+  return store
+    .favorites()
+    .filter((row) => type === null || row.favoritableType === type)
+    .filter((row) => ids === undefined || ids.includes(row.favoritableId))
+    .filter((row) => dated.includes(row.favoritedAt === null ? 'false' : 'true'))
+    .map((row) => store.serializeFavorite(row))
 }
 
 // --- write handlers -----------------------------------------------------------------------

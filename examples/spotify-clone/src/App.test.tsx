@@ -119,4 +119,38 @@ describe('app smoke', () => {
     const airbagRow = screen.getByLabelText('Move Airbag up').closest('.track-row')
     expect(within(airbagRow as HTMLElement).getByText('3')).toBeInTheDocument()
   })
+
+  it('shows the caller from the /me singleton and renames them with the id it read', async () => {
+    renderAt('/account')
+
+    // The sidebar and the account page both read the singleton, with no id in the path.
+    expect(await screen.findByText('Ada · ada@example.com')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Account' })).toHaveTextContent('Ada')
+    })
+
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Ada Lovelace' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+
+    // The mock answers 409 unless the PATCH body carries the account's id, so the new name
+    // reaching the store proves the id rode the body.
+    expect(await screen.findByText('Ada Lovelace · ada@example.com')).toBeInTheDocument()
+    expect(mockStore?.account().displayName).toBe('Ada Lovelace')
+  })
+
+  it('lists liked tracks by the polymorphic relation, dated ones unless asked for both', async () => {
+    renderAt('/liked')
+
+    // WhereMorph keeps the favorites of tracks, leaving the liked album out. WhereSet's default
+    // keeps only dated favorites, so the undated Idioteque is left out.
+    expect(await screen.findByText('Paranoid Android')).toBeInTheDocument()
+    expect(screen.getByText('Teardrop')).toBeInTheDocument()
+    expect(screen.queryByText('Idioteque')).not.toBeInTheDocument()
+    expect(screen.queryByText('OK Computer')).not.toBeInTheDocument()
+
+    // Sending both booleans asks for every favorite of a track.
+    fireEvent.click(screen.getByLabelText('Include undated likes'))
+    expect(await screen.findByText('Idioteque')).toBeInTheDocument()
+    expect(screen.getByText('Undated')).toBeInTheDocument()
+  })
 })

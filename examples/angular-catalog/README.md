@@ -35,5 +35,9 @@ needed. Add `?live` to the URL to talk to a real server instead: the dev server 
 - `jsonApiMutation` renaming an album, with the 422 for a blank title shown from
   `jsonApiError().byPath()`, and `reload()` refreshing the reads afterwards.
 
+- The caller's account in the header (`src/app/account.ts`), a singleton the server serves at
+  `/me`. The read takes no id, and the rename passes the id the read returned, since the request
+  body must carry it.
+
 `pnpm --filter @haddowg/json-api-angular-catalog typecheck` runs `ngc` over the app, which checks
 the templates as well as the TypeScript.

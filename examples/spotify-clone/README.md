@@ -42,6 +42,10 @@ VITE_API_URL=/api VITE_API_TOKEN=ada@example.com pnpm --filter @haddowg/json-api
   reconcile on settle; `installNormalization` does `type:id` write-through patching, so an edit on
   the detail page (e.g. renaming a playlist) reflects in the Playlists list and Browse with **no
   refetch** ("edit once, updates everywhere").
+- **A singleton** — the caller's account at `/me`, read with `reads.accounts.get()` and renamed
+  with `writes.accounts.update()`, whose input carries the id the read returned.
+- **Polymorphic and boolean-set filters** — the Liked page filters favorites by the type they
+  favor (`WhereMorph`) and by whether they are dated (`WhereSet`, defaulting to dated only).
 - **TanStack Query** — `useQuery` / `useMutation` over the `@haddowg/json-api-query`
   option / mutation factories (`reads.<type>.list(...)`, `writes.<type>.create()`,
   `writes.<type>.id(id).rel('orderedTracks').add()`, …).

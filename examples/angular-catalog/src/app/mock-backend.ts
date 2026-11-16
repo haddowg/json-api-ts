@@ -51,6 +51,9 @@ const albums: Album[] = [
   { id: '12', title: 'Portishead', releasedAt: '1997-09-29T00:00:00+00:00', artistId: '2' },
 ]
 
+// The caller's account, which the server serves at /me, a singleton with no id in its path.
+const account = { id: '1', email: 'ada@example.com', displayName: 'Ada' }
+
 const LATENCY_MS = 400
 const MEDIA_TYPE = 'application/vnd.api+json'
 
@@ -79,6 +82,9 @@ function handle(
   query: URLSearchParams,
   base: string,
 ): { status: number; body: string } {
+  if (path === '/me') {
+    return me(req, base)
+  }
   const one = /^\/albums\/([^/]+)$/.exec(path)
   if (req.method === 'GET' && path === '/albums') {
     return list(query, base)
@@ -110,6 +116,41 @@ function handle(
     return ok({ data: resource(album, base) })
   }
   return error(404, 'Not Found')
+}
+
+function me(req: HttpRequest<unknown>, base: string): { status: number; body: string } {
+  const serialize = () => ({
+    type: 'accounts',
+    id: account.id,
+    attributes: { email: account.email, displayName: account.displayName },
+    links: { self: `${base}/me` },
+  })
+  if (req.method === 'GET') {
+    return ok({ data: serialize() })
+  }
+  if (req.method !== 'PATCH') {
+    return error(405, 'Method Not Allowed')
+  }
+  const doc = JSON.parse(String(req.body)) as {
+    data: { id?: string; attributes?: { displayName?: string } }
+  }
+  // The path names no account, so the body's id must be the one it serves.
+  if (doc.data.id !== account.id) {
+    return error(409, 'Conflict', 'The id must be the account the path serves.', '/data/id')
+  }
+  const name = doc.data.attributes?.displayName
+  if (name !== undefined && name.trim() === '') {
+    return error(
+      422,
+      'Unprocessable Content',
+      'This value should not be blank.',
+      '/data/attributes/displayName',
+    )
+  }
+  if (name !== undefined) {
+    account.displayName = name
+  }
+  return ok({ data: serialize() })
 }
 
 function list(query: URLSearchParams, base: string): { status: number; body: string } {
