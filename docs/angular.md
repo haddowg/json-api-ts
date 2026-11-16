@@ -235,6 +235,20 @@ save(id: string, title: string) {
 
 When calls overlap, the signals follow the latest one. The function can be any client write: `create`, `update`, `delete`, a relationship mutation, a [custom action](custom-actions.md) or an [atomic batch](atomic-operations.md). A `422` arrives with the client's flat error paths, so `byPath()` keys match your form fields. See [writes](writes.md).
 
+### Singletons
+
+A [singleton](reads.md#singletons) needs nothing of its own: the loader and the mutation call the
+client's singleton accessor, which takes no id, and the update passes the id the read returned.
+
+```ts
+readonly inbox = jsonApiResource({
+  loader: ({ client, abortSignal }) => client.inboxes.get({ signal: abortSignal }),
+})
+readonly markSeen = jsonApiMutation((client, seenUpTo: string) =>
+  client.inboxes.update({ id: this.inbox.value()!.id, seenUpTo }),
+)
+```
+
 ## No shared cache
 
 Each resource holds its own value. There is no normalised cache and no automatic invalidation, so after a write you `reload()` the resources you know it affects. That is a deliberate first step. If several screens need to share fetched resources, the [TanStack Query bindings](tanstack-query.md) have the `type:id` write-through cache.
