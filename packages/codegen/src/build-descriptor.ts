@@ -218,35 +218,44 @@ export class DescriptorBuilder {
       }
       const base = name.slice(0, -'Resource'.length)
       const collection = this.collectionPath(base)
-      const actions = collection ? this.actions(collection) : {}
+      const item = this.itemPath(base)
+      const actions = this.actions(collection, item)
       const descriptor: ResourceDescriptor = {
         attributes: this.attributes(base),
-        relations: this.relations(wireType, base, schema, collection),
+        relations: this.relations(wireType, base, schema, item),
         paths: this.operationPaths(base),
         paginator: this.paginator(base),
         clientId: this.clientId(base),
+      }
+      if (this.singletonPath(base) !== undefined) {
+        descriptor.singleton = true
       }
       const countable = this.countable(collection)
       if (countable !== undefined) {
         descriptor.countable = countable
       }
-      const resourceCountable = this.resourceCountable(collection)
+      const resourceCountable = this.resourceCountable(collection, item)
       if (resourceCountable !== undefined) {
         descriptor.resourceCountable = resourceCountable
       }
       // Filled in once every operation has been read, since a type's related reads and actions
       // render other types. The key is set now to keep its place in the output.
       descriptor.relatedQuery = {
-        operations: this.relatedQueryOperations(wireType, collection),
+        operations: this.relatedQueryOperations(wireType, collection, item),
         profile: '',
       }
-      const includable = this.includable(collection)
+      // A singleton has no collection read, so its single read says what it includes.
+      const includeRead =
+        collection !== undefined
+          ? this.operation(collection, 'get')
+          : item !== undefined
+            ? this.operation(item, 'get')
+            : undefined
+      const includable = this.includable(includeRead)
       if (includable !== undefined) {
         descriptor.includable = includable
       }
-      const included = this.includedTypes(
-        collection === undefined ? undefined : this.operation(collection, 'get'),
-      )
+      const included = this.includedTypes(includeRead)
       if (included !== undefined) {
         descriptor.included = included
       }
@@ -279,7 +288,7 @@ export class DescriptorBuilder {
       if (Object.keys(scopes).length > 0) {
         descriptor.scopes = scopes
       }
-      const accepted = this.acceptedWrites(collection)
+      const accepted = this.acceptedWrites(collection, item)
       if (accepted !== undefined) {
         descriptor.accepted = accepted
       }
@@ -313,19 +322,20 @@ export class DescriptorBuilder {
    */
   private acceptedWrites(
     collection: string | undefined,
+    item: string | undefined,
   ): Partial<Record<AcceptedOperation, AcceptedDescriptor>> | undefined {
-    if (collection === undefined) {
-      return undefined
-    }
     const out: Partial<Record<AcceptedOperation, AcceptedDescriptor>> = {}
-    const create = this.accepted(this.operation(collection, 'post'), `POST ${collection}`)
-    if (create !== undefined) {
-      out.create = create
+    if (collection !== undefined) {
+      const create = this.accepted(this.operation(collection, 'post'), `POST ${collection}`)
+      if (create !== undefined) {
+        out.create = create
+      }
     }
-    const item = `${collection}/{id}`
-    const update = this.accepted(this.operation(item, 'patch'), `PATCH ${item}`)
-    if (update !== undefined) {
-      out.update = update
+    if (item !== undefined) {
+      const update = this.accepted(this.operation(item, 'patch'), `PATCH ${item}`)
+      if (update !== undefined) {
+        out.update = update
+      }
     }
     return Object.keys(out).length > 0 ? out : undefined
   }
@@ -422,7 +432,7 @@ export class DescriptorBuilder {
     wireType: string,
     base: string,
     resource: SchemaObject,
-    collection: string | undefined,
+    item: string | undefined,
   ): Record<string, RelationDescriptor> {
     const relProps = isSchema(resource.properties?.['relationships'])
       ? (resource.properties['relationships'].properties ?? {})
@@ -458,9 +468,9 @@ export class DescriptorBuilder {
         }
       }
       out[name] =
-        collection === undefined
+        item === undefined
           ? this.withoutCollection(descriptor, endpoints.get(name))
-          : this.withRelationExposure(descriptor, collection, name, endpoints.get(name))
+          : this.withRelationExposure(descriptor, item, name, endpoints.get(name))
     }
 
     for (const [name, prop] of Object.entries(relProps)) {
@@ -544,7 +554,7 @@ export class DescriptorBuilder {
 
   /**
    * The per-relation mutation capability, derived from the HTTP methods the relationship
-   * endpoint (`{collection}/{id}/relationships/{rel}`) advertises. For a to-many:
+   * endpoint (`{item}/relationships/{rel}`) advertises. For a to-many:
    * `add` <- POST, `remove` <- DELETE, `replace` <- PATCH. For a to-one: `set` <- PATCH.
    * Only `true` verbs are emitted (a missing verb is simply absent). Returns `undefined`
    * when the relation exposes no relationship endpoint at all.
@@ -575,7 +585,7 @@ export class DescriptorBuilder {
   }
 
   /**
-   * A relation of a type with no collection endpoint, such as one only an action returns. When no
+   * A relation of a type with no resource endpoint, such as one only an action returns. When no
    * related or relationship read reaches it, it takes neither sort nor filter.
    */
   private withoutCollection(
@@ -601,13 +611,13 @@ export class DescriptorBuilder {
    */
   private withRelationExposure(
     descriptor: RelationDescriptor,
-    collection: string,
+    item: string,
     name: string,
     endpoints: RelationEndpoints | undefined,
   ): RelationDescriptor {
     const out: RelationDescriptor = { ...descriptor }
-    const relatedPath = endpoints?.related ?? `${collection}/{id}/${name}`
-    const relationshipPath = endpoints?.relationship ?? `${collection}/{id}/relationships/${name}`
+    const relatedPath = endpoints?.related ?? `${item}/${name}`
+    const relationshipPath = endpoints?.relationship ?? `${item}/relationships/${name}`
     // The client fills `{rel}` with this segment, so a relation served under its URI field name
     // (`/articles/{id}/published-by` for `publisher`) is reached at its real path.
     const segment = (endpoints?.related ?? endpoints?.relationship)?.split('/').pop()
@@ -690,23 +700,27 @@ export class DescriptorBuilder {
 
   /**
    * Collect the custom actions for a type from its `{collection}/-actions/{name}` and
-   * `{collection}/{id}/-actions/{name}` paths. The action name is the last segment; scope
-   * is `resource` when the path carries `/{id}/`, else `collection`. `input` is `document`
+   * `{item}/-actions/{name}` paths, where the item path is `{collection}/{id}` or a singleton's
+   * own path. The action name is the last segment; scope is `resource` for an item path, else
+   * `collection`. `input` is `document`
    * (a JSON:API requestBody), `none` (no requestBody) or `raw` (a non-JSON:API body);
    * `output` is `document` (a 2xx returns a JSON:API document) or `none` (only `204`). An action
    * answering to several methods gives one entry per method (see {@link pickOperations}).
    */
-  private actions(collection: string): Record<string, ActionDescriptor> {
+  private actions(
+    collection: string | undefined,
+    itemPath: string | undefined,
+  ): Record<string, ActionDescriptor> {
     const out: Record<string, ActionDescriptor> = {}
-    const collectionPrefix = `${collection}/-actions/`
-    const resourcePrefix = `${collection}/{id}/-actions/`
+    const collectionPrefix = collection === undefined ? undefined : `${collection}/-actions/`
+    const resourcePrefix = itemPath === undefined ? undefined : `${itemPath}/-actions/`
     for (const [path, item] of Object.entries(this.paths)) {
       let scope: ActionDescriptor['scope']
       let name: string
-      if (path.startsWith(resourcePrefix)) {
+      if (resourcePrefix !== undefined && path.startsWith(resourcePrefix)) {
         scope = 'resource'
         name = path.slice(resourcePrefix.length)
-      } else if (path.startsWith(collectionPrefix)) {
+      } else if (collectionPrefix !== undefined && path.startsWith(collectionPrefix)) {
         scope = 'collection'
         name = path.slice(collectionPrefix.length)
       } else {
@@ -1179,25 +1193,27 @@ export class DescriptorBuilder {
   }
 
   /**
-   * Find the collection path for a type, then derive each per-operation path that
+   * Find the collection and item paths for a type, then derive each per-operation path that
    * actually exists. The collection path P is the one whose POST requestBody refs
-   * `<Base>CreateRequest`, else the GET whose 200 response refs `<Base>Collection`.
+   * `<Base>CreateRequest`, else the GET whose 200 response refs `<Base>Collection`, and the
+   * item path is `P/{id}`. A singleton has no collection, and its item path is the one its
+   * resource names in `x-singleton`.
    */
   private operationPaths(base: string): Record<string, string> {
     const collection = this.collectionPath(base)
+    const item = this.itemPath(base)
     const out: Record<string, string> = {}
-    if (collection === undefined) {
-      return out
-    }
 
-    if (this.operation(collection, 'get')) {
+    if (collection !== undefined && this.operation(collection, 'get')) {
       out['fetchMany'] = collection
     }
-    if (this.operation(collection, 'post')) {
+    if (collection !== undefined && this.operation(collection, 'post')) {
       out['create'] = collection
     }
+    if (item === undefined) {
+      return sortRecord(out)
+    }
 
-    const item = `${collection}/{id}`
     if (this.operation(item, 'get')) {
       out['fetchOne'] = item
     }
@@ -1208,17 +1224,43 @@ export class DescriptorBuilder {
       out['delete'] = item
     }
 
-    if (this.hasRelatedPath(collection)) {
-      out['fetchRelated'] = `${collection}/{id}/{rel}`
+    if (this.hasRelatedPath(item)) {
+      out['fetchRelated'] = `${item}/{rel}`
     }
-    if (this.hasRelationshipPath(collection)) {
-      out['fetchRelationship'] = `${collection}/{id}/relationships/{rel}`
+    if (this.hasRelationshipPath(item)) {
+      out['fetchRelationship'] = `${item}/relationships/{rel}`
     }
 
     return sortRecord(out)
   }
 
+  /**
+   * The path a singleton type is served at, which its `<Base>Resource` names in `x-singleton`.
+   * `undefined` for any other type.
+   */
+  private singletonPath(base: string): string | undefined {
+    const path = this.schemas[`${base}Resource`]?.['x-singleton']
+    return typeof path === 'string' ? path : undefined
+  }
+
+  /** The path of a type's single resource: `{collection}/{id}`, or a singleton's own path. */
+  private itemPath(base: string): string | undefined {
+    const singleton = this.singletonPath(base)
+    if (singleton !== undefined) {
+      return singleton
+    }
+    const collection = this.collectionPath(base)
+    return collection === undefined ? undefined : `${collection}/{id}`
+  }
+
+  /**
+   * A type's collection path. A singleton has none, even when to-many relations elsewhere reference
+   * its `<Base>Collection` component.
+   */
   private collectionPath(base: string): string | undefined {
+    if (this.singletonPath(base) !== undefined) {
+      return undefined
+    }
     let byCollection: string | undefined
     for (const [path, item] of Object.entries(this.paths)) {
       // An action may take a type's create body as its input without being that type's collection.
@@ -1243,9 +1285,9 @@ export class DescriptorBuilder {
     return byCollection
   }
 
-  /** Any `P/{id}/<rel>` related path (excludes relationships/ and custom `-actions`). */
-  private hasRelatedPath(collection: string): boolean {
-    const prefix = `${collection}/{id}/`
+  /** Any `<item>/<rel>` related path (excludes relationships/ and custom `-actions`). */
+  private hasRelatedPath(item: string): boolean {
+    const prefix = `${item}/`
     return Object.keys(this.paths).some((path) => {
       if (!path.startsWith(prefix)) {
         return false
@@ -1255,8 +1297,8 @@ export class DescriptorBuilder {
     })
   }
 
-  private hasRelationshipPath(collection: string): boolean {
-    const prefix = `${collection}/{id}/relationships/`
+  private hasRelationshipPath(item: string): boolean {
+    const prefix = `${item}/relationships/`
     return Object.keys(this.paths).some(
       (path) => path.startsWith(prefix) && !path.slice(prefix.length).includes('/'),
     )
@@ -1375,15 +1417,12 @@ export class DescriptorBuilder {
    */
   private resourceCountable(
     collection: string | undefined,
+    item: string | undefined,
   ): Partial<Record<ResourceCountOperation, CountableDescriptor>> | undefined {
-    if (collection === undefined) {
-      return undefined
-    }
-    const item = `${collection}/{id}`
     const operations: readonly [ResourceCountOperation, OperationObject | undefined][] = [
-      ['fetchOne', this.operation(item, 'get')],
-      ['create', this.operation(collection, 'post')],
-      ['update', this.operation(item, 'patch')],
+      ['fetchOne', item === undefined ? undefined : this.operation(item, 'get')],
+      ['create', collection === undefined ? undefined : this.operation(collection, 'post')],
+      ['update', item === undefined ? undefined : this.operation(item, 'patch')],
     ]
     const out: Partial<Record<ResourceCountOperation, CountableDescriptor>> = {}
     for (const [operation, op] of operations) {
@@ -1405,16 +1444,15 @@ export class DescriptorBuilder {
   private relatedQueryOperations(
     wireType: string,
     collection: string | undefined,
+    item: string | undefined,
   ): RelatedQueryOperation[] {
-    if (collection === undefined) {
-      return []
-    }
-    const item = `${collection}/{id}`
+    const read = (path: string | undefined, method: HttpMethod) =>
+      path === undefined ? undefined : this.operation(path, method)
     const operations: readonly [RelatedQueryOperation, OperationObject | undefined][] = [
-      ['fetchMany', this.operation(collection, 'get')],
-      ['fetchOne', this.operation(item, 'get')],
-      ['create', this.operation(collection, 'post')],
-      ['update', this.operation(item, 'patch')],
+      ['fetchMany', read(collection, 'get')],
+      ['fetchOne', read(item, 'get')],
+      ['create', read(collection, 'post')],
+      ['update', read(item, 'patch')],
     ]
     return operations
       .filter(([, op]) => this.takesRelatedQuery(op, wireType))
@@ -1461,18 +1499,13 @@ export class DescriptorBuilder {
 
   /**
    * The relation paths the read endpoints accept in `include` — the `include` query
-   * parameter's `schema.items.enum` (already including nested dotted paths) on the collection
-   * GET. Returns `undefined` when the collection advertises no `include` (nothing includable).
-   *
-   * Read from the collection GET to mirror {@see sortable}/{@see filterable}: the whole builder
-   * is collection-centric (a type with no collection path gets no `paths` at all), and the bundle
-   * advertises the same `include` enum on the collection and single-resource GETs.
+   * parameter's `schema.items.enum` (already including nested dotted paths) on `read`, the
+   * collection GET, or a singleton's single read. Returns `undefined` when it advertises no
+   * `include` (nothing includable). The bundle advertises the same `include` enum on the
+   * collection and single-resource GETs.
    */
-  private includable(collection: string | undefined): readonly string[] | undefined {
-    if (collection === undefined) {
-      return undefined
-    }
-    const tokens = paramItemsEnum(this.operation(collection, 'get'), 'include')
+  private includable(read: OperationObject | undefined): readonly string[] | undefined {
+    const tokens = paramItemsEnum(read, 'include')
     return tokens !== undefined && tokens.length > 0 ? tokens : undefined
   }
 

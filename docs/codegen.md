@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 39. An older document is refused, because it describes its error codes in a form
+contracts 24 to 40. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -788,6 +788,12 @@ document's structure:
 - **`paths`** — only the per-operation paths that actually exist
   (`fetchMany`/`fetchOne`/`create`/`update`/`delete`/`fetchRelated`/`fetchRelationship`).
   A read-only type simply has no `create`/`update`/`delete`.
+- **`singleton`**: `true` for a type whose `<Type>Resource` component names its path in
+  `x-singleton`. Such a type has no collection or create for the codegen to find it from, so its
+  `fetchOne` and `update` paths are that path, `/inbox`, and its related, relationship and action
+  paths hang off it with no `{id}`. It has no `fetchMany`, `create` or `delete`, even when a
+  `<Type>Collection` component exists for the to-many relations that point at it. The client
+  exposes it as a [singleton accessor](reads.md#singletons).
 - **`paginator`** — how the collection paginates, read from its `page` query
   parameter:
     - When the page schema carries `x-paginator`, the stamp

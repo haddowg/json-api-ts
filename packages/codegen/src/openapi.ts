@@ -33,6 +33,8 @@ export interface SchemaObject {
     delimited?: unknown
     deprecated?: unknown
   }[]
+  /** On a singleton type's `<Type>Resource`: the path its single resource is served at. */
+  'x-singleton'?: string
   [key: string]: unknown
 }
 
