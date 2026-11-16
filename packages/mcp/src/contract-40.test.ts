@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
-import { fakeTransport, modelOf, source, withInbox } from './test-fixtures'
+import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
 
-const { document } = source('contract-witness')
-const singleton = withInbox(document)
+const singleton = source('contract-witness').document
 
 const inbox = (attributes: Record<string, unknown> = { unseen: 3, unread: 5, seenUpTo: null }) => ({
   type: 'inboxes',
@@ -16,12 +15,6 @@ const inbox = (attributes: Record<string, unknown> = { unseen: 3, unread: 5, see
 
 const properties = (schema: unknown): string[] =>
   Object.keys(((schema as JsonSchema)['properties'] ?? {}) as Record<string, unknown>)
-
-/** Every tool but the singleton's, as its name, input and output. */
-const otherTools = (doc: OpenApiDocument) =>
-  createJsonApiMcp(modelOf(doc))
-    .tools.filter((tool) => !tool.name.startsWith('inboxes_'))
-    .map((tool) => [tool.name, tool.inputSchema, tool.outputSchema])
 
 async function session(doc: OpenApiDocument = singleton) {
   const { transport, requests } = fakeTransport((req) =>
@@ -91,7 +84,14 @@ describe('generator contract 40 (singleton types)', () => {
     }
     const update = inboxTools.find((tool) => tool.name === 'inboxes_update')!
     expect(properties(update.inputSchema)).toEqual(expect.arrayContaining(['seenUpTo', 'owner']))
-    expect(otherTools(singleton)).toEqual(otherTools(document))
+  })
+
+  it('records no preceding read for a document without a singleton', () => {
+    // Core's second witness leaves out every structure only some documents carry, the singleton too.
+    const mcp = createJsonApiMcp(fixture('contract-witness-baseline'))
+    expect(mcp.contract).toBe(39)
+    expect(mcp.tools.some((tool) => tool.name.startsWith('inboxes_'))).toBe(false)
+    expect(mcp.operations.some((op) => op.reads !== undefined)).toBe(false)
   })
 
   it('reads, relates and runs actions at the singleton path', async () => {

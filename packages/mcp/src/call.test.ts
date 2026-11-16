@@ -473,3 +473,29 @@ describe('withCount', () => {
     expect(requests[0]!.headers['Accept']).toContain('countable')
   })
 })
+
+describe('polymorphic and boolean-set filters', () => {
+  it('sends WhereMorph as nested keys and WhereSet once per member', async () => {
+    const { requests, tools } = await session(() => ({ json: { data: [] } }))
+    const result = await tools.callTool('favorites_list', {
+      ...nulls(['include', 'fields', 'pageLink', 'pageSize', 'sort']),
+      filter: { favoritable: { type: 'tracks', id: ['1', '2'] }, dated: [true, false] },
+    })
+    expect(result.isError).toBeUndefined()
+    expect(decodeURIComponent(requests[0]!.url)).toContain(
+      'filter[favoritable][type]=tracks&filter[favoritable][id]=1,2&filter[dated][]=true&filter[dated][]=false',
+    )
+  })
+
+  it('leaves out an id the model sends as null, and a filter it leaves null', async () => {
+    const { requests, tools } = await session(() => ({ json: { data: [] } }))
+    await tools.callTool('favorites_list', {
+      ...nulls(['include', 'fields', 'pageLink', 'pageSize', 'sort']),
+      filter: { favoritable: { type: 'albums', id: null }, dated: null },
+    })
+    const url = decodeURIComponent(requests[0]!.url)
+    expect(url).toContain('filter[favoritable][type]=albums')
+    expect(url).not.toContain('[id]')
+    expect(url).not.toContain('dated')
+  })
+})
