@@ -21,7 +21,7 @@
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
-import { keyHasPrefix, type QueryKey, relationReadKeys } from './keys'
+import { keyHasPrefix, parentRelationReadKeys, type QueryKey } from './keys'
 
 /** A `type:id` cache key for a resource. */
 type ResourceKey = string
@@ -399,16 +399,16 @@ export type MembershipTransform = (members: readonly MembershipRef[]) => readonl
  * wholesale on error. On settle the factory invalidates the relation subtree, so the server
  * reconciles regardless (a degraded optimistic member — an identifier without attributes — is
  * replaced by the real one). A to-one `set` is handled separately (it caches a single value, not an
- * array).
+ * array). `id` is `undefined` for a singleton parent, whose keys carry none.
  */
 export function applyOptimisticMembership(
   queryClient: QueryClient,
   type: string,
-  id: string,
+  id: string | undefined,
   rel: string,
   transform: MembershipTransform,
 ): Snapshot {
-  const prefixes = relationReadKeys(type, id, rel)
+  const prefixes = parentRelationReadKeys(type, id, rel)
   const edits: { key: QueryKey; previous: unknown }[] = []
 
   for (const query of queryClient.getQueryCache().getAll()) {
@@ -448,16 +448,17 @@ export function sameRef(a: MembershipRef, b: MembershipRef): boolean {
  * clear), snapshotting the prior value for rollback. A to-one read caches a single value (not an
  * array), so a plain replacement is correct; the settle refetch reconciles a bare identifier into
  * the fully-hydrated resource. `undefined` next means the ref carried no cache identity (an
- * lid-only atomic handle) — the cache is left untouched (the wire write still happens).
+ * lid-only atomic handle) — the cache is left untouched (the wire write still happens). `id` is
+ * `undefined` for a singleton parent.
  */
 export function applyOptimisticToOne(
   queryClient: QueryClient,
   type: string,
-  id: string,
+  id: string | undefined,
   rel: string,
   next: MembershipRef | null | undefined,
 ): Snapshot {
-  const prefixes = relationReadKeys(type, id, rel)
+  const prefixes = parentRelationReadKeys(type, id, rel)
   const edits: { key: QueryKey; previous: unknown }[] = []
   if (next === undefined) {
     return { restore() {} }

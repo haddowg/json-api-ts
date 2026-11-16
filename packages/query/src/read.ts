@@ -32,7 +32,7 @@ import type {
   TypedRelationReadQuery,
   TypeName,
 } from '@haddowg/json-api-client'
-import { keyFor, type QueryKey } from './keys'
+import { type KeyTarget, keyFor, type QueryKey } from './keys'
 
 /**
  * The precise materialised result of `.rel(R).related()` / `.get()` — extracted (via `infer`)
@@ -70,31 +70,93 @@ export interface QueryOptions<R> {
   queryFn: () => Promise<R>
 }
 
+/**
+ * The id a factory addresses a resource of type `T` by: a string, or `undefined` for a singleton,
+ * whose reads and writes carry no id.
+ */
+export type ResourceId<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  singleton: true
+}
+  ? undefined
+  : string
+
+/** The loose relation reads a handle offers at the `.rel(name)` boundary. */
+interface RelationReads {
+  get(query?: RelationReadQuery): Promise<unknown>
+  related(query?: RelationReadQuery): Promise<unknown>
+}
+
+/** A singleton's read accessor: its single read and its relations, with no id. */
+interface SingletonReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  rel(name: RelationName<D, T>): RelationReads
+}
+
 /** A client narrowed to its per-type accessors (drops the `atomic` member, which reads don't use). */
 type TypedClient<D extends ApiDescriptor, A> = {
-  [T in TypeName<D>]: {
-    list<
-      const Inc extends readonly IncludePath<D, T>[] = [],
-      const F extends FieldsMap<D> = {},
-      const Pg extends ListPageParams<D, T> | undefined = undefined,
-      const Cnt extends readonly CountToken<D, T>[] = [],
-    >(
-      query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-    ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
-    get<
-      const Inc extends readonly IncludePath<D, T>[] = [],
-      const F extends FieldsMap<D> = {},
-      const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
-    >(
-      id: string,
-      query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-    ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
-    id(id: string): {
-      rel(name: RelationName<D, T>): {
-        get(query?: RelationReadQuery): Promise<unknown>
-        related(query?: RelationReadQuery): Promise<unknown>
-      }
-    }
+  [T in TypeName<D>]: D[T] extends { singleton: true }
+    ? SingletonReads<D, A, T>
+    : TypeReads<D, A, T>
+}
+
+/** A collection type's read accessor. */
+interface TypeReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
+  list<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Pg extends ListPageParams<D, T> | undefined = undefined,
+    const Cnt extends readonly CountToken<D, T>[] = [],
+  >(
+    query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+  ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
+    id: string,
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  id(id: string): { rel(name: RelationName<D, T>): RelationReads }
+}
+
+/** The accessor of `type`, read as a collection type's or a singleton's. */
+function readsOf<D extends ApiDescriptor, A, T extends TypeName<D>>(
+  client: TypedClient<D, A>,
+  type: T,
+): TypeReads<D, A, T> & SingletonReads<D, A, T> {
+  return client[type] as unknown as TypeReads<D, A, T> & SingletonReads<D, A, T>
+}
+
+/** The relation reads of a resource, or of a singleton when `id` is `undefined`. */
+function relationReads<D extends ApiDescriptor, A, T extends TypeName<D>>(
+  client: TypedClient<D, A>,
+  type: T,
+  id: string | undefined,
+  rel: RelationName<D, T>,
+): RelationReads {
+  const accessor = readsOf(client, type)
+  return id === undefined ? accessor.rel(rel) : accessor.id(id).rel(rel)
+}
+
+/** A key target addressing `id`, or a singleton when it is `undefined`. */
+function target(
+  type: string,
+  operation: 'fetchOne' | 'fetchRelated' | 'fetchRelationship',
+  id: string | undefined,
+  rel?: string,
+): KeyTarget {
+  return {
+    type,
+    operation,
+    ...(id === undefined ? {} : { id }),
+    ...(rel === undefined ? {} : { rel }),
   }
 }
 
@@ -118,7 +180,7 @@ export function listQueryOptions<
 ): QueryOptions<
   Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>
 > {
-  const accessor = client[type]
+  const accessor = readsOf(client, type)
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
     queryFn: () => accessor.list<Inc, F, Pg, Cnt>(query),
@@ -129,7 +191,8 @@ export function listQueryOptions<
  * The single-resource read (`GET /{type}/{id}`): options resolving the typed resource view,
  * narrowed by `include`/`fields` and counted by `withCount` as `client.<type>.get(id, query)`.
  * Key: `[type, 'fetchOne', id, <params>]` — the `id` sits at a fixed position so {@link keyFor}'s
- * prefix matches a resource's reads.
+ * prefix matches a resource's reads. A singleton (`GET /inbox`) takes `undefined` for the id and
+ * reads as `client.<type>.get(query)`, keyed `[type, 'fetchOne', <params>]`.
  */
 export function getQueryOptions<
   D extends ApiDescriptor,
@@ -141,13 +204,17 @@ export function getQueryOptions<
 >(
   client: TypedClient<D, A>,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   query?: SingleReadQuery<D, T, Inc, F, Cnt>,
 ): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>> {
-  const accessor = client[type]
+  const accessor = readsOf(client, type)
+  const resource: string | undefined = id
   return {
-    queryKey: keyFor({ type, operation: 'fetchOne', id }, query),
-    queryFn: () => accessor.get<Inc, F, Cnt>(id, query),
+    queryKey: keyFor(target(type, 'fetchOne', resource), query),
+    queryFn: () =>
+      resource === undefined
+        ? accessor.get<Inc, F, Cnt>(query)
+        : accessor.get<Inc, F, Cnt>(resource, query),
   }
 }
 
@@ -157,6 +224,7 @@ export function getQueryOptions<
  * `[type, 'fetchRelationship', id, rel, <params>]`. The result is the client's runtime linkage
  * shape; the relationship endpoint's per-relation value is loose at the `.rel(name)` boundary, so
  * the option resolves `unknown` unless the caller annotates it (parity with the client's runtime).
+ * A singleton takes `undefined` for the id, keyed `[type, 'fetchRelationship', rel, <params>]`.
  */
 export function relationshipQueryOptions<
   D extends ApiDescriptor,
@@ -166,14 +234,14 @@ export function relationshipQueryOptions<
 >(
   client: TypedClient<D, A>,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   rel: R,
   query?: TypedRelationReadQuery<D, T, R>,
 ): QueryOptions<LinkageResult<D, A, T, R>> {
-  const accessor = client[type]
   return {
-    queryKey: keyFor({ type, operation: 'fetchRelationship', id, rel }, query),
-    queryFn: () => accessor.id(id).rel(rel).get(query) as Promise<LinkageResult<D, A, T, R>>,
+    queryKey: keyFor(target(type, 'fetchRelationship', id, rel), query),
+    queryFn: () =>
+      relationReads(client, type, id, rel).get(query) as Promise<LinkageResult<D, A, T, R>>,
   }
 }
 
@@ -181,7 +249,8 @@ export function relationshipQueryOptions<
  * The related-collection read (`GET /{type}/{id}/{rel}`): options resolving the materialised
  * related resource(s), via `client.<type>.id(id).rel(rel).related(query)`. Key: `[type,
  * 'fetchRelated', id, rel, <params>]`. As with linkage, the related value is loose at the
- * `.rel(name)` boundary, so this resolves `unknown` (parity with the client runtime).
+ * `.rel(name)` boundary, so this resolves `unknown` (parity with the client runtime). A singleton
+ * takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>]`.
  */
 export function relatedQueryOptions<
   D extends ApiDescriptor,
@@ -191,14 +260,14 @@ export function relatedQueryOptions<
 >(
   client: TypedClient<D, A>,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   rel: R,
   query?: TypedRelatedReadQuery<D, T, R>,
 ): QueryOptions<RelatedResult<D, A, T, R>> {
-  const accessor = client[type]
   return {
-    queryKey: keyFor({ type, operation: 'fetchRelated', id, rel }, query),
-    queryFn: () => accessor.id(id).rel(rel).related(query) as Promise<RelatedResult<D, A, T, R>>,
+    queryKey: keyFor(target(type, 'fetchRelated', id, rel), query),
+    queryFn: () =>
+      relationReads(client, type, id, rel).related(query) as Promise<RelatedResult<D, A, T, R>>,
   }
 }
 
@@ -236,9 +305,36 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
   ): QueryOptions<RelatedResult<D, A, T, R>>
 }
 
-/** The bound query API: one {@link TypeQueryApi} per wire type (`api.albums.list(...)`). */
+/**
+ * A singleton's read-option factories (`api.inboxes.get(query)`), which take no id, as the
+ * client's singleton accessor doesn't.
+ */
+export interface SingletonQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>> {
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
+    query?: SingleReadQuery<D, T, Inc, F, Cnt>,
+  ): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  relationship<R extends RelationName<D, T>>(
+    rel: R,
+    query?: TypedRelationReadQuery<D, T, R>,
+  ): QueryOptions<LinkageResult<D, A, T, R>>
+  related<R extends RelationName<D, T>>(
+    rel: R,
+    query?: TypedRelatedReadQuery<D, T, R>,
+  ): QueryOptions<RelatedResult<D, A, T, R>>
+}
+
+/**
+ * The bound query API: one {@link TypeQueryApi} per wire type (`api.albums.list(...)`), or a
+ * {@link SingletonQueryApi} for a singleton type.
+ */
 export type QueryApi<D extends ApiDescriptor, A> = {
-  [T in TypeName<D>]: TypeQueryApi<D, A, T>
+  [T in TypeName<D>]: D[T] extends { singleton: true }
+    ? SingletonQueryApi<D, A, T>
+    : TypeQueryApi<D, A, T>
 }
 
 /**
@@ -250,7 +346,10 @@ export type QueryApi<D extends ApiDescriptor, A> = {
 export function createQueryApi<D extends ApiDescriptor, A>(
   client: TypedClient<D, A>,
 ): QueryApi<D, A> {
-  const cache = new Map<string, TypeQueryApi<D, A, TypeName<D>>>()
+  const cache = new Map<
+    string,
+    TypeQueryApi<D, A, TypeName<D>> | SingletonQueryApi<D, A, TypeName<D>>
+  >()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
       if (typeof prop !== 'string') {
@@ -258,7 +357,12 @@ export function createQueryApi<D extends ApiDescriptor, A>(
       }
       let api = cache.get(prop)
       if (api === undefined) {
-        api = typeQueryApi(client, prop as TypeName<D>)
+        const type = prop as TypeName<D>
+        // A singleton's accessor offers no `.id()`, since it has no id to address.
+        api =
+          typeof (client[type] as { id?: unknown } | undefined)?.id === 'function'
+            ? typeQueryApi(client, type)
+            : singletonQueryApi(client, type)
         cache.set(prop, api)
       }
       return api
@@ -271,22 +375,41 @@ function typeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
   client: TypedClient<D, A>,
   type: T,
 ): TypeQueryApi<D, A, T> {
+  // A collection type's id is a string, which the deferred `ResourceId` can't see here.
+  const of = (id: string) => id as ResourceId<D, T>
   return {
     list: (query) => listQueryOptions(client, type, query),
-    get: (id, query) => getQueryOptions(client, type, id, query),
+    get: (id, query) => getQueryOptions(client, type, of(id), query),
     relationship<R extends RelationName<D, T>>(
       id: string,
       rel: R,
       query?: TypedRelationReadQuery<D, T, R>,
     ) {
-      return relationshipQueryOptions(client, type, id, rel, query)
+      return relationshipQueryOptions(client, type, of(id), rel, query)
     },
     related<R extends RelationName<D, T>>(
       id: string,
       rel: R,
       query?: TypedRelatedReadQuery<D, T, R>,
     ) {
-      return relatedQueryOptions(client, type, id, rel, query)
+      return relatedQueryOptions(client, type, of(id), rel, query)
+    },
+  }
+}
+
+/** Build a singleton's bound read-option factories, which address it with no id. */
+function singletonQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
+  client: TypedClient<D, A>,
+  type: T,
+): SingletonQueryApi<D, A, T> {
+  const none = undefined as ResourceId<D, T>
+  return {
+    get: (query) => getQueryOptions(client, type, none, query),
+    relationship<R extends RelationName<D, T>>(rel: R, query?: TypedRelationReadQuery<D, T, R>) {
+      return relationshipQueryOptions(client, type, none, rel, query)
+    },
+    related<R extends RelationName<D, T>>(rel: R, query?: TypedRelatedReadQuery<D, T, R>) {
+      return relatedQueryOptions(client, type, none, rel, query)
     },
   }
 }

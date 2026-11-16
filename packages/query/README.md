@@ -90,6 +90,11 @@ queryClient.invalidateQueries({ queryKey: typeKey('albums') }) // every albums r
 
 Also exported: `relationKey`, `normalizeParams`.
 
+A singleton type's keys leave out the id (`['inboxes', 'fetchOne']`). Its factories take
+`undefined` for the id, which the types allow only for a singleton, and the bound API drops the
+argument: `reads.inboxes.get()`, `writes.inboxes.update()`, whose variables carry the resource's
+`id` for the request body.
+
 ## Normalization (`type:id` write-through patching)
 
 TanStack keeps denormalized results; this package indexes every resource (`data` + `included`) by

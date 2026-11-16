@@ -2,6 +2,7 @@
  * The deterministic query-key factory (docs/tanstack-query.md).
  *
  * A key is a stable, hierarchical readonly tuple `[type, operation, ...id?, ...rel?, params?]`.
+ * A singleton type's keys leave out the id, since its reads address it by type alone.
  * The hierarchy is the contract the normalization layer + targeted invalidation lean on: a
  * prefix of a key matches every key beneath it (TanStack's `queryKey` matching is prefix-based),
  * so `[type]` invalidates a whole type's subtree, `[type, operation]` an operation's subtree, and
@@ -69,7 +70,10 @@ export function normalizeParams(value: unknown): NormalizedParams {
 export interface KeyTarget {
   type: string
   operation: ReadOperation
-  /** Present for resource-scoped ops (`fetchOne`/`fetchRelated`/`fetchRelationship`). */
+  /**
+   * Present for resource-scoped ops (`fetchOne`/`fetchRelated`/`fetchRelationship`), except on a
+   * singleton type, whose reads carry no id.
+   */
   id?: string
   /** Present for relation ops (`fetchRelated`/`fetchRelationship`). */
   rel?: string
@@ -170,6 +174,32 @@ export function relationReadKeys(
     relationKey(type, 'fetchRelated', id, rel),
     relationKey(type, 'fetchRelationship', id, rel),
   ]
+}
+
+/**
+ * {@link relationReadKeys} for a relation of a singleton type, whose keys carry no id:
+ * `[type, 'fetchRelated', rel]` and `[type, 'fetchRelationship', rel]`.
+ */
+export function singletonRelationReadKeys(
+  type: string,
+  rel: string,
+): readonly [readonly [string, string, string], readonly [string, string, string]] {
+  return [
+    [type, 'fetchRelated', rel],
+    [type, 'fetchRelationship', rel],
+  ]
+}
+
+/**
+ * The read prefixes of one parent's relation: {@link relationReadKeys} for a resource, or
+ * {@link singletonRelationReadKeys} when `id` is `undefined`, for a singleton.
+ */
+export function parentRelationReadKeys(
+  type: string,
+  id: string | undefined,
+  rel: string,
+): readonly QueryKey[] {
+  return id === undefined ? singletonRelationReadKeys(type, rel) : relationReadKeys(type, id, rel)
 }
 
 /**

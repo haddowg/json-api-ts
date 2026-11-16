@@ -37,6 +37,7 @@ import {
   type ReadResult,
   type RelationName,
   type ResourceCountToken,
+  type SingletonUpdateInput,
   type TypeName,
   type UpdateInput,
   type UpdateMethod,
@@ -45,7 +46,7 @@ import {
   type WriteOptions,
 } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
-import { operationKey, relationKey, resourceKey } from './keys'
+import { operationKey, parentRelationReadKeys, resourceKey } from './keys'
 import {
   applyOptimisticMembership,
   applyOptimisticPatch,
@@ -55,6 +56,7 @@ import {
   sameRef,
   type Snapshot,
 } from './normalize'
+import type { ResourceId } from './read'
 
 /**
  * A TanStack-compatible mutation-options object: the async `mutationFn` plus the lifecycle
@@ -85,22 +87,65 @@ export interface MutationContext {
   snapshot: Snapshot
 }
 
-/** A client narrowed to the per-type write methods the mutation factories drive. */
-type WriteClient<D extends ApiDescriptor, A, W> = {
-  [T in TypeName<D>]: {
-    create: CreateMethod<D, A, W, T>
-    id(id: string): {
-      update: UpdateMethod<D, A, W, T>
-      delete(): Promise<void>
-      rel(name: RelationName<D, T>): {
-        add(refs: readonly LinkageRef<string>[]): Promise<unknown>
-        remove(refs: readonly LinkageRef<string>[]): Promise<unknown>
-        replace(refs: readonly LinkageRef<string>[]): Promise<unknown>
-        set(ref: LinkageRef<string> | null): Promise<unknown>
-      }
-    }
+/** The loose relationship mutations a handle offers at the `.rel(name)` boundary. */
+interface RelationWrites {
+  add(refs: readonly LinkageRef<string>[]): Promise<unknown>
+  remove(refs: readonly LinkageRef<string>[]): Promise<unknown>
+  replace(refs: readonly LinkageRef<string>[]): Promise<unknown>
+  set(ref: LinkageRef<string> | null): Promise<unknown>
+}
+
+/** A collection type's write accessor. */
+interface TypeWrites<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
+  create: CreateMethod<D, A, W, T>
+  id(id: string): {
+    update: UpdateMethod<D, A, W, T>
+    delete(): Promise<void>
+    rel(name: RelationName<D, T>): RelationWrites
   }
 }
+
+/** A singleton's write accessor: an update taking the id in its input, and its relations. */
+interface SingletonWrites<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
+  update: UpdateMethod<D, A, W, T, SingletonUpdateInput<D, W, T>>
+  rel(name: RelationName<D, T>): RelationWrites
+}
+
+/** A client narrowed to the per-type write methods the mutation factories drive. */
+type WriteClient<D extends ApiDescriptor, A, W> = {
+  [T in TypeName<D>]: D[T] extends { singleton: true }
+    ? SingletonWrites<D, A, W, T>
+    : TypeWrites<D, A, W, T>
+}
+
+/** The accessor of `type`, read as a collection type's or a singleton's. */
+function writesOf<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
+  client: WriteClient<D, A, W>,
+  type: T,
+): TypeWrites<D, A, W, T> & SingletonWrites<D, A, W, T> {
+  return client[type] as unknown as TypeWrites<D, A, W, T> & SingletonWrites<D, A, W, T>
+}
+
+/** The relationship mutations of a resource, or of a singleton when `id` is `undefined`. */
+function relationWrites<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
+  client: WriteClient<D, A, W>,
+  type: T,
+  id: string | undefined,
+  rel: RelationName<D, T>,
+): RelationWrites {
+  const accessor = writesOf(client, type)
+  return id === undefined ? accessor.rel(rel) : accessor.id(id).rel(rel)
+}
+
+/**
+ * The input an update of type `T` takes: its {@link UpdateInput}, with the resource's `id` for a
+ * singleton, whose path carries none.
+ */
+export type UpdateVariables<D extends ApiDescriptor, W, T extends TypeName<D>> = D[T] extends {
+  singleton: true
+}
+  ? SingletonUpdateInput<D, W, T>
+  : UpdateInput<D, W, T>
 
 /**
  * Invalidate the list/collection subtree of a type (`[type, 'fetchMany']`) — refetched after a
@@ -142,13 +187,16 @@ function invalidateResource(queryClient: QueryClient, type: string, id: string):
 function invalidateParentRelations(
   queryClient: QueryClient,
   type: string,
-  id: string,
+  id: string | undefined,
   rel: string,
 ): Promise<void> {
+  // A singleton's keys carry no id, so its single reads sit under `[type, 'fetchOne']`.
+  const parent = id === undefined ? operationKey(type, 'fetchOne') : resourceKey(type, id)
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: relationKey(type, 'fetchRelated', id, rel) }),
-    queryClient.invalidateQueries({ queryKey: relationKey(type, 'fetchRelationship', id, rel) }),
-    queryClient.invalidateQueries({ queryKey: resourceKey(type, id) }),
+    ...parentRelationReadKeys(type, id, rel).map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }),
+    ),
+    queryClient.invalidateQueries({ queryKey: parent }),
   ]).then(() => undefined)
 }
 
@@ -201,7 +249,7 @@ export function createMutationOptions<
   WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
   CreateInput<D, W, T>
 > {
-  const accessor = client[type]
+  const accessor = writesOf(client, type)
   return {
     mutationFn: (input) =>
       (accessor.create as LooseWrite)(input, opts) as Promise<
@@ -225,6 +273,9 @@ export function createMutationOptions<
  * queries; `onError` restores the snapshot. An update that declares a `202` may resolve to an
  * `Accepted` job, which is not normalized, unless `wait` polls it.
  *
+ * A singleton (`PATCH /inbox`) takes `undefined` for the id and runs `client.<type>.update(input)`,
+ * whose input carries the resource's `id` for the body.
+ *
  * @param optimistic apply the patch's attributes immediately (rolled back on error). Default off.
  */
 export function updateMutationOptions<
@@ -241,22 +292,26 @@ export function updateMutationOptions<
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
-  UpdateInput<D, W, T>,
+  UpdateVariables<D, W, T>,
   MutationContext
 > {
-  const accessor = client[type]
+  const accessor = writesOf(client, type)
+  const resource: string | undefined = id
   const optimistic = opts?.optimistic === true
   const base: MutationOptions<
     WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
-    UpdateInput<D, W, T>,
+    UpdateVariables<D, W, T>,
     MutationContext
   > = {
     mutationFn: (patch) =>
-      (accessor.id(id).update as LooseWrite)(patch, opts) as Promise<
+      ((resource === undefined ? accessor.update : accessor.id(resource).update) as LooseWrite)(
+        patch,
+        opts,
+      ) as Promise<
         WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>
       >,
     onSuccess: (data) => {
@@ -270,15 +325,23 @@ export function updateMutationOptions<
   }
   // Optimistic: pre-apply the patch's attributes through the normalized patch (snapshotting the
   // touched queries first) on `onMutate`, and restore that snapshot on `onError`.
-  base.onMutate = (patch) => ({
-    snapshot: applyOptimisticPatch(
-      queryClient,
-      type,
-      id,
-      attributesFromPatch(descriptor, type, patch),
-      descriptor,
-    ),
-  })
+  base.onMutate = (patch) => {
+    const input = patch as Record<string, unknown>
+    // A singleton's input names the resource the patch lands on.
+    const target = resource ?? input['id']
+    return {
+      snapshot:
+        typeof target === 'string'
+          ? applyOptimisticPatch(
+              queryClient,
+              type,
+              target,
+              attributesFromPatch(descriptor, type, input),
+              descriptor,
+            )
+          : { restore() {} },
+    }
+  }
   base.onError = (_error, _patch, context) => {
     context?.snapshot.restore()
   }
@@ -296,7 +359,7 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
   type: T,
   id: string,
 ): MutationOptions<void, void> {
-  const accessor = client[type]
+  const accessor = writesOf(client, type)
   return {
     mutationFn: () => accessor.id(id).delete(),
     onSettled: async () => {
@@ -351,7 +414,7 @@ const membershipRefs = (refs: readonly LinkageRef<string>[]): MembershipRef[] =>
 function withMembershipOptimism<TVars extends readonly LinkageRef<string>[]>(
   queryClient: QueryClient,
   type: string,
-  id: string,
+  id: string | undefined,
   rel: string,
   base: MutationOptions<unknown, TVars, MutationContext>,
   transform: (current: readonly MembershipRef[], vars: TVars) => readonly MembershipRef[],
@@ -392,13 +455,12 @@ export function setRelationshipMutationOptions<
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts,
 ): MutationOptions<unknown, LinkageRef<string> | null, MutationContext> {
-  const accessor = client[type]
   const base: MutationOptions<unknown, LinkageRef<string> | null, MutationContext> = {
-    mutationFn: (ref) => accessor.id(id).rel(rel).set(ref),
+    mutationFn: (ref) => relationWrites(client, type, id, rel).set(ref),
     onSuccess: (data) => {
       normalize(queryClient, data, descriptor)
     },
@@ -438,13 +500,12 @@ export function replaceRelationshipMutationOptions<
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts,
 ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
-  const accessor = client[type]
   const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) => accessor.id(id).rel(rel).replace(refs),
+    mutationFn: (refs) => relationWrites(client, type, id, rel).replace(refs),
     onSuccess: (data) => {
       normalize(queryClient, data, descriptor)
     },
@@ -478,13 +539,12 @@ export function addRelationshipMutationOptions<
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts,
 ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
-  const accessor = client[type]
   const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) => accessor.id(id).rel(rel).add(refs),
+    mutationFn: (refs) => relationWrites(client, type, id, rel).add(refs),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
   return withMembershipOptimism(
@@ -518,13 +578,12 @@ export function removeRelationshipMutationOptions<
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   type: T,
-  id: string,
+  id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts,
 ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
-  const accessor = client[type]
   const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) => accessor.id(id).rel(rel).remove(refs),
+    mutationFn: (refs) => relationWrites(client, type, id, rel).remove(refs),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
   return withMembershipOptimism(
@@ -674,9 +733,34 @@ export interface TypeMutationApi<D extends ApiDescriptor, A, W, T extends TypeNa
   id(id: string): HandleMutationApi<D, A, W, T>
 }
 
-/** The bound mutation API: one {@link TypeMutationApi} per wire type (`api.albums.create()`). */
+/**
+ * A singleton's mutation option factories (`api.inboxes.update()`), which take no id, as the
+ * client's singleton accessor doesn't. The update's variables carry the resource's `id`.
+ */
+export interface SingletonMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
+  update<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Wt extends WaitValue<D, T, 'update'> = undefined,
+    const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
+  >(
+    opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
+  ): MutationOptions<
+    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+    SingletonUpdateInput<D, W, T>,
+    MutationContext
+  >
+  rel(name: RelationName<D, T>): RelationMutationApi
+}
+
+/**
+ * The bound mutation API: one {@link TypeMutationApi} per wire type (`api.albums.create()`), or a
+ * {@link SingletonMutationApi} for a singleton type.
+ */
 export type MutationApi<D extends ApiDescriptor, A, W> = {
-  [T in TypeName<D>]: TypeMutationApi<D, A, W, T>
+  [T in TypeName<D>]: D[T] extends { singleton: true }
+    ? SingletonMutationApi<D, A, W, T>
+    : TypeMutationApi<D, A, W, T>
 }
 
 /**
@@ -691,7 +775,10 @@ export function createMutationApi<D extends ApiDescriptor, A, W>(
   client: WriteClient<D, A, W>,
   descriptor: D,
 ): MutationApi<D, A, W> {
-  const cache = new Map<string, TypeMutationApi<D, A, W, TypeName<D>>>()
+  const cache = new Map<
+    string,
+    TypeMutationApi<D, A, W, TypeName<D>> | SingletonMutationApi<D, A, W, TypeName<D>>
+  >()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
       if (typeof prop !== 'string') {
@@ -699,7 +786,11 @@ export function createMutationApi<D extends ApiDescriptor, A, W>(
       }
       let api = cache.get(prop)
       if (api === undefined) {
-        api = typeMutationApi(queryClient, client, descriptor, prop as TypeName<D>)
+        const type = prop as TypeName<D>
+        api =
+          descriptor[type]?.singleton === true
+            ? singletonMutationApi(queryClient, client, descriptor, type)
+            : typeMutationApi(queryClient, client, descriptor, type)
         cache.set(prop, api)
       }
       return api
@@ -716,18 +807,54 @@ function typeMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
 ): TypeMutationApi<D, A, W, T> {
   return {
     create: (opts) => createMutationOptions(queryClient, client, descriptor, type, opts),
-    id: (id) => ({
-      update: (opts) => updateMutationOptions(queryClient, client, descriptor, type, id, opts),
-      delete: () => deleteMutationOptions(queryClient, client, type, id),
-      rel: (name) => ({
-        add: (opts) => addRelationshipMutationOptions(queryClient, client, type, id, name, opts),
-        remove: (opts) =>
-          removeRelationshipMutationOptions(queryClient, client, type, id, name, opts),
-        replace: (opts) =>
-          replaceRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
-        set: (opts) =>
-          setRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
-      }),
+    id: (resource) => {
+      // A collection type's id is a string, which the deferred `ResourceId` can't see here.
+      const id = resource as ResourceId<D, T>
+      return {
+        update: (opts) =>
+          updateMutationOptions(queryClient, client, descriptor, type, id, opts) as never,
+        delete: () => deleteMutationOptions(queryClient, client, type, resource),
+        rel: (name) => ({
+          add: (opts) => addRelationshipMutationOptions(queryClient, client, type, id, name, opts),
+          remove: (opts) =>
+            removeRelationshipMutationOptions(queryClient, client, type, id, name, opts),
+          replace: (opts) =>
+            replaceRelationshipMutationOptions(
+              queryClient,
+              client,
+              descriptor,
+              type,
+              id,
+              name,
+              opts,
+            ),
+          set: (opts) =>
+            setRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
+        }),
+      }
+    },
+  }
+}
+
+/** Build a singleton's bound mutation option factories, which address it with no id. */
+function singletonMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
+  queryClient: QueryClient,
+  client: WriteClient<D, A, W>,
+  descriptor: D,
+  type: T,
+): SingletonMutationApi<D, A, W, T> {
+  const id = undefined as ResourceId<D, T>
+  return {
+    update: (opts) =>
+      updateMutationOptions(queryClient, client, descriptor, type, id, opts) as never,
+    rel: (name) => ({
+      add: (opts) => addRelationshipMutationOptions(queryClient, client, type, id, name, opts),
+      remove: (opts) =>
+        removeRelationshipMutationOptions(queryClient, client, type, id, name, opts),
+      replace: (opts) =>
+        replaceRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
+      set: (opts) =>
+        setRelationshipMutationOptions(queryClient, client, descriptor, type, id, name, opts),
     }),
   }
 }
