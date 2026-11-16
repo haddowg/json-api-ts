@@ -125,7 +125,7 @@ describe('normalize — write-through patching across shared queries', () => {
     expect(cachedList[1]?.['title']).toBeUndefined()
   })
 
-  it('patches in place, preserving the cached objects identity + $-accessors', async () => {
+  it('patches the members in place under a new root, keeping the $-accessors', async () => {
     const { client } = makeClient({
       'GET /albums': { data: [resource('albums', '1', { title: 'Old' })] },
       'GET /albums/1': { data: resource('albums', '1', { title: 'New' }) },
@@ -139,9 +139,11 @@ describe('normalize — write-through patching across shared queries', () => {
     normalize(qc, one, descriptor)
 
     const listAfter = qc.getQueryData(listOpts.queryKey) as Array<Record<string, unknown>>
-    // Same array + same member object — patched in place, not rebuilt.
-    expect(listAfter).toBe(list)
+    // A new root, so observers see the change, over the same members, patched in place.
+    expect(listAfter).not.toBe(list)
+    expect(Array.isArray(listAfter)).toBe(true)
     expect(listAfter[0]).toBe(memberBefore)
+    expect((listAfter as unknown as { $page?: unknown }).$page).toBe(list.$page)
     expect(listAfter[0]?.['title']).toBe('New')
     // The resource-level $-accessors still resolve (non-enumerable getters survive the patch).
     expect((listAfter[0] as { $raw?: { type?: string } }).$raw?.type).toBe('albums')
