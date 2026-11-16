@@ -33,6 +33,15 @@ const descriptor = {
     paginator: 'cursor',
     clientId: 'forbidden',
   },
+  // The caller's inbox, a singleton served at /inbox with no id.
+  inboxes: {
+    attributes: { unread: 'integer', seenUpTo: 'date-time' },
+    relations: {},
+    paths: { fetchOne: '/inbox', update: '/inbox' },
+    paginator: 'none',
+    clientId: 'forbidden',
+    singleton: true,
+  },
 } as const satisfies ApiDescriptor
 
 /** A structured list element: a discriminated union, as the codegen types one. */
@@ -41,11 +50,13 @@ export type Step = { op: 'trim' } | { op: 'replace'; find: string; with?: string
 interface Attributes {
   albums: { title: string; steps: Step[] | null }
   artists: { name: string }
+  inboxes: { unread: number; seenUpTo: string | null }
 }
 
 interface WriteAttributes {
   albums: { create: { title: string; steps?: Step[] }; update: { title?: string; steps?: Step[] } }
   artists: { create: Record<string, unknown>; update: Record<string, unknown> }
+  inboxes: { update: { seenUpTo?: string } }
 }
 
 export const createMusicClient = (options: ClientOptions) =>
