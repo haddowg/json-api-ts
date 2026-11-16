@@ -184,7 +184,7 @@ readonly genres = jsonApiResource({
 })
 ```
 
-Pass the abort signal to both calls, so a superseded load stops between pages as well as during one. `maxPages` caps the walk when a collection might be larger than you expect.
+Pass the abort signal to both calls, so a superseded load stops between pages as well as during one. `maxPages` caps the walk when a collection might be larger than you expect. It takes a to-many of a resource you read too, which holds only its first page: `loadAll(album.tracks, { signal: abortSignal })` reads the rest. The function is the client's own, re-exported here.
 
 ## More than one client
 
