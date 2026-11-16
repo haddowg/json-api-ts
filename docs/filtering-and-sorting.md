@@ -84,11 +84,22 @@ Here `filter.title` is valid because `albums` advertises `title` (alongside `q`,
 
 ### List filters
 
-A filter the server declares with `acceptsList()` takes a list of values, and the OpenAPI document gives it a `filter[<key>][]` parameter marked `x-filter-list`. The codegen lists those keys in the descriptor as `listFilters`. The filter's value is typed `readonly string[]`, and the client sends it once per member, so a member may hold a comma:
+A filter the server declares with `acceptsList()` takes a list of values, and the OpenAPI document gives it a `filter[<key>][]` parameter marked `x-filter-list`. The codegen lists those keys in the descriptor as `listFilters`. The filter's value is a list of strings, numbers or booleans, and the client sends each member's string form once, so a member may hold a comma:
 
 ```ts
 await client.reports.list({ filter: { columns: ['last,first', 'email'] } })
 // GET /reports?filter[columns][]=last%2Cfirst&filter[columns][]=email
+
+// A WhereSet filter takes a list of booleans: both values match every favorite.
+await client.favorites.list({ filter: { dated: [true, false] } })
+// GET /favorites?filter[dated][]=true&filter[dated][]=false
+```
+
+A `WhereMorph` filter on a polymorphic relation takes an object naming the type and, optionally, the ids. It goes out as nested keys, its ids comma-joined:
+
+```ts
+await client.favorites.list({ filter: { favoritable: { type: 'tracks', id: ['1', '2'] } } })
+// GET /favorites?filter[favoritable][type]=tracks&filter[favoritable][id]=1%2C2
 ```
 
 Every other filter keeps its `unknown` value, and an array value for it is still joined with `,`.
