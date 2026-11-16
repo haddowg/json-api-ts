@@ -2,7 +2,9 @@
   "data": {
     "type": "albums",
     "id": "1",
-    "links": { "self": "https:\/\/music.example\/albums\/1" },
+    "links": {
+      "self": "https://music.example/albums/1"
+    },
     "attributes": {
       "title": "OK Computer",
       "averageRating": 9.8,
@@ -12,25 +14,45 @@
       "status": "released",
       "availableFrom": "1997-05-21",
       "availableUntil": "2030-12-31",
-      "releaseInfo": { "label": "Parlophone", "catalogueNumber": "NODATA 01" }
+      "releaseInfo": {
+        "label": "Parlophone",
+        "catalogueNumber": "NODATA 01"
+      }
     },
     "relationships": {
       "artist": {
         "links": {
-          "self": "https:\/\/music.example\/albums\/1\/relationships\/artist",
-          "related": "https:\/\/music.example\/albums\/1\/artist"
+          "self": "https://music.example/albums/1/relationships/artist",
+          "related": "https://music.example/albums/1/artist"
         },
-        "data": { "type": "artists", "id": "1" }
+        "data": {
+          "type": "artists",
+          "id": "1"
+        }
       },
       "tracks": {
         "links": {
-          "self": "https:\/\/music.example\/albums\/1\/relationships\/tracks",
-          "related": "https:\/\/music.example\/albums\/1\/tracks"
+          "self": "https://music.example/albums/1/relationships/tracks",
+          "related": "https://music.example/albums/1/tracks",
+          "first": "https://music.example/albums/1/relationships/tracks?page%5Bnumber%5D=1&page%5Bsize%5D=2",
+          "next": "https://music.example/albums/1/relationships/tracks?page%5Bnumber%5D=2&page%5Bsize%5D=2",
+          "last": "https://music.example/albums/1/relationships/tracks?page%5Bnumber%5D=2&page%5Bsize%5D=2"
         },
         "data": [
-          { "type": "tracks", "id": "1", "meta": { "served_by": "music-catalog" } },
-          { "type": "tracks", "id": "2", "meta": { "served_by": "music-catalog" } },
-          { "type": "tracks", "id": "3", "meta": { "served_by": "music-catalog" } }
+          {
+            "type": "tracks",
+            "id": "1",
+            "meta": {
+              "served_by": "music-catalog"
+            }
+          },
+          {
+            "type": "tracks",
+            "id": "3",
+            "meta": {
+              "served_by": "music-catalog"
+            }
+          }
         ]
       }
     }
@@ -39,11 +61,13 @@
     {
       "type": "artists",
       "id": "1",
-      "links": { "self": "https:\/\/music.example\/artists\/1" },
+      "links": {
+        "self": "https://music.example/artists/1"
+      },
       "attributes": {
         "name": "Radiohead",
         "slug": "radiohead",
-        "website": "https:\/\/radiohead.com",
+        "website": "https://radiohead.com",
         "bio": "An English rock band formed in Abingdon.",
         "trackCount": 3,
         "createdAt": "2001-05-01T09:00:00+00:00"
@@ -51,8 +75,8 @@
       "relationships": {
         "albums": {
           "links": {
-            "self": "https:\/\/music.example\/artists\/1\/relationships\/albums",
-            "related": "https:\/\/music.example\/artists\/1\/albums"
+            "self": "https://music.example/artists/1/relationships/albums",
+            "related": "https://music.example/artists/1/albums"
           }
         }
       }
@@ -60,8 +84,12 @@
     {
       "type": "tracks",
       "id": "1",
-      "meta": { "served_by": "music-catalog" },
-      "links": { "self": "https:\/\/music.example\/tracks\/1" },
+      "meta": {
+        "served_by": "music-catalog"
+      },
+      "links": {
+        "self": "https://music.example/tracks/1"
+      },
       "attributes": {
         "title": "Airbag",
         "trackNumber": 1,
@@ -74,56 +102,37 @@
       "relationships": {
         "album": {
           "links": {
-            "self": "https:\/\/music.example\/tracks\/1\/relationships\/album",
-            "related": "https:\/\/music.example\/tracks\/1\/album"
+            "self": "https://music.example/tracks/1/relationships/album",
+            "related": "https://music.example/tracks/1/album"
           },
-          "data": { "type": "albums", "id": "1" }
+          "data": {
+            "type": "albums",
+            "id": "1"
+          }
         },
         "playlists": {
           "links": {
-            "self": "https:\/\/music.example\/tracks\/1\/relationships\/playlists",
-            "related": "https:\/\/music.example\/tracks\/1\/playlists"
+            "self": "https://music.example/tracks/1/relationships/playlists",
+            "related": "https://music.example/tracks/1/playlists"
           },
-          "data": [{ "type": "playlists", "id": "00000000-0000-4000-8000-000000000001" }]
-        }
-      }
-    },
-    {
-      "type": "tracks",
-      "id": "2",
-      "meta": { "served_by": "music-catalog" },
-      "links": { "self": "https:\/\/music.example\/tracks\/2" },
-      "attributes": {
-        "title": "Paranoid Android",
-        "trackNumber": 2,
-        "durationSeconds": 383,
-        "explicit": true,
-        "genres": ["rock", "progressive"],
-        "previewOffset": "00:01:00",
-        "displayTitle": "2. Paranoid Android"
-      },
-      "relationships": {
-        "album": {
-          "links": {
-            "self": "https:\/\/music.example\/tracks\/2\/relationships\/album",
-            "related": "https:\/\/music.example\/tracks\/2\/album"
-          },
-          "data": { "type": "albums", "id": "1" }
-        },
-        "playlists": {
-          "links": {
-            "self": "https:\/\/music.example\/tracks\/2\/relationships\/playlists",
-            "related": "https:\/\/music.example\/tracks\/2\/playlists"
-          },
-          "data": [{ "type": "playlists", "id": "00000000-0000-4000-8000-000000000001" }]
+          "data": [
+            {
+              "type": "playlists",
+              "id": "00000000-0000-4000-8000-000000000001"
+            }
+          ]
         }
       }
     },
     {
       "type": "tracks",
       "id": "3",
-      "meta": { "served_by": "music-catalog" },
-      "links": { "self": "https:\/\/music.example\/tracks\/3" },
+      "meta": {
+        "served_by": "music-catalog"
+      },
+      "links": {
+        "self": "https://music.example/tracks/3"
+      },
       "attributes": {
         "title": "Exit Music (For a Film)",
         "trackNumber": 3,
@@ -136,21 +145,28 @@
       "relationships": {
         "album": {
           "links": {
-            "self": "https:\/\/music.example\/tracks\/3\/relationships\/album",
-            "related": "https:\/\/music.example\/tracks\/3\/album"
+            "self": "https://music.example/tracks/3/relationships/album",
+            "related": "https://music.example/tracks/3/album"
           },
-          "data": { "type": "albums", "id": "1" }
+          "data": {
+            "type": "albums",
+            "id": "1"
+          }
         },
         "playlists": {
           "links": {
-            "self": "https:\/\/music.example\/tracks\/3\/relationships\/playlists",
-            "related": "https:\/\/music.example\/tracks\/3\/playlists"
+            "self": "https://music.example/tracks/3/relationships/playlists",
+            "related": "https://music.example/tracks/3/playlists"
           },
           "data": []
         }
       }
     }
   ],
-  "links": { "self": "https:\/\/music.example\/albums\/1?include=artist,tracks" },
-  "jsonapi": { "version": "1.1" }
+  "links": {
+    "self": "https://music.example/albums/1?include=artist,tracks"
+  },
+  "jsonapi": {
+    "version": "1.1"
+  }
 }

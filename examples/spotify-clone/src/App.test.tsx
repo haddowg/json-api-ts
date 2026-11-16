@@ -56,6 +56,8 @@ describe('app smoke', () => {
     ).toBeInTheDocument()
     expect(await screen.findByText('Airbag')).toBeInTheDocument()
     expect(await screen.findByText('Paranoid Android')).toBeInTheDocument()
+    // The include renders the first two tracks; loadAll reads the third from the next page.
+    expect(await screen.findByText('Exit Music (For a Film)')).toBeInTheDocument()
     // The artist link is hydrated off the included relation.
     expect(await screen.findByRole('link', { name: 'Radiohead' })).toBeInTheDocument()
   })

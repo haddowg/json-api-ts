@@ -7,7 +7,7 @@
  * shaped like the real bundle's.
  */
 import type { TransportRequest, TransportResponse } from '@haddowg/json-api-client'
-import type { MockStore, Resource, ResourceIdentifier } from './store'
+import type { MockStore, RelationshipObject, Resource, ResourceIdentifier } from './store'
 
 const SELF = 'https://music.example'
 
@@ -127,18 +127,36 @@ function withLinkage(store: MockStore, resource: Resource, include: string[]): R
   const out: Resource = { ...resource, relationships: { ...resource.relationships } }
   for (const path of include) {
     if (path === 'tracks' && resource.type === 'albums') {
-      out.relationships!['tracks'] = {
-        links: resource.relationships!['tracks']!.links,
-        data: store.tracksByAlbum(resource.id).map((t) => ({ type: 'tracks', id: t.id })),
-      }
+      const ids = store.tracksByAlbum(resource.id).map((t) => t.id)
+      out.relationships!['tracks'] = firstPage(resource.relationships!['tracks']!, 'tracks', ids, 2)
     } else if (path === 'albums' && resource.type === 'artists') {
-      out.relationships!['albums'] = {
-        links: resource.relationships!['albums']!.links,
-        data: store.albumsByArtist(resource.id).map((a) => ({ type: 'albums', id: a.id })),
-      }
+      const ids = store.albumsByArtist(resource.id).map((a) => a.id)
+      out.relationships!['albums'] = firstPage(
+        resource.relationships!['albums']!,
+        'albums',
+        ids,
+        15,
+      )
     }
   }
   return out
+}
+
+/**
+ * An included to-many as the bundle renders it: the first page of its members under the relation's
+ * page size, with `first`, `next` and `last` links to the relationship endpoint's pages.
+ */
+function firstPage(
+  rel: RelationshipObject,
+  type: string,
+  ids: string[],
+  size: number,
+): RelationshipObject {
+  const pages = Math.max(1, Math.ceil(ids.length / size))
+  const at = (n: number) => `${rel.links.self}?page[number]=${n}&page[size]=${size}`
+  const links: RelationshipObject['links'] = { ...rel.links, first: at(1), last: at(pages) }
+  if (pages > 1) links.next = at(2)
+  return { links, data: ids.slice(0, size).map((id) => ({ type, id })) }
 }
 
 function listResources(store: MockStore, type: string): Resource[] {
@@ -200,6 +218,7 @@ function applySort(resources: Resource[], sort: string[]): Resource[] {
 function paginate(
   resources: Resource[],
   page: ParsedUrl['page'],
+  path = '',
 ): { window: Resource[]; meta: Record<string, unknown>; links: Record<string, string> } {
   const size = page.size ?? resources.length
   const number = page.number ?? 1
@@ -214,9 +233,9 @@ function paginate(
     },
   }
   const links: Record<string, string> = {}
-  if (number > 1) links['prev'] = `${SELF}?page[number]=${number - 1}&page[size]=${size}`
+  if (number > 1) links['prev'] = `${SELF}${path}?page[number]=${number - 1}&page[size]=${size}`
   if (start + size < resources.length)
-    links['next'] = `${SELF}?page[number]=${number + 1}&page[size]=${size}`
+    links['next'] = `${SELF}${path}?page[number]=${number + 1}&page[size]=${size}`
   return { window, meta, links }
 }
 
@@ -267,7 +286,7 @@ export function handle(store: MockStore, req: TransportRequest): TransportRespon
   // Related read: /{type}/{id}/{rel}
   if (id && third && method === 'GET') {
     const resources = relatedResources(store, type, id, third).map((r) => applyFields(r, fields))
-    const { window, meta, links } = paginate(resources, page)
+    const { window, meta, links } = paginate(resources, page, `/${type}/${id}/${third}`)
     return ok({ data: window, meta, links, jsonapi: { version: '1.1' } })
   }
 

@@ -24,7 +24,12 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import type { JsonApiError, TransportRequest, TransportResponse } from '@haddowg/json-api-client'
+import {
+  type JsonApiError,
+  loadAll,
+  type TransportRequest,
+  type TransportResponse,
+} from '@haddowg/json-api-client'
 import { createAjvValidator } from '@haddowg/json-api-client/ajv'
 import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
 import { QueryClient } from '@tanstack/query-core'
@@ -121,8 +126,11 @@ describe('reads', () => {
   })
 
   it('gets one resource, with its compound document hydrated', async () => {
-    const { transport } = mockTransport({
+    const { transport, requests } = mockTransport({
       [`${BASE}/albums/1?include=artist%2Ctracks`]: fixture('album-compound.json'),
+      [`${BASE}/albums/1/tracks?page%5Bnumber%5D=2&page%5Bsize%5D=2`]: fixture(
+        'album-tracks-related-page-2.json',
+      ),
     })
     const client = createClient({ baseUrl: BASE, transport })
 
@@ -131,10 +139,21 @@ describe('reads', () => {
     expect(ok.title).toBe('OK Computer')
     // Resource-level envelope accessors hang off the materialised object (non-enumerable).
     expect(ok.$self).toBe(`${BASE}/albums/1`)
-    // The to-many `tracks` relation is hydrated to an augmented array of track resources.
-    const tracks = ok.tracks as ReadonlyArray<{ title: string }>
-    expect(tracks).toHaveLength(3)
-    expect(tracks[0]!.title).toBe('Airbag')
+    // The to-many `tracks` relation is hydrated to an augmented array of track resources, holding
+    // the first page the related endpoint serves: two tracks a page.
+    expect(ok.tracks.map((t) => t.title)).toEqual(['Airbag', 'Exit Music (For a Film)'])
+    expect(ok.tracks.$page.links.next).toBe(
+      `${BASE}/albums/1/relationships/tracks?page%5Bnumber%5D=2&page%5Bsize%5D=2`,
+    )
+
+    // `loadAll` follows the next link, reading the page from the related endpoint as resources.
+    const all = await loadAll(ok.tracks)
+    expect(all.map((t) => t.title)).toEqual([
+      'Airbag',
+      'Exit Music (For a Film)',
+      'Paranoid Android',
+    ])
+    expect(requests[1]!.url).toBe(`${BASE}/albums/1/tracks?page%5Bnumber%5D=2&page%5Bsize%5D=2`)
   })
 
   it('follows a relationship with .related() — the related collection, paginated', async () => {
@@ -552,7 +571,7 @@ describe('opt-in validation (ajv)', () => {
       validate: createAjvValidator(ajv, schemas),
     })
 
-    // The well-formed compound document passes validation (album + artist + 3 tracks) and
+    // The well-formed compound document passes validation (album + artist + 2 tracks) and
     // materialises normally.
     const ok = await client.albums.get('1', { include: ['artist', 'tracks'] })
     expect(ok.title).toBe('OK Computer')

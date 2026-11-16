@@ -29,7 +29,7 @@ export interface Resource {
 }
 
 export interface RelationshipObject {
-  links: { self: string; related: string }
+  links: { self: string; related: string; first?: string; next?: string; last?: string }
   data?: ResourceIdentifier | ResourceIdentifier[] | null
   meta?: Record<string, unknown>
 }

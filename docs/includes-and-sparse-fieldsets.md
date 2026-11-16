@@ -110,14 +110,20 @@ none of the original request's nested includes. An array of identifiers reads it
 linkage. `loadAll`, from `@haddowg/json-api-client`, follows `next` from any collection until the
 last page, and takes a `signal` and a `maxPages` guard.
 
-This is exactly what the spotify-clone's album page does — the album, its artist, and its
-tracklist in a single compound read:
+This is exactly what the spotify-clone's album page does — the album, its artist, and the first
+page of its tracklist in a single compound read, then the rest of the tracklist with `loadAll`:
 
 ```ts
 // examples/spotify-clone/src/pages/AlbumDetailPage.tsx
 const albumQuery = useQuery(reads.albums.get(id, { include: ['artist', 'tracks'] }))
 const album = albumQuery.data
 // album.artist.name and each album.tracks[i].title are typed off the client, no cast.
+const tracklistQuery = useQuery({
+  queryKey: ['albums', id, 'tracklist'],
+  queryFn: () => loadAll(album!.tracks),
+  enabled: album !== undefined,
+  structuralSharing: false,
+})
 ```
 
 ## Nested include paths
