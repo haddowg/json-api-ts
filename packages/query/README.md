@@ -101,7 +101,9 @@ TanStack keeps denormalized results; this package indexes every resource (`data`
 `type:id` and, on a change, **patches every cached query holding that `type:id` in place** — "edit
 once, updates everywhere". Patching replaces a node's _attributes_ (the descriptor knows attributes
 vs relations) while preserving edge-local `$pivot` / `$edge`. Each touched query then gets a new
-root reference over the same value, so components observing it re-render.
+root reference over the same value, so components observing it re-render. The read factories set
+`structuralSharing: false`, since structural sharing would rebuild a refetched value as plain arrays
+and objects without its `$page`, `$next()` or `$self`; set it on any query you build yourself.
 
 `installNormalization` auto-runs the patch on every successful query/mutation:
 
