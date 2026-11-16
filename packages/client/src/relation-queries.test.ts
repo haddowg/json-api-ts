@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient } from './client'
 import type { ApiDescriptor } from './descriptor'
-import type { RelationFilterQuery, RelationSortQuery } from './result-types'
+import type { ListFilterMember, RelationFilterQuery, RelationSortQuery } from './result-types'
 import type { TransportRequest, TransportResponse } from './transport'
 
 const BASE = 'https://api.example'
@@ -155,7 +155,7 @@ describe("a relation's own sorts and filters", () => {
     expectTypeOf<RelatedQuery<'sponsors'>['sort']>().toEqualTypeOf<Query<'sponsors'>['sort']>()
     type Filter = NonNullable<Query<'sponsors'>['filter']>
     expectTypeOf<Filter['minRank']>().toEqualTypeOf<unknown>()
-    expectTypeOf<Filter['ranks']>().toEqualTypeOf<readonly string[] | undefined>()
+    expectTypeOf<Filter['ranks']>().toEqualTypeOf<readonly ListFilterMember[] | undefined>()
     expectTypeOf<'name'>().not.toMatchTypeOf<NonNullable<Query<'sponsors'>['sort']>>()
     expectTypeOf<keyof NonNullable<Query<'sponsors'>['filter']>>().toEqualTypeOf<
       'minRank' | 'ranks'
@@ -175,7 +175,7 @@ describe("a relation's own sorts and filters", () => {
     type Filter = NonNullable<Query<'tags'>['filter']>
     expectTypeOf<keyof Filter>().toEqualTypeOf<'name' | 'roles'>()
     expectTypeOf<Filter['name']>().toEqualTypeOf<unknown>()
-    expectTypeOf<Filter['roles']>().toEqualTypeOf<readonly string[] | undefined>()
+    expectTypeOf<Filter['roles']>().toEqualTypeOf<readonly ListFilterMember[] | undefined>()
     expectTypeOf<RelatedQuery<'tags'>['filter']>().toEqualTypeOf<Query<'tags'>['filter']>()
   })
 

@@ -533,16 +533,23 @@ type FilterFamilyValue<Spec, P extends string> = Spec extends {
   : never
 
 /**
+ * A member of a list filter's value. The client sends each as its string form, so a set of
+ * booleans such as a `WhereSet` filter's takes `true` and `false` as they are.
+ */
+export type ListFilterMember = string | number | boolean
+
+/**
  * The filter object a descriptor `Spec` takes, given its exact filter keys `Key`: each exact key
- * `unknown`, a list filter's key `readonly string[]`, and per filter family a `<prefix>.${string}`
- * key. With no list filter and no family it is the plain partial record of the exact keys.
+ * `unknown`, a list filter's key a list of {@link ListFilterMember}, and per filter family a
+ * `<prefix>.${string}` key. With no list filter and no family it is the plain partial record of the
+ * exact keys.
  */
 type FiltersOf<Spec, Key extends string> = [
   ListFilterKeyOf<Spec> | FilterFamilyPrefixOf<Spec>,
 ] extends [never]
   ? Partial<Record<Key, unknown>>
   : Partial<Record<Exclude<Key, ListFilterKeyOf<Spec>>, unknown>> &
-      Partial<Record<ListFilterKeyOf<Spec> & Key, readonly string[]>> & {
+      Partial<Record<ListFilterKeyOf<Spec> & Key, readonly ListFilterMember[]>> & {
         [P in FilterFamilyPrefixOf<Spec> as `${P}.${string}`]?: FilterFamilyValue<Spec, P>
       }
 
