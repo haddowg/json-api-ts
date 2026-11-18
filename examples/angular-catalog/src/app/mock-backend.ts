@@ -21,6 +21,7 @@ interface Album {
   title: string
   releasedAt: string
   artistId: string
+  explicit?: boolean
 }
 
 const artists: Artist[] = [
@@ -37,7 +38,13 @@ const albums: Album[] = [
   { id: '3', title: 'Kid A', releasedAt: '2000-10-02T00:00:00+00:00', artistId: '1' },
   { id: '4', title: 'Mezzanine', releasedAt: '1998-04-20T00:00:00+00:00', artistId: '3' },
   { id: '5', title: 'Homogenic', releasedAt: '1997-09-22T00:00:00+00:00', artistId: '4' },
-  { id: '6', title: 'Third', releasedAt: '2008-04-28T00:00:00+00:00', artistId: '2' },
+  {
+    id: '6',
+    title: 'Third',
+    releasedAt: '2008-04-28T00:00:00+00:00',
+    artistId: '2',
+    explicit: true,
+  },
   { id: '7', title: 'Blue Lines', releasedAt: '1991-04-08T00:00:00+00:00', artistId: '3' },
   {
     id: '8',
@@ -45,7 +52,13 @@ const albums: Album[] = [
     releasedAt: '1998-04-20T00:00:00+00:00',
     artistId: '5',
   },
-  { id: '9', title: 'In Rainbows', releasedAt: '2007-10-10T00:00:00+00:00', artistId: '1' },
+  {
+    id: '9',
+    title: 'In Rainbows',
+    releasedAt: '2007-10-10T00:00:00+00:00',
+    artistId: '1',
+    explicit: true,
+  },
   { id: '10', title: 'Post', releasedAt: '1995-06-13T00:00:00+00:00', artistId: '4' },
   { id: '11', title: 'Geogaddi', releasedAt: '2002-02-18T00:00:00+00:00', artistId: '5' },
   { id: '12', title: 'Portishead', releasedAt: '1997-09-29T00:00:00+00:00', artistId: '2' },
@@ -177,7 +190,11 @@ function list(query: URLSearchParams, base: string): { status: number; body: str
     data: window.map((a) => resource(a, base)),
     included: includedArtists(window, query),
     links,
-    meta: { page: { currentPage: number, perPage: size, lastPage: pages, total: matches.length } },
+    meta: {
+      // The server declares explicitCount on the albums collection, so the client types it.
+      explicitCount: window.filter((a) => a.explicit === true).length,
+      page: { currentPage: number, perPage: size, lastPage: pages, total: matches.length },
+    },
   })
 }
 
