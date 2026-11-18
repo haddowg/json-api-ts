@@ -371,12 +371,13 @@ function buildEntry(
   if (typeof title === 'string') {
     tool.title = title
   }
+  // An x-mcp description replaces the generated prose, the declared meta sentence included.
   const description = joinSentences(
     toolDescription(
       overrides.description ?? operation.description ?? operation.summary,
       operation.deprecated === true,
     ),
-    declaredMetaSentence(outputCtx),
+    overrides.description === undefined ? declaredMetaSentence(outputCtx) : undefined,
   )
   if (description !== undefined) {
     tool.description = description
