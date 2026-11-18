@@ -25,6 +25,7 @@ const descriptor = {
     sortable: ['title', '-title'],
     sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['title'],
+    documentMeta: { delete: { fields: { archived: 'integer' } } },
   },
   artists: {
     attributes: { name: 'string' },
@@ -41,6 +42,7 @@ const descriptor = {
     paginator: 'none',
     clientId: 'forbidden',
     singleton: true,
+    documentMeta: { fetchOne: { fields: { etag: 'string' } } },
   },
 } as const satisfies ApiDescriptor
 
