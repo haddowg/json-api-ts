@@ -35,6 +35,11 @@ export interface SchemaObject {
   }[]
   /** On a singleton type's `<Type>Resource`: the path its single resource is served at. */
   'x-singleton'?: string
+  /**
+   * On a per-operation document component: an `allOf` of the shared document and a narrowing of
+   * its top-level `meta` to the members the operation declares.
+   */
+  'x-document-meta'?: boolean
   [key: string]: unknown
 }
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { afterAll, describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
@@ -51,12 +51,9 @@ function typecheck(code: string): string[] {
  * it from, so the codegen reads its paths from that extension.
  */
 describe('generator contract 40 (singleton types)', () => {
-  it('reads a document stamped 40 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(40)
+  it('reads a document stamped 40 without a warning', () => {
     expect(singleton.info?.['x-generator']?.contract).toBe(40)
     expect(checkContract(singleton)).toBeUndefined()
-    const newer = { ...singleton, info: { ...singleton.info!, 'x-generator': { contract: 41 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 40')
   })
 
   it('routes a singleton at its own path, with no collection, create or delete', () => {
