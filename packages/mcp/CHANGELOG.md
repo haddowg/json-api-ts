@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.27.0...json-api-mcp-v1.27.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **mcp:** keep an x-mcp description as written beside declared meta ([ea57ec3](https://github.com/haddowg/json-api-ts/commit/ea57ec372fee463b498f9d016d7369052823fc1c))
+
 ## [1.27.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.26.0...json-api-mcp-v1.27.0) (2026-11-18)
 
 
