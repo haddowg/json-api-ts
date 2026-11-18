@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
@@ -61,12 +60,8 @@ const denyRead = () => ({ 'fetchOne.inboxes': 'denied' as const })
  * the body must carry the id the path leaves out.
  */
 describe('generator contract 40 (singleton types)', () => {
-  it('reads a document stamped 40, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(40)
+  it('reads a document stamped 40', () => {
     expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(40)
-    const newer = structuredClone(singleton)
-    newer.info!['x-generator']!.contract = 41
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('gives the singleton tools without an id, and every other tool what it had', () => {

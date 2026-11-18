@@ -137,6 +137,10 @@ function legacyResult(
 ): McpCallToolResult {
   const data = envelope['data']
   if (location || entry.result === 'resource' || entry.result === 'loose') {
+    // A `metaResult` action's meta-only answer has no data to stand in for.
+    if (data === undefined && isObject(envelope['meta'])) {
+      return structured(envelope['meta'])
+    }
     if (Array.isArray(data)) {
       const { data: items, ...rest } = envelope
       return structured({ items, ...rest })
@@ -626,6 +630,10 @@ async function runAction(
     case 'loose':
       if (Array.isArray(result)) {
         return envelope(collectionEnvelope(result, flat))
+      }
+      // A `metaResult` action's meta-only `200` resolves to that meta, not a resource.
+      if (action.metaResult === true && isObject(result) && !('$document' in result)) {
+        return envelope({ meta: result })
       }
       return { kind: 'bare', envelope: resourceEnvelope(isObject(result) ? result : null, flat) }
     case 'meta':

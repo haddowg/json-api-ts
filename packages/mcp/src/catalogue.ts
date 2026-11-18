@@ -20,11 +20,13 @@ import {
 } from './openapi'
 import {
   collectionOutput,
+  declaredMetaSentence,
   deletedOutput,
   LOOSE_OUTPUT,
   locationOutput,
   metaOutput,
   orLocation,
+  orMetaOutput,
   type OutputContext,
   capIncludePaths,
   includePaths,
@@ -149,7 +151,17 @@ function documentOutput(ctx: OutputContext, action: ActionDescriptor): JsonSchem
     case 'collection':
       return collectionOutput(ctx, [action.outputType!])
     case 'resource':
-      return resourceOutput(ctx, [action.outputType!], 'The resource the action returned.')
+      // A `metaResult` action's `200` is meta-only, so its resource comes with another status.
+      return action.metaResult === true
+        ? orMetaOutput(
+            ctx,
+            resourceOutput(
+              { ...ctx, statuses: (status) => status !== '200' },
+              [action.outputType!],
+              'The resource the action returned.',
+            ),
+          )
+        : resourceOutput(ctx, [action.outputType!], 'The resource the action returned.')
     case 'meta':
       return metaOutput(ctx)
     case 'loose':
@@ -359,9 +371,12 @@ function buildEntry(
   if (typeof title === 'string') {
     tool.title = title
   }
-  const description = toolDescription(
-    overrides.description ?? operation.description ?? operation.summary,
-    operation.deprecated === true,
+  const description = joinSentences(
+    toolDescription(
+      overrides.description ?? operation.description ?? operation.summary,
+      operation.deprecated === true,
+    ),
+    declaredMetaSentence(outputCtx),
   )
   if (description !== undefined) {
     tool.description = description
@@ -378,6 +393,14 @@ function buildEntry(
   return key === undefined
     ? { op, tool, input, result }
     : { op, tool, input, result, actionKey: key }
+}
+
+/** Two pieces of prose as one paragraph, either of which may be missing. */
+function joinSentences(first: string | undefined, second: string | undefined): string | undefined {
+  if (first === undefined || first.trim() === '') {
+    return second ?? first
+  }
+  return second === undefined ? first : `${first.trimEnd()} ${second}`
 }
 
 /**
