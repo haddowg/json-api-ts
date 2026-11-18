@@ -307,10 +307,77 @@ export interface OutputContext {
   operation: OperationObject
   /** The include paths the tool may ask for, already capped at the model's include depth. */
   includes: readonly string[]
+  /** The success statuses whose document meta the output reads. Absent means every one. */
+  statuses?: (status: string) => boolean
 }
 
-/** The `meta` schema a success response declares, else a free-form object. */
-function responseMeta(ctx: OutputContext): JsonSchema {
+/** The `meta` a success response's JSON:API document declares. */
+interface ResponseMeta {
+  schema: JsonSchema
+  /** Whether every such document carries `meta`, as a per-operation document says. */
+  required: boolean
+  /** The members a per-operation document (`x-document-meta`) declares, in order. */
+  declared: readonly string[]
+}
+
+/**
+ * The `meta` a document schema declares: the narrowing of a per-operation document marked
+ * `x-document-meta`, else its own `meta` property.
+ */
+function documentSchemaMeta(doc: OpenApiDocument, schema: JsonSchema): ResponseMeta | undefined {
+  if (schema['x-document-meta'] === true && Array.isArray(schema['allOf'])) {
+    for (const entry of (schema['allOf'] as unknown[]).slice(1)) {
+      const narrowing = deref<JsonSchema>(doc, entry as JsonSchema)
+      const meta = isObject(narrowing?.['properties']) ? narrowing['properties']['meta'] : undefined
+      if (narrowing === undefined || meta === undefined) {
+        continue
+      }
+      const resolved = outputSchema(doc, meta)
+      const members = isObject(resolved['properties']) ? Object.keys(resolved['properties']) : []
+      return {
+        schema: resolved,
+        required: Array.isArray(narrowing['required']) && narrowing['required'].includes('meta'),
+        declared: members,
+      }
+    }
+  }
+  const meta = isObject(schema['properties']) ? schema['properties']['meta'] : undefined
+  return meta === undefined
+    ? undefined
+    : { schema: outputSchema(doc, meta), required: false, declared: [] }
+}
+
+/** The `meta` the first success response the output reads declares. */
+function successMeta(ctx: OutputContext): ResponseMeta | undefined {
+  for (const [status, raw] of Object.entries(ctx.operation.responses ?? {})) {
+    if (!status.startsWith('2') || ctx.statuses?.(status) === false) continue
+    const response = deref<ResponseObject>(ctx.doc, raw)
+    const schema = deref<JsonSchema>(
+      ctx.doc,
+      response?.content?.['application/vnd.api+json']?.schema,
+    )
+    const meta = schema === undefined ? undefined : documentSchemaMeta(ctx.doc, schema)
+    if (meta !== undefined) {
+      return meta
+    }
+  }
+  return undefined
+}
+
+/** `a`, `a and b` or `a, b and c`, each in backticks. */
+function memberList(names: readonly string[]): string {
+  const quoted = names.map((name) => `\`${name}\``)
+  return quoted.length < 2
+    ? quoted.join('')
+    : `${quoted.slice(0, -1).join(', ')} and ${quoted[quoted.length - 1]}`
+}
+
+/**
+ * The members the operation's per-operation documents declare in their top-level `meta`, across
+ * its success statuses, without repeats. Empty when it answers with the shared documents.
+ */
+export function declaredMetaMembers(ctx: OutputContext): string[] {
+  const out = new Set<string>()
   for (const [status, raw] of Object.entries(ctx.operation.responses ?? {})) {
     if (!status.startsWith('2')) continue
     const response = deref<ResponseObject>(ctx.doc, raw)
@@ -318,12 +385,19 @@ function responseMeta(ctx: OutputContext): JsonSchema {
       ctx.doc,
       response?.content?.['application/vnd.api+json']?.schema,
     )
-    const meta = isObject(schema?.['properties']) ? schema['properties']['meta'] : undefined
-    if (meta !== undefined) {
-      return outputSchema(ctx.doc, meta)
+    for (const name of schema === undefined
+      ? []
+      : (documentSchemaMeta(ctx.doc, schema)?.declared ?? [])) {
+      out.add(name)
     }
   }
-  return { type: 'object' }
+  return [...out]
+}
+
+/** The sentence a tool's description adds naming the `meta` members its result carries. */
+export function declaredMetaSentence(ctx: OutputContext): string | undefined {
+  const members = declaredMetaMembers(ctx)
+  return members.length === 0 ? undefined : `The result's \`meta\` carries ${memberList(members)}.`
 }
 
 const LINKS: JsonSchema = {
@@ -338,9 +412,25 @@ const LINKS: JsonSchema = {
   },
 }
 
-/** The document `meta` member of an envelope: what the response declares, when it sends any. */
+/**
+ * The document `meta` member of an envelope: what the response declares, when it sends any. A
+ * per-operation document's description names the members it declares.
+ */
 function documentMeta(ctx: OutputContext, description: string): JsonSchema {
-  return { ...responseMeta(ctx), description }
+  const meta = successMeta(ctx)
+  if (meta === undefined) {
+    return { type: 'object', description }
+  }
+  const declared =
+    meta.declared.length === 0
+      ? description
+      : `The document meta, carrying ${memberList(meta.declared)}.`
+  return { ...meta.schema, description: declared }
+}
+
+/** The members an envelope requires, with `meta` when the operation's document always has it. */
+function withRequiredMeta(ctx: OutputContext, required: string[]): string[] {
+  return successMeta(ctx)?.required === true ? [...required, 'meta'] : required
 }
 
 /** A collection: `{ data, links, meta? }`. */
@@ -354,7 +444,7 @@ export function collectionOutput(ctx: OutputContext, types: readonly string[]): 
       links: LINKS,
       meta: documentMeta(ctx, 'The document meta, such as page totals.'),
     },
-    required: ['data', 'links'],
+    required: withRequiredMeta(ctx, ['data', 'links']),
     $defs: defsFor(ctx.doc, ctx.descriptor, ctx.schemas, reachable),
   }
 }
@@ -381,7 +471,7 @@ export function resourceOutput(
       data,
       meta: documentMeta(ctx, 'The document meta, when the API sends any.'),
     },
-    required: ['data'],
+    required: withRequiredMeta(ctx, ['data']),
     $defs: defsFor(ctx.doc, ctx.descriptor, ctx.schemas, reachable),
   }
 }
@@ -394,7 +484,7 @@ export function deletedOutput(ctx: OutputContext): ObjectSchema {
       data: { type: 'null', description: 'Always null: the resource is gone.' },
       meta: documentMeta(ctx, 'The document meta, when the API sends any.'),
     },
-    required: ['data'],
+    required: withRequiredMeta(ctx, ['data']),
   }
 }
 
@@ -403,9 +493,22 @@ export function metaOutput(ctx: OutputContext): ObjectSchema {
   return {
     type: 'object',
     properties: {
-      meta: { ...responseMeta(ctx), type: 'object', description: 'The document meta.' },
+      meta: { ...documentMeta(ctx, 'The document meta.'), type: 'object' },
     },
     required: ['meta'],
+  }
+}
+
+/**
+ * The output of an action whose `200` is meta-only while another status answers with a resource:
+ * either result, each with the meta its own status declares, sharing the root `$defs`.
+ */
+export function orMetaOutput(ctx: OutputContext, resource: ObjectSchema): ObjectSchema {
+  const { $defs, ...rest } = resource
+  return {
+    type: 'object',
+    anyOf: [rest, metaOutput({ ...ctx, statuses: (status) => status === '200' })],
+    ...($defs === undefined ? {} : { $defs }),
   }
 }
 
