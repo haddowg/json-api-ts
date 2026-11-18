@@ -35,6 +35,7 @@ const FIRST_PAGE: AlbumsPage = { size: 5 }
       <nav>
         <button type="button" [disabled]="!previous()" (click)="goTo(previous())">Previous</button>
         <span>Page {{ albums.value().$page.meta?.currentPage }}</span>
+        <span>{{ albums.value().$meta.explicitCount }} explicit on this page</span>
         <button type="button" [disabled]="!next()" (click)="goTo(next())">Next</button>
       </nav>
     }
