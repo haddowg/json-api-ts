@@ -16,6 +16,7 @@
 import type {
   ApiDescriptor,
   Collection,
+  CollectionMeta,
   FieldsMap,
   CountToken,
   IncludePath,
@@ -31,8 +32,41 @@ import type {
   TypedRelatedReadQuery,
   TypedRelationReadQuery,
   TypeName,
+  OperationMeta,
+  WithDocumentMeta,
 } from '@haddowg/json-api-client'
 import { type KeyTarget, keyFor, type QueryKey } from './keys'
+
+/**
+ * What a collection read resolves to: the client's `Collection`, its `$page` typed by the strategy
+ * and its `$meta` by the members the read's document declares.
+ */
+export type ListResult<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  Inc extends readonly IncludePath<D, T>[] = [],
+  F = unknown,
+  Pg = undefined,
+  Cnt extends readonly string[] = [],
+> = Collection<
+  ReadResult<D, A, T, Inc, F, Cnt[number]>,
+  PageOf<D[T]['paginator'], Pg>,
+  CollectionMeta<D, T>
+>
+
+/**
+ * What a single read resolves to: the client's resource view, its `$document.meta` typed by the
+ * members the read's document declares.
+ */
+export type FetchOneResult<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  Inc extends readonly IncludePath<D, T>[] = [],
+  F = unknown,
+  Cnt extends readonly string[] = [],
+> = WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'fetchOne'>>
 
 /**
  * The precise materialised result of `.rel(R).related()` / `.get()` — extracted (via `infer`)
@@ -99,7 +133,7 @@ interface SingletonReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): Promise<FetchOneResult<D, A, T, Inc, F, Cnt>>
   rel(name: RelationName<D, T>): RelationReads
 }
 
@@ -119,7 +153,7 @@ interface TypeReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-  ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
+  ): Promise<ListResult<D, A, T, Inc, F, Pg, Cnt>>
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -127,7 +161,7 @@ interface TypeReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
   >(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): Promise<FetchOneResult<D, A, T, Inc, F, Cnt>>
   id(id: string): { rel(name: RelationName<D, T>): RelationReads }
 }
 
@@ -182,9 +216,7 @@ export function listQueryOptions<
   client: TypedClient<D, A>,
   type: T,
   query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-): QueryOptions<
-  Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>
-> {
+): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>> {
   const accessor = readsOf(client, type)
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
@@ -212,7 +244,7 @@ export function getQueryOptions<
   type: T,
   id: ResourceId<D, T>,
   query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>> {
+): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>> {
   const accessor = readsOf(client, type)
   const resource: string | undefined = id
   return {
@@ -291,9 +323,7 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-  ): QueryOptions<
-    Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>
-  >
+  ): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>>
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -301,7 +331,7 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
   >(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>>
   relationship<R extends RelationName<D, T>>(
     id: string,
     rel: R,
@@ -325,7 +355,7 @@ export interface SingletonQueryApi<D extends ApiDescriptor, A, T extends TypeNam
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): QueryOptions<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>>
   relationship<R extends RelationName<D, T>>(
     rel: R,
     query?: TypedRelationReadQuery<D, T, R>,

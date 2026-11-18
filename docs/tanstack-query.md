@@ -73,6 +73,8 @@ albumsPage.data?.$page.meta?.currentPage // number
 reads.albums.list({ page: { numbr: 2 } }) // compile error: not a page key
 ```
 
+A result keeps the [document meta](reads.md#document-meta) the server declares: a list or related collection has it typed on `$meta` beside `$page`, and a single read on `$document.meta`. The create and update mutations resolve the same way, and the delete mutation resolves to the meta its `200` declares.
+
 See [reads.md](reads.md), [includes-and-sparse-fieldsets.md](includes-and-sparse-fieldsets.md), and [pagination.md](pagination.md) for the underlying read surface these factories wrap.
 
 Every read factory sets `structuralSharing: false`. TanStack's structural sharing rebuilds a refetched value that changed as plain arrays and objects, which drops the non-enumerable accessors a materialised value carries, so a refetched collection would lose `$page` and `$next()` and its resources `$self` and `$rel()`. A query you build yourself around a client call needs the same setting:
