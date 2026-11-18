@@ -206,6 +206,10 @@ describe('buildDescriptor — custom actions', () => {
       // it answers with an album, so it takes the albums' relatedQuery.
       relatedQuery: true,
       scopes: ['catalog:write'],
+      // Its 200 declares the release date the album had before.
+      documentMeta: {
+        '200': { fields: { previousReleasedAt: 'date-time' }, nullable: ['previousReleasedAt'] },
+      },
     })
   })
 

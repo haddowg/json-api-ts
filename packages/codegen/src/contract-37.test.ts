@@ -78,11 +78,11 @@ function marked(descriptor: ApiDescriptor): Map<string, string> {
  */
 describe('generator contract 37 (relatedQuery wherever resources of one type answer)', () => {
   it('reads the witness and both catalog servers without a warning', () => {
-    // The admin server has no singleton, so it keeps the baseline stamp.
+    // Each declares typed document meta, so each carries 41.
     for (const [doc, contract] of [
-      [witness, 40],
-      [catalog, 40],
-      [admin, 39],
+      [witness, 41],
+      [catalog, 41],
+      [admin, 41],
     ] as const) {
       expect(doc.info?.['x-generator']?.contract).toBe(contract)
       expect(checkContract(doc)).toBeUndefined()

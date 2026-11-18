@@ -52,7 +52,7 @@ const withoutIncluded = (value: unknown): unknown =>
 
 describe('generator contract 19 (discriminated unions, typed included)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(40)
+    expect(witness.info?.['x-generator']?.contract).toBe(41)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -136,7 +136,15 @@ describe('generator contract 19 (discriminated unions, typed included)', () => {
     expectTypeOf<RelatedIncluded<'articles', 'tags'>['type']>().toEqualTypeOf<'articles'>()
     // Without a list, every type the server declares.
     expectTypeOf<Included<'tags'>['type']>().toEqualTypeOf<
-      'articles' | 'credits' | 'healthcheck' | 'images' | 'inboxes' | 'people' | 'tags' | 'videos'
+      | 'articles'
+      | 'credits'
+      | 'healthcheck'
+      | 'images'
+      | 'inboxes'
+      | 'notices'
+      | 'people'
+      | 'tags'
+      | 'videos'
     >()
   })
 

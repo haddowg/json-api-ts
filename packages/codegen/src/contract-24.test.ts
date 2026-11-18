@@ -18,7 +18,7 @@ const source = emit(witness, buildDescriptor(witness))
 
 describe('generator contract 24 (error shapes, scoped codes, typed meta)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(40)
+    expect(witness.info?.['x-generator']?.contract).toBe(41)
     expect(checkContract(witness)).toBeUndefined()
   })
 

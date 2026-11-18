@@ -108,7 +108,8 @@ describe('output schemas', () => {
 
   it('describes a collection as data, pagination links and meta', () => {
     const output = find(tools, 'albums_list').outputSchema!
-    expect(output['required']).toEqual(['data', 'links'])
+    // The albums list declares a required explicitCount, so its document always carries meta.
+    expect(output['required']).toEqual(['data', 'links', 'meta'])
     expect(props(output)['data']).toMatchObject({
       type: 'array',
       items: { $ref: '#/$defs/albums' },

@@ -27,7 +27,7 @@ const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type:
  */
 describe('generator contract 38 (typed references to named value shapes)', () => {
   it('reads a document stamped 38', () => {
-    expect(typed.contract).toBe(40)
+    expect(typed.contract).toBe(41)
   })
 
   it('keeps the enums in the inputs', () => {

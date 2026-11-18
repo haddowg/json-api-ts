@@ -24,7 +24,7 @@ describe('generator contract 22 (deprecation)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(40)
+    expect(mcp.contract).toBe(41)
   })
 
   it('starts a deprecated operation tool description with Deprecated.', () => {
