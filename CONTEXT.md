@@ -91,6 +91,11 @@ The per-edge data of a many-to-many membership, read as `$pivot`.
 The members a server declares it adds to each linkage member's `meta`, typed on `$edge.meta`.
 _Avoid_: edge meta, link meta
 
+**Document meta**:
+The members a server declares in an operation's top-level `meta`, typed on a collection's `$meta`,
+a resource's `$document.meta`, a meta-only delete's result or an action's.
+_Avoid_: result meta, response meta
+
 **Paginator**:
 The descriptor's account of how a collection pages: a strategy with its keys, or a menu of
 strategies with a default arm.
