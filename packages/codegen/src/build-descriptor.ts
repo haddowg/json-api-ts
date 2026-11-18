@@ -7,6 +7,8 @@ import type {
   Cardinality,
   ClientIdPolicy,
   CountableDescriptor,
+  DocumentMetaDescriptor,
+  DocumentMetaOperation,
   FilterFamilyDescriptor,
   InputMediaKind,
   MenuDescriptor,
@@ -292,6 +294,10 @@ export class DescriptorBuilder {
       if (accepted !== undefined) {
         descriptor.accepted = accepted
       }
+      const documentMeta = this.operationsDocumentMeta(collection, item)
+      if (documentMeta !== undefined) {
+        descriptor.documentMeta = documentMeta
+      }
       // A synthetic stub for an unregistered related type — core's `permissiveResourceObject`
       // emits a `<Rel>Resource` carrying ONLY a `type` const (no `id`/`attributes`) so linkage
       // refs resolve — is reachable only through a parent's `.related()` (which works via the
@@ -314,6 +320,95 @@ export class DescriptorBuilder {
       }
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The top-level `meta` each of a type's operations declares, keyed `fetchMany`, `create`,
+   * `fetchOne`, `update` or `delete`. `undefined` when none declares any.
+   */
+  private operationsDocumentMeta(
+    collection: string | undefined,
+    item: string | undefined,
+  ): Partial<Record<DocumentMetaOperation, DocumentMetaDescriptor>> | undefined {
+    const operations: [DocumentMetaOperation, string | undefined, HttpMethod][] = [
+      ['fetchMany', collection, 'get'],
+      ['create', collection, 'post'],
+      ['fetchOne', item, 'get'],
+      ['update', item, 'patch'],
+      ['delete', item, 'delete'],
+    ]
+    const out: Partial<Record<DocumentMetaOperation, DocumentMetaDescriptor>> = {}
+    for (const [operation, path, method] of operations) {
+      const op = path === undefined ? undefined : this.operation(path, method)
+      const meta = op === undefined ? undefined : this.declaredMeta(this.firstOkJsonApiRef(op))
+      if (meta !== undefined) {
+        out[operation] = meta
+      }
+    }
+    return Object.keys(out).length === 0 ? undefined : out
+  }
+
+  /**
+   * The shared document a per-operation document component narrows: the first `allOf` entry's
+   * `$ref` of a component marked `x-document-meta`, else `ref` as it is.
+   */
+  private sharedDocumentRef(ref: string | undefined): string | undefined {
+    const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
+    if (component?.['x-document-meta'] !== true) {
+      return ref
+    }
+    const shared = component.allOf?.[0]?.$ref
+    return typeof shared === 'string' ? shared : ref
+  }
+
+  /**
+   * The members a document component marked `x-document-meta` declares in its top-level `meta`:
+   * each one's hint, the required ones and the nullable ones. `undefined` for a shared document.
+   */
+  private declaredMeta(ref: string | undefined): DocumentMetaDescriptor | undefined {
+    const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
+    if (component?.['x-document-meta'] !== true) {
+      return undefined
+    }
+    for (const entry of (component.allOf ?? []).slice(1)) {
+      const meta = entry.properties?.['meta']
+      if (!isSchema(meta)) {
+        continue
+      }
+      const fields: Record<string, string> = {}
+      const nullable: string[] = []
+      for (const [name, prop] of Object.entries(meta.properties ?? {})) {
+        if (!isSchema(prop)) {
+          continue
+        }
+        fields[name] = formatHint(prop, this.schemas)
+        if (isNullable(prop)) {
+          nullable.push(name)
+        }
+      }
+      const names = Object.keys(fields)
+      if (names.length === 0) {
+        return undefined
+      }
+      const out: DocumentMetaDescriptor = { fields: sortRecord(fields) }
+      const required = names.filter((name) => meta.required?.includes(name))
+      if (required.length < names.length) {
+        // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+        out.required = required.sort()
+      }
+      if (nullable.length > 0) {
+        // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+        out.nullable = nullable.sort()
+      }
+      return out
+    }
+    return undefined
+  }
+
+  /** Whether a document `$ref` names a meta-only document, through any per-operation narrowing. */
+  private isMetaDocument(ref: string | undefined): boolean {
+    const shared = this.sharedDocumentRef(ref)
+    return shared !== undefined && refName(shared) === 'MetaDocument'
   }
 
   /**
@@ -646,6 +741,11 @@ export class DescriptorBuilder {
     if (included !== undefined) {
       out.included = included
     }
+    const documentMeta =
+      relatedGet === undefined ? undefined : this.declaredMeta(this.firstOkJsonApiRef(relatedGet))
+    if (documentMeta !== undefined) {
+      out.documentMeta = documentMeta
+    }
     const countable =
       withCountParam(relatedGet) ?? withCountParam(this.operation(relationshipPath, 'get'))
     if (countable !== undefined) {
@@ -763,7 +863,7 @@ export class DescriptorBuilder {
     op: OperationObject,
   ): ActionDescriptor {
     const input = actionInput(op)
-    const output = actionOutput(op)
+    const output = actionOutput(op, (ref) => this.isMetaDocument(ref))
     const action: ActionDescriptor = { scope, path, input, output }
     const filterable = filterKeys(op)
     if (filterable !== undefined) {
@@ -792,7 +892,12 @@ export class DescriptorBuilder {
     // A document output names its primary resource type + cardinality so the client materialises
     // the response into that resource view (matching reads), not the raw wire envelope.
     if (output === 'document') {
-      const primary = this.documentPrimary(this.firstOkJsonApiRef(op))
+      const refs = this.okJsonApiRefs(op)
+      if (refs[0] !== undefined && this.isMetaDocument(refs[0])) {
+        action.metaResult = true
+      }
+      const documents = refs.filter((ref) => !this.isMetaDocument(ref))
+      const primary = this.documentPrimary(documents[0])
       if (primary !== undefined) {
         action.outputType = primary.type
         action.outputCardinality = primary.cardinality
@@ -800,7 +905,7 @@ export class DescriptorBuilder {
           action.relatedQuery = true
         }
         // A `200` and a `201` naming different types can't share one output view; the first wins.
-        for (const ref of this.okJsonApiRefs(op).slice(1)) {
+        for (const ref of documents.slice(1)) {
           const other = this.documentPrimary(ref)
           if (other !== undefined && other.type !== primary.type) {
             // eslint-disable-next-line no-console
@@ -855,7 +960,28 @@ export class DescriptorBuilder {
     if (accepted !== undefined) {
       action.accepted = accepted
     }
+    const documentMeta = this.actionDocumentMeta(op)
+    if (documentMeta !== undefined) {
+      action.documentMeta = documentMeta
+    }
     return action
+  }
+
+  /**
+   * The top-level `meta` each of an action's success statuses declares, `null` for a status whose
+   * JSON:API document declares none. `undefined` when none declares any.
+   */
+  private actionDocumentMeta(
+    op: OperationObject,
+  ): Record<string, DocumentMetaDescriptor | null> | undefined {
+    const out: Record<string, DocumentMetaDescriptor | null> = {}
+    let declared = false
+    for (const [status, ref] of this.okJsonApiResponses(op)) {
+      const meta = this.declaredMeta(ref)
+      out[status] = meta ?? null
+      declared ||= meta !== undefined
+    }
+    return declared ? out : undefined
   }
 
   /**
@@ -928,10 +1054,11 @@ export class DescriptorBuilder {
   private documentPrimary(
     ref: string | undefined,
   ): { type: string; cardinality: Cardinality } | undefined {
-    if (typeof ref !== 'string') {
+    const shared = this.sharedDocumentRef(ref)
+    if (typeof shared !== 'string') {
       return undefined
     }
-    const component = refName(ref)
+    const component = refName(shared)
     const data = component === undefined ? undefined : this.schemas[component]?.properties?.['data']
     if (!isSchema(data)) {
       return undefined
@@ -960,7 +1087,7 @@ export class DescriptorBuilder {
    * its items only as a generic `{type, id}` object.
    */
   private includedTypes(op: OperationObject | undefined): readonly string[] | undefined {
-    const ref = op === undefined ? undefined : this.firstOkJsonApiRef(op)
+    const ref = op === undefined ? undefined : this.sharedDocumentRef(this.firstOkJsonApiRef(op))
     const document = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
     const included = document?.properties?.['included']
     const items = isSchema(included) ? included.items : undefined
@@ -979,7 +1106,12 @@ export class DescriptorBuilder {
    * `200` document, then the `201` document of the resource it created.
    */
   private okJsonApiRefs(op: OperationObject): string[] {
-    const refs: string[] = []
+    return this.okJsonApiResponses(op).map(([, ref]) => ref)
+  }
+
+  /** Each 2xx status answering with a JSON:API document, and that document's `$ref`, in order. */
+  private okJsonApiResponses(op: OperationObject): [string, string][] {
+    const out: [string, string][] = []
     for (const [code, response] of Object.entries(op.responses ?? {})) {
       if (!isResultStatus(code)) {
         continue
@@ -988,10 +1120,10 @@ export class DescriptorBuilder {
       // A response offering a location document too names its other document in a `oneOf`.
       const ref = schema === undefined ? undefined : documentArms(schema)[0]?.$ref
       if (typeof ref === 'string') {
-        refs.push(ref)
+        out.push([code, ref])
       }
     }
-    return refs
+    return out
   }
 
   /** Resolve a relationship component's `data` into a {@link RelationDescriptor}. */
@@ -1549,7 +1681,9 @@ export class DescriptorBuilder {
   }
 
   private okResponseRef(op: OperationObject | undefined): string | undefined {
-    return op?.responses?.['200']?.content?.['application/vnd.api+json']?.schema?.$ref
+    return this.sharedDocumentRef(
+      op?.responses?.['200']?.content?.['application/vnd.api+json']?.schema?.$ref,
+    )
   }
 }
 
@@ -2004,11 +2138,14 @@ function rawContentType(op: OperationObject): string | undefined {
 }
 
 /**
- * What a custom action returns from its first 2xx response: a `meta`-only document (a `$ref` to the
- * shared `MetaDocument` — no `data`), a resource `document` (any other JSON:API body), or `none`
- * (only a `204`).
+ * What a custom action returns: a `meta`-only document when every 2xx JSON:API document is the
+ * shared `MetaDocument` or narrows it, a resource `document` when any is another JSON:API body, a
+ * `location` when the first offers only a location document, or `none` (only a `204`).
  */
-function actionOutput(op: OperationObject): ActionDescriptor['output'] {
+function actionOutput(
+  op: OperationObject,
+  isMetaDocument: (ref: string | undefined) => boolean,
+): ActionDescriptor['output'] {
   const schema = okJsonApiSchema(op)
   if (schema === undefined) {
     return 'none'
@@ -2017,7 +2154,15 @@ function actionOutput(op: OperationObject): ActionDescriptor['output'] {
   if (arm === undefined) {
     return locationMediaType(schema) === undefined ? 'document' : 'location'
   }
-  return typeof arm.$ref === 'string' && refName(arm.$ref) === 'MetaDocument' ? 'meta' : 'document'
+  const arms: SchemaObject[] = []
+  for (const [code, response] of Object.entries(op.responses ?? {})) {
+    const body = isResultStatus(code) ? response.content?.[JSON_API_MEDIA_TYPE]?.schema : undefined
+    const first = body === undefined ? undefined : documentArms(body)[0]
+    if (first !== undefined) {
+      arms.push(first)
+    }
+  }
+  return arms.every((entry) => isMetaDocument(entry.$ref)) ? 'meta' : 'document'
 }
 
 /**

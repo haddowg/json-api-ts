@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 40. An older document is refused, because it describes its error codes in a form
+contracts 24 to 41. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -116,6 +116,15 @@ A few things the codegen reads from the document that affect the generated clien
   the [examples module](#operation-examples) still has it. The CRUD and relationship
   methods come from the generic runtime, so their examples are only in the examples
   module.
+- **Document meta.** An operation that declares its top-level `meta` answers with a
+  document component of its own, an `allOf` of the shared document and a narrowing of
+  `meta`, marked `x-document-meta`. The codegen reads the shared document through it, and
+  records the declared members as `documentMeta`: on the type, keyed `fetchMany`,
+  `fetchOne`, `create`, `update` or `delete`, on a relation for its related read, and on an
+  action keyed by status. Each entry lists the members' format hints, the required ones and
+  the nullable ones, as a pivot does, and each member's description becomes TSDoc on its
+  entry. An action whose `200` is meta-only while another status answers with a resource is
+  marked `metaResult`. See [document meta](reads.md#document-meta).
 - **Several methods.** Each method of a multi-method action gets its own action method,
   as described under [several methods](custom-actions.md#an-action-with-several-methods).
   An action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and

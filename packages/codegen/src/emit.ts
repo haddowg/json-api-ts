@@ -282,6 +282,35 @@ function memberDoc(schema: SchemaObject): string | undefined {
   return description ? `${description}\n\n${tags.join('\n')}` : tags.join('\n')
 }
 
+/**
+ * The `meta` members of each JSON:API document an operation's 2xx responses answer with, keyed by
+ * status, for the documents marked `x-document-meta`.
+ */
+function declaredMetaMembers(
+  op: OperationObject | undefined,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): Map<string, Record<string, SchemaOrBool>> {
+  const out = new Map<string, Record<string, SchemaOrBool>>()
+  for (const [code, response] of Object.entries(op?.responses ?? {})) {
+    const schema = isResultStatus(code)
+      ? response.content?.[JSON_API_MEDIA_TYPE]?.schema
+      : undefined
+    const ref = schema?.$ref ?? schema?.oneOf?.find((arm) => typeof arm.$ref === 'string')?.$ref
+    const component = typeof ref === 'string' ? schemas[refName(ref) ?? ''] : undefined
+    if (component?.['x-document-meta'] !== true) {
+      continue
+    }
+    for (const entry of (component.allOf ?? []).slice(1)) {
+      const meta = entry.properties?.['meta']
+      if (isSchema(meta) && meta.properties !== undefined) {
+        out.set(code, meta.properties)
+        break
+      }
+    }
+  }
+  return out
+}
+
 /** An `ActionTypes` media map: `{ 'text/csv': Alias; … }`. */
 function mediaMap(aliases: Map<string, string>): string {
   const entries = [...aliases].map(([mediaType, alias]) => `${stringLiteral(mediaType)}: ${alias}`)
@@ -391,6 +420,15 @@ const PATH_OPERATIONS: Readonly<Record<string, string>> = {
 }
 
 /** A relation's operations, in the order its JSDoc lists their scopes. */
+/** Each operation a type's `documentMeta` is keyed by, and the operation id prefix it reads. */
+const META_OPERATIONS: Readonly<Record<string, string>> = {
+  fetchMany: 'fetchCollection',
+  fetchOne: 'fetchOne',
+  create: 'create',
+  update: 'update',
+  delete: 'delete',
+}
+
 const RELATION_OPERATIONS = [
   'fetchRelated',
   'fetchRelationship',
@@ -651,6 +689,9 @@ export class Emitter {
           this.literalDocs.set(`${type}/actions/${name}/filterFamilies`, familyDoc)
         }
         this.familyDocs(`${type}/actions/${name}`, action, op)
+        for (const [status, members] of declaredMetaMembers(op, this.schemas)) {
+          this.metaDocs(`${type}/actions/${name}/documentMeta/${status}`, members)
+        }
       }
       const scopes = descriptor[type]?.scopes
       for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
@@ -672,6 +713,20 @@ export class Emitter {
         )
         if (doc !== undefined) {
           this.literalDocs.set(`${type}/relations/${relation}`, doc)
+        }
+      }
+      for (const [key, operation] of Object.entries(META_OPERATIONS)) {
+        const members = declaredMetaMembers(operations.get(`${operation}.${type}`), this.schemas)
+        const first = [...members.values()][0]
+        if (first !== undefined) {
+          this.metaDocs(`${type}/documentMeta/${key}`, first)
+        }
+      }
+      for (const relation of Object.keys(descriptor[type]?.relations ?? {})) {
+        const op = operations.get(`fetchRelated.${type}.${relation}`)
+        const first = [...declaredMetaMembers(op, this.schemas).values()][0]
+        if (first !== undefined) {
+          this.metaDocs(`${type}/relations/${relation}/documentMeta`, first)
         }
       }
       const typeDoc = deprecations.type(type)
@@ -711,6 +766,16 @@ export class Emitter {
       }
     }
     this.familyDocs(path, spec, op)
+  }
+
+  /** JSDoc on each declared document meta member that describes or exemplifies itself. */
+  private metaDocs(path: string, members: Readonly<Record<string, SchemaOrBool>>): void {
+    for (const [name, member] of Object.entries(members)) {
+      const doc = isSchema(member) ? memberDoc(member) : undefined
+      if (doc !== undefined) {
+        this.literalDocs.set(`${path}/fields/${name}`, doc)
+      }
+    }
   }
 
   /** JSDoc on each sort and filter family entry that the operation describes or exemplifies. */

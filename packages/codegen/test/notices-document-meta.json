@@ -1,0 +1,2903 @@
+{
+  "paths": {
+    "/notices": {
+      "get": {
+        "tags": ["People"],
+        "summary": "List notices",
+        "description": "Returns a paginated collection of notices.",
+        "operationId": "fetchCollection.notices",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Pagination parameters, e.g. `page[number]=2&page[size]=10`.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "integer",
+                  "description": "The page number to retrieve.",
+                  "default": 1,
+                  "minimum": 1
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "The number of resources per page.",
+                  "default": 15,
+                  "minimum": 1,
+                  "maximum": 100
+                }
+              },
+              "x-paginator": {
+                "strategy": "page",
+                "keys": {
+                  "number": "number",
+                  "size": "size"
+                }
+              }
+            },
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "withCount",
+            "in": "query",
+            "description": "A comma-separated list of count tokens (the Countable profile), recognised only when the Countable profile is negotiated. Request `withCount=_self_` to receive the collection total in the top-level `meta.total` (also in `meta.page.total` when the collection is paginated).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["_self_"]
+              }
+            },
+            "style": "form",
+            "explode": false,
+            "x-profile": "https://haddowg.github.io/json-api/profiles/countable/"
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A collection of notices.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesFetchCollectionDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesFetchCollection400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["People"],
+        "summary": "Create a notice",
+        "description": "Creates a new notice from the supplied attributes and relationships.",
+        "operationId": "create.notices",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoticesCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The created notice.",
+            "headers": {
+              "Location": {
+                "description": "The URL of the created resource.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesCreate400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 the request is not authorised.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesCreate403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesCreate404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "description": "Conflict \u2014 the request conflicts with the resource state (e.g. a type or id mismatch).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesCreate409"
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable Entity \u2014 the document failed validation.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesCreate422"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/notices/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "The `id` of the notice.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": ["People"],
+        "summary": "Fetch a notice",
+        "description": "Returns a single notice by its `id`.",
+        "operationId": "fetchOne.notices",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested notice.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesFetchOneDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesFetchOne400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesFetchOne404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["People"],
+        "summary": "Delete a notice",
+        "description": "Deletes the notice identified by its `id`.",
+        "operationId": "delete.notices",
+        "responses": {
+          "200": {
+            "description": "The resource was deleted; a meta-only document is returned.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesDeleteDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesDelete404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["People"],
+        "summary": "Update a notice",
+        "description": "Updates an existing notice, applying the supplied attributes and relationships.",
+        "operationId": "update.notices",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoticesUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated notice.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesUpdateDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesUpdate400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 the request is not authorised.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesUpdate403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesUpdate404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "description": "Conflict \u2014 the request conflicts with the resource state (e.g. a type or id mismatch).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesUpdate409"
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable Entity \u2014 the document failed validation.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesUpdate422"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/notices/{id}/replies": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "The `id` of the notice.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": ["People"],
+        "summary": "Fetch the related replies of a notice",
+        "description": "Returns the related `replies` resources of a notice.",
+        "operationId": "fetchRelated.notices.replies",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The related replies collection.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesFetchRelatedDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesFetchRelated400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesFetchRelated404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/notices/{id}/relationships/replies": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "The `id` of the notice.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": ["People"],
+        "summary": "Fetch the replies relationship of a notice",
+        "description": "Returns the `replies` relationship linkage of a notice.",
+        "operationId": "fetchRelationship.notices.replies",
+        "responses": {
+          "200": {
+            "description": "The replies relationship linkage.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesFetchRelationship400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesFetchRelationship404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["People"],
+        "summary": "Add to the replies relationship of a notice",
+        "description": "Adds the supplied members to the `replies` relationship of a notice.",
+        "operationId": "addRelationship.notices.replies",
+        "requestBody": {
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated replies relationship linkage.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesAddRelationship400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 the request is not authorised.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesAddRelationship403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesAddRelationship404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "description": "Conflict \u2014 the request conflicts with the resource state (e.g. a type or id mismatch).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesAddRelationship409"
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["People"],
+        "summary": "Remove from the replies relationship of a notice",
+        "description": "Removes the supplied members from the `replies` relationship of a notice.",
+        "operationId": "removeRelationship.notices.replies",
+        "requestBody": {
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated replies relationship linkage.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRemoveRelationship400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 the request is not authorised.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRemoveRelationship403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRemoveRelationship404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "description": "Conflict \u2014 the request conflicts with the resource state (e.g. a type or id mismatch).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRemoveRelationship409"
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["People"],
+        "summary": "Replace the replies relationship of a notice",
+        "description": "Fully replaces the `replies` relationship of a notice with the supplied linkage.",
+        "operationId": "updateRelationship.notices.replies",
+        "requestBody": {
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated replies relationship linkage.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesRelationshipDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesUpdateRelationship400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 the request is not authorised.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesUpdateRelationship403"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesUpdateRelationship404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "description": "Conflict \u2014 the request conflicts with the resource state (e.g. a type or id mismatch).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesRepliesUpdateRelationship409"
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/notices/-actions/mark-read": {
+      "post": {
+        "tags": ["People"],
+        "summary": "Invoke the `mark-read` action",
+        "description": "Invokes the `mark-read` custom action on the notices collection.",
+        "operationId": "action.notices.mark-read",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The action result.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesMarkReadActionDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesMarkReadAction400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/notices/{id}/-actions/snapshot": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "The `id` of the notice.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": ["People"],
+        "summary": "Invoke the `snapshot` action",
+        "description": "Invokes the `snapshot` custom action on a notice.",
+        "operationId": "action.notices.snapshot",
+        "parameters": [
+          {
+            "name": "fields[notices]",
+            "in": "query",
+            "description": "A comma-separated list of `notices` fields to return (sparse fieldsets).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["message", "replies"]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/NoticesRelatedQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The action result: a meta-only document.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesSnapshotActionDocument"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The resource the action created.",
+            "headers": {
+              "Location": {
+                "description": "The URL of the created resource.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesSnapshotActionCreatedDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 the request was malformed (e.g. an invalid query parameter).",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesSnapshotAction400"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not Found \u2014 the resource does not exist.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesSnapshotAction404"
+                }
+              }
+            }
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "schemas": {
+    "NoticesAtomicAdd": {
+      "type": "object",
+      "description": "The notice resource object an `add` operation creates.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "notices"
+        },
+        "lid": {
+          "type": "string",
+          "description": "A local id assigned to the created resource, referenceable by later operations in the batch."
+        },
+        "attributes": {
+          "$ref": "#/components/schemas/NoticesCreateAttributes"
+        },
+        "relationships": {
+          "type": "object",
+          "properties": {
+            "replies": {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoticesAtomicIdentifier"
+                  }
+                },
+                "meta": {
+                  "$ref": "#/components/schemas/Meta"
+                }
+              },
+              "required": ["data"]
+            }
+          }
+        },
+        "id": false
+      },
+      "required": ["type"]
+    },
+    "NoticesAtomicIdentifier": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "notices"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lid": {
+          "type": "string",
+          "description": "The local id of a resource created earlier in the batch."
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        }
+      },
+      "required": ["type"],
+      "oneOf": [
+        {
+          "title": "By id",
+          "required": ["id"]
+        },
+        {
+          "title": "By local id (lid)",
+          "required": ["lid"]
+        }
+      ]
+    },
+    "NoticesAtomicUpdate": {
+      "type": "object",
+      "description": "The notice resource object an `update` operation writes.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "notices"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lid": {
+          "type": "string",
+          "description": "The local id of a resource created earlier in the batch."
+        },
+        "attributes": {
+          "$ref": "#/components/schemas/NoticesUpdateAttributes"
+        },
+        "relationships": {
+          "type": "object",
+          "properties": {
+            "replies": {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoticesAtomicIdentifier"
+                  }
+                },
+                "meta": {
+                  "$ref": "#/components/schemas/Meta"
+                }
+              },
+              "required": ["data"]
+            }
+          }
+        }
+      },
+      "required": ["type"],
+      "oneOf": [
+        {
+          "title": "By id",
+          "required": ["id"]
+        },
+        {
+          "title": "By local id (lid)",
+          "required": ["lid"]
+        },
+        {
+          "title": "Targeted by ref/href",
+          "description": "Neither `id` nor `lid` in `data` \u2014 the operation targets the resource by its `ref` or `href`.",
+          "properties": {
+            "id": false,
+            "lid": false
+          }
+        }
+      ]
+    },
+    "NoticesAttributes": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": ["string", "null"],
+          "examples": ["Your export is ready."]
+        }
+      },
+      "required": ["message"],
+      "additionalProperties": false
+    },
+    "NoticesCollection": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/NoticesResource"
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/CollectionLinks"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["data"]
+    },
+    "NoticesCreate400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerAttributeMemberUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400DataMemberMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerLocalIdNotSupported"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJson"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJsonApi"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequiredTopLevelMembersMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ResourceIdentifierIdInvalid"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesCreate403": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error403PointerClientGeneratedIdNotSupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesCreate404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesCreate409": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error409PointerResourceTypeUnacceptable"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesCreate422": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error422PointerAttributeValueInvalid"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesCreateAttributes": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "examples": ["Your export is ready."]
+        }
+      },
+      "additionalProperties": false
+    },
+    "NoticesCreateRequest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "notices"
+            },
+            "attributes": {
+              "$ref": "#/components/schemas/NoticesCreateAttributes"
+            },
+            "id": false,
+            "relationships": {
+              "type": "object",
+              "properties": {
+                "replies": {
+                  "$ref": "#/components/schemas/NoticesRepliesRelationship"
+                }
+              }
+            }
+          },
+          "required": ["type"]
+        }
+      },
+      "required": ["data"]
+    },
+    "NoticesDelete404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesDeleteDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/MetaDocument"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "archived": {
+                  "type": "integer",
+                  "examples": [1]
+                }
+              },
+              "required": ["archived"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesDocument": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/NoticesResource"
+        },
+        "links": {
+          "$ref": "#/components/schemas/DocumentLinks"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["data"]
+    },
+    "NoticesFetchCollection400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesFetchCollectionDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/NoticesCollection"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "unread": {
+                  "type": "integer",
+                  "description": "How many notices are unread.",
+                  "examples": [3]
+                },
+                "digest": {
+                  "type": ["string", "null"]
+                },
+                "page": {
+                  "type": "object",
+                  "description": "The members of the current page, written by the server."
+                },
+                "total": {
+                  "type": "integer",
+                  "description": "The size of the whole collection, when requested with `withCount=_self_`.",
+                  "minimum": 0
+                }
+              },
+              "required": ["unread"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesFetchOne400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesFetchOne404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesFetchOneDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/NoticesDocument"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "etag": {
+                  "type": "string",
+                  "minLength": 1,
+                  "examples": ["W/\"7\""]
+                }
+              },
+              "required": ["etag"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesMarkReadAction400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesMarkReadActionDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/NoticesDocument"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "marked": {
+                  "type": "integer",
+                  "description": "How many notices this call marked read.",
+                  "examples": [12]
+                }
+              },
+              "required": ["marked"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesRepliesAddRelationship400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerLocalIdNotSupported"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerRelationshipTypeInappropriate"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJson"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequiredTopLevelMembersMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ResourceIdentifierIdInvalid"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesAddRelationship403": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error403PointerAdditionProhibited"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesAddRelationship404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404RelationshipNotExists"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesAddRelationship409": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error409PointerResourceTypeUnacceptable"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesFetchRelated400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesFetchRelated404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404RelationshipNotExists"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesFetchRelatedDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/NoticesRepliesRelatedCollection"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "unread": {
+                  "type": "integer",
+                  "description": "How many notices are unread.",
+                  "examples": [3]
+                },
+                "digest": {
+                  "type": ["string", "null"]
+                },
+                "page": {
+                  "type": "object",
+                  "description": "The members of the current page, written by the server."
+                },
+                "total": {
+                  "type": "integer",
+                  "description": "The size of the whole collection, when requested with `withCount=_self_`.",
+                  "minimum": 0
+                }
+              },
+              "required": ["unread"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesRepliesFetchRelationship400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesFetchRelationship404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404RelationshipNotExists"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesRelatedCollection": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/NoticesResource"
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/RelatedDocumentLinks"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["data"]
+    },
+    "NoticesRepliesRelationship": {
+      "type": "object",
+      "properties": {
+        "links": {
+          "$ref": "#/components/schemas/RelationshipLinks"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/NoticesResourceIdentifier"
+          }
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        }
+      },
+      "examples": [
+        {
+          "data": [
+            {
+              "type": "notices",
+              "id": "n-1"
+            }
+          ]
+        }
+      ]
+    },
+    "NoticesRepliesRelationshipDocument": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/NoticesResourceIdentifier"
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/RelationshipDocumentLinks"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["data"]
+    },
+    "NoticesRepliesRemoveRelationship400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerLocalIdNotSupported"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerRelationshipTypeInappropriate"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJson"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequiredTopLevelMembersMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ResourceIdentifierIdInvalid"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesRemoveRelationship403": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error403PointerRemovalProhibited"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesRemoveRelationship404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404RelationshipNotExists"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesRemoveRelationship409": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error409PointerResourceTypeUnacceptable"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesUpdateRelationship400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerLocalIdNotSupported"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerRelationshipTypeInappropriate"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJson"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequiredTopLevelMembersMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ResourceIdentifierIdInvalid"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesUpdateRelationship403": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error403PointerFullReplacementProhibited"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesUpdateRelationship404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404RelationshipNotExists"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesRepliesUpdateRelationship409": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error409PointerResourceTypeUnacceptable"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesResource": {
+      "type": "object",
+      "description": "A notice resource object.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "notices"
+        },
+        "id": {
+          "type": "string",
+          "examples": ["n-1"]
+        },
+        "attributes": {
+          "$ref": "#/components/schemas/NoticesAttributes"
+        },
+        "relationships": {
+          "type": "object",
+          "properties": {
+            "replies": {
+              "$ref": "#/components/schemas/NoticesRepliesRelationship"
+            }
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/ResourceLinks"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        }
+      },
+      "required": ["type", "id"]
+    },
+    "NoticesResourceIdentifier": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "notices"
+        },
+        "id": {
+          "type": "string"
+        },
+        "meta": {
+          "type": "object"
+        }
+      },
+      "required": ["type", "id"]
+    },
+    "NoticesSnapshotAction400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesSnapshotAction404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesSnapshotActionCreatedDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/NoticesDocument"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "snapshotOf": {
+                  "type": "string",
+                  "minLength": 1,
+                  "examples": ["n-1"]
+                }
+              },
+              "required": ["snapshotOf"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesSnapshotActionDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/MetaDocument"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "unchanged": {
+                  "type": "boolean",
+                  "examples": [true]
+                }
+              },
+              "required": ["unchanged"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["meta"]
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesUpdate400": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error400Parameter"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerAttributeMemberUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400DataMemberMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterFilteringUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionDepthExceeded"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterInclusionUnrecognized"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerLocalIdNotSupported"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterRelationshipCountNotAllowed"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJson"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequestBodyInvalidJsonApi"
+              },
+              {
+                "$ref": "#/components/schemas/Error400RequiredTopLevelMembersMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ResourceIdentifierIdInvalid"
+              },
+              {
+                "$ref": "#/components/schemas/Error400PointerResourceIdMissing"
+              },
+              {
+                "$ref": "#/components/schemas/Error400ParameterSortingUnsupported"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesUpdate403": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error403PointerFullReplacementProhibited"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesUpdate404": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error404ResourceNotFound"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesUpdate409": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error409PointerResourceIdConflict"
+              },
+              {
+                "$ref": "#/components/schemas/Error409PointerResourceTypeUnacceptable"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesUpdate422": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "$ref": "#/components/schemas/Error422PointerAttributeValueInvalid"
+              }
+            ]
+          }
+        },
+        "links": {
+          "$ref": "#/components/schemas/Links"
+        },
+        "meta": {
+          "$ref": "#/components/schemas/Meta"
+        },
+        "jsonapi": {
+          "$ref": "#/components/schemas/JsonApi"
+        }
+      },
+      "required": ["errors"]
+    },
+    "NoticesUpdateAttributes": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "examples": ["Your export is ready."]
+        }
+      },
+      "additionalProperties": false
+    },
+    "NoticesUpdateDocument": {
+      "allOf": [
+        {
+          "$ref": "#/components/schemas/NoticesDocument"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "etag": {
+                  "type": ["string", "null"],
+                  "examples": ["W/\"8\""]
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "x-document-meta": true
+    },
+    "NoticesUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "notices"
+            },
+            "id": {
+              "type": "string"
+            },
+            "attributes": {
+              "$ref": "#/components/schemas/NoticesUpdateAttributes"
+            },
+            "relationships": {
+              "type": "object",
+              "properties": {
+                "replies": {
+                  "$ref": "#/components/schemas/NoticesRepliesRelationship"
+                }
+              }
+            }
+          },
+          "required": ["type", "id"]
+        }
+      },
+      "required": ["data"]
+    }
+  },
+  "parameters": {
+    "NoticesRelatedQuery": {
+      "name": "relatedQuery",
+      "in": "query",
+      "description": "Per-relationship sort and filter applied from this request, addressed by relationship name (the Relationship Queries profile), e.g. `relatedQuery[replies][filter][<key>]=<value>`. Each relationship takes the sort and filter vocabulary of its related endpoint. Recognised only when the Relationship Queries profile is negotiated.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "replies": {
+            "type": "object",
+            "description": "Sorts and filters the `replies` relationship as its related endpoint would.",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "style": "deepObject",
+      "explode": true,
+      "x-profile": "https://haddowg.github.io/json-api/profiles/relationship-queries/"
+    }
+  }
+}
