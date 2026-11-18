@@ -60,8 +60,8 @@ const denyRead = () => ({ 'fetchOne.inboxes': 'denied' as const })
  * the body must carry the id the path leaves out.
  */
 describe('generator contract 40 (singleton types)', () => {
-  it('reads a document stamped 40', () => {
-    expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(40)
+  it('reads the witness', () => {
+    expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(41)
   })
 
   it('gives the singleton tools without an id, and every other tool what it had', () => {

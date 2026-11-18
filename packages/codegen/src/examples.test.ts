@@ -47,7 +47,7 @@ describe('generator contract 12 (operation examples)', () => {
   const examples = buildExamples(witness, buildDescriptor(witness))
 
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(40)
+    expect(witness.info?.['x-generator']?.contract).toBe(41)
     expect(checkContract(witness)).toBeUndefined()
   })
 
@@ -97,7 +97,14 @@ describe('generator contract 12 (operation examples)', () => {
         expect(Object.keys(op.responses ?? {}).every((status) => status.startsWith('2'))).toBe(true)
       }
     }
-    expect(Object.keys(examples)).toEqual(['articles', 'images', 'inboxes', 'tags', 'videos'])
+    expect(Object.keys(examples)).toEqual([
+      'articles',
+      'images',
+      'inboxes',
+      'notices',
+      'tags',
+      'videos',
+    ])
   })
 
   it('emits the examples the music catalog declares, typed as ApiExamples', () => {

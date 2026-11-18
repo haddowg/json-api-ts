@@ -51,8 +51,8 @@ function typecheck(code: string): string[] {
  * it from, so the codegen reads its paths from that extension.
  */
 describe('generator contract 40 (singleton types)', () => {
-  it('reads a document stamped 40 without a warning', () => {
-    expect(singleton.info?.['x-generator']?.contract).toBe(40)
+  it('reads the witness without a warning', () => {
+    expect(singleton.info?.['x-generator']?.contract).toBe(41)
     expect(checkContract(singleton)).toBeUndefined()
   })
 

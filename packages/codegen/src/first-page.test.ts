@@ -57,7 +57,7 @@ describe('a rendered to-many is its first page', () => {
       'first page',
     )
     expect(checkContract(witness)).toBeUndefined()
-    expect(witness.info?.['x-generator']?.contract).toBe(40)
+    expect(witness.info?.['x-generator']?.contract).toBe(41)
   })
 
   it("pages an included to-many built from the witness's own tags page", async () => {

@@ -314,7 +314,13 @@ describe('every result matches its output schema', () => {
     ['albums_update', catalog, { id: '1', title: 'Help!' }, { data: album }, 200],
     ['albums_summary', catalog, {}, { meta: { albums: { total: 15 } } }, 200],
     ['albums_download', catalog, { id: '1' }, location, 200],
-    ['albums_reissue', catalog, { id: '1' }, { data: album }, 200],
+    [
+      'albums_reissue',
+      catalog,
+      { id: '1' },
+      { data: album, meta: { previousReleasedAt: '1997-05-21T00:00:00+00:00' } },
+      200,
+    ],
   ]
   it.each(cases)('%s', async (name, model, args, body, status) => {
     const result = await call(name, { ...nullArgs(name, model), ...args }, body, status, model)
