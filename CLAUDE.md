@@ -48,8 +48,25 @@ the whole pass is polished.
   the documents that carry it.
 - Release core, then the bundle, then Laravel, then json-api-ts, approving each release PR's
   workflow runs and reviewing its generated output.
-- A released regression that blocks a consumer ships as a patch straight away, and it is complete
+- A released regression that blocks a consumer is fixed as a patch straight away, and it is complete
   too: related bugs or gaps found while fixing it go into the same patch pass across every repo.
+- No release PR merges without the maintainer's explicit sign-off, patches and hotfixes included.
+  Feature and fix PRs still merge when green; only releases wait.
+- Keep an open-items ledger through the pass. Every caveat, open item or "left as is" from an
+  agent's report goes on it, and each is either done, with its PR, or decided by the maintainer.
+  An item is never closed by accepting it in a reply to an agent: the reply either asks for the fix
+  or carries the item to the maintainer.
+- Before release, point a real application that consumes the packages at the unreleased versions
+  through a path repository, in a worktree and never its main checkout. Boot it, warm its cache,
+  and run its static analysis and test suite. When no such application is available, use the
+  example applications. A failure blocks the release.
+- Every public closure or callable a user implements has a PHPStan fixture analysed with default
+  settings, as a user's project would.
+- A pull request that changes behaviour for an existing application says so in a sentence the
+  changelog keeps.
+- When the pass looks complete, bring the maintainer one summary with enough context to decide each
+  item: the open-items ledger, the behaviour changes, and the consumer check's results. Nothing
+  ships until the maintainer says the pass is done.
 
 ## Commits, PRs and merges
 
