@@ -30,10 +30,13 @@ import {
   type AtomicResults,
   type CreateInput,
   type CreateMethod,
+  type DeleteResult,
+  type DocumentMetaOperation,
   type FieldsMap,
   type IncludePath,
   isAccepted,
   type LinkageRef,
+  type OperationMeta,
   type ReadResult,
   type RelationName,
   type ResourceCountToken,
@@ -43,6 +46,7 @@ import {
   type UpdateMethod,
   type WaitedWriteResult,
   type WaitValue,
+  type WithDocumentMeta,
   type WriteOptions,
 } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
@@ -82,6 +86,20 @@ export interface MutationOptions<TData, TVars, TContext = unknown> {
   ) => void
 }
 
+/**
+ * The resource a create or update resolves to, its `$document.meta` typed by the members the
+ * write's document declares.
+ */
+type WriteResource<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  Inc extends readonly IncludePath<D, T>[],
+  F,
+  Cnt extends readonly string[],
+  Op extends DocumentMetaOperation,
+> = WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, Op>>
+
 /** The context an optimistic `onMutate` threads forward: the snapshot to roll back to on error. */
 export interface MutationContext {
   snapshot: Snapshot
@@ -100,7 +118,7 @@ interface TypeWrites<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
   create: CreateMethod<D, A, W, T>
   id(id: string): {
     update: UpdateMethod<D, A, W, T>
-    delete(): Promise<void>
+    delete(): Promise<DeleteResult<D, T>>
     rel(name: RelationName<D, T>): RelationWrites
   }
 }
@@ -246,14 +264,14 @@ export function createMutationOptions<
   type: T,
   opts?: WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt>,
 ): MutationOptions<
-  WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+  WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
   CreateInput<D, W, T>
 > {
   const accessor = writesOf(client, type)
   return {
     mutationFn: (input) =>
       (accessor.create as LooseWrite)(input, opts) as Promise<
-        WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>
+        WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>
       >,
     onSuccess: (data) => {
       if (!isAccepted(data)) {
@@ -295,7 +313,7 @@ export function updateMutationOptions<
   id: ResourceId<D, T>,
   opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
 ): MutationOptions<
-  WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+  WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
   UpdateVariables<D, W, T>,
   MutationContext
 > {
@@ -303,7 +321,7 @@ export function updateMutationOptions<
   const resource: string | undefined = id
   const optimistic = opts?.optimistic === true
   const base: MutationOptions<
-    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+    WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     UpdateVariables<D, W, T>,
     MutationContext
   > = {
@@ -312,7 +330,7 @@ export function updateMutationOptions<
         patch,
         opts,
       ) as Promise<
-        WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>
+        WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>
       >,
     onSuccess: (data) => {
       if (!isAccepted(data)) {
@@ -350,7 +368,7 @@ export function updateMutationOptions<
 
 /**
  * The delete mutation (`DELETE /{type}/{id}`): `mutationFn` runs `client.<type>.id(id).delete()`
- * (resolves `void`). On settle the type's list subtree AND that resource's reads are invalidated
+ * (resolves the `meta` of the meta-only `200` the delete declares, else `void`). On settle the type's list subtree AND that resource's reads are invalidated
  * (a delete changes collection membership and orphans the resource's `get`).
  */
 export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
@@ -358,7 +376,7 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
   client: WriteClient<D, A, W>,
   type: T,
   id: string,
-): MutationOptions<void, void> {
+): MutationOptions<DeleteResult<D, T>, void> {
   const accessor = writesOf(client, type)
   return {
     mutationFn: () => accessor.id(id).delete(),
@@ -709,11 +727,11 @@ export interface HandleMutationApi<D extends ApiDescriptor, A, W, T extends Type
   >(
     opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
   ): MutationOptions<
-    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+    WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     UpdateInput<D, W, T>,
     MutationContext
   >
-  delete(): MutationOptions<void, void>
+  delete(): MutationOptions<DeleteResult<D, T>, void>
   rel(name: RelationName<D, T>): RelationMutationApi
 }
 
@@ -727,7 +745,7 @@ export interface TypeMutationApi<D extends ApiDescriptor, A, W, T extends TypeNa
   >(
     opts?: WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt>,
   ): MutationOptions<
-    WaitedWriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+    WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
     CreateInput<D, W, T>
   >
   id(id: string): HandleMutationApi<D, A, W, T>
@@ -746,7 +764,7 @@ export interface SingletonMutationApi<D extends ApiDescriptor, A, W, T extends T
   >(
     opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
   ): MutationOptions<
-    WaitedWriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>, Wt>,
+    WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     SingletonUpdateInput<D, W, T>,
     MutationContext
   >
