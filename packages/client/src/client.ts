@@ -347,6 +347,8 @@ interface WriteSpec {
   accepted?: AcceptedDescriptor | undefined
   /** Poll an accepted job until it's done, with these options. */
   wait?: PollOptions | undefined
+  /** Resolve a meta-only document to its top-level `meta`, as a delete declaring it does. */
+  metaOnly?: boolean
 }
 
 /** The poll options a call's `wait` asks for, or `undefined` when it doesn't wait. */
@@ -420,7 +422,11 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
     throw error
   }
   const complete = (doc: Document | undefined) =>
-    doc === undefined ? undefined : materialise(doc, ctx.materialise, spec.linkage ?? false)
+    doc === undefined
+      ? undefined
+      : spec.metaOnly === true && !('data' in doc)
+        ? doc.meta
+        : materialise(doc, ctx.materialise, spec.linkage ?? false)
   if (res.status === 202 && spec.accepted !== undefined) {
     return answerAccepted(ctx, spec.accepted, res, complete, spec.wait)
   }
@@ -444,7 +450,8 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
  *
  * The response is shaped by the action's `output`: `document` materialises into the resource /
  * collection view, `meta` returns the document's top-level `meta`, `none` resolves `undefined` (a
- * `204` / no body). An action declaring a `location` returns the URL of a location document as an
+ * `204` / no body). A `metaResult` action returns the top-level `meta` of a document with no
+ * `data`. An action declaring a `location` returns the URL of a location document as an
  * `ActionLocation` and never follows it. An action declaring `rawOutput` answers in the media type
  * the caller picks with `options.accept`: JSON:API as above, or a `string`, a `Blob` or
  * `ArrayBuffer`, or parsed JSON by the media type's kind. A collection action that takes filters
@@ -556,7 +563,8 @@ function actionValue(
   if (action.output === 'none' || action.output === 'location' || doc === undefined) {
     return undefined
   }
-  if (action.output === 'meta') {
+  // A `metaResult` action's `200` is meta-only, while its `201` carries the resource it created.
+  if (action.output === 'meta' || (action.metaResult === true && !('data' in doc))) {
     return doc.meta
   }
   return materialise(doc, ctx.materialise)
@@ -898,6 +906,7 @@ function resourceHandle(
         method: 'DELETE',
         body: undefined,
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+        metaOnly: ctx.descriptor[type]?.documentMeta?.delete !== undefined,
       }) as never,
     rel: (name: string) => relationshipAccessor(ctx, type, vars, name),
     actions: actionsAccessor(ctx, type, 'resource', vars),

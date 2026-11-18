@@ -178,7 +178,7 @@ const ok = await client.albums.get('1')
 ok.$self        // 'https://music.example/albums/1' — the resource self link
 ok.$links       // the full resource-level links object, typed per type when it declares links
 ok.$meta        // resource-level meta (or undefined)
-ok.$document    // the shared top-level { jsonapi, meta, links } envelope
+ok.$document    // the shared top-level { jsonapi, meta, links } envelope, its meta typed when declared
 ok.$raw         // the original wire resource object (escape hatch)
 ok.$rel('tags') // { data, links, meta } for any relationship, incl. links-only
 ok.$count('tracks') // the relationship's meta.total from a withCount read, or undefined
@@ -190,13 +190,13 @@ ok.$count('tracks') // the relationship's meta.total from a withCount read, or u
     | `$self` | every resource | the href of the resource's `self` link, whether the server sent a bare URL or a link object; `$links.self` keeps the wire shape |
     | `$links` | every resource | the resource-level links object; a type's [declared links](codegen.md#declared-links) are typed |
     | `$meta` | every resource / every array | resource- or relationship-level meta |
-    | `$document` | every resource | the shared, by-reference `{ jsonapi, meta, links }` top-level envelope — identical identity for every resource from one response |
+    | `$document` | every resource | the shared, by-reference `{ jsonapi, meta, links }` top-level envelope — identical identity for every resource from one response; its `meta` is typed when the server [declares it](reads.md#document-meta) |
     | `$raw` | every resource | the original JSON:API resource object |
     | `$rel(name)` | the parent resource | `{ data?, links?, meta? }` for a relationship — the way to reach a **links-only** relation's envelope |
     | `$count(name)` | the parent resource | a relationship's `meta.total` when it's a finite number, else `undefined`; see [counting relationships](pagination.md#counting-relationships-with-withcount) |
     | `$edge` | every related value | the relationship-instance envelope for *this* membership (to-one: `{ links: { self, related }, meta }`; to-many member: meta such as `pivot`) |
     | `$pivot` | pivot to-many members | typed sugar over `$edge.meta.pivot` |
-    | `$page` / `$links` / `$meta` / `$next()` / `$prev()` | augmented arrays | the relationship-level pagination + navigation envelope ([Pagination](pagination.md)) |
+    | `$page` / `$links` / `$meta` / `$next()` / `$prev()` | augmented arrays | the relationship-level pagination + navigation envelope ([Pagination](pagination.md)); a collection read's `$meta` is the document's, typed when the server [declares it](reads.md#document-meta) |
     | `$count` | to-many relation arrays | the relationship's `meta.total`, as `$count(name)` on the parent reads it |
 
     `$edge` is distinct from a resource's own `$links`/`$meta`: it describes the

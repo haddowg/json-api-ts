@@ -23,6 +23,7 @@ import type {
   AcceptedOperation,
   ActionDescriptor,
   ApiDescriptor,
+  DocumentMetaOperation,
   InputMedia,
   RawOutputMedia,
   RelatedQueryOperation,
@@ -47,13 +48,15 @@ import type { LocalIdentifier, ResourceIdentifier } from './types'
  * (`$page`/`$links`/`$meta`) plus link-driven `$next()`/`$prev()` navigation. The same
  * model backs top-level collections, related-endpoint collections, and hydrated/linkage
  * to-many relationship values ("one model, three surfaces"). `P` types `$page` by the strategy
- * that answered (see {@link PageOf}); following a link keeps it.
+ * that answered (see {@link PageOf}); following a link keeps it. `M` types `$meta`, the top-level
+ * `meta` of a collection or related read whose document declares it (see {@link DocumentMeta}).
  */
-export type Collection<T, P = Page> = ReadonlyArray<T> &
-  Omit<ArrayEnvelope, '$page' | '$next' | '$prev'> & {
+export type Collection<T, P = Page, M = Record<string, unknown> | undefined> = ReadonlyArray<T> &
+  Omit<ArrayEnvelope, '$page' | '$next' | '$prev' | '$meta'> & {
     readonly $page: P
-    $next(options?: NavigateOptions): Promise<Collection<T, P> | undefined>
-    $prev(options?: NavigateOptions): Promise<Collection<T, P> | undefined>
+    readonly $meta: M
+    $next(options?: NavigateOptions): Promise<Collection<T, P, M> | undefined>
+    $prev(options?: NavigateOptions): Promise<Collection<T, P, M> | undefined>
   }
 
 /**
@@ -983,6 +986,84 @@ type WritePivotOf<
     ? LegacyPivot<P>
     : PivotInput
 
+/** Whether a {@link DocumentMetaDescriptor} requires a member, so its document always carries `meta`. */
+type RequiresMeta<P> = [RequiredPivotField<P>] extends [never] ? false : true
+
+/**
+ * The object of members a document meta descriptor declares, mapped over its `fields` so each
+ * member keeps the JSDoc the codegen writes on its entry.
+ */
+type DeclaredMetaObject<P> = P extends { fields: infer Fl }
+  ? {
+      readonly [K in keyof Fl as K extends RequiredPivotField<P> ? K : never]: PivotValue<P, K>
+    } & {
+      readonly [K in keyof Fl as K extends RequiredPivotField<P> ? never : K]?: PivotValue<P, K>
+    }
+  : never
+
+/**
+ * The top-level `meta` a {@link DocumentMetaDescriptor} types: its members, or `undefined` when
+ * none is required, since the document may then carry no `meta`. A collection's also has the
+ * `page` and `total` the server writes. `null`, a status that declares nothing, reads as the
+ * loose record.
+ */
+export type DocumentMeta<P> = P extends { fields: object }
+  ? RequiresMeta<P> extends true
+    ? DeclaredMetaObject<P>
+    : DeclaredMetaObject<P> | undefined
+  : Record<string, unknown> | undefined
+
+/**
+ * The typed top-level `meta` of operation `Op` on type `T` (`fetchMany`, `fetchOne`, `create`,
+ * `update` or `delete`), or `never` when its document declares none.
+ */
+export type OperationMeta<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends DocumentMetaOperation,
+> = D[T] extends { documentMeta: infer M }
+  ? Op extends keyof M
+    ? M[Op] extends { fields: object }
+      ? DocumentMeta<M[Op]>
+      : never
+    : never
+  : never
+
+/** The typed top-level `meta` of relation `R`'s related read, or `never` when it declares none. */
+export type RelatedMeta<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { documentMeta: infer P extends { fields: object } }
+  ? DocumentMeta<P>
+  : never
+
+/** A declared `meta` type, or the loose record a document declaring none reads as. */
+type MetaOrLoose<M> = [M] extends [never] ? Record<string, unknown> | undefined : M
+
+/** The `$meta` of type `T`'s collection read: its declared members, else the loose record. */
+export type CollectionMeta<D extends ApiDescriptor, T extends TypeName<D>> = MetaOrLoose<
+  OperationMeta<D, T, 'fetchMany'>
+>
+
+/**
+ * A single-resource result `R` whose document declares its top-level `meta` as `M`: its
+ * `$document.meta` is typed `M`. `R` as it is when `M` is `never`.
+ */
+export type WithDocumentMeta<R, M> = [M] extends [never]
+  ? R
+  : R & { readonly $document: Omit<DocumentEnvelope, 'meta'> & { readonly meta: M } }
+
+/**
+ * What a delete of type `T` resolves to: the `meta` of the meta-only `200` it declares, which a
+ * meta-only document always carries, else `void`.
+ */
+export type DeleteResult<D extends ApiDescriptor, T extends TypeName<D>> = [
+  OperationMeta<D, T, 'delete'>,
+] extends [never]
+  ? void
+  : NonNullable<OperationMeta<D, T, 'delete'>>
+
 /**
  * A hydrated related VALUE for relation `R` of type `T`, resolved by cardinality over the
  * (possibly polymorphic) related type(s): a `Collection` of hydrated members for to-many,
@@ -999,9 +1080,13 @@ type RelatedValue<
   IsMany<D, T, R> extends true
     ? Collection<
         Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>>,
-        RelationPage<D, T, R, Q>
+        RelationPage<D, T, R, Q>,
+        MetaOrLoose<RelatedMeta<D, T, R>>
       >
-    : Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>> | null
+    : WithDocumentMeta<
+        Hydrated<D, A, RelatedType<D, T, R>, unknown, PivotFieldsOf<D, T, R>>,
+        RelatedMeta<D, T, R>
+      > | null
 
 /**
  * A linkage VALUE for relation `R` (the `/relationships/{rel}` endpoint, identifiers only):
@@ -1400,7 +1485,9 @@ export type CreateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> =
     >(
       input: CreateInput<D, W, T>,
       opts?: WriteOptions<D, T, Inc, F, 'create', Cnt>,
-    ) => Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+    ) => Promise<
+      WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'create'>>
+    >
   : {
       (input: CreateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
       <
@@ -1410,7 +1497,15 @@ export type CreateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> =
       >(
         input: CreateInput<D, W, T>,
         opts?: WriteOptions<D, T, Inc, F, 'create', Cnt> & { wait?: false },
-      ): Promise<WriteResult<D, A, T, 'create', ReadResult<D, A, T, Inc, F, Cnt[number]>>>
+      ): Promise<
+        WriteResult<
+          D,
+          A,
+          T,
+          'create',
+          WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'create'>>
+        >
+      >
     }
 
 /**
@@ -1431,7 +1526,9 @@ export type UpdateMethod<
     >(
       patch: I,
       opts?: WriteOptions<D, T, Inc, F, 'update', Cnt>,
-    ) => Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+    ) => Promise<
+      WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'update'>>
+    >
   : {
       (patch: I, opts: WaitOptions): Promise<ReadResult<D, A, T>>
       <
@@ -1441,7 +1538,15 @@ export type UpdateMethod<
       >(
         patch: I,
         opts?: WriteOptions<D, T, Inc, F, 'update', Cnt> & { wait?: false },
-      ): Promise<WriteResult<D, A, T, 'update', ReadResult<D, A, T, Inc, F, Cnt[number]>>>
+      ): Promise<
+        WriteResult<
+          D,
+          A,
+          T,
+          'update',
+          WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'update'>>
+        >
+      >
     }
 
 // ── Atomic results (docs/atomic-operations.md) ─────────────────────────────────────────────────
@@ -1565,16 +1670,47 @@ type ActionDocumentValue<
 > = Act extends {
   output: 'document'
 }
-  ? Act extends { outputType: infer OT extends TypeName<D> }
-    ? Act extends { outputCardinality: 'many' }
-      ? Collection<ReadResult<D, A, OT>>
-      : ReadResult<D, A, OT>
-    : ActionOutputBody<E>
+  ?
+      | (Act extends { outputType: infer OT extends TypeName<D> }
+          ? Act extends { outputCardinality: 'many' }
+            ? Collection<ReadResult<D, A, OT>, Page, MetaOrLoose<ActionDocumentMeta<Act>>>
+            : WithDocumentMeta<ReadResult<D, A, OT>, ActionDocumentMeta<Act>>
+          : ActionOutputBody<E>)
+      | (Act extends { metaResult: true } ? ActionStatusMeta<Act, '200'> : never)
   : Act extends { output: 'meta' }
-    ? Record<string, unknown>
+    ? ActionMetaOnly<Act>
     : Act extends { output: 'location' }
       ? never
       : void
+
+/**
+ * The `meta` of an action's meta-only document at status `S`, else the loose record. A meta-only
+ * document always carries its `meta`.
+ */
+type ActionStatusMeta<Act, S extends string> = Act extends { documentMeta: infer M }
+  ? S extends keyof M
+    ? NonNullable<DocumentMeta<M[S]>>
+    : Record<string, unknown>
+  : Record<string, unknown>
+
+/**
+ * The typed `meta` of the resource documents an action answers with, a union over its statuses,
+ * leaving out the meta-only `200` of a {@link ActionDescriptor.metaResult} action. `never` when
+ * no status declares any.
+ */
+type ActionDocumentMeta<Act> = Act extends { documentMeta: infer M }
+  ? {
+      [S in Exclude<keyof M, Act extends { metaResult: true } ? '200' : never>]: DocumentMeta<M[S]>
+    }[Exclude<keyof M, Act extends { metaResult: true } ? '200' : never>]
+  : never
+
+/**
+ * The `meta` a meta-only action answers with: a union of what its statuses declare. A meta-only
+ * document always carries its `meta`.
+ */
+type ActionMetaOnly<Act> = Act extends { documentMeta: infer M }
+  ? { [S in keyof M]: NonNullable<DocumentMeta<M[S]>> }[keyof M]
+  : Record<string, unknown>
 
 /** The JSON:API media type, as the `accept` / `contentType` an action call names it by. */
 type JsonApiMediaType = 'application/vnd.api+json'
@@ -1916,9 +2052,12 @@ export type ResourceHandle<
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): Promise<
+    WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'fetchOne'>>
+  >
   update: UpdateMethod<D, A, W, T>
-  delete(): Promise<void>
+  /** Resolves to the `meta` of the meta-only `200` the delete declares, else `undefined`. */
+  delete(): Promise<DeleteResult<D, T>>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
   /** The type's resource-scoped custom actions, keyed by name (sub `{id}` from this handle). */
   readonly actions: ActionsAccessor<D, A, W, T, 'resource', Act>
@@ -1945,7 +2084,9 @@ export type SingletonAccessor<
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): Promise<
+    WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'fetchOne'>>
+  >
   update: UpdateMethod<D, A, W, T, SingletonUpdateInput<D, W, T>>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
   /** The type's resource-scoped custom actions, keyed by name. */
@@ -1974,7 +2115,13 @@ export interface TypeAccessor<
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-  ): Promise<Collection<ReadResult<D, A, T, Inc, F, Cnt[number]>, PageOf<D[T]['paginator'], Pg>>>
+  ): Promise<
+    Collection<
+      ReadResult<D, A, T, Inc, F, Cnt[number]>,
+      PageOf<D[T]['paginator'], Pg>,
+      CollectionMeta<D, T>
+    >
+  >
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -1982,7 +2129,9 @@ export interface TypeAccessor<
   >(
     id: string,
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): Promise<ReadResult<D, A, T, Inc, F, Cnt[number]>>
+  ): Promise<
+    WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'fetchOne'>>
+  >
   create: CreateMethod<D, A, W, T>
   id(id: string): ResourceHandle<D, A, W, T, Act>
   /** The type's collection-scoped custom actions, keyed by name. */

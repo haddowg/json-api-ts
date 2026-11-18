@@ -132,6 +132,24 @@ result // undefined
 
 There is no body and no response to materialise.
 
+A delete whose server declares the [top-level meta](reads.md#document-meta) of its answer
+replies `200` with a meta-only document instead, and the call resolves to that `meta`, typed:
+
+```ts
+const archived = await client.notices.id('n-1').delete()
+archived.archived // number
+```
+
+## Meta on a write
+
+A create or update whose document declares its top-level meta types it on the result's
+`$document.meta`, as a [single read](reads.md#document-meta) does:
+
+```ts
+const updated = await client.notices.id('n-1').update({ message: 'Moved to Friday' })
+updated.$document.meta?.etag // string | null | undefined
+```
+
 ## Errors surface by your flat input path
 
 Because the client owns the envelope, it also **inverts the error back**. A failed write throws a typed [`JsonApiError`](errors.md); each error's raw `source.pointer` (a wire path like `/data/attributes/title`) is remapped to the **flat input key you actually supplied**, so `byPath()` groups violations by the shape of your input — ideal for driving form field errors.
