@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
-import { fakeTransport, modelOf, source, withNotices } from './test-fixtures'
+import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
 
-const { document } = source('contract-witness')
-const typed = withNotices(document)
+const typed = source('contract-witness').document
 
 const notice = { type: 'notices', id: 'n-1', attributes: { message: 'Hi' } }
 
@@ -22,12 +21,6 @@ function property(schema: JsonSchema | undefined, name: string): JsonSchema | un
   }
   return undefined
 }
-
-/** Every tool but the notices type's, as its name, description, input and output. */
-const otherTools = (doc: OpenApiDocument) =>
-  toolsOf(doc)
-    .filter((entry) => !entry.name.startsWith('notices_'))
-    .map((entry) => [entry.name, entry.description, entry.inputSchema, entry.outputSchema])
 
 async function call(name: string, args: Record<string, unknown>, json: unknown, status = 200) {
   const { transport, requests } = fakeTransport(() => ({ status, json }))
@@ -134,7 +127,19 @@ describe('generator contract 41 (typed document meta)', () => {
     })
   })
 
-  it('leaves every other tool as it was', () => {
-    expect(otherTools(typed)).toEqual(otherTools(document))
+  it('adds no meta sentence to a document that declares none', () => {
+    // Core's second witness leaves out every structure only some documents carry, typed meta too.
+    const mcp = createJsonApiMcp(fixture('contract-witness-baseline'))
+    expect(mcp.contract).toBe(39)
+    expect(mcp.tools.some((entry) => entry.description?.includes("The result's `meta`"))).toBe(
+      false,
+    )
+  })
+
+  it('keeps an x-mcp description as written', () => {
+    const doc = structuredClone(typed)
+    doc.paths!['/notices']!.get!['x-mcp'] = { description: 'List the notices.' }
+    const list = toolsOf(doc).find((entry) => entry.name === 'notices_list')!
+    expect(list.description).toBe('List the notices.')
   })
 })

@@ -152,36 +152,3 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
   ;((out['info'] as Json)['x-generator'] as Json)['contract'] = 38
   return out as OpenApiDocument
 }
-
-/**
- * A copy of a witness with core's `notices` type added, stamped 41: the `/notices` paths and
- * `Notices*` components the codegen's tests cut from core main's witness, whose reads, update,
- * delete and actions declare their top-level `meta`.
- */
-export function withNotices(original: OpenApiDocument): OpenApiDocument {
-  const notices = JSON.parse(
-    readFileSync(new URL('../../codegen/test/notices-document-meta.json', import.meta.url), 'utf8'),
-  ) as { paths: Json; schemas: Json; parameters: Json }
-  const doc = structuredClone(original) as Json
-  ;(doc['info'] as Json)['x-generator'] = { contract: 41 }
-  Object.assign(doc['paths'] as Json, notices.paths)
-  const components = doc['components'] as Json
-  Object.assign(components['schemas'] as Json, notices.schemas)
-  Object.assign(components['parameters'] as Json, notices.parameters)
-  const schemas = components['schemas'] as Record<string, Json>
-  const union = (node: Json, component: string): void => {
-    const ref = `${PREFIX}${component}`
-    ;(node['oneOf'] as Json[]).push({ $ref: ref })
-    ;((node['discriminator'] as Json)['mapping'] as Json)['notices'] = ref
-  }
-  const data = (component: string): Json =>
-    (schemas[component]!['properties'] as Json)['data'] as Json
-  union(data('AtomicAddOperation'), 'NoticesAtomicAdd')
-  union(data('AtomicUpdateOperation'), 'NoticesAtomicUpdate')
-  union(schemas['AtomicIdentifier']!, 'NoticesAtomicIdentifier')
-  const result = data('AtomicResult')['anyOf'] as Json[]
-  union(result[0]!, 'NoticesResource')
-  union(result[1]!, 'NoticesResourceIdentifier')
-  union(result[2]!['items'] as Json, 'NoticesResourceIdentifier')
-  return doc as OpenApiDocument
-}
