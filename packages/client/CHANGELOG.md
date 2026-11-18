@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.25.0...json-api-client-v1.26.0) (2026-11-18)
+
+
+### Features
+
+* **client:** type the document meta a server declares ([583c805](https://github.com/haddowg/json-api-ts/commit/583c80567b8304fac92c2d9cf014f76d5326ec64))
+
 ## [1.25.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.24.0...json-api-client-v1.25.0) (2026-11-16)
 
 

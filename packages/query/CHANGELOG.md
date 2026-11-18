@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.7.2...json-api-query-v1.8.0) (2026-11-18)
+
+
+### Features
+
+* **query:** carry declared document meta on read and write results ([49ee066](https://github.com/haddowg/json-api-ts/commit/49ee06678697abaf7dd068fcbc1a48daf7d757b9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.26.0
+
 ## [1.7.2](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.7.1...json-api-query-v1.7.2) (2026-11-16)
 
 
