@@ -8,13 +8,15 @@ import { buildDescriptor } from './build-descriptor'
 import { checkContract, MAXIMUM_CONTRACT } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
-import { withNotices } from '../test/document-meta'
 import { documentPath } from '../test/documents'
 
-const witness = JSON.parse(
-  readFileSync(documentPath('contract-witness.json'), 'utf8'),
-) as OpenApiDocument
-const typed = withNotices(witness)
+const load = (
+  name: 'contract-witness.json' | 'contract-witness-baseline.json' | 'music-catalog.openapi.json',
+) => JSON.parse(readFileSync(documentPath(name), 'utf8')) as OpenApiDocument
+const typed = load('contract-witness.json')
+// Core's second witness leaves out every structure only some documents carry, typed meta too.
+const baseline = load('contract-witness-baseline.json')
+const catalog = load('music-catalog.openapi.json')
 
 const scratch = mkdtempSync(join(tmpdir(), 'json-api-document-meta-'))
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
@@ -121,13 +123,32 @@ describe('generator contract 41 (typed document meta)', () => {
     expect(action?.documentMeta).toEqual({ '200': { fields: { unchanged: 'boolean' } } })
   })
 
-  it('leaves every other type as it was', () => {
-    const before = buildDescriptor(witness)
-    const after = buildDescriptor(typed)
-    expect(Object.keys(after).filter((type) => !(type in before))).toEqual(['notices'])
-    for (const [type, descriptor] of Object.entries(before)) {
-      expect(after[type]).toEqual(descriptor)
+  it('records no meta for a document that declares none', () => {
+    expect(baseline.info?.['x-generator']?.contract).toBe(39)
+    const descriptor = buildDescriptor(baseline)
+    expect(descriptor['notices']).toBeUndefined()
+    for (const type of Object.values(descriptor)) {
+      expect(type.documentMeta).toBeUndefined()
+      for (const action of Object.values(type.actions ?? {})) {
+        expect(action.documentMeta).toBeUndefined()
+      }
     }
+  })
+
+  it('reads the meta the music catalog declares', () => {
+    const albums = buildDescriptor(catalog)['albums']!
+    expect(albums.documentMeta).toEqual({
+      fetchMany: {
+        fields: { explicitCount: 'integer', page: 'object', total: 'integer' },
+        required: ['explicitCount'],
+      },
+    })
+    expect(albums.actions?.['reissue']?.documentMeta).toEqual({
+      '200': { fields: { previousReleasedAt: 'date-time' }, nullable: ['previousReleasedAt'] },
+    })
+    expect(buildDescriptor(catalog)['artists']!.relations['albums']?.documentMeta).toEqual(
+      albums.documentMeta?.fetchMany,
+    )
   })
 
   it('documents each declared member on its descriptor entry', () => {
