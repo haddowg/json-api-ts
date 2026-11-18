@@ -211,6 +211,34 @@ controller.abort()
 `$next()` and `$prev()` take the same option: `await albums.$next({ signal })`. A custom
 transport that ignores `signal` still works; its requests just can't be cancelled.
 
+## Document meta
+
+A read's top-level `meta` is an open record unless the server declares what its document
+carries there. When it does, the codegen records the members in the descriptor and the result
+types them. A collection or to-many related read has it on `$meta`, beside `$page`:
+
+```ts
+const notices = await client.notices.list()
+notices.$meta.unread // number: the server declares `unread` and always sends it
+notices.$meta.digest // string | null | undefined: declared, but not always sent
+notices.$meta.total  // number | undefined: the server's own count, typed too
+```
+
+A collection's meta keeps the `page` and `total` members the server writes there, `page` as an
+open object. A single read or a to-one related read has it on its `$document`, since a
+resource's own `$meta` is the resource object's meta rather than the document's:
+
+```ts
+const notice = await client.notices.get('n-1')
+notice.$document.meta.etag // string
+```
+
+Each member's type comes from its wire format, as an attribute's would, and a declared member
+that isn't required is optional. When none is required the document may leave `meta` out, so
+`meta` itself is `| undefined`. A related read types the meta its own endpoint declares. A read
+whose document declares nothing keeps `Record<string, unknown> | undefined`. A to-one related
+read with nothing related resolves to `null`, so its meta isn't reachable.
+
 ## What a read resolves to
 
 Every read materialises the wire document into flat resource objects:

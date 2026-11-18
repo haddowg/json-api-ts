@@ -26,8 +26,9 @@ export interface RelationMutations {
 }
 
 /**
- * The pivot fields one side of the wire carries on a member's `meta.pivot`, or the declared
- * identifier meta members a response carries on a member's `meta`: field name to wire-format
+ * The pivot fields one side of the wire carries on a member's `meta.pivot`, the declared
+ * identifier meta members a response carries on a member's `meta`, or the members a document
+ * declares in its top-level `meta`: field name to wire-format
  * hint (the vocabulary of {@link ResourceDescriptor.attributes}), the fields that are always
  * present, and the fields that may be `null`.
  */
@@ -41,6 +42,18 @@ export interface PivotDescriptor {
   /** The fields whose value may be `null`. Absent means none. */
   nullable?: readonly string[]
 }
+
+/**
+ * The members a document declares in its top-level `meta`, read from the per-operation document
+ * component the server marks `x-document-meta`: each member's wire-format hint, the members every
+ * such document carries, and the members that may be `null`. A collection's also lists the `page`
+ * and `total` the server writes beside them, both optional. The document's `meta` is present
+ * whenever a member is required.
+ */
+export type DocumentMetaDescriptor = PivotDescriptor
+
+/** An operation of a type whose document may declare its top-level `meta`. */
+export type DocumentMetaOperation = 'fetchMany' | 'fetchOne' | 'create' | 'update' | 'delete'
 
 export interface RelationDescriptor {
   cardinality: Cardinality
@@ -165,6 +178,11 @@ export interface RelationDescriptor {
    * type's {@link ResourceDescriptor.relatedQuery}. Only a monomorphic relation's can.
    */
   relatedQuery?: boolean
+  /**
+   * The top-level `meta` the relation's related read declares: the related type's collection
+   * read's members for a to-many, its single read's for a to-one. Absent when it declares none.
+   */
+  documentMeta?: DocumentMetaDescriptor
 }
 
 /** A built-in pagination strategy. */
@@ -359,6 +377,18 @@ export interface ActionDescriptor {
    * answers synchronously.
    */
   accepted?: AcceptedDescriptor
+  /**
+   * The top-level `meta` each success status's document declares, keyed by status (`200`, `201`).
+   * Every status answering with a JSON:API document is listed, `null` for one that declares
+   * nothing. Absent when none declares any.
+   */
+  documentMeta?: Readonly<Record<string, DocumentMetaDescriptor | null>>
+  /**
+   * `true` for a `document` output whose `200` answers with a meta-only document while another
+   * status answers with a resource, such as a `201` with the resource the action created. The
+   * result is then that `200`'s `meta` or the resource. Absent otherwise.
+   */
+  metaResult?: boolean
 }
 
 /**
@@ -515,6 +545,14 @@ export interface ResourceDescriptor {
    * {@link ActionDescriptor.accepted}.
    */
   accepted?: Readonly<Partial<Record<AcceptedOperation, AcceptedDescriptor>>>
+  /**
+   * The top-level `meta` each of the type's operations declares, keyed `fetchMany`, `fetchOne`,
+   * `create`, `update` or `delete`. A delete's applies to its meta-only `200`. An operation that
+   * declares none has no entry, and the map is absent when none does. A relation's related read
+   * has its own on {@link RelationDescriptor.documentMeta}, an action's on
+   * {@link ActionDescriptor.documentMeta}.
+   */
+  documentMeta?: Readonly<Partial<Record<DocumentMetaOperation, DocumentMetaDescriptor>>>
 }
 
 /** A write that can answer `202 Accepted`. */

@@ -30,7 +30,7 @@ const summary = await client.albums.actions.summary()
 summary.totalAlbums // number
 ```
 
-A meta-output action has no resource to materialise, so the client returns the response document's top-level `meta` verbatim. That's the whole call — no envelope to build, nothing to unwrap.
+A meta-output action has no resource to materialise, so the client returns the response document's top-level `meta` verbatim. That's the whole call — no envelope to build, nothing to unwrap. When the server declares the members of that `meta`, the result is typed with them; otherwise it's a `Record<string, unknown>`.
 
 ## Document in, document out
 
@@ -55,6 +55,32 @@ Because the input envelope is built the same way `create` builds it, validation 
     A document-output action's result is typed as the materialised `ReadResult` of its `outputType` — identical to what a read of that type returns. A document-input action's argument is the flat `CreateInput` of its `inputType`. Both are read off the descriptor, not invented per action, so the typed contract matches exactly what the client sends and receives.
 
 An action that creates the resource it returns, such as `duplicate`, answers `201 Created` instead of `200`. The call looks the same and returns the created resource, materialised as above. When an action declares both a `200` and a `201` document, both must name the same type, since its result has one type: the codegen warns and types the result by the `200` when they differ.
+
+## Meta on an action's result
+
+An action's handler can declare the [top-level meta](reads.md#document-meta) of each status it
+answers with. A resource result types it on `$document.meta`, and a collection result on
+`$meta`:
+
+```ts
+const marked = await client.notices.actions['mark-read']()
+marked.$document.meta.marked // number
+```
+
+An action can answer `200` with a meta-only document, such as when nothing changed, and `201`
+with the resource it created. Its result is then either that `meta` or the resource, each typed
+by its own status, and the client tells them apart by whether the document carries `data`:
+
+```ts
+const snapshot = await client.notices.id('n-1').actions.snapshot()
+if ('unchanged' in snapshot) {
+  snapshot.unchanged // boolean, from the meta-only 200
+} else {
+  snapshot.$document.meta.snapshotOf // string, beside the created resource
+}
+```
+
+The descriptor marks such an action `metaResult: true`.
 
 ## Going deeper
 
