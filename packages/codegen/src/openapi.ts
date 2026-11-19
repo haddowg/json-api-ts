@@ -40,6 +40,14 @@ export interface SchemaObject {
    * its top-level `meta` to the members the operation declares.
    */
   'x-document-meta'?: boolean
+  /**
+   * On a per-operation request document: an `allOf` of the shared request document and a narrowing
+   * of its top-level `meta`, or a meta-only document, carrying the members the write declares. On
+   * an atomic operation kind of a type's own, its `meta` the same way.
+   */
+  'x-request-meta'?: boolean
+  /** On a resource object's `meta`: the members its type declares, as a read or a write sees them. */
+  'x-resource-meta'?: boolean
   [key: string]: unknown
 }
 

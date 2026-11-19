@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 42. An older document is refused, because it describes its error codes in a form
+contracts 24 to 43. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -125,6 +125,22 @@ A few things the codegen reads from the document that affect the generated clien
   the nullable ones, as a pivot does, and each member's description becomes TSDoc on its
   entry. An action whose `200` is meta-only while another status answers with a resource is
   marked `metaResult`. See [document meta](reads.md#document-meta).
+- **Request and resource meta.** A write that declares its top-level `meta` takes a
+  request document of its own marked `x-request-meta`: an `allOf` of the shared request
+  document and a narrowing of `meta`, or a meta-only document for a delete or an action
+  taking no document. The codegen reads the shared document through it, so the create,
+  update and action input types don't change, and records the declared members as
+  `requestMeta`: on the type keyed `create`, `update` or `delete`, on a relation keyed by
+  verb, and on an action. A meta-only action request is `input: 'none'` with its
+  `requestMeta`. A type's own atomic operation kinds give `atomicRequestMeta`. The
+  components marked `x-resource-meta` give `resourceMeta`: `read`, `create` and `update`,
+  and `atomicCreate` and `atomicUpdate` only where they differ. A relationship write
+  answering with a meta-only `200` records its members as the relation's `mutationMeta`,
+  and a `202` job document declaring its `meta` records it on the `accepted` entry. Every
+  such entry records what its `additionalProperties` opens it to as `additional`, the hint
+  of an undeclared member's value, `unknown` for any. An identifier meta records
+  `additional: false` when it is closed, and its `pivot` is read as the relation's pivot.
+  See [sending meta with a write](writes.md#sending-meta-with-a-write).
 - **Single keys in `fields`.** A `fields[<type>]` parameter's items are the member enum,
   or an `anyOf` of that enum and one `pattern` per attribute whose single keys a fieldset
   may select, `^<attribute>\.<key>$`. The codegen records each such attribute in the
