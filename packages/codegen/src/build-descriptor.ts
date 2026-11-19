@@ -18,6 +18,8 @@ import type {
   PaginatorStrategy,
   PivotDescriptor,
   RawMediaKind,
+  RequestMetaOperation,
+  ResourceMetaDescriptor,
   RelatedQueryOperation,
   RawOutputMedia,
   RelationDescriptor,
@@ -302,6 +304,18 @@ export class DescriptorBuilder {
       if (documentMeta !== undefined) {
         descriptor.documentMeta = documentMeta
       }
+      const requestMeta = this.operationsRequestMeta(collection, item)
+      if (requestMeta !== undefined) {
+        descriptor.requestMeta = requestMeta
+      }
+      const atomicRequestMeta = this.atomicRequestMeta(base)
+      if (atomicRequestMeta !== undefined) {
+        descriptor.atomicRequestMeta = atomicRequestMeta
+      }
+      const resourceMeta = this.resourceMeta(base, schema)
+      if (resourceMeta !== undefined) {
+        descriptor.resourceMeta = resourceMeta
+      }
       // A synthetic stub for an unregistered related type — core's `permissiveResourceObject`
       // emits a `<Rel>Resource` carrying ONLY a `type` const (no `id`/`attributes`) so linkage
       // refs resolve — is reachable only through a parent's `.related()` (which works via the
@@ -354,11 +368,11 @@ export class DescriptorBuilder {
 
   /**
    * The shared document a per-operation document component narrows: the first `allOf` entry's
-   * `$ref` of a component marked `x-document-meta`, else `ref` as it is.
+   * `$ref` of a component marked `x-document-meta` or `x-request-meta`, else `ref` as it is.
    */
   private sharedDocumentRef(ref: string | undefined): string | undefined {
     const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
-    if (component?.['x-document-meta'] !== true) {
+    if (component?.['x-document-meta'] !== true && component?.['x-request-meta'] !== true) {
       return ref
     }
     const shared = component.allOf?.[0]?.$ref
@@ -370,43 +384,183 @@ export class DescriptorBuilder {
    * each one's hint, the required ones and the nullable ones. `undefined` for a shared document.
    */
   private declaredMeta(ref: string | undefined): DocumentMetaDescriptor | undefined {
+    return this.markedMeta(ref, 'x-document-meta')
+  }
+
+  /**
+   * The `meta` node of a document component carrying `marker`: its narrowing's in an `allOf`, else
+   * its own, as a meta-only request document carries it. Read as a {@link metaDescriptor}.
+   */
+  private markedMeta(
+    ref: string | undefined,
+    marker: 'x-document-meta' | 'x-request-meta',
+  ): DocumentMetaDescriptor | undefined {
     const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
-    if (component?.['x-document-meta'] !== true) {
+    if (component?.[marker] !== true) {
       return undefined
     }
-    for (const entry of (component.allOf ?? []).slice(1)) {
+    const entries = component.allOf === undefined ? [component] : component.allOf.slice(1)
+    for (const entry of entries) {
       const meta = entry.properties?.['meta']
-      if (!isSchema(meta)) {
-        continue
+      if (isSchema(meta)) {
+        return this.metaDescriptor(meta)
       }
-      const fields: Record<string, string> = {}
-      const nullable: string[] = []
-      for (const [name, prop] of Object.entries(meta.properties ?? {})) {
-        if (!isSchema(prop)) {
-          continue
-        }
-        fields[name] = formatHint(prop, this.schemas)
-        if (isNullable(prop)) {
-          nullable.push(name)
-        }
-      }
-      const names = Object.keys(fields)
-      if (names.length === 0) {
-        return undefined
-      }
-      const out: DocumentMetaDescriptor = { fields: sortRecord(fields) }
-      const required = names.filter((name) => meta.required?.includes(name))
-      if (required.length < names.length) {
-        // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
-        out.required = required.sort()
-      }
-      if (nullable.length > 0) {
-        // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
-        out.nullable = nullable.sort()
-      }
-      return out
     }
     return undefined
+  }
+
+  /**
+   * A declared `meta` object's {@link PivotDescriptor}: each member's hint, the required ones (all
+   * of them when `required` is absent), the nullable ones, and what its `additionalProperties`
+   * opens it to. `undefined` when it declares no member and is closed, unless `keepEmpty`.
+   */
+  private metaDescriptor(
+    meta: SchemaObject,
+    skip: readonly string[] = [],
+    keepEmpty = false,
+  ): PivotDescriptor | undefined {
+    const fields: Record<string, string> = {}
+    const nullable: string[] = []
+    for (const [name, prop] of Object.entries(meta.properties ?? {})) {
+      if (!isSchema(prop) || skip.includes(name)) {
+        continue
+      }
+      fields[name] = formatHint(prop, this.schemas)
+      if (isNullable(prop)) {
+        nullable.push(name)
+      }
+    }
+    const names = Object.keys(fields)
+    const additional = this.additionalMembers(meta)
+    if (names.length === 0 && additional === undefined && !keepEmpty) {
+      return undefined
+    }
+    const out: PivotDescriptor = { fields: sortRecord(fields) }
+    const required = names.filter((name) => meta.required?.includes(name))
+    if (required.length < names.length) {
+      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+      out.required = required.sort()
+    }
+    if (nullable.length > 0) {
+      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
+      out.nullable = nullable.sort()
+    }
+    if (additional !== undefined) {
+      out.additional = additional
+    }
+    return out
+  }
+
+  /**
+   * What an object's `additionalProperties` opens it to: any value for `true`, else the hint of the
+   * schema each undeclared member matches. `undefined` for a closed object or one that doesn't say.
+   */
+  private additionalMembers(schema: SchemaObject): PivotDescriptor['additional'] {
+    const additional = schema['additionalProperties'] as SchemaOrBool | undefined
+    if (additional === true) {
+      return { format: 'unknown' }
+    }
+    if (!isSchema(additional)) {
+      return undefined
+    }
+    const format = formatHint(additional, this.schemas)
+    return isNullable(additional) ? { format, nullable: true } : { format }
+  }
+
+  /**
+   * The top-level `meta` each of a type's writes takes, keyed `create`, `update` or `delete`, from
+   * its request document marked `x-request-meta`. `undefined` when none declares any.
+   */
+  private operationsRequestMeta(
+    collection: string | undefined,
+    item: string | undefined,
+  ): Partial<Record<RequestMetaOperation, DocumentMetaDescriptor>> | undefined {
+    const operations: [RequestMetaOperation, string | undefined, HttpMethod][] = [
+      ['create', collection, 'post'],
+      ['update', item, 'patch'],
+      ['delete', item, 'delete'],
+    ]
+    const out: Partial<Record<RequestMetaOperation, DocumentMetaDescriptor>> = {}
+    for (const [operation, path, method] of operations) {
+      const op = path === undefined ? undefined : this.operation(path, method)
+      const meta = this.requestMeta(op)
+      if (meta !== undefined) {
+        out[operation] = meta
+      }
+    }
+    return Object.keys(out).length === 0 ? undefined : out
+  }
+
+  /** The top-level `meta` an operation's JSON:API request document declares, if it declares any. */
+  private requestMeta(op: OperationObject | undefined): DocumentMetaDescriptor | undefined {
+    const ref = op?.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+    return this.markedMeta(typeof ref === 'string' ? ref : undefined, 'x-request-meta')
+  }
+
+  /**
+   * The top-level `meta` each of a type's atomic operation kinds of its own declares, keyed
+   * `create` (its `add`), `update` or `delete` (its `remove`). `undefined` when it has none.
+   */
+  private atomicRequestMeta(
+    base: string,
+  ): Partial<Record<RequestMetaOperation, DocumentMetaDescriptor>> | undefined {
+    const kinds: [RequestMetaOperation, string][] = [
+      ['create', 'Add'],
+      ['update', 'Update'],
+      ['delete', 'Remove'],
+    ]
+    const out: Partial<Record<RequestMetaOperation, DocumentMetaDescriptor>> = {}
+    for (const [operation, kind] of kinds) {
+      const component = this.schemas[`${base}Atomic${kind}Operation`]
+      const meta = component?.properties?.['meta']
+      if (component?.['x-request-meta'] === true && isSchema(meta)) {
+        const descriptor = this.metaDescriptor(meta)
+        if (descriptor !== undefined) {
+          out[operation] = descriptor
+        }
+      }
+    }
+    return Object.keys(out).length === 0 ? undefined : out
+  }
+
+  /**
+   * The `meta` of a type's resource objects, from the components marked `x-resource-meta`: the one
+   * its resource object renders, and the `data.meta` its create, update and atomic bodies take.
+   * The atomic ones are kept only where they differ. `undefined` when the type declares none.
+   */
+  private resourceMeta(base: string, resource: SchemaObject): ResourceMetaDescriptor | undefined {
+    const read = (node: SchemaOrBool | undefined): PivotDescriptor | undefined => {
+      const schema = isSchema(node) ? this.resolveSchema(node) : undefined
+      return schema?.['x-resource-meta'] === true
+        ? this.metaDescriptor(schema, [], true)
+        : undefined
+    }
+    const dataMeta = (component: string): PivotDescriptor | undefined => {
+      const data = this.schemas[component]?.properties?.['data']
+      return read(isSchema(data) ? data.properties?.['meta'] : undefined)
+    }
+    const out: ResourceMetaDescriptor = {}
+    const entries: [keyof ResourceMetaDescriptor, PivotDescriptor | undefined][] = [
+      ['read', read(resource.properties?.['meta'])],
+      ['create', dataMeta(`${base}CreateRequest`)],
+      ['update', dataMeta(`${base}UpdateRequest`)],
+      ['atomicCreate', read(this.schemas[`${base}AtomicAdd`]?.properties?.['meta'])],
+      ['atomicUpdate', read(this.schemas[`${base}AtomicUpdate`]?.properties?.['meta'])],
+    ]
+    for (const [key, descriptor] of entries) {
+      if (descriptor !== undefined) {
+        out[key] = descriptor
+      }
+    }
+    for (const [atomic, write] of [
+      ['atomicCreate', 'create'],
+      ['atomicUpdate', 'update'],
+    ] as const) {
+      if (JSON.stringify(out[atomic]) === JSON.stringify(out[write])) {
+        delete out[atomic]
+      }
+    }
+    return Object.keys(out).length === 0 ? undefined : out
   }
 
   /** Whether a document `$ref` names a meta-only document, through any per-operation narrowing. */
@@ -450,7 +604,10 @@ export class DescriptorBuilder {
     if (response === undefined) {
       return undefined
     }
-    const schema = this.resolveSchema(response.content?.[JSON_API_MEDIA_TYPE]?.schema)
+    const body = response.content?.[JSON_API_MEDIA_TYPE]?.schema
+    const ref = typeof body?.$ref === 'string' ? body.$ref : undefined
+    const shared = this.sharedDocumentRef(ref)
+    const schema = this.resolveSchema(shared === undefined ? body : { $ref: shared })
     const data = schema?.properties?.['data']
     const jobType = isSchema(data) ? this.dataConst(data) : undefined
     if (jobType === undefined) {
@@ -460,7 +617,8 @@ export class DescriptorBuilder {
       )
       return undefined
     }
-    return { jobType }
+    const meta = this.declaredMeta(ref)
+    return meta === undefined ? { jobType } : { jobType, meta }
   }
 
   /**
@@ -684,6 +842,43 @@ export class DescriptorBuilder {
   }
 
   /**
+   * The top-level `meta` each relationship write takes and the meta-only `200` it answers with,
+   * keyed by verb: `add` (POST), `remove` (DELETE) and `replace` (PATCH) on a to-many, `set`
+   * (PATCH) on a to-one. Each map is left out when no verb declares any.
+   */
+  private relationshipWriteMeta(
+    path: string,
+    cardinality: Cardinality,
+  ): Pick<RelationDescriptor, 'requestMeta' | 'mutationMeta'> {
+    const verbs: [keyof RelationMutations, HttpMethod][] =
+      cardinality === 'many'
+        ? [
+            ['add', 'post'],
+            ['remove', 'delete'],
+            ['replace', 'patch'],
+          ]
+        : [['set', 'patch']]
+    const requestMeta: Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>> = {}
+    const mutationMeta: Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>> = {}
+    for (const [verb, method] of verbs) {
+      const op = this.operation(path, method)
+      const request = this.requestMeta(op)
+      if (request !== undefined) {
+        requestMeta[verb] = request
+      }
+      const ref = op === undefined ? undefined : this.firstOkJsonApiRef(op)
+      const response = this.isMetaDocument(ref) ? this.declaredMeta(ref) : undefined
+      if (response !== undefined) {
+        mutationMeta[verb] = response
+      }
+    }
+    return {
+      ...(Object.keys(requestMeta).length > 0 ? { requestMeta } : {}),
+      ...(Object.keys(mutationMeta).length > 0 ? { mutationMeta } : {}),
+    }
+  }
+
+  /**
    * A relation of a type with no resource endpoint, such as one only an action returns. When no
    * related or relationship read reaches it, it takes neither sort nor filter.
    */
@@ -737,6 +932,7 @@ export class DescriptorBuilder {
       out.mutations = {}
     } else {
       out.mutations = mutations
+      Object.assign(out, this.relationshipWriteMeta(relationshipPath, descriptor.cardinality))
     }
     // The related/relationship reads may advertise their own `withCount` (`_self_` + the relation's
     // countable relations) with a negotiation profile — capture it so a typed `.related()`/`.get()`
@@ -866,7 +1062,9 @@ export class DescriptorBuilder {
     method: HttpMethod,
     op: OperationObject,
   ): ActionDescriptor {
-    const input = actionInput(op)
+    const requestMeta = this.requestMeta(op)
+    // A meta-only request document carries no input, only the meta the action declares.
+    const input = requestMeta !== undefined && this.isMetaOnlyRequest(op) ? 'none' : actionInput(op)
     const output = actionOutput(op, (ref) => this.isMetaDocument(ref))
     const action: ActionDescriptor = { scope, path, input, output }
     const filterable = filterKeys(op)
@@ -888,7 +1086,7 @@ export class DescriptorBuilder {
     // A document input names its resource type so the client can accept FLAT input and build the
     // envelope (+ remap 422 pointers), matching `create`/`update` ergonomics.
     if (input === 'document') {
-      const inputType = this.documentPrimary(actionRequestRef(op))?.type
+      const inputType = this.documentPrimary(this.requestBodyRef(op))?.type
       if (inputType !== undefined) {
         action.inputType = inputType
       }
@@ -968,7 +1166,17 @@ export class DescriptorBuilder {
     if (documentMeta !== undefined) {
       action.documentMeta = documentMeta
     }
+    if (requestMeta !== undefined) {
+      action.requestMeta = requestMeta
+    }
     return action
+  }
+
+  /** Whether an operation's JSON:API request document is meta-only: it has no `data` member. */
+  private isMetaOnlyRequest(op: OperationObject): boolean {
+    const ref = this.requestBodyRef(op)
+    const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
+    return component !== undefined && !('data' in (component.properties ?? {}))
   }
 
   /**
@@ -1193,7 +1401,7 @@ export class DescriptorBuilder {
       if (base === undefined) {
         return undefined
       }
-      const meta = metaNodesFromAllOf(schema.allOf)
+      const meta = metaNodesFromAllOf(schema.allOf, this.schemas)
       return {
         ...base,
         ...(meta.pivot === undefined ? {} : { pivot: meta.pivot }),
@@ -1214,7 +1422,7 @@ export class DescriptorBuilder {
     if (readPivot !== undefined) {
       relation.readPivot = readPivot
     }
-    const identifierMeta = this.pivotDescriptor(entry.identifierMeta, 'read')
+    const identifierMeta = this.pivotDescriptor(entry.identifierMeta, 'read', 'identifierMeta')
     if (identifierMeta !== undefined) {
       relation.identifierMeta = identifierMeta
     }
@@ -1229,7 +1437,7 @@ export class DescriptorBuilder {
   private writePivot(ref: string | undefined, fallback: SchemaObject): PivotDescriptor | undefined {
     const component = ref === undefined ? undefined : this.schemas[refName(ref) ?? '']
     return this.pivotDescriptor(
-      pivotNodeOf(component ?? fallback) ?? pivotNodeOf(fallback),
+      pivotNodeOf(component ?? fallback, this.schemas) ?? pivotNodeOf(fallback, this.schemas),
       'write',
     )
   }
@@ -1239,11 +1447,14 @@ export class DescriptorBuilder {
    * fields and the nullable ones. Generator contract 8 refs a `<Type><Rel>Pivot` (response) or
    * `<Type><Rel>WritePivot` (request) component, each with its own `required`. An older document
    * inlines one shared schema in the write context, so a read takes every field as rendered and a
-   * write drops the `readOnly` ones. `undefined` when the schema has no fields.
+   * write drops the `readOnly` ones. Each records what its `additionalProperties` opens it to. An
+   * identifier meta object leaves out its `pivot`, which {@link RelationDescriptor.readPivot}
+   * types, and records that it is closed. `undefined` when the schema has no fields and isn't open.
    */
   private pivotDescriptor(
     node: SchemaObject | undefined,
     side: 'read' | 'write',
+    kind: 'pivot' | 'identifierMeta' = 'pivot',
   ): PivotDescriptor | undefined {
     if (node === undefined) {
       return undefined
@@ -1253,7 +1464,11 @@ export class DescriptorBuilder {
     const fields: Record<string, string> = {}
     const nullable: string[] = []
     for (const [name, prop] of Object.entries(schema?.properties ?? {})) {
-      if (!isSchema(prop) || prop[side === 'read' ? 'writeOnly' : 'readOnly'] === true) {
+      if (
+        !isSchema(prop) ||
+        prop[side === 'read' ? 'writeOnly' : 'readOnly'] === true ||
+        (kind === 'identifierMeta' && name === 'pivot')
+      ) {
         continue
       }
       fields[name] = formatHint(prop, this.schemas)
@@ -1262,7 +1477,8 @@ export class DescriptorBuilder {
       }
     }
     const names = Object.keys(fields)
-    if (names.length === 0) {
+    const additional = schema === undefined ? undefined : this.additionalMembers(schema)
+    if (names.length === 0 && additional === undefined) {
       return undefined
     }
     const required =
@@ -1275,6 +1491,11 @@ export class DescriptorBuilder {
     if (nullable.length > 0) {
       // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
       out.nullable = nullable.sort()
+    }
+    if (additional !== undefined) {
+      out.additional = additional
+    } else if (kind === 'identifierMeta' && schema?.['additionalProperties'] === false) {
+      out.additional = false
     }
     return out
   }
@@ -1697,8 +1918,11 @@ export class DescriptorBuilder {
     return this.paths[path]?.[method]
   }
 
+  /** The shared request document an operation's JSON:API body refs, through any narrowing of its `meta`. */
   private requestBodyRef(op: OperationObject | undefined): string | undefined {
-    return op?.requestBody?.content?.['application/vnd.api+json']?.schema?.$ref
+    return this.sharedDocumentRef(
+      op?.requestBody?.content?.['application/vnd.api+json']?.schema?.$ref,
+    )
   }
 
   private okResponseRef(op: OperationObject | undefined): string | undefined {
@@ -1722,20 +1946,30 @@ interface LinkageEntry {
  * The schema nodes typing an identifier's `meta`, from the `allOf` narrowing it: `meta` is an
  * object with a `pivot`, a `$ref` to the declared identifier meta, or an `allOf` of the two.
  */
-function metaNodesFromAllOf(allOf: readonly SchemaObject[]): {
+function metaNodesFromAllOf(
+  allOf: readonly SchemaObject[],
+  schemas: Readonly<Record<string, SchemaObject>>,
+): {
   pivot?: SchemaObject
   identifierMeta?: SchemaObject
 } {
   for (const entry of allOf) {
     const meta = entry.properties?.['meta']
     if (isSchema(meta)) {
-      return metaNodes(meta)
+      return metaNodes(meta, schemas)
     }
   }
   return {}
 }
 
-function metaNodes(meta: SchemaObject): { pivot?: SchemaObject; identifierMeta?: SchemaObject } {
+/**
+ * The `pivot` and declared identifier meta nodes of an identifier's `meta`. A `$ref` to the
+ * declared identifier meta may list `pivot` among its own properties.
+ */
+function metaNodes(
+  meta: SchemaObject,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): { pivot?: SchemaObject; identifierMeta?: SchemaObject } {
   const out: { pivot?: SchemaObject; identifierMeta?: SchemaObject } = {}
   const pivot = meta.properties?.['pivot']
   if (isSchema(pivot)) {
@@ -1743,9 +1977,13 @@ function metaNodes(meta: SchemaObject): { pivot?: SchemaObject; identifierMeta?:
   }
   if (typeof meta.$ref === 'string') {
     out.identifierMeta = meta
+    const declared = schemas[refName(meta.$ref) ?? '']?.properties?.['pivot']
+    if (out.pivot === undefined && isSchema(declared)) {
+      out.pivot = declared
+    }
   }
   for (const part of meta.allOf ?? []) {
-    const nested = metaNodes(part)
+    const nested = metaNodes(part, schemas)
     if (out.pivot === undefined && nested.pivot !== undefined) {
       out.pivot = nested.pivot
     }
@@ -1757,25 +1995,31 @@ function metaNodes(meta: SchemaObject): { pivot?: SchemaObject; identifierMeta?:
 }
 
 /** The `meta.pivot` schema node of a pivot `allOf` entry list, if any. */
-function pivotNodeFromAllOf(allOf: readonly SchemaObject[]): SchemaObject | undefined {
-  return metaNodesFromAllOf(allOf).pivot
+function pivotNodeFromAllOf(
+  allOf: readonly SchemaObject[],
+  schemas: Readonly<Record<string, SchemaObject>>,
+): SchemaObject | undefined {
+  return metaNodesFromAllOf(allOf, schemas).pivot
 }
 
 /**
  * The `meta.pivot` schema node of a relationship component or document: its to-many `items`
  * `allOf`, or a to-one `anyOf` entry's `allOf`.
  */
-function pivotNodeOf(component: SchemaObject): SchemaObject | undefined {
+function pivotNodeOf(
+  component: SchemaObject,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): SchemaObject | undefined {
   const data = component.properties?.['data']
   if (!isSchema(data)) {
     return undefined
   }
   if (Array.isArray(data.items?.allOf)) {
-    return pivotNodeFromAllOf(data.items.allOf)
+    return pivotNodeFromAllOf(data.items.allOf, schemas)
   }
   for (const entry of data.anyOf ?? []) {
     if (Array.isArray(entry.allOf)) {
-      return pivotNodeFromAllOf(entry.allOf)
+      return pivotNodeFromAllOf(entry.allOf, schemas)
     }
   }
   return undefined
@@ -2180,12 +2424,6 @@ function actionInput(op: OperationObject): ActionDescriptor['input'] {
     return 'none'
   }
   return JSON_API_MEDIA_TYPE in content ? 'document' : 'raw'
-}
-
-/** The `$ref` of an action's JSON:API request body (a `document` input), or `undefined`. */
-function actionRequestRef(op: OperationObject): string | undefined {
-  const ref = op.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
-  return typeof ref === 'string' ? ref : undefined
 }
 
 /** The declared media type of a `raw`-input action — the first non-JSON:API content type. */

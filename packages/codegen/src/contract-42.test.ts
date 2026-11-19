@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { afterAll, describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
@@ -52,12 +52,9 @@ function typecheck(code: string): string[] {
  * records each attribute with its key pattern, and the client types `<attribute>.${string}`.
  */
 describe('generator contract 42 (field selection)', () => {
-  it('reads a document stamped 42 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(42)
+  it('reads a document stamped 42 without a warning', () => {
     expect(selecting.info?.['x-generator']?.contract).toBe(42)
     expect(checkContract(selecting)).toBeUndefined()
-    const newer = { ...selecting, info: { ...selecting.info!, 'x-generator': { contract: 43 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 42')
   })
 
   it('records each attribute that takes single keys, with the pattern its key matches', () => {

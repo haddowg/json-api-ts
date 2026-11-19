@@ -311,6 +311,67 @@ function declaredMetaMembers(
   return out
 }
 
+/** The members of the `meta` an operation's `202` job document declares, when it declares any. */
+function acceptedMetaMembers(
+  op: OperationObject | undefined,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): Record<string, SchemaOrBool> | undefined {
+  const ref = op?.responses?.['202']?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+  const component = typeof ref === 'string' ? schemas[refName(ref) ?? ''] : undefined
+  if (component?.['x-document-meta'] !== true) {
+    return undefined
+  }
+  for (const entry of (component.allOf ?? []).slice(1)) {
+    const meta = entry.properties?.['meta']
+    if (isSchema(meta)) {
+      return meta.properties
+    }
+  }
+  return undefined
+}
+
+/**
+ * The members of the `meta` an operation's JSON:API request document declares, for a document
+ * marked `x-request-meta`: its narrowing's in an `allOf`, else its own.
+ */
+function requestMetaMembers(
+  op: OperationObject | undefined,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): Record<string, SchemaOrBool> | undefined {
+  const ref = op?.requestBody?.content?.[JSON_API_MEDIA_TYPE]?.schema?.$ref
+  const component = typeof ref === 'string' ? schemas[refName(ref) ?? ''] : undefined
+  if (component?.['x-request-meta'] !== true) {
+    return undefined
+  }
+  for (const entry of component.allOf === undefined ? [component] : component.allOf.slice(1)) {
+    const meta = entry.properties?.['meta']
+    if (isSchema(meta)) {
+      return meta.properties
+    }
+  }
+  return undefined
+}
+
+/** The members a `meta` node declares, followed through a `$ref` to its component. */
+function metaMembers(
+  meta: SchemaOrBool | undefined,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): Record<string, SchemaOrBool> | undefined {
+  if (!isSchema(meta)) {
+    return undefined
+  }
+  const resolved = typeof meta.$ref === 'string' ? schemas[refName(meta.$ref) ?? ''] : meta
+  return resolved?.properties
+}
+
+/** Each relationship write verb, and the operation id prefix it reads. */
+const RELATIONSHIP_WRITES: Readonly<Record<string, string>> = {
+  add: 'addRelationship',
+  remove: 'removeRelationship',
+  replace: 'updateRelationship',
+  set: 'updateRelationship',
+}
+
 /** An `ActionTypes` media map: `{ 'text/csv': Alias; … }`. */
 function mediaMap(aliases: Map<string, string>): string {
   const entries = [...aliases].map(([mediaType, alias]) => `${stringLiteral(mediaType)}: ${alias}`)
@@ -692,6 +753,11 @@ export class Emitter {
         for (const [status, members] of declaredMetaMembers(op, this.schemas)) {
           this.metaDocs(`${type}/actions/${name}/documentMeta/${status}`, members)
         }
+        this.metaDocs(`${type}/actions/${name}/requestMeta`, requestMetaMembers(op, this.schemas))
+        this.metaDocs(
+          `${type}/actions/${name}/accepted/meta`,
+          acceptedMetaMembers(op, this.schemas),
+        )
       }
       const scopes = descriptor[type]?.scopes
       for (const [key, operation] of Object.entries(PATH_OPERATIONS)) {
@@ -727,6 +793,42 @@ export class Emitter {
         const first = [...declaredMetaMembers(op, this.schemas).values()][0]
         if (first !== undefined) {
           this.metaDocs(`${type}/relations/${relation}/documentMeta`, first)
+        }
+        for (const [verb, operation] of Object.entries(RELATIONSHIP_WRITES)) {
+          const write = operations.get(`${operation}.${type}.${relation}`)
+          const path = `${type}/relations/${relation}`
+          this.metaDocs(`${path}/requestMeta/${verb}`, requestMetaMembers(write, this.schemas))
+          const response = [...declaredMetaMembers(write, this.schemas).values()][0]
+          this.metaDocs(`${path}/mutationMeta/${verb}`, response)
+        }
+      }
+      for (const key of ['create', 'update', 'delete'] as const) {
+        const op = operations.get(`${key}.${type}`)
+        this.metaDocs(`${type}/requestMeta/${key}`, requestMetaMembers(op, this.schemas))
+        if (key !== 'delete') {
+          this.metaDocs(`${type}/accepted/${key}/meta`, acceptedMetaMembers(op, this.schemas))
+        }
+      }
+      const base = this.baseByType.get(type)
+      if (base !== undefined) {
+        const kinds = { create: 'Add', update: 'Update', delete: 'Remove' }
+        for (const [key, kind] of Object.entries(kinds)) {
+          const meta = this.schemas[`${base}Atomic${kind}Operation`]?.properties?.['meta']
+          this.metaDocs(`${type}/atomicRequestMeta/${key}`, metaMembers(meta, this.schemas))
+        }
+        const dataMeta = (component: string): SchemaOrBool | undefined => {
+          const data = this.schemas[component]?.properties?.['data']
+          return isSchema(data) ? data.properties?.['meta'] : undefined
+        }
+        const resourceMeta: Record<string, SchemaOrBool | undefined> = {
+          read: this.schemas[`${base}Resource`]?.properties?.['meta'],
+          create: dataMeta(`${base}CreateRequest`),
+          update: dataMeta(`${base}UpdateRequest`),
+          atomicCreate: this.schemas[`${base}AtomicAdd`]?.properties?.['meta'],
+          atomicUpdate: this.schemas[`${base}AtomicUpdate`]?.properties?.['meta'],
+        }
+        for (const [key, meta] of Object.entries(resourceMeta)) {
+          this.metaDocs(`${type}/resourceMeta/${key}`, metaMembers(meta, this.schemas))
         }
       }
       const typeDoc = deprecations.type(type)
@@ -768,9 +870,12 @@ export class Emitter {
     this.familyDocs(path, spec, op)
   }
 
-  /** JSDoc on each declared document meta member that describes or exemplifies itself. */
-  private metaDocs(path: string, members: Readonly<Record<string, SchemaOrBool>>): void {
-    for (const [name, member] of Object.entries(members)) {
+  /** JSDoc on each declared meta member that describes or exemplifies itself. */
+  private metaDocs(
+    path: string,
+    members: Readonly<Record<string, SchemaOrBool>> | undefined,
+  ): void {
+    for (const [name, member] of Object.entries(members ?? {})) {
       const doc = isSchema(member) ? memberDoc(member) : undefined
       if (doc !== undefined) {
         this.literalDocs.set(`${path}/fields/${name}`, doc)
