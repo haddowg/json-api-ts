@@ -15,6 +15,9 @@ import { JsonApiError, type JsonApiErrorObject } from './errors'
 /** Per-edge writable pivot data, supplied on a to-many member as the `$pivot` key. */
 const PIVOT_KEY = '$pivot'
 
+/** The resource object's own `meta`, supplied in a write input as the `$meta` key. */
+const META_KEY = '$meta'
+
 /** The reserved input keys never routed to attributes/relationships. */
 const RESERVED_INPUT: ReadonlySet<string> = new Set(['type', 'id'])
 
@@ -45,7 +48,10 @@ export interface WriteDocument {
     id?: string
     attributes?: Record<string, unknown>
     relationships?: Record<string, RelationshipDocument>
+    meta?: Record<string, unknown>
   }
+  /** The document's top-level `meta`, which a write takes in its options. */
+  meta?: Readonly<Record<string, unknown>>
 }
 
 /** Options for {@link toDocument}. */
@@ -70,7 +76,8 @@ export interface ToDocumentOptions {
  *
  * `data.type` is always the accessor `type`. `data.id` is written from `opts.id` (an update),
  * else from `input.id` only when the type's `clientId` policy allows it (omitted when
- * `forbidden`, passed through when `optional`/`required`).
+ * `forbidden`, passed through when `optional`/`required`). A `$meta` object is the resource
+ * object's `meta`.
  */
 export function toDocument(
   descriptor: ApiDescriptor,
@@ -95,6 +102,12 @@ export function toDocument(
     if (RESERVED_INPUT.has(keyName)) {
       continue
     }
+    if (keyName === META_KEY) {
+      if (isObject(value)) {
+        data.meta = value
+      }
+      continue
+    }
     const relation = relations[keyName]
     if (relation !== undefined) {
       relationships[keyName] = { data: coerceLinkage(value, relation.cardinality) }
@@ -111,6 +124,17 @@ export function toDocument(
   }
 
   return { data }
+}
+
+/**
+ * A write document with the top-level `meta` a call's options carry, or the document as it is
+ * when they carry none.
+ */
+export function withTopLevelMeta<Doc extends object>(
+  doc: Doc,
+  meta: Readonly<Record<string, unknown>> | undefined,
+): Doc & { meta?: Readonly<Record<string, unknown>> } {
+  return meta === undefined ? doc : { ...doc, meta }
 }
 
 /**
@@ -209,6 +233,7 @@ const describe = (value: unknown): string =>
  * - `/data/id`                                               -> `id` (client-id create conflict)
  * - `/data/attributes/releaseInfo/label`                     -> `releaseInfo.label` (nested map)
  * - `/data/relationships/orderedTracks/data/0/meta/pivot/position` -> `orderedTracks[0].$pivot.position`
+ * - `/data/meta/source`                                      -> `$meta.source`
  *
  * Pivot values nest under a member's `meta.pivot` (symmetric with reads — see
  * `JsonPointerBuilder::forLinkageMeta`), so a `meta/pivot/<field>` tail on
@@ -223,6 +248,9 @@ export function remapPointer(descriptor: ApiDescriptor, type: string, pointer: s
   const segments = pointer.split('/').filter((s) => s !== '')
   if (segments[0] !== 'data') {
     return pointer
+  }
+  if (segments[1] === 'meta') {
+    return [META_KEY, ...segments.slice(2)].join('.')
   }
 
   if (segments[1] === 'attributes') {
@@ -297,7 +325,7 @@ function remapRelationship(
  *   to the relation name (drop the `relationships/<name>` prefix) rather than treating
  *   `relationships` as a linkage sub-segment.
  *
- * A non-`data` pointer is returned verbatim.
+ * A non-`data` pointer, such as one at the top-level `meta`, is returned verbatim.
  */
 export function remapRelationshipPointer(rel: string, hasPivot: boolean, pointer: string): string {
   const segments = pointer.split('/').filter((s) => s !== '')

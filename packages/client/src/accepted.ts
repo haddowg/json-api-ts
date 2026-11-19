@@ -17,15 +17,18 @@ export interface PollOptions {
 }
 
 /**
- * A write the server accepted for later (`202 Accepted`). `Job` is the job it answered with and
- * `Result` what the write resolves to once the job is done.
+ * A write the server accepted for later (`202 Accepted`). `Job` is the job it answered with,
+ * `Result` what the write resolves to once the job is done, and `Meta` the job document's
+ * top-level `meta`.
  */
-export interface Accepted<Job, Result = unknown> {
+export interface Accepted<Job, Result = unknown, Meta = Record<string, unknown> | undefined> {
   /**
    * The job, materialised as its type's resource, or the document's top-level `meta` when the
    * server answered with a meta-only document.
    */
   readonly job: Job
+  /** The `202` document's top-level `meta`, typed with the members the operation declares. */
+  readonly meta: Meta
   /** The job URL, from `Content-Location`, which {@link $poll} reads until the job is done. */
   readonly contentLocation: string
   /**
@@ -109,7 +112,10 @@ function primaryType(doc: Document | undefined): unknown {
 }
 
 /** Build the {@link Accepted} for a `202` response. */
-export function toAccepted(target: AcceptedTarget, res: ExecutedResponse): Accepted<unknown> {
+export function toAccepted(
+  target: AcceptedTarget,
+  res: ExecutedResponse,
+): Accepted<unknown, unknown, unknown> {
   const contentLocation = header(res.headers, 'Content-Location')
   if (contentLocation === undefined) {
     throw new Error('The server answered 202 Accepted without a Content-Location to poll.')
@@ -122,11 +128,12 @@ export function toAccepted(target: AcceptedTarget, res: ExecutedResponse): Accep
     retryAfter,
   }
   Object.defineProperty(value, ACCEPTED, { value: true, enumerable: false })
+  Object.defineProperty(value, 'meta', { value: res.document?.meta, enumerable: false })
   Object.defineProperty(value, '$poll', {
     value: (options?: PollOptions) => poll(target, contentLocation, metaJob, retryAfter, options),
     enumerable: false,
   })
-  return value as Accepted<unknown>
+  return value as Accepted<unknown, unknown, unknown>
 }
 
 /**

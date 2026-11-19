@@ -41,6 +41,19 @@ export interface PivotDescriptor {
   required?: readonly string[]
   /** The fields whose value may be `null`. Absent means none. */
   nullable?: readonly string[]
+  /**
+   * The members the object takes beside {@link fields}, when the server opens it: each one's
+   * wire-format hint (`unknown` for any value) and whether it may be `null`. `false` closes an
+   * identifier meta object. Absent closes every other object, and leaves an identifier meta object
+   * open, as a server that doesn't say leaves it.
+   */
+  additional?: AdditionalMembersDescriptor | false
+}
+
+/** The undeclared members an open meta object takes: their wire-format hint, and whether `null`. */
+export interface AdditionalMembersDescriptor {
+  format: string
+  nullable?: boolean
 }
 
 /**
@@ -54,6 +67,23 @@ export type DocumentMetaDescriptor = PivotDescriptor
 
 /** An operation of a type whose document may declare its top-level `meta`. */
 export type DocumentMetaOperation = 'fetchMany' | 'fetchOne' | 'create' | 'update' | 'delete'
+
+/** A write of a type whose request document may declare its top-level `meta`. */
+export type RequestMetaOperation = 'create' | 'update' | 'delete'
+
+/**
+ * The `meta` of a type's resource objects, read from the components the server marks
+ * `x-resource-meta`: `read` what a response renders, `create` and `update` what a write's
+ * `data.meta` takes. `atomicCreate` and `atomicUpdate` are the `data.meta` of an `add` or `update`
+ * inside an atomic batch, present only when they differ from `create` and `update`.
+ */
+export interface ResourceMetaDescriptor {
+  read?: PivotDescriptor
+  create?: PivotDescriptor
+  update?: PivotDescriptor
+  atomicCreate?: PivotDescriptor
+  atomicUpdate?: PivotDescriptor
+}
 
 export interface RelationDescriptor {
   cardinality: Cardinality
@@ -183,6 +213,18 @@ export interface RelationDescriptor {
    * read's members for a to-many, its single read's for a to-one. Absent when it declares none.
    */
   documentMeta?: DocumentMetaDescriptor
+  /**
+   * The top-level `meta` each relationship write takes, keyed by its verb, read from the request
+   * document the server marks `x-request-meta`. A verb that declares none has no entry, and the
+   * map is absent when none does.
+   */
+  requestMeta?: Readonly<Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>>>
+  /**
+   * The top-level `meta` of the meta-only `200` each relationship write answers with instead of
+   * the linkage, keyed by its verb. A verb answering with the linkage has no entry, and the map is
+   * absent when none answers meta-only.
+   */
+  mutationMeta?: Readonly<Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>>>
 }
 
 /** A built-in pagination strategy. */
@@ -277,6 +319,8 @@ export interface InputMedia {
  */
 export interface AcceptedDescriptor {
   jobType: string
+  /** The top-level `meta` the job document declares. Absent when it declares none. */
+  meta?: DocumentMetaDescriptor
 }
 
 /**
@@ -389,6 +433,12 @@ export interface ActionDescriptor {
    * result is then that `200`'s `meta` or the resource. Absent otherwise.
    */
   metaResult?: boolean
+  /**
+   * The top-level `meta` the action's request document takes, read from the document the server
+   * marks `x-request-meta`. An action with input `none` sends a meta-only document carrying it.
+   * Absent when the action declares none.
+   */
+  requestMeta?: DocumentMetaDescriptor
 }
 
 /**
@@ -560,6 +610,20 @@ export interface ResourceDescriptor {
    * {@link ActionDescriptor.documentMeta}.
    */
   documentMeta?: Readonly<Partial<Record<DocumentMetaOperation, DocumentMetaDescriptor>>>
+  /**
+   * The top-level `meta` each of the type's writes takes, keyed `create`, `update` or `delete`,
+   * read from the request document the server marks `x-request-meta`. A delete declaring it takes
+   * a meta-only request document. A write that declares none has no entry, and the map is absent
+   * when none does.
+   */
+  requestMeta?: Readonly<Partial<Record<RequestMetaOperation, DocumentMetaDescriptor>>>
+  /**
+   * The top-level `meta` each of the type's operations takes inside an atomic batch, keyed like
+   * {@link requestMeta}, read from the atomic operation kinds the type has of its own.
+   */
+  atomicRequestMeta?: Readonly<Partial<Record<RequestMetaOperation, DocumentMetaDescriptor>>>
+  /** The `meta` of the type's resource objects, as a read renders it and a write sends it. */
+  resourceMeta?: ResourceMetaDescriptor
 }
 
 /** A write that can answer `202 Accepted`. */

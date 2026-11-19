@@ -38,6 +38,17 @@ await client.atomic((tx) => {
 - `tx.update({ type, id, ...fields })` records an `update` against the existing resource.
 - `tx.delete({ type, id })` records a `remove`. It also accepts a resource identifier or a materialised resource (its `{ type, id }` is extracted).
 
+Each method takes the operation's `meta` as a second argument, and a create or update takes the resource object's `meta` as `$meta`, as the standalone writes do. A type with atomic operation kinds of its own types them from what it declares for a write inside a batch, which may differ from the standalone write, and requires the options when a member is required:
+
+```ts
+await client.atomic((tx) => {
+  tx.create({ type: 'bookings', title: 'Weekend', $meta: { source: 'import' } }, { meta: { idempotencyKey: 'k-2' } })
+  tx.delete({ type: 'bookings', id: 'bk-9' }, { meta: { cancellationReason: 'ill' } })
+})
+```
+
+The recorder has no relationship operations, so a type's own atomic relationship kinds aren't reached through it.
+
 The batch is posted as one request — `{ "atomic:operations": [...] }` to the server's `/operations` endpoint — and the server's `{ "atomic:results": [...] }` is parsed back positionally.
 
 !!! tip "The atomic capability is threaded in for you"

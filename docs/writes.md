@@ -99,7 +99,7 @@ if (isAccepted(result)) {
 }
 ```
 
-The job is the job type's resource when the API declares that type, an open record when it doesn't, and the document's top-level `meta` when the server answers with a meta-only document. `retryAfter` reads `Retry-After` as delta-seconds or an HTTP date, counted from when the response arrived.
+The job is the job type's resource when the API declares that type, an open record when it doesn't, and the document's top-level `meta` when the server answers with a meta-only document. `result.meta` is the `202` document's own top-level `meta`, typed with the members the operation declares for it, such as a queue position. `retryAfter` reads `Retry-After` as delta-seconds or an HTTP date, counted from when the response arrived.
 
 Pass `wait` to poll straight away, and the call resolves to the plain result:
 
@@ -149,6 +149,40 @@ A create or update whose document declares its top-level meta types it on the re
 const updated = await client.notices.id('n-1').update({ message: 'Moved to Friday' })
 updated.$document.meta?.etag // string | null | undefined
 ```
+
+## Sending meta with a write
+
+A server can declare the top-level `meta` a create, update or delete takes, such as an
+idempotency key, and the `meta` of the resource object a create or update sends. Pass the
+first as the `meta` option and the second as `$meta` in the flat input:
+
+```ts
+await client.bookings.create(
+  { title: 'Weekend', $meta: { source: 'web' } },
+  { meta: { idempotencyKey: crypto.randomUUID() } },
+)
+await client.bookings.id('bk-1').update({ title: 'Later' }, { meta: { reason: 'late' } })
+await client.bookings.id('bk-1').delete({ meta: { cancellationReason: 'ill' } })
+```
+
+The client sends `meta` as the request document's top-level `meta` and `$meta` as its
+`data.meta`. Each is typed from what the server declares: a required member makes the options
+argument required, a member the server doesn't declare is a compile error, and an object the
+server opens to undeclared members takes them as typed. A delete declaring its `meta` sends a
+meta-only document, and a delete declaring none takes no options and no body. A type that
+declares nothing takes any `meta` and any `$meta` on a create or update, as its documents may
+carry them.
+
+A resource's `$meta` on a read is typed the same way, from what the type declares its resource
+objects render:
+
+```ts
+const booking = await client.bookings.get('bk-1')
+booking.$meta?.nights // number | null | undefined
+```
+
+A `422` on a member of `$meta` comes back keyed `$meta.<member>` by `byPath()`. One on the
+top-level `meta` keeps its pointer, such as `/meta/idempotencyKey`.
 
 ## Errors surface by your flat input path
 

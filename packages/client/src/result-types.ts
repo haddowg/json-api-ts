@@ -25,6 +25,8 @@ import type {
   ApiDescriptor,
   DocumentMetaOperation,
   InputMedia,
+  RelationMutations,
+  RequestMetaOperation,
   RawOutputMedia,
   RelatedQueryOperation,
   ResourceCountOperation,
@@ -84,10 +86,14 @@ export interface EdgeMembers<
 /**
  * The resource-level `$`-accessors on a materialised resource object. `Links` types `$links`: the
  * type's generated links interface when its resources declare links, else the loose
- * {@link ResourceLinks}.
+ * {@link ResourceLinks}. `Meta` types `$meta`, the resource object's own `meta`: the members its
+ * type declares, else the loose record.
  */
-export interface ResourceAccessors<Links = ResourceLinks> {
-  readonly $meta: Record<string, unknown> | undefined
+export interface ResourceAccessors<
+  Links = ResourceLinks,
+  Meta = Record<string, unknown> | undefined,
+> {
+  readonly $meta: Meta
   readonly $links: Links | undefined
   /** The `self` link's href, whether the wire carried a bare URL or a link object. */
   readonly $self: string | undefined
@@ -377,7 +383,7 @@ export type ResourceObjectView<
   id: string
 } & PickSelectedAttributes<AttributesOf<A, T>, SelectedFields<F, T>> &
   Relations<D, A, T, Inc, F> &
-  ResourceAccessors<LinksOf<A, T>> &
+  ResourceAccessors<LinksOf<A, T>, ResourceMetaOf<D, T>> &
   CountAccessor<D, T, Counted>
 
 /**
@@ -986,6 +992,27 @@ type PivotObject<P> = {
   >
 }
 
+/** The value an open {@link PivotDescriptor} takes for each member beside its fields. */
+type AdditionalValue<P> = P extends { additional: infer X }
+  ? X extends { format: infer H }
+    ? FormatToTs<H> | (X extends { nullable: true } ? null : never)
+    : never
+  : never
+
+/** The value of any declared field of a {@link PivotDescriptor}. */
+type DeclaredValue<P> = P extends { fields: infer Fl }
+  ? { [K in keyof Fl]: PivotValue<P, K> }[keyof Fl]
+  : never
+
+/**
+ * The undeclared members an open {@link PivotDescriptor} takes, as an index signature whose value
+ * also admits each declared field's and `Extra`, the other members the object carries, so the
+ * declared ones keep their types. `unknown`, adding nothing, for a closed object.
+ */
+type AdditionalMembers<P, Extra = never> = P extends { additional: { format: unknown } }
+  ? { readonly [member: string]: AdditionalValue<P> | DeclaredValue<P> | Extra | undefined }
+  : unknown
+
 /** The legacy hint-only pivot shape: every field present and non-null. */
 type LegacyPivot<P> = { readonly [K in keyof P]: FormatToTs<P[K]> }
 
@@ -1000,23 +1027,36 @@ type PivotFieldsOf<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
 > = D[T]['relations'][R] extends { readPivot: infer P }
-  ? PivotObject<P>
+  ? PivotObject<P> & AdditionalMembers<P>
   : D[T]['relations'][R] extends { pivotFields: infer P }
     ? LegacyPivot<P>
     : Record<string, unknown>
 
 /**
  * The `$edge.meta` of each linkage member of relation `R`: the members the descriptor's
- * `identifierMeta` declares, typed like a pivot, over an open record that still carries
- * `pivot` and any other meta. A relation declaring none keeps the open record.
+ * `identifierMeta` declares, typed like a pivot, with the relation's `pivot` beside them. An
+ * identifier meta that says whether it is open takes only those, and the undeclared members it
+ * opens to; one that doesn't say is an open record. A relation declaring none keeps the open
+ * record.
  */
 type EdgeMetaOf<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
 > = D[T]['relations'][R] extends { identifierMeta: infer P }
-  ? PivotObject<P> & Record<string, unknown>
+  ? P extends { additional: false | { format: unknown } }
+    ? PivotObject<P> & EdgePivot<D, T, R> & AdditionalMembers<P, PivotFieldsOf<D, T, R>>
+    : PivotObject<P> & Record<string, unknown>
   : Record<string, unknown>
+
+/** The `pivot` a pivot relation's identifier meta carries beside its declared members. */
+type EdgePivot<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { pivot: true }
+  ? { readonly pivot?: PivotFieldsOf<D, T, R> }
+  : unknown
 
 /**
  * The typed `meta.pivot` a request may send on each member of relation `R`, from the descriptor's
@@ -1028,7 +1068,7 @@ type WritePivotOf<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
 > = D[T]['relations'][R] extends { writePivot: infer P }
-  ? PivotObject<P>
+  ? PivotObject<P> & AdditionalMembers<P>
   : D[T]['relations'][R] extends { pivotFields: infer P }
     ? LegacyPivot<P>
     : PivotInput
@@ -1049,6 +1089,19 @@ type DeclaredMetaObject<P> = P extends { fields: infer Fl }
   : never
 
 /**
+ * A declared `meta` object: the members a {@link PivotDescriptor} declares, each required one
+ * present, and the undeclared members it takes when the server opens it. A closed object takes no
+ * other member.
+ */
+export type MetaObject<P> = P extends { fields: infer Fl }
+  ? [keyof Fl] extends [never]
+    ? P extends { additional: { format: unknown } }
+      ? AdditionalMembers<P>
+      : { readonly [member: string]: never }
+    : DeclaredMetaObject<P> & AdditionalMembers<P>
+  : never
+
+/**
  * The top-level `meta` a {@link DocumentMetaDescriptor} types: its members, or `undefined` when
  * none is required, since the document may then carry no `meta`. A collection's also has the
  * `page` and `total` the server writes. `null`, a status that declares nothing, reads as the
@@ -1056,9 +1109,144 @@ type DeclaredMetaObject<P> = P extends { fields: infer Fl }
  */
 export type DocumentMeta<P> = P extends { fields: object }
   ? RequiresMeta<P> extends true
-    ? DeclaredMetaObject<P>
-    : DeclaredMetaObject<P> | undefined
+    ? MetaObject<P>
+    : MetaObject<P> | undefined
   : Record<string, unknown> | undefined
+
+/**
+ * The `meta` of type `T`'s resource objects, as `$meta` reads it: the members its `resourceMeta`
+ * declares for a read, else the loose record. A resource object may carry no `meta`.
+ */
+export type ResourceMetaOf<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  resourceMeta: { read: infer P }
+}
+  ? MetaObject<P> | undefined
+  : Record<string, unknown> | undefined
+
+/** A write's `data.meta`, by where it is sent: a create or an update, alone or in an atomic batch. */
+export type ResourceWriteOperation = 'create' | 'update' | 'atomicCreate' | 'atomicUpdate'
+
+/** The write a {@link ResourceWriteOperation} inside an atomic batch takes its `data.meta` from otherwise. */
+type StandaloneWrite<Op extends ResourceWriteOperation> = Op extends 'atomicCreate'
+  ? 'create'
+  : Op extends 'atomicUpdate'
+    ? 'update'
+    : Op
+
+/**
+ * The `$meta` a write input of type `T` takes, sent as `data.meta`: the members its
+ * `resourceMeta` declares for `Op`, an atomic one falling back to its standalone write's, else the
+ * loose record a type declaring none takes.
+ */
+export type ResourceWriteMeta<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends ResourceWriteOperation,
+> = D[T] extends { resourceMeta: infer M }
+  ? Op extends keyof M
+    ? MetaObject<M[Op]>
+    : StandaloneWrite<Op> extends keyof M
+      ? MetaObject<M[StandaloneWrite<Op>]>
+      : Record<string, unknown>
+  : Record<string, unknown>
+
+/**
+ * The top-level `meta` write `Op` of type `T` takes: the members its `requestMeta` declares, or,
+ * with `Atomic`, its `atomicRequestMeta`'s. `never` when it declares none.
+ */
+export type RequestMetaOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends RequestMetaOperation,
+  Atomic extends boolean = false,
+> = D[T] extends { [K in Atomic extends true ? 'atomicRequestMeta' : 'requestMeta']: infer M }
+  ? Op extends keyof M
+    ? M[Op] extends { fields: object }
+      ? MetaObject<M[Op]>
+      : never
+    : never
+  : never
+
+/**
+ * The `meta` option of a write whose request document declares `M`: required when `M` has a
+ * required member, else optional. A write declaring none takes the open record, as its document
+ * may carry any `meta`.
+ */
+export type MetaOption<M> = [M] extends [never]
+  ? { meta?: Record<string, unknown> }
+  : RequiresRequestMeta<M> extends true
+    ? { meta: M }
+    : { meta?: M }
+
+/** Whether a declared request `meta` has a required member, so a call must send it. */
+export type RequiresRequestMeta<M> = [M] extends [never]
+  ? false
+  : [RequiredKeysOf<M>] extends [never]
+    ? false
+    : true
+
+/** The keys of an object type whose members are required. */
+type RequiredKeysOf<M> = {
+  [K in keyof M]-?: string extends K ? never : {} extends Pick<M, K> ? never : K
+}[keyof M]
+
+/** The options argument of a call taking options `O`: required when `Req` is `true`, else optional. */
+export type OptionsArg<Req, O> = Req extends true ? [opts: O] : [opts?: O]
+
+/** The `meta` option of write `Op` on type `T`, as {@link MetaOption} types it. */
+type WriteMetaOption<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends RequestMetaOperation,
+> = MetaOption<RequestMetaOf<D, T, Op>>
+
+/** Whether write `Op` on type `T` must send its `meta`. */
+type RequiresWriteMeta<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends RequestMetaOperation,
+> = RequiresRequestMeta<RequestMetaOf<D, T, Op>>
+
+/**
+ * The arguments of type `T`'s delete: none when it declares no request `meta`, since it then takes
+ * no body, else an options object carrying it, required when a member is.
+ */
+export type DeleteArgs<D extends ApiDescriptor, T extends TypeName<D>> = [
+  RequestMetaOf<D, T, 'delete'>,
+] extends [never]
+  ? []
+  : OptionsArg<RequiresWriteMeta<D, T, 'delete'>, WriteMetaOption<D, T, 'delete'>>
+
+/**
+ * The top-level `meta` of the meta-only `200` relation `R`'s write with verb `V` answers with, or
+ * `never` when it answers with the linkage.
+ */
+export type MutationMetaOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends keyof RelationMutations,
+> = D[T]['relations'][R] extends { mutationMeta: infer M }
+  ? V extends keyof M
+    ? M[V] extends { fields: object }
+      ? DocumentMeta<M[V]>
+      : never
+    : never
+  : never
+
+/** The top-level `meta` relation `R`'s write with verb `V` takes, or `never` when it declares none. */
+export type RelationRequestMetaOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends keyof RelationMutations,
+> = D[T]['relations'][R] extends { requestMeta: infer M }
+  ? V extends keyof M
+    ? M[V] extends { fields: object }
+      ? MetaObject<M[V]>
+      : never
+    : never
+  : never
 
 /**
  * The typed top-level `meta` of operation `Op` on type `T` (`fetchMany`, `fetchOne`, `create`,
@@ -1304,9 +1492,28 @@ type RelationMutation<
 > =
   D[T]['relations'][R]['cardinality'] extends VerbCardinality<V>
     ? AdvertisesVerb<D, T, R, V> extends true
-      ? (refs: Refs) => Promise<LinkageValue<D, T, R> | void>
+      ? (
+          refs: Refs,
+          ...opts: OptionsArg<
+            RequiresRequestMeta<RelationRequestMetaOf<D, T, R, V>>,
+            MetaOption<RelationRequestMetaOf<D, T, R, V>>
+          >
+        ) => Promise<MutationResult<D, T, R, V>>
       : never
     : never
+
+/**
+ * What relation `R`'s write with verb `V` resolves to: the `meta` of the meta-only `200` it
+ * declares, else the materialised linkage, or `void` for a `204`.
+ */
+type MutationResult<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends MutationVerb,
+> = [MutationMetaOf<D, T, R, V>] extends [never]
+  ? LinkageValue<D, T, R> | void
+  : NonNullable<MutationMetaOf<D, T, R, V>>
 
 /** The relationship accessors of type `T`, keyed by relation name. */
 type RelationshipAccessors<D extends ApiDescriptor, A, T extends TypeName<D>> = {
@@ -1392,22 +1599,32 @@ type CreateId<D extends ApiDescriptor, T extends TypeName<D>> = D[T]['clientId']
  * slots, plus an `id` keyed by the client-id policy. The runtime builds the JSON:API
  * envelope (routing keys to attributes/relationships via the descriptor).
  */
-export type CreateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = CreateAttributesOf<
+export type CreateInput<
+  D extends ApiDescriptor,
   W,
-  T
-> &
+  T extends TypeName<D>,
+  Op extends 'create' | 'atomicCreate' = 'create',
+> = CreateAttributesOf<W, T> &
   RelationInputs<D, T> &
-  CreateId<D, T>
+  CreateId<D, T> & {
+    /** The resource object's `meta`, sent as `data.meta`. */
+    $meta?: ResourceWriteMeta<D, T, Op>
+  }
 
 /**
  * The flat input to `client.<type>.id(id).update(patch)`: the type's update attributes (all
  * optional) + relation slots. The id rides the handle, never the input.
  */
-export type UpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = UpdateAttributesOf<
+export type UpdateInput<
+  D extends ApiDescriptor,
   W,
-  T
-> &
-  RelationInputs<D, T>
+  T extends TypeName<D>,
+  Op extends 'update' | 'atomicUpdate' = 'update',
+> = UpdateAttributesOf<W, T> &
+  RelationInputs<D, T> & {
+    /** The resource object's `meta`, sent as `data.meta`. */
+    $meta?: ResourceWriteMeta<D, T, Op>
+  }
 
 /**
  * The flat input to a singleton's `client.<type>.update(input)`: the {@link UpdateInput} plus the
@@ -1479,6 +1696,11 @@ export type AcceptedJob<D extends ApiDescriptor, A, J> = J extends {
     : Readonly<Record<string, unknown>>
   : never
 
+/** The top-level `meta` of the job document an accepted write's `202` declares, else the loose record. */
+export type AcceptedMeta<J> = J extends { meta: infer P extends { fields: object } }
+  ? DocumentMeta<P>
+  : Record<string, unknown> | undefined
+
 /**
  * What write `Op` on type `T` resolves to without waiting: its result `R`, or, when it declares a
  * `202`, `R` or an {@link Accepted} job whose poll resolves to the resource without the write's
@@ -1492,7 +1714,13 @@ export type WriteResult<
   R,
 > = [AcceptedOf<D, T, Op>] extends [never]
   ? R
-  : R | Accepted<AcceptedJob<D, A, AcceptedOf<D, T, Op>>, ReadResult<D, A, T>>
+  :
+      | R
+      | Accepted<
+          AcceptedJob<D, A, AcceptedOf<D, T, Op>>,
+          ReadResult<D, A, T>,
+          AcceptedMeta<AcceptedOf<D, T, Op>>
+        >
 
 /**
  * The `wait` a caller may pass to write `Op` on type `T`: a boolean or {@link PollOptions} when it
@@ -1531,19 +1759,32 @@ export type CreateMethod<D extends ApiDescriptor, A, W, T extends TypeName<D>> =
       const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
     >(
       input: CreateInput<D, W, T>,
-      opts?: WriteOptions<D, T, Inc, F, 'create', Cnt>,
+      ...opts: OptionsArg<
+        RequiresWriteMeta<D, T, 'create'>,
+        WriteOptions<D, T, Inc, F, 'create', Cnt> & WriteMetaOption<D, T, 'create'>
+      >
     ) => Promise<
       WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'create'>>
     >
   : {
-      (input: CreateInput<D, W, T>, opts: WaitOptions): Promise<ReadResult<D, A, T>>
+      (
+        input: CreateInput<D, W, T>,
+        opts: WaitOptions & WriteMetaOption<D, T, 'create'>,
+      ): Promise<ReadResult<D, A, T>>
       <
         const Inc extends readonly IncludePath<D, T>[] = [],
         const F extends FieldsMap<D> = {},
         const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
       >(
         input: CreateInput<D, W, T>,
-        opts?: WriteOptions<D, T, Inc, F, 'create', Cnt> & { wait?: false },
+        ...opts: OptionsArg<
+          RequiresWriteMeta<D, T, 'create'>,
+          WriteOptions<D, T, Inc, F, 'create', Cnt> & { wait?: false } & WriteMetaOption<
+              D,
+              T,
+              'create'
+            >
+        >
       ): Promise<
         WriteResult<
           D,
@@ -1572,19 +1813,29 @@ export type UpdateMethod<
       const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
     >(
       patch: I,
-      opts?: WriteOptions<D, T, Inc, F, 'update', Cnt>,
+      ...opts: OptionsArg<
+        RequiresWriteMeta<D, T, 'update'>,
+        WriteOptions<D, T, Inc, F, 'update', Cnt> & WriteMetaOption<D, T, 'update'>
+      >
     ) => Promise<
       WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'update'>>
     >
   : {
-      (patch: I, opts: WaitOptions): Promise<ReadResult<D, A, T>>
+      (patch: I, opts: WaitOptions & WriteMetaOption<D, T, 'update'>): Promise<ReadResult<D, A, T>>
       <
         const Inc extends readonly IncludePath<D, T>[] = [],
         const F extends FieldsMap<D> = {},
         const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
       >(
         patch: I,
-        opts?: WriteOptions<D, T, Inc, F, 'update', Cnt> & { wait?: false },
+        ...opts: OptionsArg<
+          RequiresWriteMeta<D, T, 'update'>,
+          WriteOptions<D, T, Inc, F, 'update', Cnt> & { wait?: false } & WriteMetaOption<
+              D,
+              T,
+              'update'
+            >
+        >
       ): Promise<
         WriteResult<
           D,
@@ -1700,7 +1951,11 @@ type ActionValue<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = 
 type ActionAccepted<D extends ApiDescriptor, A, Act extends ActionDescriptor, E> = Act extends {
   accepted: object
 }
-  ? Accepted<AcceptedJob<D, A, Act['accepted']>, ActionValue<D, A, Act, E>>
+  ? Accepted<
+      AcceptedJob<D, A, Act['accepted']>,
+      ActionValue<D, A, Act, E>,
+      AcceptedMeta<Act['accepted']>
+    >
   : never
 
 /** The `wait` option of an action that declares a `202`; `unknown` (adding nothing) otherwise. */
@@ -1792,6 +2047,8 @@ export interface ActionCallOptions {
   relatedQuery?: LooseRelatedQuery
   /** Poll a `202 Accepted` job until it's done, for an action that declares one. */
   wait?: boolean | PollOptions
+  /** The request document's top-level `meta`, for an action whose request declares it. */
+  meta?: Readonly<Record<string, unknown>>
 }
 
 /** A filter key a collection action accepts (its `filterable` literal union), or `never`. */
@@ -1981,9 +2238,12 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
       RT extends BinaryResponseType = 'blob',
     >(
       input: InputBodyFor<D, W, Act, E, C>,
-      options?: { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT> &
-        ActionQueryOptions<D, Act> &
-        ActionWaitOption<Act>,
+      ...options: ActionOptionsArg<
+        Act,
+        { signal?: AbortSignal; contentType?: C } & ResponseOptions<Act, M, RT> &
+          ActionQueryOptions<D, Act> &
+          ActionWaitOption<Act>
+      >
     ) => ActionResultIn<D, A, Act, E, M, RT>
   : Act extends { rawOutput: readonly RawOutputMedia[] }
     ? Act extends { input: 'none' }
@@ -1991,18 +2251,24 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
           const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
           RT extends BinaryResponseType = 'blob',
         >(
-          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
-            ActionQueryOptions<D, Act> &
-            ActionWaitOption<Act>,
+          ...options: ActionOptionsArg<
+            Act,
+            { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
+              ActionQueryOptions<D, Act> &
+              ActionWaitOption<Act>
+          >
         ) => ActionResultIn<D, A, Act, E, M, RT>
       : <
           const M extends AcceptOf<Act> = Extract<DefaultAccept<Act>, AcceptOf<Act>>,
           RT extends BinaryResponseType = 'blob',
         >(
           input: WithInput<D, W, Act, E>,
-          options?: { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
-            ActionQueryOptions<D, Act> &
-            ActionWaitOption<Act>,
+          ...options: ActionOptionsArg<
+            Act,
+            { signal?: AbortSignal } & ResponseOptions<Act, M, RT> &
+              ActionQueryOptions<D, Act> &
+              ActionWaitOption<Act>
+          >
         ) => ActionResultIn<D, A, Act, E, M, RT>
     : Act extends { accepted: object }
       ? AcceptedActionMethod<D, A, W, Act, E>
@@ -2010,13 +2276,20 @@ type ActionMethod<D extends ApiDescriptor, A, W, Act extends ActionDescriptor, E
             | { filterable: readonly string[] }
             | { filterFamilies: readonly unknown[] }
             | { relatedQuery: true }
+            | { requestMeta: object }
         ? Act extends { input: 'none' }
           ? (
-              options?: { signal?: AbortSignal } & ActionQueryOptions<D, Act>,
+              ...options: ActionOptionsArg<
+                Act,
+                { signal?: AbortSignal } & ActionQueryOptions<D, Act>
+              >
             ) => ActionResult<D, A, Act, E>
           : (
               input: WithInput<D, W, Act, E>,
-              options?: { signal?: AbortSignal } & ActionQueryOptions<D, Act>,
+              ...options: ActionOptionsArg<
+                Act,
+                { signal?: AbortSignal } & ActionQueryOptions<D, Act>
+              >
             ) => ActionResult<D, A, Act, E>
         : Act extends { input: 'none' }
           ? () => ActionResult<D, A, Act, E>
@@ -2035,22 +2308,51 @@ type AcceptedActionMethod<
 > = Act extends { input: 'none' }
   ? {
       (
-        options: { signal?: AbortSignal } & ActionQueryOptions<D, Act> & WaitOptions,
+        options: { signal?: AbortSignal } & ActionQueryOptions<D, Act> &
+          WaitOptions &
+          ActionMetaOption<Act>,
       ): Promise<ActionValue<D, A, Act, E>>
       (
-        options?: { signal?: AbortSignal; wait?: false } & ActionQueryOptions<D, Act>,
+        ...options: ActionOptionsArg<
+          Act,
+          { signal?: AbortSignal; wait?: false } & ActionQueryOptions<D, Act>
+        >
       ): ActionResult<D, A, Act, E>
     }
   : {
       (
         input: WithInput<D, W, Act, E>,
-        options: { signal?: AbortSignal } & ActionQueryOptions<D, Act> & WaitOptions,
+        options: { signal?: AbortSignal } & ActionQueryOptions<D, Act> &
+          WaitOptions &
+          ActionMetaOption<Act>,
       ): Promise<ActionValue<D, A, Act, E>>
       (
         input: WithInput<D, W, Act, E>,
-        options?: { signal?: AbortSignal; wait?: false } & ActionQueryOptions<D, Act>,
+        ...options: ActionOptionsArg<
+          Act,
+          { signal?: AbortSignal; wait?: false } & ActionQueryOptions<D, Act>
+        >
       ): ActionResult<D, A, Act, E>
     }
+
+/** The top-level `meta` an action's request document declares, or `never`. */
+type ActionRequestMeta<Act> = Act extends { requestMeta: infer P extends { fields: object } }
+  ? MetaObject<P>
+  : never
+
+/**
+ * The `meta` option of an action whose request document declares it, required when a member is;
+ * `unknown` (adding nothing) for one that declares none.
+ */
+type ActionMetaOption<Act> = [ActionRequestMeta<Act>] extends [never]
+  ? unknown
+  : MetaOption<ActionRequestMeta<Act>>
+
+/** An action's options argument: `O` and its `meta`, required when the action must send `meta`. */
+type ActionOptionsArg<Act, O> = OptionsArg<
+  RequiresRequestMeta<ActionRequestMeta<Act>>,
+  O & ActionMetaOption<Act>
+>
 
 /**
  * The typed map of a type's custom actions at one scope (`collection` on the
@@ -2103,8 +2405,11 @@ export type ResourceHandle<
     WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, 'fetchOne'>>
   >
   update: UpdateMethod<D, A, W, T>
-  /** Resolves to the `meta` of the meta-only `200` the delete declares, else `undefined`. */
-  delete(): Promise<DeleteResult<D, T>>
+  /**
+   * Resolves to the `meta` of the meta-only `200` the delete declares, else `undefined`. A delete
+   * whose request document declares its `meta` takes it in the options.
+   */
+  delete(...opts: DeleteArgs<D, T>): Promise<DeleteResult<D, T>>
   rel<R extends RelationName<D, T>>(name: R): RelationshipAccessor<D, A, T, R>
   /** The type's resource-scoped custom actions, keyed by name (sub `{id}` from this handle). */
   readonly actions: ActionsAccessor<D, A, W, T, 'resource', Act>

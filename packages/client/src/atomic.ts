@@ -23,11 +23,20 @@
  * (`application/vnd.api+json; ext="…"`) for both `Content-Type` and `Accept` — the generalised
  * media-type path the rest of the runtime shares.
  */
-import type { ApiDescriptor } from './descriptor'
+import type { ApiDescriptor, RequestMetaOperation } from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
 import { execute, type JsonApiContext, type JsonApiRequest } from './request'
-import type { AtomicResultOf, CreateInput, TypeName, UpdateInput } from './result-types'
+import type {
+  AtomicResultOf,
+  CreateInput,
+  MetaOption,
+  OptionsArg,
+  RequestMetaOf,
+  RequiresRequestMeta,
+  TypeName,
+  UpdateInput,
+} from './result-types'
 import { toDocument, withRemappedAtomicPaths } from './serialize-write'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 import { ATOMIC_EXT } from './types'
@@ -53,7 +62,7 @@ export type AtomicRef =
  */
 export type AtomicCreateInput<D extends ApiDescriptor, W, T extends TypeName<D>> = {
   type: T
-} & CreateInput<D, W, T>
+} & CreateInput<D, W, T, 'atomicCreate'>
 
 /**
  * Flat update input for type `T`: the `type` discriminant + the target's identity (`id`, OR a
@@ -61,8 +70,21 @@ export type AtomicCreateInput<D extends ApiDescriptor, W, T extends TypeName<D>>
  * attributes/relation slots (reusing {@link UpdateInput}).
  */
 export type AtomicUpdateInput<D extends ApiDescriptor, W, T extends TypeName<D>> =
-  | ({ type: T; id: string; lid?: never } & UpdateInput<D, W, T>)
-  | ({ type: T; lid: string; id?: never } & UpdateInput<D, W, T>)
+  | ({ type: T; id: string; lid?: never } & UpdateInput<D, W, T, 'atomicUpdate'>)
+  | ({ type: T; lid: string; id?: never } & UpdateInput<D, W, T, 'atomicUpdate'>)
+
+/**
+ * The options argument of an atomic operation of type `T`: the operation's `meta`, typed by the
+ * type's `atomicRequestMeta` and required when a member is. A type declaring none takes any.
+ */
+export type AtomicOperationArgs<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  Op extends RequestMetaOperation,
+> = OptionsArg<
+  RequiresRequestMeta<RequestMetaOf<D, T, Op, true>>,
+  MetaOption<RequestMetaOf<D, T, Op, true>>
+>
 
 /**
  * The handle a {@link AtomicRecorder.create} returns. It is a `lid`-bearing relationship ref
@@ -112,11 +134,12 @@ export type AtomicHandle =
   | AtomicUpdateHandle<string>
   | AtomicDeleteHandle
 
-/** A single recorded atomic operation, in wire shape (`op` + `ref`/`data`). */
+/** A single recorded atomic operation, in wire shape (`op` + `ref`/`data`, and its `meta`). */
 interface AtomicOperation {
   op: 'add' | 'update' | 'remove'
   ref?: { type: string; id?: string; lid?: string }
   data?: unknown
+  meta?: Readonly<Record<string, unknown>>
 }
 
 /** The identity of an op's target resource: a server `id` or a same-batch `lid`. */
@@ -131,10 +154,30 @@ type AtomicIdentity = { id: string } | { lid: string }
  * just-created resource wires into a later op without a server id.
  */
 export interface AtomicRecorder<D extends ApiDescriptor, W> {
-  create<T extends TypeName<D>>(input: AtomicCreateInput<D, W, T>): AtomicCreateHandle<T>
-  update<T extends TypeName<D>>(input: AtomicUpdateInput<D, W, T>): AtomicUpdateHandle<T>
-  delete(ref: AtomicRef): AtomicDeleteHandle
+  create<T extends TypeName<D>>(
+    input: AtomicCreateInput<D, W, T>,
+    ...opts: AtomicOperationArgs<D, T, 'create'>
+  ): AtomicCreateHandle<T>
+  update<T extends TypeName<D>>(
+    input: AtomicUpdateInput<D, W, T>,
+    ...opts: AtomicOperationArgs<D, T, 'update'>
+  ): AtomicUpdateHandle<T>
+  delete<T extends TypeName<D>>(
+    ref: AtomicRef & { type: T },
+    ...opts: AtomicOperationArgs<D, T, 'delete'>
+  ): AtomicDeleteHandle
 }
+
+/** The options an atomic recorder method takes at runtime. */
+interface AtomicOperationOptions {
+  meta?: Readonly<Record<string, unknown>>
+}
+
+/** An operation with its `meta` added when the caller sent any. */
+const withOperationMeta = (
+  operation: AtomicOperation,
+  opts: AtomicOperationOptions | undefined,
+): AtomicOperation => (opts?.meta === undefined ? operation : { ...operation, meta: opts.meta })
 
 /** One positional result of an atomic batch: the materialised `data` (a resource/`null`) plus any op `meta`. */
 export interface AtomicResult<Data = unknown> {
@@ -196,27 +239,29 @@ export async function runAtomic(
   const typeByOp: string[] = []
 
   const recorder: AtomicRecorder<ApiDescriptor, unknown> = {
-    create(input) {
+    create(input, ...[opts]: [AtomicOperationOptions?]) {
       const opIndex = operations.length
       const lid = lidFor(opIndex)
       const data = atomicResourceData(descriptor, input, { lid })
-      operations.push({ op: 'add', data })
+      operations.push(withOperationMeta({ op: 'add', data }, opts))
       typeByOp.push(input.type)
       return { type: input.type, lid, kind: 'create', opIndex }
     },
-    update(input) {
+    update(input, ...[opts]: [AtomicOperationOptions?]) {
       const opIndex = operations.length
       const identity: AtomicIdentity =
         input.id !== undefined ? { id: input.id } : { lid: input.lid }
       const data = atomicResourceData(descriptor, input, identity)
-      operations.push({ op: 'update', ref: { type: input.type, ...identity }, data })
+      operations.push(
+        withOperationMeta({ op: 'update', ref: { type: input.type, ...identity }, data }, opts),
+      )
       typeByOp.push(input.type)
       return { type: input.type, kind: 'update', opIndex }
     },
-    delete(ref) {
+    delete(ref, ...[opts]: [AtomicOperationOptions?]) {
       const opIndex = operations.length
       const { type, identity } = toRef(ref)
-      operations.push({ op: 'remove', ref: { type, ...identity } })
+      operations.push(withOperationMeta({ op: 'remove', ref: { type, ...identity } }, opts))
       typeByOp.push(type)
       return { kind: 'delete', opIndex }
     },
