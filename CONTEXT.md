@@ -96,6 +96,16 @@ The members a server declares in an operation's top-level `meta`, typed on a col
 a resource's `$document.meta`, a meta-only delete's result or an action's.
 _Avoid_: result meta, response meta
 
+**Request meta**:
+The members a server declares a write's request document takes in its top-level `meta`, passed as
+a write's `meta` option, an atomic operation's or an action's.
+_Avoid_: write meta, command meta
+
+**Resource meta**:
+The members a type declares in its resource objects' own `meta`: what a read renders on `$meta`,
+and what a create or update sends as `$meta` in its flat input.
+_Avoid_: object meta, data meta
+
 **Paginator**:
 The descriptor's account of how a collection pages: a strategy with its keys, or a menu of
 strategies with a default arm.
