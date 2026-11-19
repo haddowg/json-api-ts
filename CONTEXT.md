@@ -113,6 +113,12 @@ The `filter` and `sort` a request sends for one relation of the resources it ans
 `relatedQuery`, under the Relationship Queries profile.
 _Avoid_: nested filter, include filter
 
+**Key member**:
+A `fields` member `<attribute>.<key>` selecting one key of an object attribute the descriptor lists
+in `selectableKeys`, under the Field Selection profile. The resource's `$keySelection` holds the
+keys a read selected of each attribute it narrowed.
+_Avoid_: dotted field, nested field, sub-field
+
 ### Writing
 
 **Type accessor**:
