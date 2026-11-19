@@ -21,7 +21,7 @@ import {
   type ParameterObject,
   type RequestBodyObject,
 } from './openapi'
-import { capIncludePaths, includePaths } from './outputs'
+import { capIncludePaths, includePaths, keyName } from './outputs'
 import {
   allowsNull,
   closedObject,
@@ -49,19 +49,38 @@ export const FIELDS_DESCRIPTION =
 
 /**
  * How a type's fields list selects single keys of the attributes that allow it, under the Field
- * Selection profile, given each attribute's key pattern.
+ * Selection profile, given each attribute's key pattern and the paths into its nested objects.
  */
-function keyMemberDescription(selectable: Readonly<Record<string, string>>): string {
-  const attributes = Object.entries(selectable).map(([name, pattern]) =>
-    pattern === ANY_KEY ? `\`${name}\`` : `\`${name}\`, whose keys match \`${pattern}\``,
+function keyMemberDescription(
+  selectable: Readonly<Record<string, string>>,
+  paths: Readonly<Record<string, readonly (readonly string[])[]>> = {},
+): string {
+  const attributes = Object.entries(selectable).map(([name, pattern]) => keyList(name, pattern))
+  const description = `Besides whole fields, list \`<attribute>.<key>\` to return that attribute with only the named keys, for ${joined(attributes)}. A resource without a named key leaves it out. List the attribute itself to return all of it.`
+  const nested = Object.entries(paths).flatMap(([name, list]) =>
+    list.map((path) => {
+      const keys = path.slice(0, -1).map((segment) => keyName(segment) ?? '<key>')
+      return keyList(`${[name, ...keys].join('.')}.<key>`, path[path.length - 1]!)
+    }),
   )
-  const last = attributes.pop()!
-  const named = attributes.length === 0 ? last : `${attributes.join('; ')}; and ${last}`
-  return `Besides whole fields, list \`<attribute>.<key>\` to return that attribute with only the named keys, for ${named}. A resource without a named key leaves it out. List the attribute itself to return all of it.`
+  return nested.length === 0
+    ? description
+    : `${description} A key holding an object takes its own keys the same way, one more \`.<key>\` per level, for ${joined(nested)}; listing the key itself returns all of it.`
 }
 
-/** The key pattern a server documents when any key may be selected. */
-const ANY_KEY = '[^,]+'
+/** A selectable member as the description names it, with its key pattern unless any key goes. */
+function keyList(name: string, pattern: string): string {
+  return pattern === ANY_KEY ? `\`${name}\`` : `\`${name}\`, whose keys match \`${pattern}\``
+}
+
+/** Entries joined into one list, the last after `and`. */
+function joined(entries: readonly string[]): string {
+  const last = entries[entries.length - 1]!
+  return entries.length === 1 ? last : `${entries.slice(0, -1).join('; ')}; and ${last}`
+}
+
+/** The key pattern a server documents when any key up to the next full stop may be selected. */
+const ANY_KEY = '[^.,]+'
 
 /** The Countable profile's token for counting the collection itself. */
 export const SELF_COUNT = '_self_'
@@ -442,7 +461,14 @@ function queryInput(
       members[type] = nullable({
         type: 'array',
         items: { type: 'string' },
-        ...(selectable === undefined ? {} : { description: keyMemberDescription(selectable) }),
+        ...(selectable === undefined
+          ? {}
+          : {
+              description: keyMemberDescription(
+                selectable,
+                ctx.descriptor[type]?.selectableKeyPaths,
+              ),
+            }),
       })
     }
     properties['fields'] = nullable(closedObject(members, FIELDS_DESCRIPTION))

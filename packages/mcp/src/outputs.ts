@@ -241,7 +241,11 @@ function flatResource(
   // A read selecting single keys of an attribute returns only the keys the resource has.
   for (const name of Object.keys(descriptor[type]?.selectableKeys ?? {})) {
     if (properties[name] !== undefined) {
-      properties[name] = withoutRequiredKeys(properties[name])
+      let narrowed = withoutRequiredKeys(properties[name])
+      for (const path of descriptor[type]?.selectableKeyPaths?.[name] ?? []) {
+        narrowed = withoutRequiredAlong(narrowed, path)
+      }
+      properties[name] = narrowed
     }
   }
   for (const [name, relation] of Object.entries(descriptor[type]?.relations ?? {})) {
@@ -317,6 +321,49 @@ function withoutRequiredKeys(schema: JsonSchema): JsonSchema {
     }
   }
   return rest
+}
+
+/**
+ * `schema` with the object a key path leads to free of `required`: each key but the last steps
+ * into the declared property it names or, for a key pattern, the schema of undeclared members.
+ */
+function withoutRequiredAlong(schema: JsonSchema, path: readonly string[]): JsonSchema {
+  if (path.length <= 1) {
+    return withoutRequiredKeys(schema)
+  }
+  const [segment, ...rest] = path as [string, ...string[]]
+  const out: JsonSchema = { ...schema }
+  for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
+    const branches = out[key]
+    if (Array.isArray(branches)) {
+      out[key] = branches.map((branch) =>
+        isObject(branch) ? withoutRequiredAlong(branch as JsonSchema, path) : branch,
+      )
+    }
+  }
+  const name = keyName(segment)
+  const properties = out['properties']
+  if (name !== undefined && isObject(properties) && isObject(properties[name])) {
+    out['properties'] = {
+      ...properties,
+      [name]: withoutRequiredAlong(properties[name] as JsonSchema, rest),
+    }
+  }
+  const additional = out['additionalProperties']
+  if (name === undefined && isObject(additional)) {
+    out['additionalProperties'] = withoutRequiredAlong(additional as JsonSchema, rest)
+  }
+  return out
+}
+
+/**
+ * The key a segment of a key path pattern names when it is a plain name the server escaped, such
+ * as `geo`, or `undefined` for a pattern matching many keys.
+ */
+export function keyName(segment: string): string | undefined {
+  return /^(?:\\[\\^$.*+?()[\]{}|/#-]|[^\\^$.*+?()[\]{}|/])+$/.test(segment)
+    ? segment.replace(/\\(.)/g, '$1')
+    : undefined
 }
 
 function defsFor(
