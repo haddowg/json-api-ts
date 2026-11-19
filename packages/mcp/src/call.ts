@@ -16,7 +16,7 @@ import {
 } from '@haddowg/json-api-client'
 import type { ResultShape } from './catalogue'
 import type { McpModelPlan } from './model'
-import { type QueryPlan, SELF_COUNT, type WritePlan } from './inputs'
+import { type QueryPlan, SELF_COUNT, type ToolInput, type WritePlan } from './inputs'
 import { isObject } from './openapi'
 import { ArgumentError, decode } from './portable'
 import { collectionEnvelope, type FlattenContext, resourceEnvelope } from './flatten'
@@ -45,9 +45,14 @@ interface LooseRelation {
   related(query?: ReadQuery): Promise<unknown>
 }
 
+/** The options a write is called with: the request document's top-level `meta`, when given. */
+interface MetaOptions {
+  meta?: Record<string, unknown>
+}
+
 interface LooseHandle {
-  update(patch: Record<string, unknown>): Promise<unknown>
-  delete(): Promise<unknown>
+  update(patch: Record<string, unknown>, opts?: MetaOptions): Promise<unknown>
+  delete(opts?: MetaOptions): Promise<unknown>
   rel(name: string): LooseRelation
   actions: Record<string, Call | undefined>
 }
@@ -55,7 +60,7 @@ interface LooseHandle {
 interface LooseAccessor {
   list(query?: ReadQuery): Promise<unknown>
   get(id: string, query?: ReadQuery): Promise<unknown>
-  create(input: Record<string, unknown>): Promise<unknown>
+  create(input: Record<string, unknown>, opts?: MetaOptions): Promise<unknown>
   id(id: string): LooseHandle
   actions: Record<string, Call | undefined>
 }
@@ -318,7 +323,24 @@ export function writeInput(
   if (plan.clientId !== 'none' && args['id'] !== null && args['id'] !== undefined) {
     input['id'] = String(args['id'])
   }
+  const resourceMeta = args['resourceMeta']
+  if (plan.resourceMeta !== undefined && resourceMeta !== null && resourceMeta !== undefined) {
+    // The client sends `$meta` as the resource object's `meta`.
+    input['$meta'] = decode(resourceMeta, plan.resourceMeta, 'resourceMeta')
+  }
   return input
+}
+
+/** The `meta` option a write is called with, read from the `meta` argument when it takes one. */
+export function metaOptions(
+  args: Record<string, unknown>,
+  input: Pick<ToolInput, 'meta'>,
+): MetaOptions {
+  const meta = args['meta']
+  if (input.meta === undefined || meta === null || meta === undefined) {
+    return {}
+  }
+  return { meta: decode(meta, input.meta, 'meta') as Record<string, unknown> }
 }
 
 /** Escape a string for a regular expression. */
@@ -539,7 +561,7 @@ async function callApi(
     }
     case 'create': {
       const input = writeInput(args, entry.input.write!)
-      const created = jobOrResult(await accessor.create(input))
+      const created = jobOrResult(await accessor.create(input, metaOptions(args, entry.input)))
       // A 204 to a client-generated id sends nothing back but the id the caller chose.
       return {
         kind: 'bare',
@@ -557,11 +579,14 @@ async function callApi(
         // The body carries the id although the path doesn't, and only a read tells the tool it.
         id = await singletonId(accessor, op.type)
         updated = jobOrResult(
-          await (accessor as unknown as LooseSingleton).update({ ...patch, id }),
+          await (accessor as unknown as LooseSingleton).update(
+            { ...patch, id },
+            metaOptions(args, entry.input),
+          ),
         )
       } else {
         id = requireId(args)
-        updated = jobOrResult(await accessor.id(id).update(patch))
+        updated = jobOrResult(await accessor.id(id).update(patch, metaOptions(args, entry.input)))
       }
       return {
         kind: 'bare',
@@ -569,7 +594,7 @@ async function callApi(
       }
     }
     case 'delete':
-      await accessor.id(requireId(args)).delete()
+      await accessor.id(requireId(args)).delete(metaOptions(args, entry.input))
       return { kind: 'bare', envelope: { data: null } }
     case 'action':
       return runAction(entry, args, accessor, env, flat, query)
@@ -595,6 +620,7 @@ async function runAction(
   const options = {
     ...(env.signal === undefined ? {} : { signal: env.signal }),
     ...(query?.filter === undefined ? {} : { filter: query.filter }),
+    ...metaOptions(args, entry.input),
   }
   const plan = entry.input.action!
   let result: unknown

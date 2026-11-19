@@ -1,0 +1,162 @@
+import { describe, expect, it } from 'vitest'
+import { MAXIMUM_CONTRACT } from './contract'
+import { createJsonApiMcp } from './mcp'
+import type { JsonSchema, OpenApiDocument } from './openapi'
+import {
+  fakeTransport,
+  modelOf,
+  source,
+  withFieldSelection,
+  withTypedRequestMeta,
+} from './test-fixtures'
+
+const { document } = source('contract-witness')
+const typed = withTypedRequestMeta(document)
+
+const toolsOf = (doc: OpenApiDocument) => createJsonApiMcp(modelOf(doc)).tools
+const tool = (name: string) => toolsOf(typed).find((entry) => entry.name === name)!
+const argument = (name: string, arg: string): JsonSchema | undefined =>
+  (tool(name).inputSchema['properties'] as Record<string, JsonSchema>)[arg]
+
+/** Call a tool against a transport answering `json` with `status`, returning what it sent. */
+async function call(name: string, args: Record<string, unknown>, json: unknown, status = 200) {
+  const { transport, requests } = fakeTransport(() => ({ status, json }))
+  const mcp = createJsonApiMcp({ ...modelOf(typed), transport })
+  const tools = await mcp.forRequest({ context: undefined })
+  const result = await tools.callTool(name, args)
+  return {
+    result,
+    requests,
+    sent: requests.map((req) => JSON.parse(req.body ?? 'null') as unknown),
+  }
+}
+
+const booking = {
+  type: 'bookings',
+  id: 'bk-1',
+  attributes: { title: 'Weekend' },
+  meta: { nights: 3, heldUntil: null, channel: 'web' },
+}
+
+/**
+ * A write declaring its request `meta` takes a request document of its own marked
+ * `x-request-meta`, and a type declaring its resource objects' `meta` gets components marked
+ * `x-resource-meta`. The write tools take each as an argument, and the output carries the
+ * declared resource meta.
+ */
+describe('generator contract 43 (typed request and resource object meta)', () => {
+  it('reads a document stamped 43, and refuses one past it', () => {
+    expect(MAXIMUM_CONTRACT).toBe(43)
+    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(43)
+    const newer = structuredClone(typed)
+    newer.info!['x-generator']!.contract = 44
+    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
+  })
+
+  it('takes the meta each write declares, required when the document requires it', () => {
+    expect(argument('bookings_create', 'meta')).toMatchObject({
+      type: 'object',
+      properties: { idempotencyKey: { type: 'string' } },
+      required: ['idempotencyKey'],
+      additionalProperties: false,
+    })
+    expect(argument('bookings_update', 'meta')).toMatchObject({
+      type: ['object', 'null'],
+      properties: { reason: { type: ['string', 'null'] } },
+    })
+    expect(argument('bookings_delete', 'meta')).toMatchObject({
+      properties: { cancellationReason: { type: 'string' } },
+    })
+    expect(argument('bookings_quote', 'meta')).toMatchObject({
+      properties: { currency: { type: 'string' } },
+    })
+    // A meta-only request document takes no body, only the meta.
+    expect(Object.keys(tool('bookings_confirm_post').inputSchema['properties']!)).toEqual([
+      'id',
+      'meta',
+    ])
+    for (const name of ['rooms_create', 'rooms_update', 'rooms_delete', 'bookings_confirm_patch']) {
+      expect(argument(name, 'meta')).toBeUndefined()
+      expect(argument(name, 'resourceMeta')).toBeUndefined()
+    }
+  })
+
+  it('takes a resource meta whose undeclared members are typed as JSON text', () => {
+    const schema = argument('bookings_create', 'resourceMeta')!
+    expect(schema['type']).toEqual(['string', 'null'])
+    expect(schema['description']).toMatch(/^The resource object's own `meta`/)
+  })
+
+  it('sends a create’s meta and resource meta, and returns the declared resource meta', async () => {
+    const { result, sent } = await call(
+      'bookings_create',
+      {
+        title: 'Weekend',
+        rooms: null,
+        guest: null,
+        resourceMeta: '{"source":"web","campaign":"autumn"}',
+        meta: { idempotencyKey: 'k-1' },
+      },
+      { data: booking },
+      201,
+    )
+    expect(sent[0]).toEqual({
+      data: {
+        type: 'bookings',
+        attributes: { title: 'Weekend' },
+        meta: { source: 'web', campaign: 'autumn' },
+      },
+      meta: { idempotencyKey: 'k-1' },
+    })
+    expect(result.structuredContent).toMatchObject({
+      data: { id: 'bk-1', title: 'Weekend', meta: { nights: 3, heldUntil: null, channel: 'web' } },
+    })
+  })
+
+  it('sends a delete’s and an action’s meta-only document', async () => {
+    const deleted = await call(
+      'bookings_delete',
+      { id: 'bk-1', meta: { cancellationReason: 'ill' } },
+      undefined,
+      204,
+    )
+    expect(deleted.requests[0]!.method).toBe('DELETE')
+    expect(deleted.sent[0]).toEqual({ meta: { cancellationReason: 'ill' } })
+    const confirmed = await call(
+      'bookings_confirm_post',
+      { id: 'bk-1', meta: { silent: true } },
+      undefined,
+      204,
+    )
+    expect(confirmed.sent[0]).toEqual({ meta: { silent: true } })
+  })
+
+  it('describes the declared resource meta in the output, and only for the types declaring it', () => {
+    const meta = (name: string, type: string) =>
+      (
+        (tool(name).outputSchema!['$defs'] as Record<string, JsonSchema>)[type]!['properties'] as
+          | Record<string, JsonSchema>
+          | undefined
+      )?.['meta']
+    expect(meta('bookings_get', 'bookings')).toMatchObject({
+      type: 'object',
+      properties: { nights: { type: ['integer', 'null'] }, heldUntil: {} },
+      additionalProperties: { type: ['string', 'null'] },
+    })
+    expect(meta('bookings_get', 'bookings')?.['x-resource-meta']).toBeUndefined()
+    expect(meta('rooms_get', 'rooms')).toMatchObject({ additionalProperties: false })
+    expect(meta('articles_get', 'articles')).toBeUndefined()
+  })
+
+  it('leaves every tool the pinned witness has as it was', () => {
+    const before = new Map(
+      toolsOf(withFieldSelection(document)).map((entry) => [entry.name, entry]),
+    )
+    for (const entry of toolsOf(typed)) {
+      const original = before.get(entry.name)
+      if (original !== undefined) {
+        expect(entry.inputSchema).toEqual(original.inputSchema)
+      }
+    }
+  })
+})

@@ -192,3 +192,61 @@ export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
   }
   return doc as OpenApiDocument
 }
+
+/** An entry of a section of the typed request meta fragment: added after `after`, or changed. */
+interface FragmentEntry {
+  after?: string | null
+  value?: unknown
+  operations?: Json
+}
+
+type FragmentDelta = Partial<
+  Record<'schemas' | 'parameters' | 'paths', Record<string, FragmentEntry>>
+>
+
+/** A copy of `record` with each entry of `section` set, an added one placed after its `after` key. */
+function grafted(record: Json, section: Record<string, FragmentEntry>): Json {
+  let out = { ...record }
+  for (const [name, entry] of Object.entries(section)) {
+    if (entry.operations !== undefined) {
+      out[name] = { ...(out[name] as Json), ...structuredClone(entry.operations) }
+    } else if (entry.after === undefined) {
+      out[name] = structuredClone(entry.value)
+    } else {
+      const next: Json = entry.after === null ? { [name]: structuredClone(entry.value) } : {}
+      for (const [key, value] of Object.entries(out)) {
+        next[key] = value
+        if (key === entry.after) {
+          next[name] = structuredClone(entry.value)
+        }
+      }
+      out = next
+    }
+  }
+  return out
+}
+
+/**
+ * A copy of the pinned witness as core main exports it, stamped 43: field selection, then the
+ * bookings, rooms and jobs types declaring request, resource, relationship and accepted meta, from
+ * the fragment the codegen's tests cut from core main's witness. It goes once the pins move to
+ * core's published 2.22 witness.
+ */
+export function withTypedRequestMeta(original: OpenApiDocument): OpenApiDocument {
+  const fragment = JSON.parse(
+    readFileSync(new URL('../../codegen/test/typed-request-meta.json', import.meta.url), 'utf8'),
+  ) as { witness: FragmentDelta }
+  const doc = withFieldSelection(original) as unknown as Json
+  ;(doc['info'] as Json)['x-generator'] = { contract: 43 }
+  const components = doc['components'] as Json
+  for (const key of ['schemas', 'parameters'] as const) {
+    const section = fragment.witness[key]
+    if (section !== undefined) {
+      components[key] = grafted((components[key] ?? {}) as Json, section)
+    }
+  }
+  if (fragment.witness.paths !== undefined) {
+    doc['paths'] = grafted(doc['paths'] as Json, fragment.witness.paths)
+  }
+  return doc as OpenApiDocument
+}

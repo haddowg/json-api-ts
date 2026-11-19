@@ -1,9 +1,10 @@
 /**
  * Flatten the client's materialised results into plain tool output. A resource becomes
- * `{ id, type, ...attributes, relation, links? }`, where a relation is an id (ids for a to-many,
- * or type and id for a polymorphic relation), or the flattened related resource when it was
- * included, and `links` holds only the links the type names. Generic links such as `self` and
- * resource meta are dropped. Results go back in a JSON:API-like envelope of `data`, `links` and
+ * `{ id, type, ...attributes, relation, links?, meta? }`, where a relation is an id (ids for a
+ * to-many, or type and id for a polymorphic relation), or the flattened related resource when it
+ * was included, `links` holds only the links the type names, and `meta` is the resource object's
+ * own meta when its type declares it. Generic links such as `self` and undeclared resource meta
+ * are dropped. Results go back in a JSON:API-like envelope of `data`, `links` and
  * `meta`, where `links` only carries a collection's pagination.
  */
 import { type ApiDescriptor, isPolymorphic } from '@haddowg/json-api-client'
@@ -100,6 +101,10 @@ export function flattenResource(
   const links = namedLinks(value, ctx.resourceLinks[type])
   if (links !== undefined) {
     out['links'] = links
+  }
+  const meta = (value as { $meta?: unknown }).$meta
+  if (ctx.descriptor[type]?.resourceMeta?.read !== undefined && isObject(meta)) {
+    out['meta'] = meta
   }
   return out
 }

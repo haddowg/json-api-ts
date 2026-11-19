@@ -303,7 +303,7 @@ function buildEntry(
       result = 'resource'
       break
     case 'delete':
-      input = deleteInput(op.type)
+      input = deleteInput(inputCtx, op.type)
       output = deletedOutput(outputCtx)
       result = 'deleted'
       break
