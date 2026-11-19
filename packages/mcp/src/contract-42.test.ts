@@ -1,3 +1,5 @@
+import type { ApiDescriptor } from '@haddowg/json-api-client'
+import { buildDescriptor } from '@haddowg/json-api-codegen'
 import { describe, expect, it } from 'vitest'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
@@ -25,7 +27,7 @@ function outputAttribute(doc: OpenApiDocument, name: string, attribute: string):
 }
 
 const DESCRIPTION =
-  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; and `totals`. A resource without a named key leaves it out. List the attribute itself to return all of it.'
+  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; and `location`, whose keys match `(?:[a-z]+)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; listing the key itself returns all of it.'
 
 /**
  * A `fields[<type>]` parameter accepting single keys of an attribute has items that are an `anyOf`
@@ -57,6 +59,35 @@ describe('generator contract 42 (field selection)', () => {
     expect(outputAttribute(selecting, 'articles_get', 'address')).toEqual(
       outputAttribute(document, 'articles_get', 'address'),
     )
+  })
+
+  it('lets a nested object a path narrows miss any of its keys', () => {
+    const location = outputAttribute(selecting, 'articles_get', 'location')
+    expect(location['required']).toBeUndefined()
+    const geo = (location['properties'] as Record<string, JsonSchema>)['geo']!
+    expect(geo['required']).toBeUndefined()
+    expect(geo['properties']).toMatchObject({ lat: {}, lng: {} })
+    expect(geo['additionalProperties']).toBe(false)
+  })
+
+  it('names a key a path passes through by a pattern as any key', () => {
+    const descriptor = buildDescriptor(selecting as Parameters<typeof buildDescriptor>[0])
+    const scored: ApiDescriptor = {
+      ...descriptor,
+      articles: {
+        ...descriptor['articles']!,
+        selectableKeyPaths: { scores: [['(?:[a-z][a-z0-9_]*)', '[^.,]+']] },
+      },
+    }
+    const tools = createJsonApiMcp(modelOf(selecting, scored)).tools
+    const fields = (
+      tools.find((entry) => entry.name === 'articles_get')!.inputSchema['properties'] as Record<
+        string,
+        JsonSchema
+      >
+    )['fields']!
+    const articles = (fields['properties'] as Record<string, JsonSchema>)['articles']!
+    expect(articles['description']).toContain('for `scores.<key>.<key>`; listing the key itself')
   })
 
   it('sends the key members and returns the narrowed attribute', async () => {

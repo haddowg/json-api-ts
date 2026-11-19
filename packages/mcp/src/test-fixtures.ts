@@ -154,8 +154,9 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
 }
 
 /**
- * A copy of a witness with core's field selection added, stamped 42: the articles' `scores` object
- * and `totals` map, and the `fields[articles]` parameter accepting their single keys, from the
+ * A copy of a witness with core's field selection added, stamped 42: the articles' `scores` object,
+ * `totals` map and `location` object, and the `fields[articles]` parameter accepting their single
+ * keys and the keys of `location.geo`, from the
  * fragment the codegen's tests cut from core main's witness. It goes once the pins move to core's
  * published 2.22 witness.
  */
