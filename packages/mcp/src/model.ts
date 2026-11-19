@@ -7,6 +7,7 @@ import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { ResultShape } from './catalogue'
 import { MAXIMUM_CONTRACT, MINIMUM_CONTRACT } from './contract'
 import type { ActionBodyPlan, QueryPlan, WritePlan } from './inputs'
+import type { Decoder } from './portable'
 import { isObject, type OperationObject, type SecurityRequirement } from './openapi'
 import type { McpOperationKind, McpTool, SkippedOperation } from './types'
 
@@ -65,6 +66,8 @@ export interface McpModelPlan {
   query?: QueryPlan
   write?: WritePlan
   action?: ActionBodyPlan
+  /** How to read the `meta` argument of a write whose request document declares it. */
+  meta?: Decoder
 }
 
 export interface McpModelTool {

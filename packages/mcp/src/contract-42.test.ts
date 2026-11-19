@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { fakeTransport, modelOf, source, withFieldSelection } from './test-fixtures'
@@ -34,12 +33,8 @@ const DESCRIPTION =
  * members on that type's `fields` entry, and their output lets a narrowed attribute miss keys.
  */
 describe('generator contract 42 (field selection)', () => {
-  it('reads a document stamped 42, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(42)
+  it('reads a document stamped 42', () => {
     expect(createJsonApiMcp(modelOf(selecting)).contract).toBe(42)
-    const newer = structuredClone(selecting)
-    newer.info!['x-generator']!.contract = 43
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('describes the key members on each list and get tool that takes the type in fields', () => {

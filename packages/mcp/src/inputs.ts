@@ -124,6 +124,11 @@ export interface WritePlan {
   clientId: 'none' | 'optional' | 'required'
   /** Fields `clear` may name, for an update. */
   clearable: readonly string[]
+  /**
+   * How to read the `resourceMeta` argument, sent as the resource object's `meta`, for a type
+   * declaring what its writes take there. Absent when the write takes none.
+   */
+  resourceMeta?: Decoder
 }
 
 /** How the handler reads a custom action's body. */
@@ -144,6 +149,11 @@ export interface ToolInput {
   query?: QueryPlan
   write?: WritePlan
   action?: ActionBodyPlan
+  /**
+   * How to read the `meta` argument, sent as the request document's top-level `meta`, for a write
+   * whose request document declares it. Absent when it declares none.
+   */
+  meta?: Decoder
 }
 
 const nullableString = (description: string): JsonSchema =>
@@ -465,9 +475,75 @@ function queryInput(
 
 /** The `data` member's schema of a write request body. */
 function requestData(doc: OpenApiDocument, schema: unknown): JsonSchema | undefined {
-  const body = deref<JsonSchema>(doc, schema as JsonSchema)
+  const body = deref<JsonSchema>(doc, requestDocument(doc, schema).body as JsonSchema)
   const data = isObject(body?.['properties']) ? body['properties']['data'] : undefined
   return deref<JsonSchema>(doc, data as JsonSchema)
+}
+
+/**
+ * A write's request document, read through the narrowing of its top-level `meta` a document
+ * marked `x-request-meta` carries: the shared document it narrows, or none for a meta-only one,
+ * and the `meta` it declares, with whether the document requires it.
+ */
+function requestDocument(
+  doc: OpenApiDocument,
+  schema: unknown,
+): { body: unknown; meta?: unknown; metaRequired: boolean } {
+  const resolved = deref<JsonSchema>(doc, schema as JsonSchema)
+  if (resolved?.['x-request-meta'] !== true) {
+    return { body: schema, metaRequired: false }
+  }
+  const allOf = Array.isArray(resolved['allOf']) ? (resolved['allOf'] as JsonSchema[]) : undefined
+  const narrowing = allOf === undefined ? resolved : deref<JsonSchema>(doc, allOf[1])
+  const props = isObject(narrowing?.['properties']) ? narrowing['properties'] : {}
+  const required = Array.isArray(narrowing?.['required']) ? (narrowing['required'] as string[]) : []
+  return {
+    body: allOf?.[0],
+    meta: props['meta'],
+    metaRequired: required.includes('meta'),
+  }
+}
+
+/** The description of a write's `meta` argument. */
+const META_DESCRIPTION =
+  "The request's top-level `meta`, carrying the members this operation declares for it."
+
+/** The description of a write's `resourceMeta` argument. */
+const RESOURCE_META_DESCRIPTION =
+  "The resource object's own `meta`, carrying the members its type declares for this write."
+
+/** An argument's description, followed by what its converted schema says, such as how to send it. */
+const describe = (description: string, converted: { schema: JsonSchema }): string =>
+  typeof converted.schema['description'] === 'string'
+    ? `${description} ${converted.schema['description']}`
+    : description
+
+/**
+ * Add the `meta` argument of a write whose request document declares it to `properties`, required
+ * when the document requires it. Throws when the write already takes an argument called `meta`.
+ */
+function withRequestMeta(
+  doc: OpenApiDocument,
+  schema: unknown,
+  properties: Record<string, JsonSchema>,
+  required: string[],
+  label: string,
+): Decoder | undefined {
+  const { meta, metaRequired } = requestDocument(doc, schema)
+  if (meta === undefined) {
+    return undefined
+  }
+  if ('meta' in properties) {
+    throw new Error(
+      `${label} declares its request meta and also takes an argument called meta, which a tool can't tell apart`,
+    )
+  }
+  const converted = toPortable(doc, meta, [], 1)
+  properties['meta'] = { ...converted.schema, description: describe(META_DESCRIPTION, converted) }
+  if (metaRequired) {
+    required.push('meta')
+  }
+  return converted.decoder
 }
 
 /**
@@ -622,6 +698,22 @@ function writeInput(
     }
   }
 
+  let resourceMeta: Decoder | undefined
+  const metaNode = deref<JsonSchema>(doc, dataProps['meta'] as JsonSchema)
+  if (metaNode?.['x-resource-meta'] === true && !isClosedEmpty(metaNode)) {
+    if ('resourceMeta' in properties) {
+      throw new Error(
+        `"${type}" declares its resource meta and also has a field called resourceMeta, which a tool can't tell apart`,
+      )
+    }
+    const portable = toPortable(doc, metaNode, [], 1)
+    properties['resourceMeta'] = nullable({
+      ...portable.schema,
+      description: describe(RESOURCE_META_DESCRIPTION, portable),
+    })
+    resourceMeta = portable.decoder
+  }
+
   let clientId: WritePlan['clientId'] = 'none'
   if (mode === 'create') {
     const idProp = dataProps['id']
@@ -634,9 +726,19 @@ function writeInput(
   return {
     properties,
     required,
-    plan: { fields, clientId, clearable: mode === 'update' ? clearable : [] },
+    plan: {
+      fields,
+      clientId,
+      clearable: mode === 'update' ? clearable : [],
+      ...(resourceMeta === undefined ? {} : { resourceMeta }),
+    },
   }
 }
+
+/** Whether an object schema takes no member at all: no properties, and closed. */
+const isClosedEmpty = (schema: JsonSchema): boolean =>
+  (!isObject(schema['properties']) || Object.keys(schema['properties']).length === 0) &&
+  schema['additionalProperties'] === false
 
 /** Close a root object: every property required, the optional ones already nullable. */
 function root(
@@ -708,7 +810,13 @@ export function createInput(ctx: InputContext, type: string): ToolInput {
       required.push('id')
     }
   }
-  return { schema: root({ ...properties, ...write.properties }, required), write: write.plan }
+  const all = { ...properties, ...write.properties }
+  const meta = withRequestMeta(ctx.doc, schema, all, required, `The create of "${type}"`)
+  return {
+    schema: root(all, required),
+    write: write.plan,
+    ...(meta === undefined ? {} : { meta }),
+  }
 }
 
 /**
@@ -732,15 +840,24 @@ export function updateInput(ctx: InputContext, type: string): ToolInput {
       description: 'Fields to set to null. Every other argument left null keeps its current value.',
     })
   }
+  const all = { ...properties, ...write.properties, ...extra }
+  const required = singleton ? [] : ['id']
+  const meta = withRequestMeta(ctx.doc, schema, all, required, `The update of "${type}"`)
   return {
-    schema: root({ ...properties, ...write.properties, ...extra }, singleton ? [] : ['id']),
+    schema: root(all, required),
     write: { ...write.plan, clearable },
+    ...(meta === undefined ? {} : { meta }),
   }
 }
 
-/** A delete. */
-export function deleteInput(type: string): ToolInput {
-  return { schema: root({ id: idSchema(`The id of the \`${type}\` resource to delete.`) }, ['id']) }
+/** A delete, with the `meta` its request document declares, if it declares any. */
+export function deleteInput(ctx: InputContext, type: string): ToolInput {
+  const properties = { id: idSchema(`The id of the \`${type}\` resource to delete.`) }
+  const required = ['id']
+  const body = deref<RequestBodyObject>(ctx.doc, ctx.operation.requestBody)
+  const schema = body?.content?.['application/vnd.api+json']?.schema
+  const meta = withRequestMeta(ctx.doc, schema, properties, required, `The delete of "${type}"`)
+  return { schema: root(properties, required), ...(meta === undefined ? {} : { meta }) }
 }
 
 /** The request media type a model can send to an action, in order of preference. */
@@ -843,6 +960,16 @@ function actionBodyInput(
   }
   const body = deref<RequestBodyObject>(ctx.doc, ctx.operation.requestBody)
   const bodyRequired = body?.required === true
+  const label = `The ${name} action of "${type}"`
+  // A meta-only request document takes no body, only the meta the action declares.
+  if (picked.kind === 'document' && action.requestMeta !== undefined && action.input === 'none') {
+    const meta = withRequestMeta(ctx.doc, picked.schema, properties, required, label)
+    return {
+      schema: root(properties, required),
+      action: { kind: 'none' },
+      ...(meta === undefined ? {} : { meta }),
+    }
+  }
   if (picked.kind === 'document' && action.inputType !== undefined) {
     const write = writeInput(ctx.doc, ctx.descriptor, action.inputType, picked.schema, 'action')
     for (const [key, schema] of Object.entries(write.properties)) {
@@ -850,9 +977,12 @@ function actionBodyInput(
         properties[key] = schema
       }
     }
+    const all = [...required, ...write.required.filter((r) => r !== 'id')]
+    const meta = withRequestMeta(ctx.doc, picked.schema, properties, all, label)
     return {
-      schema: root(properties, [...required, ...write.required.filter((r) => r !== 'id')]),
+      schema: root(properties, all),
       action: { kind: 'flat', write: write.plan },
+      ...(meta === undefined ? {} : { meta }),
     }
   }
 

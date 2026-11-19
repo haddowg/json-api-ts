@@ -286,6 +286,18 @@ function flatResource(
       properties: Object.fromEntries(links.map(([name, link]) => [name, linkOutput(doc, link)])),
     }
   }
+  if (descriptor[type]?.resourceMeta?.read !== undefined) {
+    if ('meta' in properties) {
+      throw new Error(
+        `The "${type}" type declares its resource meta and also has a field called "meta". A flattened resource carries its meta under "meta", so rename the field.`,
+      )
+    }
+    const { 'x-resource-meta': _marker, ...meta } = outputSchema(doc, resourceProps['meta'])
+    properties['meta'] = {
+      ...meta,
+      description: "The resource object's own meta, carrying the members its type declares.",
+    }
+  }
   const schema: JsonSchema = { type: 'object', properties, required: ['id', 'type'] }
   if (typeof resource?.['description'] === 'string') {
     schema['description'] = resource['description']
