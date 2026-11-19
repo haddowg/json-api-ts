@@ -9,7 +9,8 @@
  * — "edit once, updates everywhere".
  *
  * A patch replaces a node's ATTRIBUTES (the descriptor distinguishes attributes from
- * relations) while PRESERVING the materialised object's edge-local `$pivot`/`$edge`, its
+ * relations), merging an attribute its read narrowed to some keys (`$keySelection`) into the cached
+ * value instead, while PRESERVING the materialised object's edge-local `$pivot`/`$edge`, its
  * `$`-accessors, and its identity-by-`type:id`. The same Track in two playlists carries
  * different per-edge pivot data, so we never merge one edge's data onto another — only the
  * shared node's attributes change, and those live as own enumerable props that we overwrite
@@ -23,7 +24,7 @@
  * collection membership, which is not a node patch — those invalidate the relevant list/
  * relationship queries instead (see ./mutate.ts).
  */
-import type { ApiDescriptor } from '@haddowg/json-api-client'
+import type { ApiDescriptor, KeySelection } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { keyHasPrefix, parentRelationReadKeys, type QueryKey } from './keys'
 
@@ -78,6 +79,16 @@ interface MaterialisedResource {
   type: unknown
   id: unknown
   readonly $raw?: RawResource
+  readonly $keySelection?: KeySelection
+}
+
+/**
+ * A resource's freshest attributes, with the attributes its read narrowed to some of their keys,
+ * which hold only part of the value.
+ */
+interface FreshAttributes {
+  attributes: Record<string, unknown>
+  narrowed: KeySelection | undefined
 }
 
 /** A materialised resource's `type`+`id`, when it is a real resource (string type + id). */
@@ -164,15 +175,48 @@ function walkResources(
  * (e.g. installNormalization re-running after a factory's own `onSuccess`) reports no change and
  * is not written back / re-notified.
  */
-function patchNode(target: Record<string, unknown>, attributes: Record<string, unknown>): boolean {
+function patchNode(
+  target: Record<string, unknown>,
+  attributes: Record<string, unknown>,
+  narrowed?: KeySelection,
+): boolean {
   let changed = false
   for (const [k, v] of Object.entries(attributes)) {
+    if (narrowed?.[k] !== undefined) {
+      changed = mergeKeys(target, k, v) || changed
+      continue
+    }
     if (!(k in target) || target[k] !== v) {
       target[k] = v
       changed = true
     }
   }
   return changed
+}
+
+/**
+ * Merge an attribute a read narrowed to some of its keys into the cached value: the keys it carries
+ * replace the cached ones and every other cached key stays. A cached value that isn't an object,
+ * or a node that doesn't hold the attribute, is left alone, since part of a value can't stand for
+ * all of it. A `null` fresh value is the whole value and replaces it.
+ */
+function mergeKeys(target: Record<string, unknown>, k: string, v: unknown): boolean {
+  if (v === null) {
+    if (target[k] === null) {
+      return false
+    }
+    target[k] = null
+    return true
+  }
+  const cached = target[k]
+  if (!isObject(cached) || !isObject(v)) {
+    return false
+  }
+  if (Object.entries(v).every(([key, value]) => key in cached && cached[key] === value)) {
+    return false
+  }
+  target[k] = { ...cached, ...v }
+  return true
 }
 
 /**
@@ -183,8 +227,8 @@ function patchNode(target: Record<string, unknown>, attributes: Record<string, u
 function collectAttributes(
   result: unknown,
   descriptor: ApiDescriptor,
-): Map<ResourceKey, Record<string, unknown>> {
-  const fresh = new Map<ResourceKey, Record<string, unknown>>()
+): Map<ResourceKey, FreshAttributes> {
+  const fresh = new Map<ResourceKey, FreshAttributes>()
   walkResources(result, descriptor, (node) => {
     const ident = identity(node)
     if (ident === undefined) {
@@ -194,7 +238,12 @@ function collectAttributes(
     if (attributes !== undefined) {
       // Last write wins: a later occurrence (e.g. the primary resource vs an included copy)
       // overwrites an earlier one. For one response they are the same wire object anyway.
-      fresh.set(resourceKey(ident.type, ident.id), attributes)
+      const narrowed = node.$keySelection
+      fresh.set(resourceKey(ident.type, ident.id), {
+        attributes,
+        narrowed:
+          narrowed === undefined || Object.keys(narrowed).length === 0 ? undefined : narrowed,
+      })
     }
   })
   return fresh
@@ -210,7 +259,7 @@ function collectAttributes(
  */
 function patchCached(
   cached: unknown,
-  fresh: Map<ResourceKey, Record<string, unknown>>,
+  fresh: Map<ResourceKey, FreshAttributes>,
   descriptor: ApiDescriptor,
 ): boolean {
   let changed = false
@@ -219,10 +268,10 @@ function patchCached(
     if (ident === undefined) {
       return
     }
-    const attributes = fresh.get(resourceKey(ident.type, ident.id))
+    const entry = fresh.get(resourceKey(ident.type, ident.id))
     if (
-      attributes !== undefined &&
-      patchNode(node as unknown as Record<string, unknown>, attributes)
+      entry !== undefined &&
+      patchNode(node as unknown as Record<string, unknown>, entry.attributes, entry.narrowed)
     ) {
       changed = true
     }
@@ -272,7 +321,7 @@ export function normalize(
  */
 function patchAll(
   queryClient: QueryClient,
-  fresh: Map<ResourceKey, Record<string, unknown>>,
+  fresh: Map<ResourceKey, FreshAttributes>,
   descriptor: ApiDescriptor,
 ): void {
   for (const query of queryClient.getQueryCache().getAll()) {
