@@ -49,9 +49,17 @@ function typecheck(code: string): string[] {
 /**
  * A `fields[<type>]` parameter accepting single keys of an attribute has items that are an `anyOf`
  * of the member enum and one pattern per such attribute, `^<attribute>\.<key>$`, then one per path
- * into a nested object, `^<attribute>\.<key>\.<key>$`. The codegen records each attribute with its
- * key pattern and its nested paths, and the client types `<attribute>.${string}`.
+ * into a nested object, `^<attribute>\.<key>\.<key>$`. A list whose items take keys has the key
+ * `\*`, `^<attribute>\.\*$`, and its item paths follow it. The codegen records each attribute with
+ * its key pattern and its nested paths, and the client types `<attribute>.${string}`.
  */
+
+/** The paths into the items of the articles' `lines`, each starting at the list's `\*`. */
+const LINE_PATHS = [
+  ['\\*', '(?:sku|quantity|price)'],
+  ['\\*', 'price', '(?:amount|currency)'],
+]
+
 describe('generator contract 42 (field selection)', () => {
   it('reads a document stamped 42 without a warning', () => {
     expect(selecting.info?.['x-generator']?.contract).toBe(42)
@@ -62,14 +70,19 @@ describe('generator contract 42 (field selection)', () => {
     const articles = buildDescriptor(selecting)['articles']!
     expect(articles.selectableKeys).toEqual({
       scores: '(?:[a-z][a-z0-9_]*)',
-      totals: '[^.,]+',
+      totals: '[^.,*]+',
       location: '(?:[a-z]+)',
+      lines: '\\*',
     })
-    expect(articles.selectableKeyPaths).toEqual({ location: [['geo', '(?:lat|lng)']] })
+    expect(articles.selectableKeyPaths).toEqual({
+      location: [['geo', '(?:lat|lng)']],
+      lines: LINE_PATHS,
+    })
     expect(articles.attributes).toMatchObject({
       scores: 'object',
       totals: 'object',
       location: 'object',
+      lines: 'array',
     })
   })
 
@@ -100,6 +113,7 @@ describe('generator contract 42 (field selection)', () => {
         ['geo', '[^.,]+', '[^.,]+'],
         ['lat', 'long'],
       ],
+      lines: LINE_PATHS,
     })
   })
 
@@ -132,6 +146,7 @@ describe('generator contract 42 (field selection)', () => {
       scores: 'object',
       totals: 'object',
       location: 'object',
+      lines: 'array',
     })
     expect(selectableKeys).toBeDefined()
     expect(selectableKeyPaths).toBeDefined()
@@ -193,12 +208,23 @@ describe('generator contract 42 (field selection)', () => {
       '  const lng: number | null | undefined = geo.location?.geo?.lng',
       '  // @ts-expect-error -- postcode was not selected.',
       '  void geo.location?.postcode',
-      '  void [title, maths, views, selected, whole, lat, postcode, lng]',
+      "  const lined = await api.articles.get('a-1', {",
+      "    fields: { articles: ['lines.*.sku', 'lines.*.price.amount'] },",
+      '  })',
+      '  const sku: string | null | undefined = lined.lines?.[0]?.sku',
+      '  const amount: number | null | undefined = lined.lines?.[0]?.price?.amount',
+      '  // @ts-expect-error -- quantity was not selected.',
+      '  void lined.lines?.[0]?.quantity',
+      '  // @ts-expect-error -- currency was not selected.',
+      '  void lined.lines?.[0]?.price?.currency',
+      "  const items = await api.articles.get('a-1', { fields: { articles: ['lines.*', 'lines.*.sku'] } })",
+      '  const quantity: number | null | undefined = items.lines?.[0]?.quantity',
+      '  void [title, maths, views, selected, whole, lat, postcode, lng, sku, amount, quantity]',
       '}',
     ]
     const source = emit(selecting, buildDescriptor(selecting))
     expect(source).toContain(
-      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,]+",\n      location: "(?:[a-z]+)"\n    },',
+      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,*]+",\n      location: "(?:[a-z]+)",\n      lines: "\\\\*"\n    },',
     )
     expect(typecheck(`${source}\n${probes.join('\n')}\n`)).toEqual([])
   })
