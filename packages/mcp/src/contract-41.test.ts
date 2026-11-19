@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { fakeTransport, fixture, modelOf, source } from './test-fixtures'
@@ -35,12 +34,8 @@ async function call(name: string, args: Record<string, unknown>, json: unknown, 
  * its description names the members.
  */
 describe('generator contract 41 (typed document meta)', () => {
-  it('reads a document stamped 41, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(41)
+  it('reads a document stamped 41', () => {
     expect(createJsonApiMcp(modelOf(typed)).contract).toBe(41)
-    const newer = structuredClone(typed)
-    newer.info!['x-generator']!.contract = 42
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('types the collection meta it declares, page and total beside them', () => {

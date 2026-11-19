@@ -238,6 +238,12 @@ function flatResource(
   if (isObject(attributes['properties'])) {
     Object.assign(properties, attributes['properties'])
   }
+  // A read selecting single keys of an attribute returns only the keys the resource has.
+  for (const name of Object.keys(descriptor[type]?.selectableKeys ?? {})) {
+    if (properties[name] !== undefined) {
+      properties[name] = withoutRequiredKeys(properties[name])
+    }
+  }
   for (const [name, relation] of Object.entries(descriptor[type]?.relations ?? {})) {
     if (relation.writeOnly === true) {
       continue
@@ -285,6 +291,20 @@ function flatResource(
     schema['description'] = resource['description']
   }
   return schema
+}
+
+/** An object schema whose keys may each be absent, through any `anyOf`, `oneOf` or `allOf`. */
+function withoutRequiredKeys(schema: JsonSchema): JsonSchema {
+  const { required: _required, ...rest } = schema
+  for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
+    const branches = rest[key]
+    if (Array.isArray(branches)) {
+      rest[key] = branches.map((branch) =>
+        isObject(branch) ? withoutRequiredKeys(branch as JsonSchema) : branch,
+      )
+    }
+  }
+  return rest
 }
 
 function defsFor(

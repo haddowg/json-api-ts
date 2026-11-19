@@ -152,3 +152,43 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
   ;((out['info'] as Json)['x-generator'] as Json)['contract'] = 38
   return out as OpenApiDocument
 }
+
+/**
+ * A copy of a witness with core's field selection added, stamped 42: the articles' `scores` object
+ * and `totals` map, and the `fields[articles]` parameter accepting their single keys, from the
+ * fragment the codegen's tests cut from core main's witness. It goes once the pins move to core's
+ * published 2.22 witness.
+ */
+export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
+  const fragment = JSON.parse(
+    readFileSync(new URL('../../codegen/test/field-selection.json', import.meta.url), 'utf8'),
+  ) as { attributes: Record<string, Json>; fields: Json }
+  const doc = structuredClone(original) as Json
+  ;(doc['info'] as Json)['x-generator'] = { contract: 42 }
+  const schemas = (doc['components'] as Json)['schemas'] as Record<string, Json>
+  for (const [component, added] of Object.entries(fragment.attributes)) {
+    const schema = schemas[component]!
+    const properties: Json = {}
+    for (const [name, property] of Object.entries(schema['properties'] as Json)) {
+      properties[name] = property
+      if (name === 'metrics') {
+        Object.assign(properties, structuredClone(added))
+      }
+    }
+    schema['properties'] = properties
+    const required = schema['required'] as string[] | undefined
+    if (component === 'ArticlesAttributes' && required !== undefined) {
+      required.splice(required.indexOf('metrics') + 1, 0, ...Object.keys(added))
+    }
+  }
+  for (const item of Object.values(doc['paths'] as Record<string, Json>)) {
+    for (const op of Object.values(item) as Json[]) {
+      const parameters = op['parameters'] as Json[] | undefined
+      const at = parameters?.findIndex((param) => param['name'] === 'fields[articles]') ?? -1
+      if (at >= 0) {
+        parameters![at] = structuredClone(fragment.fields)
+      }
+    }
+  }
+  return doc as OpenApiDocument
+}
