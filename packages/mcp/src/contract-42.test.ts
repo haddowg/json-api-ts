@@ -27,7 +27,7 @@ function outputAttribute(doc: OpenApiDocument, name: string, attribute: string):
 }
 
 const DESCRIPTION =
-  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; and `location`, whose keys match `(?:[a-z]+)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; listing the key itself returns all of it.'
+  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; and `location`, whose keys match `(?:[a-z]+)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A list returns every item, in order, with only the named keys when you list `<attribute>.*.<key>`, for `lines.*.<key>`, whose keys match `(?:sku|quantity|price)`. An item without a named key leaves it out. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; and `lines.*.price.<key>`, whose keys match `(?:amount|currency)`; listing the key itself returns all of it.'
 
 /**
  * A `fields[<type>]` parameter accepting single keys of an attribute has items that are an `anyOf`
@@ -68,6 +68,65 @@ describe('generator contract 42 (field selection)', () => {
     expect(geo['required']).toBeUndefined()
     expect(geo['properties']).toMatchObject({ lat: {}, lng: {} })
     expect(geo['additionalProperties']).toBe(false)
+  })
+
+  it('lets every item of a list a path narrows, and each object inside it, miss any of its keys', () => {
+    const lines = outputAttribute(selecting, 'articles_get', 'lines')
+    const item = lines['items'] as JsonSchema
+    expect(item['required']).toBeUndefined()
+    expect(item['properties']).toMatchObject({ sku: {}, quantity: {}, price: {} })
+    expect(item['additionalProperties']).toBe(false)
+    const price = (item['properties'] as Record<string, JsonSchema>)['price']!
+    expect(price['required']).toBeUndefined()
+    expect(price['properties']).toMatchObject({ amount: {}, currency: {} })
+  })
+
+  it('describes a list inside an object and a list alone', () => {
+    const descriptor = buildDescriptor(selecting as Parameters<typeof buildDescriptor>[0])
+    const listed: ApiDescriptor = {
+      ...descriptor,
+      articles: {
+        ...descriptor['articles']!,
+        selectableKeys: { lines: '\\*', location: '(?:[a-z]+)' },
+        selectableKeyPaths: {
+          lines: [['\\*', '(?:sku|quantity|price)']],
+          location: [
+            ['visits', '\\*'],
+            ['visits', '\\*', '(?:at|by)'],
+          ],
+        },
+      },
+    }
+    const tools = createJsonApiMcp(modelOf(selecting, listed)).tools
+    const fields = (
+      tools.find((entry) => entry.name === 'articles_get')!.inputSchema['properties'] as Record<
+        string,
+        JsonSchema
+      >
+    )['fields']!
+    const text = (fields['properties'] as Record<string, JsonSchema>)['articles']!['description']
+    expect(text).toContain('a key holding a list takes `.*` before the keys of its items')
+    expect(text).toContain('for `location.visits.*.<key>`, whose keys match `(?:at|by)`;')
+    expect(text).not.toContain('`location.visits.<key>`')
+
+    const alone: ApiDescriptor = {
+      ...descriptor,
+      articles: {
+        ...descriptor['articles']!,
+        selectableKeys: { lines: '\\*' },
+        selectableKeyPaths: { lines: [['\\*', '[^.,*]+']] },
+      },
+    }
+    const only = (
+      (
+        createJsonApiMcp(modelOf(selecting, alone)).tools.find(
+          (entry) => entry.name === 'articles_get',
+        )!.inputSchema['properties'] as Record<string, JsonSchema>
+      )['fields']!['properties'] as Record<string, JsonSchema>
+    )['articles']!['description']
+    expect(only).toBe(
+      'Besides whole fields, a list returns every item, in order, with only the named keys when you list `<attribute>.*.<key>`, for `lines.*.<key>`. An item without a named key leaves it out. List the attribute itself to return all of it.',
+    )
   })
 
   it('names a key a path passes through by a pattern as any key', () => {
