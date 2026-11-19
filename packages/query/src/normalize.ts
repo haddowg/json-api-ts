@@ -182,8 +182,9 @@ function patchNode(
 ): boolean {
   let changed = false
   for (const [k, v] of Object.entries(attributes)) {
-    if (narrowed?.[k] !== undefined) {
-      changed = mergeKeys(target, k, v) || changed
+    const paths = narrowed?.[k]
+    if (paths !== undefined) {
+      changed = mergeKeys(target, k, v, paths) || changed
       continue
     }
     if (!(k in target) || target[k] !== v) {
@@ -196,11 +197,17 @@ function patchNode(
 
 /**
  * Merge an attribute a read narrowed to some of its keys into the cached value: the keys it carries
- * replace the cached ones and every other cached key stays. A cached value that isn't an object,
- * or a node that doesn't hold the attribute, is left alone, since part of a value can't stand for
- * all of it. A `null` fresh value is the whole value and replaces it.
+ * replace the cached ones and every other cached key stays. A key the read narrowed in turn, by a
+ * path such as `geo.lat`, merges into the cached object the same way. A cached value that isn't an
+ * object, or a node that doesn't hold the attribute, is left alone, since part of a value can't
+ * stand for all of it. A `null` fresh value is the whole value and replaces it.
  */
-function mergeKeys(target: Record<string, unknown>, k: string, v: unknown): boolean {
+function mergeKeys(
+  target: Record<string, unknown>,
+  k: string,
+  v: unknown,
+  paths: readonly string[],
+): boolean {
   if (v === null) {
     if (target[k] === null) {
       return false
@@ -212,11 +219,46 @@ function mergeKeys(target: Record<string, unknown>, k: string, v: unknown): bool
   if (!isObject(cached) || !isObject(v)) {
     return false
   }
-  if (Object.entries(v).every(([key, value]) => key in cached && cached[key] === value)) {
+  const merged = mergedValue(cached, v, paths)
+  if (merged === cached) {
     return false
   }
-  target[k] = { ...cached, ...v }
+  target[k] = merged
   return true
+}
+
+/**
+ * `cached` with the keys of `fresh` the `paths` select merged in, or `cached` itself when nothing
+ * changes. A key a path selects whole replaces the cached one, and a key it narrows merges into a
+ * cached object, keeping the cached keys the path didn't select.
+ */
+function mergedValue(
+  cached: Record<string, unknown>,
+  fresh: Record<string, unknown>,
+  paths: readonly string[],
+): Record<string, unknown> {
+  let out = cached
+  for (const [key, value] of Object.entries(fresh)) {
+    const inner = paths.flatMap((path) =>
+      path.startsWith(`${key}.`) ? [path.slice(key.length + 1)] : [],
+    )
+    let next = value
+    if (inner.length > 0 && !paths.includes(key) && value !== null) {
+      const held = cached[key]
+      if (!isObject(held) || !isObject(value)) {
+        continue
+      }
+      next = mergedValue(held, value, inner)
+    }
+    if (key in cached && cached[key] === next) {
+      continue
+    }
+    if (out === cached) {
+      out = { ...cached }
+    }
+    out[key] = next
+  }
+  return out
 }
 
 /**

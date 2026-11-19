@@ -14,18 +14,27 @@ const BASE = 'https://shop.example'
 // Products whose `values` object takes single keys through `fields`.
 const descriptor = {
   products: {
-    attributes: { name: 'string', values: 'object' },
+    attributes: { name: 'string', values: 'object', place: 'object' },
     relations: {},
     paths: { fetchMany: '/products', fetchOne: '/products/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
-    selectableKeys: { values: '[^,]+' },
+    selectableKeys: { values: '[^.,]+', place: '(?:postcode|geo)' },
+    selectableKeyPaths: { place: [['geo', '(?:lat|lng)']] },
   },
 } as const satisfies ApiDescriptor
 
 interface Attributes {
-  products: { name: string; values: Record<string, number> | null }
+  products: {
+    name: string
+    values: Record<string, number> | null
+    place: { postcode: string; geo: { lat: number; lng: number } | null } | null
+  }
 }
+
+type Place = Attributes['products']['place']
+
+const placed = (place: unknown) => ({ type: 'products', id: 'p-1', attributes: { place } })
 
 const product = (values: Record<string, number> | null, name = 'Widget') => ({
   type: 'products',
@@ -89,5 +98,52 @@ describe('a read narrowed to single keys', () => {
       listQueryOptions(client, 'products', { fields: { products: ['values.floor'] } }),
     )
     expect(whole.values).toBeNull()
+  })
+
+  it('merges a path into a nested object without dropping its other cached keys', async () => {
+    const { client, queryClient } = setup(
+      { data: placed({ postcode: 'N1', geo: { lat: 1, lng: 2 } }) },
+      { data: [placed({ geo: { lat: 9 } })] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    const list = await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['place.geo.lat'] } }),
+    )
+    expectTypeOf(list[0]!.place).toEqualTypeOf<{ geo?: { lat?: number } | null } | null>()
+    expect(whole.place).toEqual({ postcode: 'N1', geo: { lat: 9, lng: 2 } })
+  })
+
+  it('replaces a nested object a read lists whole, and keeps one it can only see part of', async () => {
+    const { client, queryClient } = setup(
+      { data: placed({ postcode: 'N1', geo: { lat: 1, lng: 2 } }) },
+      { data: [placed({ geo: { lat: 3, lng: 4 } })] },
+      { data: [placed({ geo: null })] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', {
+        fields: { products: ['place.geo.lat', 'place.geo'] },
+      }),
+    )
+    expect(whole.place).toEqual({ postcode: 'N1', geo: { lat: 3, lng: 4 } })
+    // A null nested object is its whole value.
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['place.geo.lng'] } }),
+    )
+    expect(whole.place).toEqual<Place>({ postcode: 'N1', geo: null })
+  })
+
+  it('leaves a cached nested value that is not an object alone', async () => {
+    const { client, queryClient } = setup(
+      { data: placed({ postcode: 'N1', geo: null }) },
+      { data: [placed({ postcode: 'E2', geo: { lat: 5 } })] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', {
+        fields: { products: ['place.postcode', 'place.geo.lat'] },
+      }),
+    )
+    expect(whole.place).toEqual({ postcode: 'E2', geo: null })
   })
 })
