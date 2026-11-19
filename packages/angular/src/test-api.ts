@@ -27,6 +27,11 @@ const descriptor = {
     sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['title'],
     documentMeta: { delete: { fields: { archived: 'integer' } } },
+    requestMeta: { create: { fields: { idempotencyKey: 'string' }, required: [] } },
+    resourceMeta: {
+      read: { fields: { playCount: 'integer' }, required: [] },
+      create: { fields: { source: 'string' }, required: [] },
+    },
   },
   artists: {
     attributes: { name: 'string' },

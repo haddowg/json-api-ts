@@ -233,7 +233,7 @@ save(id: string, title: string) {
 - `value()` is the latest successful result, and `error()` / `jsonApiError()` the latest failure. A new call clears the error.
 - `reset()` clears both. A call still in flight when you reset no longer updates the signals.
 
-When calls overlap, the signals follow the latest one. The function can be any client write: `create`, `update`, `delete`, a relationship mutation, a [custom action](custom-actions.md) or an [atomic batch](atomic-operations.md). A `422` arrives with the client's flat error paths, so `byPath()` keys match your form fields. See [writes](writes.md).
+When calls overlap, the signals follow the latest one. The function can be any client write: `create`, `update`, `delete`, a relationship mutation, a [custom action](custom-actions.md) or an [atomic batch](atomic-operations.md). A `422` arrives with the client's flat error paths, so `byPath()` keys match your form fields. A write's request `meta` and its resource object's `$meta` pass through to the client call typed, and a read's `$meta` keeps the members its type declares. See [writes](writes.md).
 
 ### Singletons
 
