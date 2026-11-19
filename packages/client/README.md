@@ -73,6 +73,12 @@ albums.$meta?.['page'] // raw top-level meta
 > A relation kept in `include` must also stay in the `fields` set for that type, or it is narrowed
 > off the result type.
 
+Where the server allows it, `fields` also takes `<attribute>.<key>` to read one key of an object
+attribute, under the
+[Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/). The
+attribute is then typed with only the selected keys, each optional, and the resource's
+`$keySelection` lists them.
+
 ### Get one — with a hydrated compound document
 
 ```ts

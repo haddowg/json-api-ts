@@ -64,6 +64,38 @@ The complete tested version of this list-with-include-and-fields read — reques
 result, and `$page` — is the first `reads` case in
 [example.test.ts](../packages/example/src/example.test.ts).
 
+### Select single keys of an attribute
+
+A server can let a sparse fieldset name one key of an object attribute as `<attribute>.<key>`,
+under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/).
+A table showing a few keys of the same object for every row then reads only those keys. The
+attributes that allow it are in the descriptor's `selectableKeys`, and each adds
+`` `<attribute>.${string}` `` to the members `fields` takes for that type. Any other dotted member
+is a compile error.
+
+```ts
+// GET /products?fields[products]=name,values.cap,values.countries
+const products = await client.products.list({
+  fields: { products: ['name', 'values.cap', 'values.countries'] },
+})
+
+products[0]!.values // { cap?: number; countries?: string[] }
+products[0]!.$keySelection // { values: ['cap', 'countries'] }
+```
+
+An attribute named only through its keys is present and typed with just those keys, each
+optional, since a resource whose value lacks a selected key leaves it out. A `null` value stays
+`null`. An attribute you also list whole comes back whole, and its type stays whole. When the
+`fields` array isn't a literal the client can read, every key stays in the type and is optional.
+
+Each resource's `$keySelection` holds the keys the request selected of each attribute it
+narrowed, in request order, each once, so code that merges two reads of a resource can tell a
+narrowed value from a whole one. It is empty when nothing was narrowed. A page that `$next()`
+fetches reads the selection off the link it follows.
+
+The server advertises the profile in the response's `Content-Type` when it narrowed something.
+The client never asks for it and reads the response the same either way.
+
 ## A compound `get`
 
 `get` on a single resource takes the same `include` (and `fields`). One request, the whole graph:

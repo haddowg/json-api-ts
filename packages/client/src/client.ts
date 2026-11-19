@@ -12,6 +12,7 @@ import {
 } from './descriptor'
 import { JsonApiError } from './errors'
 import { type FilterSpec, listFilterMatcher } from './filters'
+import { fieldsOfUrl } from './key-selection'
 import { readActionLocation } from './location'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
 import { resolvePaginator } from './pagination'
@@ -168,7 +169,21 @@ async function run(
     paginator === undefined ? undefined : resolvePaginator(paginator, query?.page)
   return doc === undefined
     ? undefined
-    : materialise(doc, ctx.materialise, linkage, primaryType, paginatorOverride)
+    : materialise(
+        doc,
+        withFields(ctx.materialise, query?.fields),
+        linkage,
+        primaryType,
+        paginatorOverride,
+      )
+}
+
+/** The materialise context for a response to a request that sent `fields`. */
+function withFields(
+  ctx: MaterialiseContext,
+  fields: Readonly<Record<string, readonly string[]>> | undefined,
+): MaterialiseContext {
+  return fields === undefined ? ctx : { ...ctx, fields }
 }
 
 /**
@@ -426,7 +441,7 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
       ? undefined
       : spec.metaOnly === true && !('data' in doc)
         ? doc.meta
-        : materialise(doc, ctx.materialise, spec.linkage ?? false)
+        : materialise(doc, withFields(ctx.materialise, spec.query?.fields), spec.linkage ?? false)
   if (res.status === 202 && spec.accepted !== undefined) {
     return answerAccepted(ctx, spec.accepted, res, complete, spec.wait)
   }
@@ -1008,7 +1023,13 @@ export function createClient<
         })
         return doc === undefined
           ? undefined
-          : materialise(doc, ctx.materialise, linkage, undefined, paginator)
+          : materialise(
+              doc,
+              withFields(ctx.materialise, fieldsOfUrl(url)),
+              linkage,
+              undefined,
+              paginator,
+            )
       },
       ...(validator !== undefined ? { validate: validator } : {}),
     },

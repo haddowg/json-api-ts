@@ -497,6 +497,13 @@ export interface ResourceDescriptor {
    */
   included?: readonly string[]
   /**
+   * The attributes whose single keys a sparse fieldset may select, under the Field Selection
+   * profile: attribute name -> the pattern a key must match (a regular expression source,
+   * unanchored and without delimiters). Each adds `<attribute>.${string}` to the members `fields`
+   * takes for this type. Absent when no attribute declares selectable keys.
+   */
+  selectableKeys?: Readonly<Record<string, string>>
+  /**
    * The sort tokens the COLLECTION read accepts in `sort` — signed field names (`title`,
    * `-title`). Drives `sort` narrowing. Absent when the collection advertises no sorting (so
    * `sort` is then a compile error, matching the server's `400 SORTING_UNSUPPORTED`).

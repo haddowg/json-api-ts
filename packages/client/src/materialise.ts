@@ -5,6 +5,7 @@ import type {
   RelationDescriptor,
 } from './descriptor'
 import { type Page, type ResolvedPaginator, resolvePaginator } from './pagination'
+import { type KeySelection, keySelection } from './key-selection'
 import type { Document } from './request'
 import { assertJsonApiDocument, type ResolvedValidator, validateDocument } from './validate'
 
@@ -62,6 +63,11 @@ export interface ResourceEnvelope {
   readonly $self: string | undefined
   readonly $document: DocumentEnvelope
   readonly $raw: RawResource
+  /**
+   * The keys the request's sparse fieldset selected of each attribute it narrowed, under the Field
+   * Selection profile. An attribute named here holds only those of its keys the resource has.
+   */
+  readonly $keySelection: KeySelection
   $rel(name: string): RelationView | undefined
   /**
    * A relationship's count, from its `meta.total` (a `withCount` read): a finite number, else
@@ -120,6 +126,11 @@ export interface MaterialiseContext {
    * before the document is materialised. Absent => no per-field validation (the default).
    */
   validate?: ResolvedValidator | undefined
+  /**
+   * The sparse fieldsets the request sent, by type, which tell an attribute narrowed to some of
+   * its keys from one rendered whole (see {@link ResourceEnvelope.$keySelection}).
+   */
+  fields?: Readonly<Record<string, readonly string[]>> | undefined
 }
 
 /** A raw JSON:API resource object (or bare identifier) off the wire. */
@@ -290,7 +301,7 @@ function buildNode(
     )
   }
 
-  attachResourceEnvelope(node, raw, env, rels)
+  attachResourceEnvelope(node, raw, env, rels, keySelection(ctx.fields?.[raw.type]))
   return node
 }
 
@@ -364,18 +375,20 @@ function resolveMember(
   return buildIdentifierView(member, relationEdge)
 }
 
-/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$rel/$count). */
+/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$keySelection/$rel/$count). */
 function attachResourceEnvelope(
   node: object,
   raw: RawResource,
   env: DocumentEnvelope,
   rels: Record<string, RawRelationship>,
+  selection: KeySelection,
 ): void {
   defineGetter(node, '$meta', () => raw.meta)
   defineGetter(node, '$links', () => raw.links)
   defineGetter(node, '$self', () => linkHref(raw.links?.self))
   defineGetter(node, '$document', () => env)
   defineGetter(node, '$raw', () => raw)
+  defineGetter(node, '$keySelection', () => selection)
   define(node, '$rel', (name: string): RelationView | undefined => {
     const rel = rels[name]
     if (!rel) return undefined
@@ -407,7 +420,16 @@ function buildEdgeView(node: object, member: RawResource, relationEdge?: Relatio
   // leave edge views stale, so it must preserve this walk-every-view invariant.
   Object.assign(view, node)
   // Delegate the node's non-enumerable `$`-accessors so they read through to the node.
-  for (const k of ['$meta', '$links', '$self', '$document', '$raw', '$rel', '$count'] as const) {
+  for (const k of [
+    '$meta',
+    '$links',
+    '$self',
+    '$document',
+    '$raw',
+    '$keySelection',
+    '$rel',
+    '$count',
+  ] as const) {
     delegate(view, node, k)
   }
   // A full-resource member's own `links` is its self-link (already on `$links`/`$self`), so a
