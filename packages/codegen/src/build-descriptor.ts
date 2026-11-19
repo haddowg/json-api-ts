@@ -261,6 +261,10 @@ export class DescriptorBuilder {
       if (included !== undefined) {
         descriptor.included = included
       }
+      const selectableKeys = this.selectableKeys(wireType)
+      if (selectableKeys !== undefined) {
+        descriptor.selectableKeys = selectableKeys
+      }
       const sortable = this.sortable(collection)
       if (sortable !== undefined) {
         descriptor.sortable = sortable
@@ -1672,6 +1676,23 @@ export class DescriptorBuilder {
     return collection === undefined ? undefined : filterKeys(this.operation(collection, 'get'))
   }
 
+  /**
+   * The attributes of a type whose single keys a `fields[<type>]` parameter accepts, each with the
+   * pattern its key must match. Every operation rendering the type carries the same parameter, so
+   * the first that accepts any key answers. Returns `undefined` when none does.
+   */
+  private selectableKeys(wireType: string): Readonly<Record<string, string>> | undefined {
+    for (const item of Object.values(this.paths)) {
+      for (const op of Object.values(item) as (OperationObject | undefined)[]) {
+        const keys = selectableKeysOf(op, wireType)
+        if (keys !== undefined) {
+          return keys
+        }
+      }
+    }
+    return undefined
+  }
+
   private operation(path: string, method: HttpMethod): OperationObject | undefined {
     return this.paths[path]?.[method]
   }
@@ -1860,6 +1881,45 @@ function withCountParam(op: OperationObject | undefined): CountableDescriptor | 
 /** The schema of the operation's parameter of that name, if it carries one. */
 function paramSchema(op: OperationObject | undefined, paramName: string): SchemaObject | undefined {
   return op?.parameters?.find((param) => param.name === paramName)?.schema
+}
+
+/**
+ * The attributes whose single keys an operation's `fields[<type>]` parameter accepts. Its items are
+ * either the member enum or an `anyOf` of that enum and one pattern per such attribute,
+ * `^<attribute>\.<key>$`. A pattern names its attribute by the escaped name of an enum member,
+ * and the key pattern is what follows the dot. Returns `undefined` when the items list no pattern.
+ */
+function selectableKeysOf(
+  op: OperationObject | undefined,
+  wireType: string,
+): Readonly<Record<string, string>> | undefined {
+  const branches = paramSchema(op, `fields[${wireType}]`)?.items?.anyOf
+  if (branches === undefined) {
+    return undefined
+  }
+  const members = branches.flatMap((branch) =>
+    Array.isArray(branch.enum) ? branch.enum.filter((v): v is string => typeof v === 'string') : [],
+  )
+  const out: Record<string, string> = {}
+  for (const branch of branches) {
+    const pattern = branch['pattern']
+    if (typeof pattern !== 'string' || !pattern.endsWith('$')) {
+      continue
+    }
+    for (const member of members) {
+      const head = `^${escapePattern(member)}\\.`
+      if (pattern.startsWith(head) && pattern.length > head.length + 1) {
+        out[member] = pattern.slice(head.length, -1)
+        break
+      }
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/** A literal escaped for an ECMA-262 pattern, the way the server escapes an attribute name. */
+function escapePattern(literal: string): string {
+  return literal.replace(/[\\^$.*+?()[\]{}|/]/g, '\\$&')
 }
 
 /** The sort keys and families a relation's own reads accept, read off `op`. */
