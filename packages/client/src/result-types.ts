@@ -29,6 +29,7 @@ import type {
   RelatedQueryOperation,
   ResourceCountOperation,
 } from './descriptor'
+import type { KeySelection } from './key-selection'
 import type { ActionLocation } from './location'
 import type {
   ArrayEnvelope,
@@ -92,6 +93,11 @@ export interface ResourceAccessors<Links = ResourceLinks> {
   readonly $self: string | undefined
   readonly $document: DocumentEnvelope
   readonly $raw: Record<string, unknown>
+  /**
+   * The keys the request's sparse fieldset selected of each attribute it narrowed, under the Field
+   * Selection profile. Empty when the request narrowed no attribute of this type.
+   */
+  readonly $keySelection: KeySelection
   $rel(name: string): RelationView | undefined
 }
 
@@ -164,6 +170,35 @@ type SelectedFields<F, T extends string> = F extends FieldSelectionMap
  * object's keys are exactly the requested members — the static mirror of a sparse fieldset.
  */
 type PickSelected<Obj, Sel> = [Sel] extends [AllFields] ? Obj : Pick<Obj, Extract<keyof Obj, Sel>>
+
+/** The attribute a key member names: `values` for `values.cap`. */
+type KeyMemberAttribute<Sel> = Sel extends `${infer Attribute}.${string}` ? Attribute : never
+
+/** The keys of attribute `Attr` the key members in `Sel` select: everything after the first dot. */
+type SelectedKeysOf<Sel, Attr extends string> = Sel extends `${Attr}.${infer Key}` ? Key : never
+
+/**
+ * An attribute value narrowed to the keys `K`, each optional, since a value without a selected key
+ * leaves it out. `null` stays as it is, and a key type the client can't list keeps every key.
+ */
+type KeySelected<V, K extends string> = V extends object
+  ? string extends K
+    ? Partial<V>
+    : { [P in Extract<K, keyof V>]?: V[P] }
+  : V
+
+/**
+ * {@link PickSelected} for attributes: an attribute the selection names only through key members
+ * (`values.cap`) is present and narrowed to those keys, while one it lists whole stays whole.
+ */
+type PickSelectedAttributes<Obj, Sel> = [Sel] extends [AllFields]
+  ? Obj
+  : Pick<Obj, Extract<keyof Obj, Sel>> & {
+      [K in keyof Obj as K extends Exclude<KeyMemberAttribute<Sel>, Sel> ? K : never]: KeySelected<
+        Obj[K],
+        SelectedKeysOf<Sel, K & string>
+      >
+    }
 
 /**
  * The related wire type(s) of relation `R` on type `T`. A union when polymorphic; the
@@ -340,7 +375,7 @@ export type ResourceObjectView<
 > = {
   type: T
   id: string
-} & PickSelected<AttributesOf<A, T>, SelectedFields<F, T>> &
+} & PickSelectedAttributes<AttributesOf<A, T>, SelectedFields<F, T>> &
   Relations<D, A, T, Inc, F> &
   ResourceAccessors<LinksOf<A, T>> &
   CountAccessor<D, T, Counted>
@@ -670,6 +705,18 @@ export type FieldsMap<D extends ApiDescriptor> = {
 export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
   | ReadableRelationName<D, T>
+  | KeyMember<D, T>
+
+/**
+ * A key member of type `T`: `<attribute>.${string}` for each attribute whose single keys a sparse
+ * fieldset may select (the descriptor's `selectableKeys`), under the Field Selection profile.
+ * `never` when the type declares none.
+ */
+export type KeyMember<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  selectableKeys: infer S
+}
+  ? `${Extract<keyof S, string>}.${string}`
+  : never
 
 /**
  * The `relatedQuery` entry for relation `R` of type `T`: its `filter` and `sort` typed as the
