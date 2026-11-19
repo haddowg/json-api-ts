@@ -180,17 +180,31 @@ type PickSelected<Obj, Sel> = [Sel] extends [AllFields] ? Obj : Pick<Obj, Extrac
 /** The attribute a key member names: `values` for `values.cap`. */
 type KeyMemberAttribute<Sel> = Sel extends `${infer Attribute}.${string}` ? Attribute : never
 
-/** The keys of attribute `Attr` the key members in `Sel` select: everything after the first dot. */
+/** The paths of attribute `Attr` the key members in `Sel` select: everything after the first dot. */
 type SelectedKeysOf<Sel, Attr extends string> = Sel extends `${Attr}.${infer Key}` ? Key : never
 
+/** The first key of each path in `K`: `geo` for `geo.lat`. */
+type PathHead<K extends string> = K extends `${infer Head}.${string}` ? Head : K
+
+/** What the paths in `K` select inside key `Head`: `lat` for `geo.lat`. */
+type PathTail<K extends string, Head extends string> = K extends `${Head}.${infer Tail}`
+  ? Tail
+  : never
+
 /**
- * An attribute value narrowed to the keys `K`, each optional, since a value without a selected key
- * leaves it out. `null` stays as it is, and a key type the client can't list keeps every key.
+ * An attribute value narrowed to the paths `K`, each key optional, since a value without a selected
+ * key leaves it out. A path into a nested object (`geo.lat`) narrows that object the same way,
+ * unless `K` also lists its key whole. `null` stays as it is, and a key type the client can't list
+ * keeps every key.
  */
 type KeySelected<V, K extends string> = V extends object
   ? string extends K
     ? Partial<V>
-    : { [P in Extract<K, keyof V>]?: V[P] }
+    : {
+        [P in Extract<PathHead<K>, keyof V>]?: P extends K
+          ? V[P]
+          : KeySelected<V[P], PathTail<K, P>>
+      }
   : V
 
 /**

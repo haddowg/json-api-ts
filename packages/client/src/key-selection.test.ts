@@ -33,7 +33,7 @@ interface Attributes {
   products: {
     name: string
     values: Record<string, number | null> | null
-    totals: { views: number; shares: number }
+    totals: { views: number; shares: number; geo: { lat: number; lng: number } | null }
     notes: { text: string }
   }
   makers: { name: string }
@@ -72,8 +72,22 @@ describe('keySelection', () => {
     expect(keySelection(['name', 'values.cap', 'values.countries', 'values.cap'])).toEqual({
       values: ['cap', 'countries'],
     })
-    // The key is everything after the first full stop.
+    // The path is everything after the first full stop.
     expect(keySelection(['values.a.b'])).toEqual({ values: ['a.b'] })
+  })
+
+  it('keeps a key listed whole over a path into it, at every level', () => {
+    expect(
+      keySelection(['totals.geo.lat', 'totals.views', 'totals.geo', 'totals.geo.lng']),
+    ).toEqual({ totals: ['views', 'geo'] })
+    expect(keySelection(['totals.a.b.c', 'totals.a.b', 'totals.a.d'])).toEqual({
+      totals: ['a.b', 'a.d'],
+    })
+    // A key that only shares a prefix with another is a different key.
+    expect(keySelection(['totals.geo', 'totals.geodata.lat'])).toEqual({
+      totals: ['geo', 'geodata.lat'],
+    })
+    expect(keySelection(['totals.geo.', 'totals..lat'])).toEqual({})
   })
 
   it('leaves out an attribute listed whole, and members with no key or no attribute', () => {
@@ -163,16 +177,41 @@ describe('selecting single keys through fields', () => {
     const whole = await client.products.get('p-1', {
       fields: { products: ['totals', 'totals.views'] },
     })
-    expectTypeOf(whole.totals).toEqualTypeOf<{ views: number; shares: number }>()
+    expectTypeOf(whole.totals).toEqualTypeOf<Attributes['products']['totals']>()
 
     // A selection the client can't list keeps every key, each optional.
     const fields: readonly MemberName<typeof descriptor, 'products'>[] = ['values.cap']
     const loose = await client.products.get('p-1', { fields: { products: fields } })
-    expectTypeOf(loose.totals).toEqualTypeOf<{ views: number; shares: number }>()
+    expectTypeOf(loose.totals).toEqualTypeOf<Attributes['products']['totals']>()
 
     await client.products.get('p-1', {
       // @ts-expect-error -- notes declares no selectable keys.
       fields: { products: ['notes.text'] },
     })
+  })
+
+  it('types a path into a nested object as that object narrowed in turn', async () => {
+    const { client } = recorder()
+    const product = await client.products.get('p-1', {
+      fields: { products: ['totals.views', 'totals.geo.lat'] },
+    })
+    expectTypeOf(product.totals).toEqualTypeOf<{ views?: number; geo?: { lat?: number } | null }>()
+
+    // A key listed whole beside a path into it stays whole.
+    const geo = await client.products.get('p-1', {
+      fields: { products: ['totals.geo.lat', 'totals.geo'] },
+    })
+    expectTypeOf(geo.totals).toEqualTypeOf<{ geo?: { lat: number; lng: number } | null }>()
+  })
+
+  it('reads the paths of a nested selection', async () => {
+    const { client } = recorder({
+      data: { type: 'products', id: 'p-1', attributes: { totals: { geo: { lat: 1 } } } },
+    })
+    const product = await client.products.get('p-1', {
+      fields: { products: ['totals.geo.lat'] },
+    })
+    expect(product.$keySelection).toEqual({ totals: ['geo.lat'] })
+    expect(product.totals).toEqual({ geo: { lat: 1 } })
   })
 })

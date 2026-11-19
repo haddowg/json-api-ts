@@ -554,6 +554,14 @@ export interface ResourceDescriptor {
    */
   selectableKeys?: Readonly<Record<string, string>>
   /**
+   * The paths into nested objects a sparse fieldset may select of the attributes in
+   * {@link selectableKeys}: attribute name -> one entry per path, each the pattern of every key
+   * along it after the attribute's own, such as `['geo', '(?:lat|lng)']` for `location.geo.lat`.
+   * A key that is a plain name is escaped the way the server escapes it. Absent when no selectable
+   * key holds an object whose own keys may be selected.
+   */
+  selectableKeyPaths?: Readonly<Record<string, readonly (readonly string[])[]>>
+  /**
    * The sort tokens the COLLECTION read accepts in `sort` — signed field names (`title`,
    * `-title`). Drives `sort` narrowing. Absent when the collection advertises no sorting (so
    * `sort` is then a compile error, matching the server's `400 SORTING_UNSUPPORTED`).

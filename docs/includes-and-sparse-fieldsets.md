@@ -88,9 +88,26 @@ optional, since a resource whose value lacks a selected key leaves it out. A `nu
 `null`. An attribute you also list whole comes back whole, and its type stays whole. When the
 `fields` array isn't a literal the client can read, every key stays in the type and is optional.
 
-Each resource's `$keySelection` holds the keys the request selected of each attribute it
-narrowed, in request order, each once, so code that merges two reads of a resource can tell a
-narrowed value from a whole one. It is empty when nothing was narrowed. A page that `$next()`
+A server can also let a member name a key of an object inside the attribute, one more
+`.<key>` per level. The descriptor's `selectableKeyPaths` lists those paths. The nested object is
+narrowed the same way, and the path selects nothing else of the objects it passes through, so
+`location.geo.lat` types and returns `location` holding only `geo`, and `geo` holding only an
+optional `lat`. A key you also list whole, such as `location.geo` beside `location.geo.lat`, comes
+back whole, and its type stays whole. A list inside an attribute is always selected whole.
+
+```ts
+// GET /articles/a-1?fields[articles]=location.postcode,location.geo.lat
+const article = await client.articles.get('a-1', {
+  fields: { articles: ['location.postcode', 'location.geo.lat'] },
+})
+
+article.location // { postcode?: string; geo?: { lat?: number } } | null
+article.$keySelection // { location: ['postcode', 'geo.lat'] }
+```
+
+Each resource's `$keySelection` holds the paths the request selected of each attribute it
+narrowed, in request order, each once, leaving out a path whose key the request also lists whole,
+so code that merges two reads of a resource can tell a narrowed value from a whole one. It is empty when nothing was narrowed. A page that `$next()`
 fetches reads the selection off the link it follows.
 
 The server advertises the profile in the response's `Content-Type` when it narrowed something.

@@ -192,7 +192,7 @@ ok.$count('tracks') // the relationship's meta.total from a withCount read, or u
     | `$meta` | every resource / every array | resource- or relationship-level meta |
     | `$document` | every resource | the shared, by-reference `{ jsonapi, meta, links }` top-level envelope — identical identity for every resource from one response; its `meta` is typed when the server [declares it](reads.md#document-meta) |
     | `$raw` | every resource | the original JSON:API resource object |
-    | `$keySelection` | every resource | the keys the request's `fields` selected of each attribute it [narrowed to single keys](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute), empty when it narrowed none |
+    | `$keySelection` | every resource | the keys or nested paths the request's `fields` selected of each attribute it [narrowed to single keys](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute), empty when it narrowed none |
     | `$rel(name)` | the parent resource | `{ data?, links?, meta? }` for a relationship — the way to reach a **links-only** relation's envelope |
     | `$count(name)` | the parent resource | a relationship's `meta.total` when it's a finite number, else `undefined`; see [counting relationships](pagination.md#counting-relationships-with-withcount) |
     | `$edge` | every related value | the relationship-instance envelope for *this* membership (to-one: `{ links: { self, related }, meta }`; to-many member: meta such as `pivot`) |
