@@ -47,6 +47,22 @@ export function includeDescription(depth: number | null): string {
 export const FIELDS_DESCRIPTION =
   'Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields.'
 
+/**
+ * How a type's fields list selects single keys of the attributes that allow it, under the Field
+ * Selection profile, given each attribute's key pattern.
+ */
+function keyMemberDescription(selectable: Readonly<Record<string, string>>): string {
+  const attributes = Object.entries(selectable).map(([name, pattern]) =>
+    pattern === ANY_KEY ? `\`${name}\`` : `\`${name}\`, whose keys match \`${pattern}\``,
+  )
+  const last = attributes.pop()!
+  const named = attributes.length === 0 ? last : `${attributes.join('; ')}; and ${last}`
+  return `Besides whole fields, list \`<attribute>.<key>\` to return that attribute with only the named keys, for ${named}. A resource without a named key leaves it out. List the attribute itself to return all of it.`
+}
+
+/** The key pattern a server documents when any key may be selected. */
+const ANY_KEY = '[^,]+'
+
 /** The Countable profile's token for counting the collection itself. */
 export const SELF_COUNT = '_self_'
 
@@ -412,7 +428,12 @@ function queryInput(
   if (fieldTypes.length > 0) {
     const members: Record<string, JsonSchema> = {}
     for (const type of fieldTypes) {
-      members[type] = nullable({ type: 'array', items: { type: 'string' } })
+      const selectable = ctx.descriptor[type]?.selectableKeys
+      members[type] = nullable({
+        type: 'array',
+        items: { type: 'string' },
+        ...(selectable === undefined ? {} : { description: keyMemberDescription(selectable) }),
+      })
     }
     properties['fields'] = nullable(closedObject(members, FIELDS_DESCRIPTION))
     plan.fields = fieldTypes
