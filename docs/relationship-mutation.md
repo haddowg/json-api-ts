@@ -172,6 +172,26 @@ optimistic row render its real title before the settle refetch.
     input path — e.g. `orderedTracks[0].$pivot.position` — so `error.byPath()` groups it
     under the ref you actually sent. See [errors](errors.md) for the error model.
 
+## Meta on a relationship write
+
+A relationship write whose request document declares its top-level `meta` takes it as the
+`meta` option, typed and required when a member is. When the server declares that the write
+answers with a meta-only `200` instead of the linkage, the call resolves to that `meta`:
+
+```ts
+const result = await client.bookings
+  .id('bk-1')
+  .rooms.add([{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }], {
+    meta: { changedBy: 'desk' },
+  })
+result.moved // number
+```
+
+The descriptor records both per verb on the relation, as `requestMeta` and `mutationMeta`. A
+pivot object and a relation's identifier meta are typed closed unless the server opens them,
+and the identifier meta carries the relation's `pivot` beside its declared members on
+`$edge.meta`.
+
 ## See it in the example app
 
 - The tested reference: the `relationship mutations` group in

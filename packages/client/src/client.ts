@@ -42,6 +42,7 @@ import type {
 import {
   toDocument,
   toRelationshipDocument,
+  withTopLevelMeta,
   withRemappedPaths,
   withRemappedRelationshipPaths,
 } from './serialize-write'
@@ -316,6 +317,8 @@ interface WriteOpts {
   withCount?: readonly string[]
   relatedQuery?: ReadQuery['relatedQuery']
   wait?: boolean | PollOptions
+  /** The request document's top-level `meta`. */
+  meta?: Readonly<Record<string, unknown>>
 }
 
 /**
@@ -506,12 +509,20 @@ async function runAction(
     if (action.inputType !== undefined) {
       // Flat input: build the envelope like create, and remap 422 pointers to the flat paths.
       const inputType = action.inputType
-      req.body = toDocument(ctx.descriptor, inputType, (input ?? {}) as Record<string, unknown>)
+      req.body = withTopLevelMeta(
+        toDocument(ctx.descriptor, inputType, (input ?? {}) as Record<string, unknown>),
+        options.meta,
+      )
       remap = (error) => withRemappedPaths(error, ctx.descriptor, inputType)
     } else {
       // A bespoke command document (no resolvable input type): pass the caller's envelope through.
-      req.body = input
+      req.body =
+        typeof input === 'object' && input !== null ? withTopLevelMeta(input, options.meta) : input
     }
+  } else if (action.input === 'none' && options.meta !== undefined) {
+    // An action taking no document may still declare its request `meta`, sent meta-only.
+    req.body = { meta: options.meta }
+    req.contentType = JSON_API_MEDIA_TYPE
   } else if (action.input === 'raw') {
     req.body = encodeFields(action.contentType ?? '*/*', undefined, input)
     // Send the action's declared media type (e.g. application/octet-stream); fall back to a
@@ -785,15 +796,21 @@ function relationshipAccessor(
   const relation = ctx.descriptor[type]?.relations[rel]
   const cardinality = relation?.cardinality ?? 'many'
   const hasPivot = relation?.pivot === true
-  const mutate = (method: string, refs: unknown): Promise<unknown> =>
+  const mutate = (
+    verb: 'add' | 'remove' | 'replace' | 'set',
+    method: string,
+    refs: unknown,
+    opts: { meta?: Readonly<Record<string, unknown>> } | undefined,
+  ): Promise<unknown> =>
     runWrite(ctx, {
       type,
       operation: 'fetchRelationship',
       vars,
       method,
-      body: toRelationshipDocument(refs, cardinality),
+      body: withTopLevelMeta(toRelationshipDocument(refs, cardinality), opts?.meta),
       linkage: true,
       remap: (error) => withRemappedRelationshipPaths(error, rel, hasPivot),
+      metaOnly: relation?.mutationMeta?.[verb] !== undefined,
     })
 
   // Whether the relation advertises a mutation verb: the descriptor's `mutations` flags are
@@ -820,18 +837,21 @@ function relationshipAccessor(
     accessor['related'] = (query?: RelationReadQuery) =>
       run(ctx, type, 'fetchRelated', vars, query as ReadQuery | undefined, false, rel)
   }
+  type MutationOpts = { meta?: Readonly<Record<string, unknown>> } | undefined
   if (cardinality === 'many') {
     if (advertises('add')) {
-      accessor['add'] = (refs: unknown) => mutate('POST', refs)
+      accessor['add'] = (refs: unknown, opts?: MutationOpts) => mutate('add', 'POST', refs, opts)
     }
     if (advertises('remove')) {
-      accessor['remove'] = (refs: unknown) => mutate('DELETE', refs)
+      accessor['remove'] = (refs: unknown, opts?: MutationOpts) =>
+        mutate('remove', 'DELETE', refs, opts)
     }
     if (advertises('replace')) {
-      accessor['replace'] = (refs: unknown) => mutate('PATCH', refs)
+      accessor['replace'] = (refs: unknown, opts?: MutationOpts) =>
+        mutate('replace', 'PATCH', refs, opts)
     }
   } else if (advertises('set')) {
-    accessor['set'] = (ref: unknown) => mutate('PATCH', ref)
+    accessor['set'] = (ref: unknown, opts?: MutationOpts) => mutate('set', 'PATCH', ref, opts)
   }
 
   return accessor as unknown as RelationshipAccessor<ApiDescriptor, unknown, string, never>
@@ -871,7 +891,7 @@ function runUpdate(
     operation: 'update',
     vars,
     method: 'PATCH',
-    body: toDocument(ctx.descriptor, type, patch, { id }),
+    body: withTopLevelMeta(toDocument(ctx.descriptor, type, patch, { id }), opts?.meta),
     query: writeQuery(opts),
     remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
     accepted: ctx.descriptor[type]?.accepted?.update,
@@ -913,13 +933,14 @@ function resourceHandle(
     get: (query?: ReadQuery) => run(ctx, type, 'fetchOne', vars, query),
     update: (patch: Record<string, unknown>, opts?: WriteOpts) =>
       runUpdate(ctx, type, vars, id, patch, opts),
-    delete: () =>
+    delete: (opts?: { meta?: Readonly<Record<string, unknown>> }) =>
       runWrite(ctx, {
         type,
         operation: 'delete',
         vars,
         method: 'DELETE',
-        body: undefined,
+        // A delete declaring its request `meta` takes a meta-only document; any other, no body.
+        body: opts?.meta === undefined ? undefined : { meta: opts.meta },
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
         metaOnly: ctx.descriptor[type]?.documentMeta?.delete !== undefined,
       }) as never,
@@ -972,7 +993,7 @@ function typeAccessor(
         operation: 'create',
         vars: {},
         method: 'POST',
-        body: toDocument(ctx.descriptor, type, input),
+        body: withTopLevelMeta(toDocument(ctx.descriptor, type, input), opts?.meta),
         query: writeQuery(opts),
         remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
         accepted: ctx.descriptor[type]?.accepted?.create,

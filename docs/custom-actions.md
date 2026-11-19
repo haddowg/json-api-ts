@@ -82,6 +82,19 @@ if ('unchanged' in snapshot) {
 
 The descriptor marks such an action `metaResult: true`.
 
+## Meta on an action's request
+
+An action can declare the top-level `meta` its request document takes. It goes in the `meta`
+option, typed, and required when a member is. An action taking no document then sends a
+meta-only document when you pass `meta`, and no body when you don't:
+
+```ts
+await client.bookings.id('bk-1').actions.confirm({ meta: { silent: true } })
+await client.bookings.actions.quote({ title: 'Weekend' }, { meta: { currency: 'EUR' } })
+```
+
+An action mounted on several methods declares each method's request `meta` on its own method.
+
 ## Going deeper
 
 Most actions are one of the shapes above. The remaining modes and edge cases are below.
