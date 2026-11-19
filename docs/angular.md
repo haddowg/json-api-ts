@@ -98,7 +98,7 @@ export class Albums {
 }
 ```
 
-The result is Angular's `ResourceRef`: `value()`, `status()`, `isLoading()`, `error()`, `hasValue()`, `reload()`, `set()` and `destroy()`. `value()` carries the read's exact type, so with `strictTemplates` a template that reads `album.status` fails to compile, because the fieldset left it out. That type includes the [document meta](reads.md#document-meta) the server declares, on `$meta` for a collection and `$document.meta` for one resource.
+The result is Angular's `ResourceRef`: `value()`, `status()`, `isLoading()`, `error()`, `hasValue()`, `reload()`, `set()` and `destroy()`. `value()` carries the read's exact type, so with `strictTemplates` a template that reads `album.status` fails to compile, because the fieldset left it out. That type includes the [document meta](reads.md#document-meta) the server declares, on `$meta` for a collection and `$document.meta` for one resource. A `fields` entry that [selects single keys](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute) of an attribute, such as `credits.producer`, types that attribute with only those keys in the template too.
 
 A few behaviours come straight from `resource()`:
 
