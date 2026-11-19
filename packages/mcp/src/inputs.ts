@@ -55,22 +55,47 @@ function keyMemberDescription(
   selectable: Readonly<Record<string, string>>,
   paths: Readonly<Record<string, readonly (readonly string[])[]>> = {},
 ): string {
-  const attributes = Object.entries(selectable).map(([name, pattern]) => keyList(name, pattern))
-  const description = `Besides whole fields, list \`<attribute>.<key>\` to return that attribute with only the named keys, for ${joined(attributes)}. A resource without a named key leaves it out. List the attribute itself to return all of it.`
-  const nested = Object.entries(paths).flatMap(([name, list]) =>
-    list.map((path) => {
+  const objects = Object.entries(selectable).filter(([, pattern]) => pattern !== ITEMS)
+  const lists = Object.entries(selectable).filter(([, pattern]) => pattern === ITEMS)
+  const sentences: string[] = []
+  if (objects.length > 0) {
+    sentences.push(
+      `Besides whole fields, list \`<attribute>.<key>\` to return that attribute with only the named keys, for ${joined(objects.map(([name, pattern]) => keyList(name, pattern)))}. A resource without a named key leaves it out. List the attribute itself to return all of it.`,
+    )
+  }
+  if (lists.length > 0) {
+    const items = lists.flatMap(([name]) =>
+      (paths[name] ?? [])
+        .filter((path) => path.length === 2 && path[0] === ITEMS)
+        .map((path) => keyList(`${name}.*.<key>`, path[1]!)),
+    )
+    sentences.push(
+      `${objects.length > 0 ? 'A list' : 'Besides whole fields, a list'} returns every item, in order, with only the named keys when you list \`<attribute>.*.<key>\`, for ${joined(items)}. An item without a named key leaves it out. List the attribute itself to return all of it.`,
+    )
+  }
+  const deeper = Object.entries(paths).flatMap(([name, list]) =>
+    list
+      .filter(
+        (path) => path[path.length - 1] !== ITEMS && !(path.length === 2 && path[0] === ITEMS),
+      )
+      .map((path) => [name, path] as const),
+  )
+  if (deeper.length > 0) {
+    const nested = deeper.map(([name, path]) => {
       const keys = path.slice(0, -1).map((segment) => keyName(segment) ?? '<key>')
       return keyList(`${[name, ...keys].join('.')}.<key>`, path[path.length - 1]!)
-    }),
-  )
-  return nested.length === 0
-    ? description
-    : `${description} A key holding an object takes its own keys the same way, one more \`.<key>\` per level, for ${joined(nested)}; listing the key itself returns all of it.`
+    })
+    const throughLists = deeper.some(([, path]) => path.indexOf(ITEMS) > 0)
+    sentences.push(
+      `A key holding an object takes its own keys the same way, one more \`.<key>\` per level${throughLists ? ', and a key holding a list takes `.*` before the keys of its items' : ''}, for ${joined(nested)}; listing the key itself returns all of it.`,
+    )
+  }
+  return sentences.join(' ')
 }
 
 /** A selectable member as the description names it, with its key pattern unless any key goes. */
 function keyList(name: string, pattern: string): string {
-  return pattern === ANY_KEY ? `\`${name}\`` : `\`${name}\`, whose keys match \`${pattern}\``
+  return ANY_KEYS.has(pattern) ? `\`${name}\`` : `\`${name}\`, whose keys match \`${pattern}\``
 }
 
 /** Entries joined into one list, the last after `and`. */
@@ -79,8 +104,14 @@ function joined(entries: readonly string[]): string {
   return entries.length === 1 ? last : `${entries.slice(0, -1).join('; ')}; and ${last}`
 }
 
-/** The key pattern a server documents when any key up to the next full stop may be selected. */
-const ANY_KEY = '[^.,]+'
+/**
+ * The key patterns a server documents when any key up to the next full stop may be selected: the
+ * current one, which stops at a `*` too, and the one documents projected before lists took `*`.
+ */
+const ANY_KEYS = new Set(['[^.,*]+', '[^.,]+'])
+
+/** The key pattern of a list, whose one key `*` stands for every item. */
+const ITEMS = '\\*'
 
 /** The Countable profile's token for counting the collection itself. */
 export const SELF_COUNT = '_self_'

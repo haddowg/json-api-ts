@@ -325,7 +325,8 @@ function withoutRequiredKeys(schema: JsonSchema): JsonSchema {
 
 /**
  * `schema` with the object a key path leads to free of `required`: each key but the last steps
- * into the declared property it names or, for a key pattern, the schema of undeclared members.
+ * into the declared property it names or, for a key pattern, the schema of undeclared members,
+ * and a list's `\*` steps into its `items`.
  */
 function withoutRequiredAlong(schema: JsonSchema, path: readonly string[]): JsonSchema {
   if (path.length <= 1) {
@@ -333,6 +334,20 @@ function withoutRequiredAlong(schema: JsonSchema, path: readonly string[]): Json
   }
   const [segment, ...rest] = path as [string, ...string[]]
   const out: JsonSchema = { ...schema }
+  if (segment === ITEMS) {
+    for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
+      const branches = out[key]
+      if (Array.isArray(branches)) {
+        out[key] = branches.map((branch) =>
+          isObject(branch) ? withoutRequiredAlong(branch as JsonSchema, path) : branch,
+        )
+      }
+    }
+    if (isObject(out['items'])) {
+      out['items'] = withoutRequiredAlong(out['items'] as JsonSchema, rest)
+    }
+    return out
+  }
   for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
     const branches = out[key]
     if (Array.isArray(branches)) {
@@ -355,6 +370,9 @@ function withoutRequiredAlong(schema: JsonSchema, path: readonly string[]): Json
   }
   return out
 }
+
+/** The key pattern of a list, whose one key `*` stands for every item. */
+const ITEMS = '\\*'
 
 /**
  * The key a segment of a key path pattern names when it is a plain name the server escaped, such
