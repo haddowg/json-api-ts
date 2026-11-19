@@ -4,19 +4,19 @@ import type { OpenApiDocument } from '../src/openapi'
 type Json = Record<string, unknown>
 
 /**
- * Core's field selection, cut from the contract witness of core main after haddowg/json-api#383:
- * the `scores` and `totals` attributes of the articles, as each attributes component writes them,
- * and the `fields[articles]` parameter whose items accept single keys of both. It goes once the
- * pins move to core's published 2.22 witness.
+ * Core's field selection, cut from the contract witness of haddowg/json-api#394: the `scores`,
+ * `totals` and `location` attributes of the articles, as each attributes component writes them,
+ * and the `fields[articles]` parameter whose items accept single keys of all three and the keys of
+ * `location.geo`. It goes once the pins move to core's published 2.22 witness.
  */
 const FIELD_SELECTION = JSON.parse(
   readFileSync(new URL('./field-selection.json', import.meta.url), 'utf8'),
 ) as { attributes: Record<string, Json>; fields: Json }
 
 /**
- * A copy of a witness with the articles' `scores` object and `totals` map added after `metrics`, the
- * way core writes them, and every `fields[articles]` parameter replaced by the one accepting their
- * single keys, stamped with generator contract 42.
+ * A copy of a witness with the articles' `scores` object, `totals` map and `location` object added
+ * after `metrics`, the way core writes them, and every `fields[articles]` parameter replaced by the
+ * one accepting their single keys, stamped with generator contract 42.
  */
 export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
   const doc = structuredClone(original) as Json

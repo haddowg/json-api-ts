@@ -48,8 +48,9 @@ function typecheck(code: string): string[] {
 
 /**
  * A `fields[<type>]` parameter accepting single keys of an attribute has items that are an `anyOf`
- * of the member enum and one pattern per such attribute, `^<attribute>\.<key>$`. The codegen
- * records each attribute with its key pattern, and the client types `<attribute>.${string}`.
+ * of the member enum and one pattern per such attribute, `^<attribute>\.<key>$`, then one per path
+ * into a nested object, `^<attribute>\.<key>\.<key>$`. The codegen records each attribute with its
+ * key pattern and its nested paths, and the client types `<attribute>.${string}`.
  */
 describe('generator contract 42 (field selection)', () => {
   it('reads a document stamped 42 without a warning', () => {
@@ -61,9 +62,45 @@ describe('generator contract 42 (field selection)', () => {
     const articles = buildDescriptor(selecting)['articles']!
     expect(articles.selectableKeys).toEqual({
       scores: '(?:[a-z][a-z0-9_]*)',
-      totals: '[^,]+',
+      totals: '[^.,]+',
+      location: '(?:[a-z]+)',
     })
-    expect(articles.attributes).toMatchObject({ scores: 'object', totals: 'object' })
+    expect(articles.selectableKeyPaths).toEqual({ location: [['geo', '(?:lat|lng)']] })
+    expect(articles.attributes).toMatchObject({
+      scores: 'object',
+      totals: 'object',
+      location: 'object',
+    })
+  })
+
+  it('splits a nested path only at a full stop outside a group or class', () => {
+    const doc = structuredClone(selecting)
+    const items = doc.paths!['/articles/{id}']!.get!.parameters!.find(
+      (param) => param.name === 'fields[articles]',
+    )!.schema!.items!
+    ;(items as { anyOf: unknown[] }).anyOf.push(
+      { type: 'string', pattern: '^scores\\.(?:[a-z][a-z0-9_]*)\\.(?:a\\.b|[.])$' },
+      { type: 'string', pattern: '^location\\.geo\\.[^.,]+\\.[^.,]+$' },
+      { type: 'string', pattern: '^location\\.lat\\.long$' },
+    )
+    for (const item of Object.values(doc.paths!)) {
+      for (const op of Object.values(item)) {
+        for (const param of op?.parameters ?? []) {
+          if (param.name === 'fields[articles]') param.schema = { type: 'array', items }
+        }
+      }
+    }
+    const articles = buildDescriptor(doc)['articles']!
+    // The attribute's own key pattern is the one with no full stop, whichever comes first.
+    expect(articles.selectableKeys).toMatchObject({ location: '(?:[a-z]+)' })
+    expect(articles.selectableKeyPaths).toEqual({
+      scores: [['(?:[a-z][a-z0-9_]*)', '(?:a\\.b|[.])']],
+      location: [
+        ['geo', '(?:lat|lng)'],
+        ['geo', '[^.,]+', '[^.,]+'],
+        ['lat', 'long'],
+      ],
+    })
   })
 
   it('records none where every fields parameter lists only members', () => {
@@ -74,6 +111,7 @@ describe('generator contract 42 (field selection)', () => {
     ]) {
       for (const descriptor of Object.values(buildDescriptor(doc))) {
         expect(descriptor.selectableKeys).toBeUndefined()
+        expect(descriptor.selectableKeyPaths).toBeUndefined()
       }
     }
   })
@@ -86,11 +124,17 @@ describe('generator contract 42 (field selection)', () => {
         expect(after[type]).toEqual(descriptor)
       }
     }
-    const { selectableKeys, attributes, ...articles } = after['articles']!
+    const { selectableKeys, selectableKeyPaths, attributes, ...articles } = after['articles']!
     const { attributes: beforeAttributes, ...beforeArticles } = before['articles']!
     expect(articles).toEqual(beforeArticles)
-    expect(attributes).toEqual({ ...beforeAttributes, scores: 'object', totals: 'object' })
+    expect(attributes).toEqual({
+      ...beforeAttributes,
+      scores: 'object',
+      totals: 'object',
+      location: 'object',
+    })
     expect(selectableKeys).toBeDefined()
+    expect(selectableKeyPaths).toBeDefined()
   })
 
   it('reads a pattern only by the attribute it names', () => {
@@ -136,12 +180,25 @@ describe('generator contract 42 (field selection)', () => {
       '  const whole: Record<string, number | null> | null | undefined = listed[0]?.scores',
       '  // @ts-expect-error -- title takes no single keys.',
       "  await api.articles.list({ fields: { articles: ['title.first'] } })",
-      '  void [title, maths, views, selected, whole]',
+      "  const located = await api.articles.get('a-1', {",
+      "    fields: { articles: ['location.postcode', 'location.geo.lat'] },",
+      '  })',
+      '  const lat: number | null | undefined = located.location?.geo?.lat',
+      '  const postcode: string | null | undefined = located.location?.postcode',
+      '  // @ts-expect-error -- lng was not selected.',
+      '  void located.location?.geo?.lng',
+      "  const geo = await api.articles.get('a-1', {",
+      "    fields: { articles: ['location.geo', 'location.geo.lat'] },",
+      '  })',
+      '  const lng: number | null | undefined = geo.location?.geo?.lng',
+      '  // @ts-expect-error -- postcode was not selected.',
+      '  void geo.location?.postcode',
+      '  void [title, maths, views, selected, whole, lat, postcode, lng]',
       '}',
     ]
     const source = emit(selecting, buildDescriptor(selecting))
     expect(source).toContain(
-      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^,]+"\n    },',
+      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,]+",\n      location: "(?:[a-z]+)"\n    },',
     )
     expect(typecheck(`${source}\n${probes.join('\n')}\n`)).toEqual([])
   })

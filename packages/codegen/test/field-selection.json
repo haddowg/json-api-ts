@@ -19,6 +19,29 @@
         },
         "required": ["views", "shares"],
         "additionalProperties": false
+      },
+      "location": {
+        "type": ["object", "null"],
+        "properties": {
+          "postcode": {
+            "type": ["string", "null"]
+          },
+          "geo": {
+            "type": ["object", "null"],
+            "properties": {
+              "lat": {
+                "type": ["number", "null"]
+              },
+              "lng": {
+                "type": ["number", "null"]
+              }
+            },
+            "required": ["lat", "lng"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["postcode", "geo"],
+        "additionalProperties": false
       }
     },
     "ArticlesCreateAttributes": {
@@ -36,6 +59,27 @@
           },
           "shares": {
             "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "location": {
+        "type": "object",
+        "properties": {
+          "postcode": {
+            "type": "string"
+          },
+          "geo": {
+            "type": "object",
+            "properties": {
+              "lat": {
+                "type": "number"
+              },
+              "lng": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false
@@ -59,13 +103,34 @@
           }
         },
         "additionalProperties": false
+      },
+      "location": {
+        "type": "object",
+        "properties": {
+          "postcode": {
+            "type": "string"
+          },
+          "geo": {
+            "type": "object",
+            "properties": {
+              "lat": {
+                "type": "number"
+              },
+              "lng": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
   "fields": {
     "name": "fields[articles]",
     "in": "query",
-    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores` or `totals` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it.",
+    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals` or `location` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
     "schema": {
       "type": "array",
       "items": {
@@ -111,6 +176,7 @@
               "metrics",
               "scores",
               "totals",
+              "location",
               "value",
               "threshold",
               "level",
@@ -141,7 +207,15 @@
           },
           {
             "type": "string",
-            "pattern": "^totals\\.[^,]+$"
+            "pattern": "^totals\\.[^.,]+$"
+          },
+          {
+            "type": "string",
+            "pattern": "^location\\.(?:[a-z]+)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^location\\.geo\\.(?:lat|lng)$"
           }
         ]
       }

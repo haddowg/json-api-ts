@@ -143,9 +143,12 @@ A few things the codegen reads from the document that affect the generated clien
   See [sending meta with a write](writes.md#sending-meta-with-a-write).
 - **Single keys in `fields`.** A `fields[<type>]` parameter's items are the member enum,
   or an `anyOf` of that enum and one `pattern` per attribute whose single keys a fieldset
-  may select, `^<attribute>\.<key>$`. The codegen records each such attribute in the
-  type's `selectableKeys` with its key pattern, and the client then types `fields` for that
-  type as the member union plus `` `<attribute>.${string}` `` per attribute. See
+  may select, `^<attribute>\.<key>$`, then one per path into a nested object,
+  `^<attribute>\.<key>\.<key>$`. The codegen records each such attribute in the type's
+  `selectableKeys` with its key pattern, and each nested path in `selectableKeyPaths` as the
+  pattern of every key along it, splitting at each `\.` outside a group or class. The client
+  then types `fields` for that type as the member union plus `` `<attribute>.${string}` `` per
+  attribute. See
   [select single keys of an attribute](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute).
 - **Several methods.** Each method of a multi-method action gets its own action method,
   as described under [several methods](custom-actions.md#an-action-with-several-methods).
