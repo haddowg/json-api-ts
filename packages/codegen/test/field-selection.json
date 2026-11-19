@@ -1,0 +1,152 @@
+{
+  "attributes": {
+    "ArticlesAttributes": {
+      "scores": {
+        "type": ["object", "null"],
+        "additionalProperties": {
+          "type": ["integer", "null"]
+        }
+      },
+      "totals": {
+        "type": ["object", "null"],
+        "properties": {
+          "views": {
+            "type": ["integer", "null"]
+          },
+          "shares": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": ["views", "shares"],
+        "additionalProperties": false
+      }
+    },
+    "ArticlesCreateAttributes": {
+      "scores": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer"
+        }
+      },
+      "totals": {
+        "type": "object",
+        "properties": {
+          "views": {
+            "type": "integer"
+          },
+          "shares": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ArticlesUpdateAttributes": {
+      "scores": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer"
+        }
+      },
+      "totals": {
+        "type": "object",
+        "properties": {
+          "views": {
+            "type": "integer"
+          },
+          "shares": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "fields": {
+    "name": "fields[articles]",
+    "in": "query",
+    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores` or `totals` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it.",
+    "schema": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "title",
+              "slug",
+              "status",
+              "priority",
+              "wordCount",
+              "rating",
+              "featured",
+              "releasedOn",
+              "publishedAt",
+              "syncedAt",
+              "archivedAt",
+              "embargoLifts",
+              "editorEmail",
+              "canonicalUrl",
+              "excerpt",
+              "revision",
+              "reviewNote",
+              "originIp",
+              "keywords",
+              "priorities",
+              "analytics",
+              "address",
+              "block",
+              "shape",
+              "contact",
+              "createdAt",
+              "legacyRef",
+              "commentCount",
+              "authorName",
+              "score",
+              "sources",
+              "steps",
+              "subtitle",
+              "labels",
+              "rows",
+              "metrics",
+              "scores",
+              "totals",
+              "value",
+              "threshold",
+              "level",
+              "defaultValue",
+              "fallbackValue",
+              "reviewedBy",
+              "approvedBy",
+              "aliases",
+              "formerAliases",
+              "placement",
+              "author",
+              "tags",
+              "publisher",
+              "cover",
+              "locked",
+              "attachments",
+              "editor",
+              "sponsors",
+              "subject",
+              "gallery",
+              "formerAuthor",
+              "contributors"
+            ]
+          },
+          {
+            "type": "string",
+            "pattern": "^scores\\.(?:[a-z][a-z0-9_]*)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^totals\\.[^,]+$"
+          }
+        ]
+      }
+    },
+    "style": "form",
+    "explode": false
+  }
+}

@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 41. An older document is refused, because it describes its error codes in a form
+contracts 24 to 42. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -125,6 +125,12 @@ A few things the codegen reads from the document that affect the generated clien
   the nullable ones, as a pivot does, and each member's description becomes TSDoc on its
   entry. An action whose `200` is meta-only while another status answers with a resource is
   marked `metaResult`. See [document meta](reads.md#document-meta).
+- **Single keys in `fields`.** A `fields[<type>]` parameter's items are the member enum,
+  or an `anyOf` of that enum and one `pattern` per attribute whose single keys a fieldset
+  may select, `^<attribute>\.<key>$`. The codegen records each such attribute in the
+  type's `selectableKeys` with its key pattern, and the client then types `fields` for that
+  type as the member union plus `` `<attribute>.${string}` `` per attribute. See
+  [select single keys of an attribute](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute).
 - **Several methods.** Each method of a multi-method action gets its own action method,
   as described under [several methods](custom-actions.md#an-action-with-several-methods).
   An action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and

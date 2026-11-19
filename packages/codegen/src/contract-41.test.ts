@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { afterAll, describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
@@ -59,12 +59,9 @@ const COLLECTION_META = {
  * reads the shared document through it and records the declared members in the descriptor.
  */
 describe('generator contract 41 (typed document meta)', () => {
-  it('reads a document stamped 41 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(41)
+  it('reads a document stamped 41 without a warning', () => {
     expect(typed.info?.['x-generator']?.contract).toBe(41)
     expect(checkContract(typed)).toBeUndefined()
-    const newer = { ...typed, info: { ...typed.info!, 'x-generator': { contract: 42 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 41')
   })
 
   it('records the meta each operation declares, and none for the create', () => {
