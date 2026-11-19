@@ -263,9 +263,12 @@ export class DescriptorBuilder {
       if (included !== undefined) {
         descriptor.included = included
       }
-      const selectableKeys = this.selectableKeys(wireType)
-      if (selectableKeys !== undefined) {
-        descriptor.selectableKeys = selectableKeys
+      const selectable = this.selectableKeys(wireType)
+      if (selectable !== undefined) {
+        descriptor.selectableKeys = selectable.keys
+        if (selectable.paths !== undefined) {
+          descriptor.selectableKeyPaths = selectable.paths
+        }
       }
       const sortable = this.sortable(collection)
       if (sortable !== undefined) {
@@ -1899,10 +1902,11 @@ export class DescriptorBuilder {
 
   /**
    * The attributes of a type whose single keys a `fields[<type>]` parameter accepts, each with the
-   * pattern its key must match. Every operation rendering the type carries the same parameter, so
-   * the first that accepts any key answers. Returns `undefined` when none does.
+   * pattern its key must match, and the paths into nested objects it accepts. Every operation
+   * rendering the type carries the same parameter, so the first that accepts any key answers.
+   * Returns `undefined` when none does.
    */
-  private selectableKeys(wireType: string): Readonly<Record<string, string>> | undefined {
+  private selectableKeys(wireType: string): SelectableKeys | undefined {
     for (const item of Object.values(this.paths)) {
       for (const op of Object.values(item) as (OperationObject | undefined)[]) {
         const keys = selectableKeysOf(op, wireType)
@@ -2127,16 +2131,24 @@ function paramSchema(op: OperationObject | undefined, paramName: string): Schema
   return op?.parameters?.find((param) => param.name === paramName)?.schema
 }
 
+/** The keys and nested paths a type's `fields[<type>]` parameter accepts, by attribute. */
+interface SelectableKeys {
+  keys: Record<string, string>
+  paths?: Record<string, string[][]>
+}
+
 /**
  * The attributes whose single keys an operation's `fields[<type>]` parameter accepts. Its items are
  * either the member enum or an `anyOf` of that enum and one pattern per such attribute,
- * `^<attribute>\.<key>$`. A pattern names its attribute by the escaped name of an enum member,
- * and the key pattern is what follows the dot. Returns `undefined` when the items list no pattern.
+ * `^<attribute>\.<key>$`, then one per path into a nested object, `^<attribute>\.<key>\.<key>$`.
+ * A pattern names its attribute by the escaped name of an enum member, and what follows the dot
+ * splits into one pattern per key at each `\.` outside a group or class. Returns `undefined` when
+ * the items list no pattern.
  */
 function selectableKeysOf(
   op: OperationObject | undefined,
   wireType: string,
-): Readonly<Record<string, string>> | undefined {
+): SelectableKeys | undefined {
   const branches = paramSchema(op, `fields[${wireType}]`)?.items?.anyOf
   if (branches === undefined) {
     return undefined
@@ -2144,7 +2156,8 @@ function selectableKeysOf(
   const members = branches.flatMap((branch) =>
     Array.isArray(branch.enum) ? branch.enum.filter((v): v is string => typeof v === 'string') : [],
   )
-  const out: Record<string, string> = {}
+  const keys: Record<string, string> = {}
+  const paths: Record<string, string[][]> = {}
   for (const branch of branches) {
     const pattern = branch['pattern']
     if (typeof pattern !== 'string' || !pattern.endsWith('$')) {
@@ -2153,12 +2166,51 @@ function selectableKeysOf(
     for (const member of members) {
       const head = `^${escapePattern(member)}\\.`
       if (pattern.startsWith(head) && pattern.length > head.length + 1) {
-        out[member] = pattern.slice(head.length, -1)
+        const segments = keySegments(pattern.slice(head.length, -1))
+        if (segments.length === 1) {
+          keys[member] ??= segments[0]!
+        } else {
+          ;(paths[member] ??= []).push(segments)
+        }
         break
       }
     }
   }
-  return Object.keys(out).length > 0 ? out : undefined
+  if (Object.keys(keys).length === 0) {
+    return undefined
+  }
+  const nested = Object.fromEntries(
+    Object.entries(paths).filter(([attribute]) => keys[attribute] !== undefined),
+  )
+  return Object.keys(nested).length > 0 ? { keys, paths: nested } : { keys }
+}
+
+/** A key path pattern split at each `\.` that stands outside a group or a character class. */
+function keySegments(pattern: string): string[] {
+  const segments: string[] = []
+  let depth = 0
+  let inClass = false
+  let start = 0
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i]
+    if (char === '\\') {
+      if (pattern[i + 1] === '.' && depth === 0 && !inClass) {
+        segments.push(pattern.slice(start, i))
+        start = i + 2
+      }
+      i++
+    } else if (inClass) {
+      inClass = char !== ']'
+    } else if (char === '[') {
+      inClass = true
+    } else if (char === '(') {
+      depth++
+    } else if (char === ')') {
+      depth--
+    }
+  }
+  segments.push(pattern.slice(start))
+  return segments
 }
 
 /** A literal escaped for an ECMA-262 pattern, the way the server escapes an attribute name. */
