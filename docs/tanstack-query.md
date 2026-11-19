@@ -98,6 +98,16 @@ const create = useMutation(writes.albums.create())
 const remove = useMutation(writes.albums.id(id).delete())
 ```
 
+A write declaring its request `meta` takes it as the factory's `meta` option, required when a member is. Give it as an object, or as a function of the call's variables when each call sends its own, such as an idempotency key:
+
+```ts
+const book = useMutation(writes.bookings.create({ meta: () => ({ idempotencyKey: crypto.randomUUID() }) }))
+const cancel = useMutation(writes.bookings.id(id).delete({ meta: { cancellationReason: 'ill' } }))
+const add = useMutation(writes.bookings.id(id).rel('rooms').add({ meta: (refs) => ({ changedBy: `desk:${refs.length}` }) }))
+```
+
+The resource object's `meta` rides the create or update input as `$meta`.
+
 You never write cache upkeep by hand: the binding invalidates and patches for you (next section). See [writes.md](writes.md) for the create/update/delete surface, and [relationship-mutation.md](relationship-mutation.md) for `add`/`remove`/`replace`/`set`.
 
 ## Deterministic query keys

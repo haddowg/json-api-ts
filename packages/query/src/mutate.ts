@@ -30,15 +30,20 @@ import {
   type AtomicResults,
   type CreateInput,
   type CreateMethod,
+  type DeleteArgs,
   type DeleteResult,
   type DocumentMetaOperation,
   type FieldsMap,
   type IncludePath,
   isAccepted,
   type LinkageRef,
+  type MetaOption,
   type OperationMeta,
+  type OptionsArg,
   type ReadResult,
   type RelationName,
+  type RequestMetaOf,
+  type RequiresRequestMeta,
   type ResourceCountToken,
   type SingletonUpdateInput,
   type TypeName,
@@ -107,10 +112,43 @@ export interface MutationContext {
 
 /** The loose relationship mutations a handle offers at the `.rel(name)` boundary. */
 interface RelationWrites {
-  add(refs: readonly LinkageRef<string>[]): Promise<unknown>
-  remove(refs: readonly LinkageRef<string>[]): Promise<unknown>
-  replace(refs: readonly LinkageRef<string>[]): Promise<unknown>
-  set(ref: LinkageRef<string> | null): Promise<unknown>
+  add(refs: readonly LinkageRef<string>[], opts?: LooseMetaOpts): Promise<unknown>
+  remove(refs: readonly LinkageRef<string>[], opts?: LooseMetaOpts): Promise<unknown>
+  replace(refs: readonly LinkageRef<string>[], opts?: LooseMetaOpts): Promise<unknown>
+  set(ref: LinkageRef<string> | null, opts?: LooseMetaOpts): Promise<unknown>
+}
+
+/** The `meta` option a write sends, untyped. */
+interface LooseMetaOpts {
+  meta?: Readonly<Record<string, unknown>>
+}
+
+/**
+ * The request `meta` a mutation factory sends with each call: the object itself, or a function
+ * building it from the call's variables, so each call can send its own, such as an idempotency key.
+ */
+export type MutationMeta<M, V> = M | ((variables: V) => M)
+
+/**
+ * The `meta` option of a mutation factory whose write declares request `meta` `M`, as
+ * {@link MetaOption} types it for the client call, given as a {@link MutationMeta}.
+ */
+export type MutationMetaOption<M, V> =
+  MetaOption<M> extends { meta: infer Value }
+    ? { meta: MutationMeta<Value, V> }
+    : MetaOption<M> extends { meta?: infer Value }
+      ? { meta?: MutationMeta<NonNullable<Value>, V> }
+      : never
+
+/** The options a client write is called with: the factory's, with its `meta` built for `variables`. */
+function callOptions<O extends { meta?: unknown }>(
+  opts: O | undefined,
+  variables: unknown,
+): O | undefined {
+  if (typeof opts?.meta !== 'function') {
+    return opts
+  }
+  return { ...opts, meta: (opts.meta as (variables: unknown) => unknown)(variables) }
 }
 
 /** A collection type's write accessor. */
@@ -118,7 +156,7 @@ interface TypeWrites<D extends ApiDescriptor, A, W, T extends TypeName<D>> {
   create: CreateMethod<D, A, W, T>
   id(id: string): {
     update: UpdateMethod<D, A, W, T>
-    delete(): Promise<DeleteResult<D, T>>
+    delete(...opts: DeleteArgs<D, T>): Promise<DeleteResult<D, T>>
     rel(name: RelationName<D, T>): RelationWrites
   }
 }
@@ -235,7 +273,11 @@ export type WriteMutationOpts<
   Wt = undefined,
   Op extends 'create' | 'update' = 'create',
   Cnt extends readonly ResourceCountToken<D, T, Op>[] = readonly ResourceCountToken<D, T, Op>[],
-> = WriteOptions<D, T, Inc, F, Op, Cnt> & { wait?: Wt }
+  V = unknown,
+> = WriteOptions<D, T, Inc, F, Op, Cnt> & { wait?: Wt } & MutationMetaOption<
+    RequestMetaOf<D, T, Op>,
+    V
+  >
 
 /**
  * The create mutation (`POST /{type}`): `mutationFn` runs `client.<type>.create(input, opts)`;
@@ -262,7 +304,10 @@ export function createMutationOptions<
   client: WriteClient<D, A, W>,
   descriptor: D,
   type: T,
-  opts?: WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt>,
+  ...[opts]: OptionsArg<
+    RequiresRequestMeta<RequestMetaOf<D, T, 'create'>>,
+    WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt, CreateInput<D, W, T>>
+  >
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
   CreateInput<D, W, T>
@@ -270,7 +315,7 @@ export function createMutationOptions<
   const accessor = writesOf(client, type)
   return {
     mutationFn: (input) =>
-      (accessor.create as LooseWrite)(input, opts) as Promise<
+      (accessor.create as LooseWrite)(input, callOptions(opts, input)) as Promise<
         WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>
       >,
     onSuccess: (data) => {
@@ -311,7 +356,10 @@ export function updateMutationOptions<
   descriptor: D,
   type: T,
   id: ResourceId<D, T>,
-  opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
+  ...[opts]: OptionsArg<
+    RequiresRequestMeta<RequestMetaOf<D, T, 'update'>>,
+    UpdateMutationOpts<D, T, Inc, F, Wt, Cnt, UpdateVariables<D, W, T>>
+  >
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
   UpdateVariables<D, W, T>,
@@ -328,7 +376,7 @@ export function updateMutationOptions<
     mutationFn: (patch) =>
       ((resource === undefined ? accessor.update : accessor.id(resource).update) as LooseWrite)(
         patch,
-        opts,
+        callOptions(opts, patch),
       ) as Promise<
         WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>
       >,
@@ -367,19 +415,35 @@ export function updateMutationOptions<
 }
 
 /**
+ * The options of a delete mutation whose request document declares its `meta`: that `meta`,
+ * required when a member is. A delete declaring none takes none.
+ */
+export type DeleteMutationArgs<D extends ApiDescriptor, T extends TypeName<D>> = [
+  RequestMetaOf<D, T, 'delete'>,
+] extends [never]
+  ? []
+  : OptionsArg<
+      RequiresRequestMeta<RequestMetaOf<D, T, 'delete'>>,
+      MutationMetaOption<RequestMetaOf<D, T, 'delete'>, void>
+    >
+
+/**
  * The delete mutation (`DELETE /{type}/{id}`): `mutationFn` runs `client.<type>.id(id).delete()`
- * (resolves the `meta` of the meta-only `200` the delete declares, else `void`). On settle the type's list subtree AND that resource's reads are invalidated
- * (a delete changes collection membership and orphans the resource's `get`).
+ * (resolves the `meta` of the meta-only `200` the delete declares, else `void`), with the request
+ * `meta` a delete declaring it takes. On settle the type's list subtree AND that resource's reads
+ * are invalidated (a delete changes collection membership and orphans the resource's `get`).
  */
 export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   type: T,
   id: string,
+  ...[opts]: DeleteMutationArgs<D, T>
 ): MutationOptions<DeleteResult<D, T>, void> {
   const accessor = writesOf(client, type)
+  const remove = accessor.id(id).delete as (opts?: unknown) => Promise<DeleteResult<D, T>>
   return {
-    mutationFn: () => accessor.id(id).delete(),
+    mutationFn: () => remove(callOptions(opts as { meta?: unknown } | undefined, undefined)),
     onSettled: async () => {
       await invalidateLists(queryClient, type)
       await invalidateResource(queryClient, type, id)
@@ -390,7 +454,7 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
 // ── Relationship mutations ──────────────────────────────────────────────────────────────────
 
 /** Options for a relationship mutation: opt into an optimistic membership/linkage patch (default off). */
-export interface RelationshipMutationOpts {
+export interface RelationshipMutationOpts<V = never> {
   /**
    * Apply the membership change to the parent's cached related/relationship reads immediately
    * (by key prefix — every page variant), snapshotting for automatic rollback on error. The factory
@@ -399,10 +463,15 @@ export interface RelationshipMutationOpts {
    * `$pivot` on the ref) — the settle refetch replaces them with the fully-hydrated resources.
    */
   optimistic?: boolean
+  /**
+   * The top-level `meta` the write sends, for a relation whose write declares it: the object, or a
+   * function building it from the call's refs.
+   */
+  meta?: MutationMeta<Readonly<Record<string, unknown>>, V>
 }
 
 /** True when `opts` requests the optimistic membership patch. */
-const isOptimistic = (opts?: RelationshipMutationOpts): boolean => opts?.optimistic === true
+const isOptimistic = <V>(opts?: RelationshipMutationOpts<V>): boolean => opts?.optimistic === true
 
 /**
  * Coerce a linkage ref (`{type,id}` / `{type,lid}` / a resource view, optionally `$pivot`) to a
@@ -475,10 +544,11 @@ export function setRelationshipMutationOptions<
   type: T,
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
-  opts?: RelationshipMutationOpts,
+  opts?: RelationshipMutationOpts<LinkageRef<string> | null>,
 ): MutationOptions<unknown, LinkageRef<string> | null, MutationContext> {
   const base: MutationOptions<unknown, LinkageRef<string> | null, MutationContext> = {
-    mutationFn: (ref) => relationWrites(client, type, id, rel).set(ref),
+    mutationFn: (ref) =>
+      relationWrites(client, type, id, rel).set(ref, callOptions(opts, ref) as LooseMetaOpts),
     onSuccess: (data) => {
       normalize(queryClient, data, descriptor)
     },
@@ -520,10 +590,11 @@ export function replaceRelationshipMutationOptions<
   type: T,
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
-  opts?: RelationshipMutationOpts,
+  opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
 ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
   const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) => relationWrites(client, type, id, rel).replace(refs),
+    mutationFn: (refs) =>
+      relationWrites(client, type, id, rel).replace(refs, callOptions(opts, refs) as LooseMetaOpts),
     onSuccess: (data) => {
       normalize(queryClient, data, descriptor)
     },
@@ -559,10 +630,11 @@ export function addRelationshipMutationOptions<
   type: T,
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
-  opts?: RelationshipMutationOpts,
+  opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
 ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
   const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) => relationWrites(client, type, id, rel).add(refs),
+    mutationFn: (refs) =>
+      relationWrites(client, type, id, rel).add(refs, callOptions(opts, refs) as LooseMetaOpts),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
   return withMembershipOptimism(
@@ -598,10 +670,11 @@ export function removeRelationshipMutationOptions<
   type: T,
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
-  opts?: RelationshipMutationOpts,
+  opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
 ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
   const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) => relationWrites(client, type, id, rel).remove(refs),
+    mutationFn: (refs) =>
+      relationWrites(client, type, id, rel).remove(refs, callOptions(opts, refs) as LooseMetaOpts),
     onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
   }
   return withMembershipOptimism(
@@ -693,7 +766,8 @@ export type UpdateMutationOpts<
     T,
     'update'
   >[],
-> = WriteMutationOpts<D, T, Inc, F, Wt, 'update', Cnt> & { optimistic?: boolean }
+  V = unknown,
+> = WriteMutationOpts<D, T, Inc, F, Wt, 'update', Cnt, V> & { optimistic?: boolean }
 
 /**
  * The relationship-mutation option factories for one relation (`api.<type>.id(id).rel(rel).add(...)`).
@@ -704,16 +778,16 @@ export type UpdateMutationOpts<
  */
 export interface RelationMutationApi {
   add(
-    opts?: RelationshipMutationOpts,
+    opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
   ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
   remove(
-    opts?: RelationshipMutationOpts,
+    opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
   ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
   replace(
-    opts?: RelationshipMutationOpts,
+    opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
   ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
   set(
-    opts?: RelationshipMutationOpts,
+    opts?: RelationshipMutationOpts<LinkageRef<string> | null>,
   ): MutationOptions<unknown, LinkageRef<string> | null, MutationContext>
 }
 
@@ -725,13 +799,16 @@ export interface HandleMutationApi<D extends ApiDescriptor, A, W, T extends Type
     const Wt extends WaitValue<D, T, 'update'> = undefined,
     const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
   >(
-    opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
+    ...opts: OptionsArg<
+      RequiresRequestMeta<RequestMetaOf<D, T, 'update'>>,
+      UpdateMutationOpts<D, T, Inc, F, Wt, Cnt, UpdateInput<D, W, T>>
+    >
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     UpdateInput<D, W, T>,
     MutationContext
   >
-  delete(): MutationOptions<DeleteResult<D, T>, void>
+  delete(...opts: DeleteMutationArgs<D, T>): MutationOptions<DeleteResult<D, T>, void>
   rel(name: RelationName<D, T>): RelationMutationApi
 }
 
@@ -743,7 +820,10 @@ export interface TypeMutationApi<D extends ApiDescriptor, A, W, T extends TypeNa
     const Wt extends WaitValue<D, T, 'create'> = undefined,
     const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
   >(
-    opts?: WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt>,
+    ...opts: OptionsArg<
+      RequiresRequestMeta<RequestMetaOf<D, T, 'create'>>,
+      WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt, CreateInput<D, W, T>>
+    >
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
     CreateInput<D, W, T>
@@ -762,7 +842,10 @@ export interface SingletonMutationApi<D extends ApiDescriptor, A, W, T extends T
     const Wt extends WaitValue<D, T, 'update'> = undefined,
     const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
   >(
-    opts?: UpdateMutationOpts<D, T, Inc, F, Wt, Cnt>,
+    ...opts: OptionsArg<
+      RequiresRequestMeta<RequestMetaOf<D, T, 'update'>>,
+      UpdateMutationOpts<D, T, Inc, F, Wt, Cnt, SingletonUpdateInput<D, W, T>>
+    >
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     SingletonUpdateInput<D, W, T>,
@@ -824,14 +907,28 @@ function typeMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
   type: T,
 ): TypeMutationApi<D, A, W, T> {
   return {
-    create: (opts) => createMutationOptions(queryClient, client, descriptor, type, opts),
+    create: (...opts) =>
+      (createMutationOptions as (...args: unknown[]) => never)(
+        queryClient,
+        client,
+        descriptor,
+        type,
+        ...opts,
+      ),
     id: (resource) => {
       // A collection type's id is a string, which the deferred `ResourceId` can't see here.
       const id = resource as ResourceId<D, T>
       return {
-        update: (opts) =>
-          updateMutationOptions(queryClient, client, descriptor, type, id, opts) as never,
-        delete: () => deleteMutationOptions(queryClient, client, type, resource),
+        update: (...opts) =>
+          (updateMutationOptions as (...args: unknown[]) => never)(
+            queryClient,
+            client,
+            descriptor,
+            type,
+            id,
+            ...opts,
+          ),
+        delete: (...opts) => deleteMutationOptions(queryClient, client, type, resource, ...opts),
         rel: (name) => ({
           add: (opts) => addRelationshipMutationOptions(queryClient, client, type, id, name, opts),
           remove: (opts) =>
@@ -863,8 +960,15 @@ function singletonMutationApi<D extends ApiDescriptor, A, W, T extends TypeName<
 ): SingletonMutationApi<D, A, W, T> {
   const id = undefined as ResourceId<D, T>
   return {
-    update: (opts) =>
-      updateMutationOptions(queryClient, client, descriptor, type, id, opts) as never,
+    update: (...opts) =>
+      (updateMutationOptions as (...args: unknown[]) => never)(
+        queryClient,
+        client,
+        descriptor,
+        type,
+        id,
+        ...opts,
+      ),
     rel: (name) => ({
       add: (opts) => addRelationshipMutationOptions(queryClient, client, type, id, name, opts),
       remove: (opts) =>
