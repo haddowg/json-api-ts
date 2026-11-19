@@ -2,7 +2,8 @@
  * The keys a sparse fieldset selected of each attribute it narrowed, under the Field Selection
  * profile (https://haddowg.github.io/json-api/profiles/field-selection/): attribute name -> the
  * paths `fields[type]=<attribute>.<path>` named, in request order, each once. A path into a nested
- * object, such as `geo.lat`, names one key per level. An attribute the fieldset also lists whole
+ * object, such as `geo.lat`, names one key per level, and a path through a list names its items
+ * `*`, such as `*.sku`. An attribute the fieldset also lists whole
  * is left out, and so is a path whose key the fieldset also lists whole, since the server renders
  * those whole. Empty when nothing was narrowed.
  */

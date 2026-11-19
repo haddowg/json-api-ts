@@ -93,7 +93,7 @@ A server can also let a member name a key of an object inside the attribute, one
 narrowed the same way, and the path selects nothing else of the objects it passes through, so
 `location.geo.lat` types and returns `location` holding only `geo`, and `geo` holding only an
 optional `lat`. A key you also list whole, such as `location.geo` beside `location.geo.lat`, comes
-back whole, and its type stays whole. A list inside an attribute is always selected whole.
+back whole, and its type stays whole.
 
 ```ts
 // GET /articles/a-1?fields[articles]=location.postcode,location.geo.lat
@@ -103,6 +103,22 @@ const article = await client.articles.get('a-1', {
 
 article.location // { postcode?: string; geo?: { lat?: number } } | null
 article.$keySelection // { location: ['postcode', 'geo.lat'] }
+```
+
+A list whose items take keys has `*` where a key goes, and `<attribute>.*.<key>` selects that key
+of every item. The list keeps its length and order, each item typed and returned with only the
+selected keys, each optional, and a path keeps going through nested objects and lists the same way.
+Listing the list, or its items as `<attribute>.*`, beside a path into it brings the list back whole.
+There is no index: a server refuses `lines.0`.
+
+```ts
+// GET /articles/a-1?fields[articles]=lines.*.sku,lines.*.price.amount
+const order = await client.articles.get('a-1', {
+  fields: { articles: ['lines.*.sku', 'lines.*.price.amount'] },
+})
+
+order.lines // { sku?: string; price?: { amount?: number } }[] | null
+order.$keySelection // { lines: ['*.sku', '*.price.amount'] }
 ```
 
 Each resource's `$keySelection` holds the paths the request selected of each attribute it

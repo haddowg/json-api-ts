@@ -8,17 +8,30 @@ import type { TransportRequest, TransportResponse } from './transport'
 const BASE = 'https://api.example'
 const FIELD_SELECTION = 'https://haddowg.github.io/json-api/profiles/field-selection/'
 
-// Products whose `values` (an open object) and `totals` (a closed one) take single keys.
+// Products whose `values` (an open object) and `totals` (a closed one) take single keys, and whose
+// `lines` take keys of every item through `*`.
 const descriptor = {
   products: {
-    attributes: { name: 'string', values: 'object', totals: 'object', notes: 'object' },
+    attributes: {
+      name: 'string',
+      values: 'object',
+      totals: 'object',
+      notes: 'object',
+      lines: 'array',
+    },
     relations: {
       maker: { cardinality: 'one', types: ['makers'], pivot: false, mutations: { set: true } },
     },
     paths: { fetchMany: '/products', fetchOne: '/products/{id}', update: '/products/{id}' },
     paginator: 'page',
     clientId: 'forbidden',
-    selectableKeys: { values: '[a-z]+', totals: '[^,]+' },
+    selectableKeys: { values: '[a-z]+', totals: '[^,]+', lines: '\\*' },
+    selectableKeyPaths: {
+      lines: [
+        ['\\*', '(?:sku|qty|price)'],
+        ['\\*', 'price', '(?:amount|currency)'],
+      ],
+    },
   },
   makers: {
     attributes: { name: 'string' },
@@ -35,6 +48,7 @@ interface Attributes {
     values: Record<string, number | null> | null
     totals: { views: number; shares: number; geo: { lat: number; lng: number } | null }
     notes: { text: string }
+    lines: { sku: string; qty: number; price: { amount: number; currency: string } | null }[] | null
   }
   makers: { name: string }
 }
@@ -88,6 +102,17 @@ describe('keySelection', () => {
       totals: ['geo', 'geodata.lat'],
     })
     expect(keySelection(['totals.geo.', 'totals..lat'])).toEqual({})
+  })
+
+  it('reads a path through every item of a list, with the items listed whole winning', () => {
+    expect(keySelection(['lines.*.sku', 'lines.*.price.amount'])).toEqual({
+      lines: ['*.sku', '*.price.amount'],
+    })
+    expect(keySelection(['lines.*.sku', 'lines.*'])).toEqual({ lines: ['*'] })
+    expect(keySelection(['lines', 'lines.*.sku'])).toEqual({})
+    expect(keySelection(['lines.*.price', 'lines.*.price.amount'])).toEqual({
+      lines: ['*.price'],
+    })
   })
 
   it('leaves out an attribute listed whole, and members with no key or no attribute', () => {
@@ -151,7 +176,7 @@ describe('selecting single keys through fields', () => {
 
   it('types key members for the attributes that declare them', () => {
     expectTypeOf<KeyMember<typeof descriptor, 'products'>>().toEqualTypeOf<
-      `values.${string}` | `totals.${string}`
+      `values.${string}` | `totals.${string}` | `lines.${string}`
     >()
     expectTypeOf<KeyMember<typeof descriptor, 'makers'>>().toBeNever()
     expectTypeOf<'values.cap'>().toExtend<MemberName<typeof descriptor, 'products'>>()
@@ -202,6 +227,35 @@ describe('selecting single keys through fields', () => {
       fields: { products: ['totals.geo.lat', 'totals.geo'] },
     })
     expectTypeOf(geo.totals).toEqualTypeOf<{ geo?: { lat: number; lng: number } | null }>()
+  })
+
+  it('types a path through a list as every item narrowed in turn', async () => {
+    const { client } = recorder()
+    const product = await client.products.get('p-1', {
+      fields: { products: ['lines.*.sku', 'lines.*.price.amount'] },
+    })
+    expectTypeOf(product.lines).toEqualTypeOf<
+      { sku?: string; price?: { amount?: number } | null }[] | null
+    >()
+
+    // The items listed whole, or the list itself, stay whole.
+    const items = await client.products.get('p-1', {
+      fields: { products: ['lines.*', 'lines.*.sku'] },
+    })
+    expectTypeOf(items.lines).toEqualTypeOf<Attributes['products']['lines']>()
+    const list = await client.products.get('p-1', {
+      fields: { products: ['lines', 'lines.*.sku'] },
+    })
+    expectTypeOf(list.lines).toEqualTypeOf<Attributes['products']['lines']>()
+  })
+
+  it('reads the paths of a selection through a list', async () => {
+    const { client } = recorder({
+      data: { type: 'products', id: 'p-1', attributes: { lines: [{ sku: 'A1' }, {}] } },
+    })
+    const product = await client.products.get('p-1', { fields: { products: ['lines.*.sku'] } })
+    expect(product.$keySelection).toEqual({ lines: ['*.sku'] })
+    expect(product.lines).toEqual([{ sku: 'A1' }, {}])
   })
 
   it('reads the paths of a nested selection', async () => {

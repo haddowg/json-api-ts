@@ -126,8 +126,9 @@ _Avoid_: nested filter, include filter
 **Key member**:
 A `fields` member `<attribute>.<key>` selecting one key of an object attribute the descriptor lists
 in `selectableKeys`, under the Field Selection profile, or `<attribute>.<key>.<key>` selecting one
-key of a nested object along a path in `selectableKeyPaths`. The resource's `$keySelection` holds
-the paths a read selected of each attribute it narrowed.
+key of a nested object along a path in `selectableKeyPaths`, or `<attribute>.*.<key>` selecting a
+key of every item of a list, whose key in `selectableKeys` is `\*`. The resource's
+`$keySelection` holds the paths a read selected of each attribute it narrowed.
 _Avoid_: dotted field, nested field, sub-field
 
 ### Writing
