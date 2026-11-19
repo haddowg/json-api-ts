@@ -10,7 +10,7 @@ export const BASE = 'https://music.example'
 
 const descriptor = {
   albums: {
-    attributes: { title: 'string', steps: 'array' },
+    attributes: { title: 'string', steps: 'array', credits: 'object' },
     relations: { artist: { cardinality: 'one', types: ['artists'], pivot: false } },
     paths: {
       create: '/albums',
@@ -22,6 +22,7 @@ const descriptor = {
     paginator: 'page',
     clientId: 'forbidden',
     includable: ['artist'],
+    selectableKeys: { credits: '[a-z][a-z_]*' },
     sortable: ['title', '-title'],
     sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['title'],
@@ -50,7 +51,7 @@ const descriptor = {
 export type Step = { op: 'trim' } | { op: 'replace'; find: string; with?: string }
 
 interface Attributes {
-  albums: { title: string; steps: Step[] | null }
+  albums: { title: string; steps: Step[] | null; credits: Record<string, string> | null }
   artists: { name: string }
   inboxes: { unread: number; seenUpTo: string | null }
 }
