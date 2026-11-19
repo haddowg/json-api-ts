@@ -549,16 +549,18 @@ export interface ResourceDescriptor {
   /**
    * The attributes whose single keys a sparse fieldset may select, under the Field Selection
    * profile: attribute name -> the pattern a key must match (a regular expression source,
-   * unanchored and without delimiters). Each adds `<attribute>.${string}` to the members `fields`
-   * takes for this type. Absent when no attribute declares selectable keys.
+   * unanchored and without delimiters), `\*` for a list whose items take keys. Each adds
+   * `<attribute>.${string}` to the members `fields` takes for this type. Absent when no attribute
+   * declares selectable keys.
    */
   selectableKeys?: Readonly<Record<string, string>>
   /**
    * The paths into nested objects a sparse fieldset may select of the attributes in
    * {@link selectableKeys}: attribute name -> one entry per path, each the pattern of every key
-   * along it after the attribute's own, such as `['geo', '(?:lat|lng)']` for `location.geo.lat`.
+   * along it after the attribute's own, such as `['geo', '(?:lat|lng)']` for `location.geo.lat`,
+   * or `['\\*', '(?:sku|qty)']` for `lines.*.sku`, where `\*` stands for every item of a list.
    * A key that is a plain name is escaped the way the server escapes it. Absent when no selectable
-   * key holds an object whose own keys may be selected.
+   * key holds an object or a list whose own keys may be selected.
    */
   selectableKeyPaths?: Readonly<Record<string, readonly (readonly string[])[]>>
   /**
