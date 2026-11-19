@@ -198,9 +198,11 @@ function patchNode(
 /**
  * Merge an attribute a read narrowed to some of its keys into the cached value: the keys it carries
  * replace the cached ones and every other cached key stays. A key the read narrowed in turn, by a
- * path such as `geo.lat`, merges into the cached object the same way. A cached value that isn't an
- * object, or a node that doesn't hold the attribute, is left alone, since part of a value can't
- * stand for all of it. A `null` fresh value is the whole value and replaces it.
+ * path such as `geo.lat`, merges into the cached object the same way, and a list it narrowed item
+ * by item, by a path such as `*.sku`, merges each item into the cached item at the same index. A
+ * cached value that isn't an object, a cached list of another length, or a node that doesn't hold
+ * the attribute, is left alone, since part of a value can't stand for all of it. A `null` fresh
+ * value is the whole value and replaces it.
  */
 function mergeKeys(
   target: Record<string, unknown>,
@@ -216,10 +218,7 @@ function mergeKeys(
     return true
   }
   const cached = target[k]
-  if (!isObject(cached) || !isObject(v)) {
-    return false
-  }
-  const merged = mergedValue(cached, v, paths)
+  const merged = mergedSelection(cached, v, paths)
   if (merged === cached) {
     return false
   }
@@ -227,10 +226,49 @@ function mergeKeys(
   return true
 }
 
+/** The paths below `key` among `paths`: `lat` for `geo.lat` under `geo`. */
+const pathsBelow = (paths: readonly string[], key: string): string[] =>
+  paths.flatMap((path) => (path.startsWith(`${key}.`) ? [path.slice(key.length + 1)] : []))
+
+/**
+ * `cached` with what `fresh` carries of the `paths` merged in, or `cached` itself when nothing
+ * changes or the two can't be merged. A list the paths select whole, as `*`, replaces the cached
+ * one. A list they narrow item by item merges each fresh item into the cached item at its index,
+ * and only when both lists have the same length: a list of another length has gained or lost
+ * items since it was cached, so no index pairs one item with its fresh part.
+ */
+function mergedSelection(cached: unknown, fresh: unknown, paths: readonly string[]): unknown {
+  if (Array.isArray(fresh)) {
+    if (paths.includes('*')) {
+      return fresh
+    }
+    if (!Array.isArray(cached) || cached.length !== fresh.length) {
+      return cached
+    }
+    const inner = pathsBelow(paths, '*')
+    let out: unknown[] = cached
+    fresh.forEach((item, index) => {
+      const next = item === null ? null : mergedSelection(cached[index], item, inner)
+      if (next === cached[index]) {
+        return
+      }
+      if (out === cached) {
+        out = [...cached]
+      }
+      out[index] = next
+    })
+    return out
+  }
+  if (!isObject(cached) || !isObject(fresh)) {
+    return cached
+  }
+  return mergedValue(cached, fresh, paths)
+}
+
 /**
  * `cached` with the keys of `fresh` the `paths` select merged in, or `cached` itself when nothing
  * changes. A key a path selects whole replaces the cached one, and a key it narrows merges into a
- * cached object, keeping the cached keys the path didn't select.
+ * cached object or list, keeping what the path didn't select.
  */
 function mergedValue(
   cached: Record<string, unknown>,
@@ -239,18 +277,14 @@ function mergedValue(
 ): Record<string, unknown> {
   let out = cached
   for (const [key, value] of Object.entries(fresh)) {
-    const inner = paths.flatMap((path) =>
-      path.startsWith(`${key}.`) ? [path.slice(key.length + 1)] : [],
-    )
+    const inner = pathsBelow(paths, key)
     let next = value
     if (inner.length > 0 && !paths.includes(key) && value !== null) {
-      const held = cached[key]
-      if (!isObject(held) || !isObject(value)) {
+      next = mergedSelection(cached[key], value, inner)
+      if (next === cached[key]) {
         continue
       }
-      next = mergedValue(held, value, inner)
-    }
-    if (key in cached && cached[key] === next) {
+    } else if (key in cached && cached[key] === next) {
       continue
     }
     if (out === cached) {
