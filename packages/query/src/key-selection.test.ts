@@ -14,13 +14,16 @@ const BASE = 'https://shop.example'
 // Products whose `values` object takes single keys through `fields`.
 const descriptor = {
   products: {
-    attributes: { name: 'string', values: 'object', place: 'object' },
+    attributes: { name: 'string', values: 'object', place: 'object', lines: 'array' },
     relations: {},
     paths: { fetchMany: '/products', fetchOne: '/products/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
-    selectableKeys: { values: '[^.,]+', place: '(?:postcode|geo)' },
-    selectableKeyPaths: { place: [['geo', '(?:lat|lng)']] },
+    selectableKeys: { values: '[^.,]+', place: '(?:postcode|geo)', lines: '\\*' },
+    selectableKeyPaths: {
+      place: [['geo', '(?:lat|lng)']],
+      lines: [['\\*', '(?:sku|qty)']],
+    },
   },
 } as const satisfies ApiDescriptor
 
@@ -29,12 +32,15 @@ interface Attributes {
     name: string
     values: Record<string, number> | null
     place: { postcode: string; geo: { lat: number; lng: number } | null } | null
+    lines: { sku: string; qty: number }[] | null
   }
 }
 
 type Place = Attributes['products']['place']
 
 const placed = (place: unknown) => ({ type: 'products', id: 'p-1', attributes: { place } })
+
+const lined = (lines: unknown) => ({ type: 'products', id: 'p-1', attributes: { lines } })
 
 const product = (values: Record<string, number> | null, name = 'Widget') => ({
   type: 'products',
@@ -145,5 +151,44 @@ describe('a read narrowed to single keys', () => {
       }),
     )
     expect(whole.place).toEqual({ postcode: 'E2', geo: null })
+  })
+
+  it('merges a path through a list into each cached item at the same index', async () => {
+    const { client, queryClient } = setup(
+      {
+        data: lined([
+          { sku: 'A', qty: 1 },
+          { sku: 'B', qty: 2 },
+        ]),
+      },
+      { data: [lined([{ qty: 5 }, { qty: 6 }])] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    const list = await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['lines.*.qty'] } }),
+    )
+    expectTypeOf(list[0]!.lines).toEqualTypeOf<{ qty?: number }[] | null>()
+    expect(whole.lines).toEqual([
+      { sku: 'A', qty: 5 },
+      { sku: 'B', qty: 6 },
+    ])
+  })
+
+  it('leaves a cached list of another length alone, and replaces one a read takes whole', async () => {
+    const { client, queryClient } = setup(
+      { data: lined([{ sku: 'A', qty: 1 }]) },
+      { data: [lined([{ qty: 5 }, { qty: 6 }])] },
+      { data: [lined([{ sku: 'C', qty: 3 }])] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['lines.*.qty'] } }),
+    )
+    // No index pairs a cached item with its fresh part once the list has grown.
+    expect(whole.lines).toEqual([{ sku: 'A', qty: 1 }])
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['lines.*', 'lines.*.qty'] } }),
+    )
+    expect(whole.lines).toEqual([{ sku: 'C', qty: 3 }])
   })
 })
