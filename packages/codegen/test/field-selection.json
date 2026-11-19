@@ -42,6 +42,35 @@
         },
         "required": ["postcode", "geo"],
         "additionalProperties": false
+      },
+      "lines": {
+        "type": ["array", "null"],
+        "items": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": ["string", "null"]
+            },
+            "quantity": {
+              "type": ["integer", "null"]
+            },
+            "price": {
+              "type": ["object", "null"],
+              "properties": {
+                "amount": {
+                  "type": ["number", "null"]
+                },
+                "currency": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["amount", "currency"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["sku", "quantity", "price"],
+          "additionalProperties": false
+        }
       }
     },
     "ArticlesCreateAttributes": {
@@ -83,6 +112,33 @@
           }
         },
         "additionalProperties": false
+      },
+      "lines": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "integer"
+            },
+            "price": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
       }
     },
     "ArticlesUpdateAttributes": {
@@ -124,13 +180,40 @@
           }
         },
         "additionalProperties": false
+      },
+      "lines": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "integer"
+            },
+            "price": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
       }
     }
   },
   "fields": {
     "name": "fields[articles]",
     "in": "query",
-    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals` or `location` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
+    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals` or `location` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it. Select keys of every item of `lines` as `<attribute>.*.<key>`; the list keeps its length and order. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
     "schema": {
       "type": "array",
       "items": {
@@ -177,6 +260,7 @@
               "scores",
               "totals",
               "location",
+              "lines",
               "value",
               "threshold",
               "level",
@@ -207,7 +291,7 @@
           },
           {
             "type": "string",
-            "pattern": "^totals\\.[^.,]+$"
+            "pattern": "^totals\\.[^.,*]+$"
           },
           {
             "type": "string",
@@ -216,6 +300,18 @@
           {
             "type": "string",
             "pattern": "^location\\.geo\\.(?:lat|lng)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^lines\\.\\*$"
+          },
+          {
+            "type": "string",
+            "pattern": "^lines\\.\\*\\.(?:sku|quantity|price)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^lines\\.\\*\\.price\\.(?:amount|currency)$"
           }
         ]
       }
