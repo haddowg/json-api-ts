@@ -71,11 +71,9 @@ describe('atomicMutationOptions with relationship operations', () => {
 
     const options = atomicMutationOptions(queryClient, client, descriptor)
     const build: Parameters<typeof options.mutationFn>[0] = (tx) => {
-      tx.add(
-        { type: 'bookings', id: 'bk-1', relationship: 'rooms' },
-        [{ type: 'rooms', id: 'rm-1' }],
-        { meta: { changedBy: 'desk' } },
-      )
+      tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').add([{ type: 'rooms', id: 'rm-1' }], {
+        meta: { changedBy: 'desk' },
+      })
       tx.update({ type: 'bookings', id: 'bk-1', title: 'Later' })
     }
     options.onSuccess?.(await options.mutationFn(build), build, undefined)
@@ -101,7 +99,7 @@ describe('atomicMutationOptions with relationship operations', () => {
     void options
       .mutationFn((tx) => {
         // @ts-expect-error -- adding rooms in a batch must send who changed them.
-        tx.add({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [])
+        tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').add([])
       })
       .catch(() => undefined)
   })
