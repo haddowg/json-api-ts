@@ -9,7 +9,7 @@
  * — "edit once, updates everywhere".
  *
  * A patch replaces a node's ATTRIBUTES (the descriptor distinguishes attributes from
- * relations), merging an attribute its read narrowed to some keys (`$keySelection`) into the cached
+ * relations), merging an attribute its read narrowed to some keys (`$nestedFieldset`) into the cached
  * value instead, while PRESERVING the materialised object's edge-local `$pivot`/`$edge`, its
  * `$`-accessors, and its identity-by-`type:id`. The same Track in two playlists carries
  * different per-edge pivot data, so we never merge one edge's data onto another — only the
@@ -24,7 +24,7 @@
  * collection membership, which is not a node patch — those invalidate the relevant list/
  * relationship queries instead (see ./mutate.ts).
  */
-import type { ApiDescriptor, KeySelection } from '@haddowg/json-api-client'
+import type { ApiDescriptor, NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { keyHasPrefix, parentRelationReadKeys, type QueryKey } from './keys'
 
@@ -79,7 +79,7 @@ interface MaterialisedResource {
   type: unknown
   id: unknown
   readonly $raw?: RawResource
-  readonly $keySelection?: KeySelection
+  readonly $nestedFieldset?: NestedFieldset
 }
 
 /**
@@ -88,7 +88,7 @@ interface MaterialisedResource {
  */
 interface FreshAttributes {
   attributes: Record<string, unknown>
-  narrowed: KeySelection | undefined
+  narrowed: NestedFieldset | undefined
 }
 
 /** A materialised resource's `type`+`id`, when it is a real resource (string type + id). */
@@ -178,7 +178,7 @@ function walkResources(
 function patchNode(
   target: Record<string, unknown>,
   attributes: Record<string, unknown>,
-  narrowed?: KeySelection,
+  narrowed?: NestedFieldset,
 ): boolean {
   let changed = false
   for (const [k, v] of Object.entries(attributes)) {
@@ -323,7 +323,7 @@ function collectAttributes(
     if (attributes !== undefined) {
       // Last write wins: a later occurrence (e.g. the primary resource vs an included copy)
       // overwrites an earlier one. For one response they are the same wire object anyway.
-      const narrowed = node.$keySelection
+      const narrowed = node.$nestedFieldset
       fresh.set(resourceKey(ident.type, ident.id), {
         attributes,
         narrowed:
