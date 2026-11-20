@@ -26,12 +26,14 @@ import {
   locationOutput,
   metaOutput,
   orLocation,
+  orAccepted,
   orMetaOutput,
   type OutputContext,
   capIncludePaths,
   includePaths,
   resourceLinkNames,
   resourceOutput,
+  withoutAccepted,
   resourceSchemas,
 } from './outputs'
 import { type ActionSafety, readActionSafety } from './safety'
@@ -137,6 +139,14 @@ function actionResult(action: ActionDescriptor): ResultShape {
  * either; one that only answers with a URL takes the URL.
  */
 function actionOutput(ctx: OutputContext, action: ActionDescriptor): JsonSchema | undefined {
+  const output = locatedOutput(withoutAccepted(ctx), action)
+  // An action answering with no document has no output schema, so neither does its job.
+  return output === undefined || action.accepted === undefined
+    ? output
+    : orAccepted(ctx, output, action.accepted)
+}
+
+function locatedOutput(ctx: OutputContext, action: ActionDescriptor): JsonSchema | undefined {
   const usual = documentOutput(ctx, action)
   if (action.location === undefined) {
     return usual
@@ -293,15 +303,17 @@ function buildEntry(
       result = 'item'
       break
     case 'create':
-      input = createInput(inputCtx, op.type)
-      output = resourceOutput(outputCtx, [op.type])
+    case 'update': {
+      input =
+        parsed.kind === 'create' ? createInput(inputCtx, op.type) : updateInput(inputCtx, op.type)
+      const accepted = op.resource.accepted?.[parsed.kind]
+      output =
+        accepted === undefined
+          ? resourceOutput(outputCtx, [op.type])
+          : orAccepted(outputCtx, resourceOutput(withoutAccepted(outputCtx), [op.type]), accepted)
       result = 'resource'
       break
-    case 'update':
-      input = updateInput(inputCtx, op.type)
-      output = resourceOutput(outputCtx, [op.type])
-      result = 'resource'
-      break
+    }
     case 'delete':
       input = deleteInput(inputCtx, op.type)
       output = deletedOutput(outputCtx)

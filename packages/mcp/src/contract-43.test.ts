@@ -1,3 +1,4 @@
+import { Ajv2020 } from 'ajv/dist/2020.js'
 import { describe, expect, it } from 'vitest'
 import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
@@ -158,5 +159,102 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
         expect(entry.inputSchema).toEqual(original.inputSchema)
       }
     }
+  })
+})
+
+/**
+ * A write or action declaring a `202 Accepted` may answer with a job document whose `meta` the
+ * operation declares. The tool returns that meta beside the job, and its output takes either.
+ */
+describe('an accepted write or action', () => {
+  const job = { type: 'jobs', id: 'job-1', attributes: {} }
+  const create = { title: 'Weekend', rooms: null, guest: null, meta: { idempotencyKey: 'k-1' } }
+
+  async function accepted(name: string, args: Record<string, unknown>, json: unknown) {
+    const { transport } = fakeTransport(() => ({
+      status: 202,
+      json,
+      headers: { 'Content-Location': '/jobs/job-1', 'Retry-After': '5' },
+    }))
+    const mcp = createJsonApiMcp({ ...modelOf(typed), transport })
+    const tools = await mcp.forRequest({ context: undefined })
+    return tools.callTool(name, args)
+  }
+
+  const conforms = (name: string, value: unknown): boolean => {
+    const ajv = new Ajv2020({ strict: false, validateFormats: false })
+    return ajv.validate(tool(name).outputSchema!, value)
+  }
+
+  it('returns the job beside the meta its 202 document carries', async () => {
+    const created = await accepted('bookings_create', create, {
+      data: job,
+      meta: { queuePosition: 7 },
+    })
+    expect(created.structuredContent).toEqual({
+      data: { id: 'job-1', type: 'jobs' },
+      meta: { queuePosition: 7 },
+    })
+    expect(conforms('bookings_create', created.structuredContent)).toBe(true)
+  })
+
+  it('returns a meta-only job document as its meta', async () => {
+    const created = await accepted('bookings_create', create, { meta: { queuePosition: 2 } })
+    expect(created.structuredContent).toEqual({ meta: { queuePosition: 2 } })
+    expect(conforms('bookings_create', created.structuredContent)).toBe(true)
+  })
+
+  it('returns the job of an action that otherwise answers with nothing', async () => {
+    const confirmed = await accepted(
+      'bookings_confirm_post',
+      { id: 'bk-1' },
+      { data: job, meta: { queuePosition: 4 } },
+    )
+    expect(confirmed.structuredContent).toEqual({
+      data: { id: 'job-1', type: 'jobs' },
+      meta: { queuePosition: 4 },
+    })
+  })
+
+  it('types only the job for an operation whose only success is the 202', () => {
+    const exports = createJsonApiMcp(modelOf(source('music-catalog').document)).tools.find(
+      (entry) => entry.name === 'catalog_exports_create',
+    )!
+    const output = exports.outputSchema!
+    expect(output['anyOf']).toBeUndefined()
+    expect(output['properties']).toMatchObject({ data: { $ref: '#/$defs/export-jobs' } })
+    expect(Object.keys(output['$defs'] as object)).toEqual(['export-jobs'])
+  })
+
+  it('types the job and its meta beside the usual result', async () => {
+    const output = tool('bookings_create').outputSchema!
+    expect(output['anyOf']).toEqual([
+      expect.objectContaining({
+        properties: expect.objectContaining({
+          data: expect.objectContaining({ $ref: '#/$defs/bookings' }),
+        }),
+      }),
+      expect.objectContaining({
+        properties: {
+          data: expect.objectContaining({ $ref: '#/$defs/jobs' }),
+          meta: expect.objectContaining({
+            properties: { queuePosition: { type: ['integer', 'null'] } },
+            additionalProperties: false,
+          }),
+        },
+      }),
+    ])
+    expect(Object.keys(output['$defs'] as object)).toEqual(
+      expect.arrayContaining(['bookings', 'jobs']),
+    )
+    // The job's meta doesn't fit the usual result, nor the booking a job.
+    expect(
+      conforms('bookings_create', {
+        data: { id: 'job-1', type: 'jobs' },
+        meta: { queuePosition: 'x' },
+      }),
+    ).toBe(false)
+    const { result } = await call('bookings_create', create, { data: booking }, 201)
+    expect(conforms('bookings_create', result.structuredContent)).toBe(true)
   })
 })

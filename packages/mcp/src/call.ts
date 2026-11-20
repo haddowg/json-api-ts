@@ -1,4 +1,5 @@
 import {
+  type Accepted,
   type ActionDescriptor,
   type ApiDescriptor,
   createClient,
@@ -561,7 +562,10 @@ async function callApi(
     }
     case 'create': {
       const input = writeInput(args, entry.input.write!)
-      const created = jobOrResult(await accessor.create(input, metaOptions(args, entry.input)))
+      const created = await accessor.create(input, metaOptions(args, entry.input))
+      if (isAccepted(created)) {
+        return acceptedOutcome(created, flat)
+      }
       // A 204 to a client-generated id sends nothing back but the id the caller chose.
       return {
         kind: 'bare',
@@ -578,15 +582,16 @@ async function callApi(
       if (op.resource.singleton === true) {
         // The body carries the id although the path doesn't, and only a read tells the tool it.
         id = await singletonId(accessor, op.type)
-        updated = jobOrResult(
-          await (accessor as unknown as LooseSingleton).update(
-            { ...patch, id },
-            metaOptions(args, entry.input),
-          ),
+        updated = await (accessor as unknown as LooseSingleton).update(
+          { ...patch, id },
+          metaOptions(args, entry.input),
         )
       } else {
         id = requireId(args)
-        updated = jobOrResult(await accessor.id(id).update(patch, metaOptions(args, entry.input)))
+        updated = await accessor.id(id).update(patch, metaOptions(args, entry.input))
+      }
+      if (isAccepted(updated)) {
+        return acceptedOutcome(updated, flat)
       }
       return {
         kind: 'bare',
@@ -601,8 +606,20 @@ async function callApi(
   }
 }
 
-/** A write's result, or the job of one the server accepted for later, which the tool returns. */
-const jobOrResult = (value: unknown): unknown => (isAccepted(value) ? value.job : value)
+/**
+ * A write or action the server accepted for later: the job, flattened, beside the `202`
+ * document's meta. A meta-only job document has only its meta.
+ */
+function acceptedOutcome(accepted: Accepted<unknown, unknown>, flat: FlattenContext): Outcome {
+  const meta = isObject(accepted.meta) ? accepted.meta : undefined
+  const job = accepted.job
+  const out: Record<string, unknown> =
+    isObject(job) && '$document' in job ? resourceEnvelope(job, flat) : {}
+  if (meta !== undefined) {
+    out['meta'] = meta
+  }
+  return envelope(out)
+}
 
 async function runAction(
   entry: ToolEntry,
@@ -638,7 +655,9 @@ async function runAction(
     }
     result = await call(body, options)
   }
-  result = jobOrResult(result)
+  if (isAccepted(result)) {
+    return acceptedOutcome(result, flat)
+  }
 
   // A URL the action produced goes back as data; the tool never fetches it.
   if (action.location !== undefined && isActionLocation(result)) {

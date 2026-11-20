@@ -183,6 +183,7 @@ Every result's `structuredContent` is an envelope shaped like a JSON:API documen
 | action returning a resource or resources | `{ data, meta? }` or `{ data, links, meta? }`, as above |
 | action returning only meta | `{ meta }`, with no `data` |
 | action answering with a URL | `{ data: { url, type, expiresAt? } }` |
+| create, update or action the API accepted for later | `{ data?, meta? }`, with `data` the flattened job, absent for a meta-only job document |
 
 `meta` is the document's own meta, page totals included, and is there only when the API sends it. When the operation's document declares its meta members, the output schema types them, closed to any other member, and requires `meta` when a member is required. Its description and the tool's name the members, such as "The result's `meta` carries `unread`, `digest`, `page` and `total`." An `x-mcp` description replaces that sentence along with the rest of the prose. An action that answers `200` with only meta and `201` with the resource it created gets an `outputSchema` whose `anyOf` holds both envelopes, each with its own meta, and returns whichever the server sent. The top-level `links` only appears on a collection and only carries pagination: `first`, `prev`, `next` and `last`, each a URL string. A resource's own links live inside the resource.
 
@@ -210,6 +211,8 @@ A flattened resource keeps the links its type names under `links`: its declared 
 Each tool has an `outputSchema` built from the descriptor and the document's resource schemas, with attributes optional because of sparse fieldsets, and every key of an attribute whose single keys a fieldset may select optional too, along with every key of a nested object a path into it may select and every key of a list's items a path through `*` may select, and descriptions kept but examples left out. Its `$defs` hold only the result's own types and the types its include paths reach, so a relation to any other type is described as an id. Each named link is typed from the document's link schema, meta members included. An action without a body in its response, or one answering in a raw media type, returns content only: text, an image, or an embedded resource for other binary bodies.
 
 An action that answers with a URL, such as a short-lived download link, returns it as `data`, with `expiresAt` left out when the URL doesn't expire. The tool never fetches the URL; the model or the host decides what to do with it. An action that answers with either its own document or a URL gets an `outputSchema` whose `anyOf` holds both envelopes, and returns whichever the server sent.
+
+A create, update or action whose operation declares a `202 Accepted` may answer with the job the API accepted it as, instead of its usual result. The tool returns the job flattened as `data`, beside the `202` document's meta, such as `{ "data": { "id": "job-1", "type": "jobs" }, "meta": { "queuePosition": 7 } }`. A meta-only job document comes back as its `meta` alone. The tool doesn't poll the job. The `outputSchema` holds the usual envelope and the job's in an `anyOf`, or the job's alone when the `202` is the operation's only success, with the job's meta typed from what the `202` document declares. An action answering with no document otherwise has no `outputSchema`, and still doesn't.
 
 ### Migrating from 1.2
 

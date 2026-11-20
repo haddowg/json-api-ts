@@ -23,7 +23,10 @@ function declared(document: OpenApiDocument, operationId: string): string[] {
   return []
 }
 
-/** The types a tool's result is made of before anything is included. */
+/**
+ * The types a tool's result is made of before anything is included, the job of a write or action
+ * the API may accept for later among them.
+ */
 function primaryTypes(descriptor: ApiDescriptor, tool: McpModelTool): string[] {
   const { operation } = tool
   if (operation.kind === 'related') {
@@ -31,9 +34,16 @@ function primaryTypes(descriptor: ApiDescriptor, tool: McpModelTool): string[] {
   }
   if (operation.kind === 'action') {
     const action = descriptor[operation.type]?.actions?.[operation.actionKey!]
-    return action?.outputType === undefined ? [] : [action.outputType]
+    return [
+      ...(action?.outputType === undefined ? [] : [action.outputType]),
+      ...(action?.accepted === undefined ? [] : [action.accepted.jobType]),
+    ]
   }
-  return [operation.type]
+  const accepted =
+    operation.kind === 'create' || operation.kind === 'update'
+      ? descriptor[operation.type]?.accepted?.[operation.kind]
+      : undefined
+  return accepted === undefined ? [operation.type] : [operation.type, accepted.jobType]
 }
 
 /** Every type the paths reach from the primary types, walking one relation per segment. */

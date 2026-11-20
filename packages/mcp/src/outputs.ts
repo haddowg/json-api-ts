@@ -2,7 +2,11 @@
  * Each tool's output schema, generated from the descriptor and the document's resource schemas.
  * Output schemas aren't held to the portable subset inputs are: the model only reads them.
  */
-import { type ApiDescriptor, isPolymorphic } from '@haddowg/json-api-client'
+import {
+  type AcceptedDescriptor,
+  type ApiDescriptor,
+  isPolymorphic,
+} from '@haddowg/json-api-client'
 import {
   deref,
   isObject,
@@ -606,6 +610,68 @@ export function orMetaOutput(ctx: OutputContext, resource: ObjectSchema): Object
     type: 'object',
     anyOf: [rest, metaOutput({ ...ctx, statuses: (status) => status === '200' })],
     ...($defs === undefined ? {} : { $defs }),
+  }
+}
+
+/** The context reading every success status but a `202`, whose job document is its own result. */
+export function withoutAccepted(ctx: OutputContext): OutputContext {
+  const statuses = ctx.statuses
+  return {
+    ...ctx,
+    statuses: (status) => status !== '202' && (statuses === undefined || statuses(status)),
+  }
+}
+
+/**
+ * The job a write or action the API accepted for later answers with: `{ data?, meta? }`, the job
+ * resource and the meta its `202` document declares. `data` may be absent, for a meta-only job.
+ */
+function acceptedOutput(ctx: OutputContext, accepted: AcceptedDescriptor): ObjectSchema {
+  const at202: OutputContext = { ...ctx, includes: [], statuses: (status) => status === '202' }
+  const meta = documentMeta(at202, 'The job document meta, when the API sends any.')
+  const required = withRequiredMeta(at202, [])
+  const description = 'The job the API accepted the request as, to finish later.'
+  if (ctx.descriptor[accepted.jobType] === undefined) {
+    return {
+      type: 'object',
+      properties: { data: { description }, meta },
+      ...(required.length > 0 ? { required } : {}),
+    }
+  }
+  return {
+    type: 'object',
+    properties: { data: { ...ref(accepted.jobType), description }, meta },
+    ...(required.length > 0 ? { required } : {}),
+    $defs: defsFor(ctx.doc, ctx.descriptor, ctx.schemas, new Set([accepted.jobType])),
+  }
+}
+
+/**
+ * The output of a write or action that may answer `202 Accepted`: its usual result or the job,
+ * sharing the root `$defs`. `usual` is read without the `202`, see {@link withoutAccepted}. An
+ * operation whose only success is the `202` always answers with the job.
+ */
+export function orAccepted(
+  ctx: OutputContext,
+  usual: JsonSchema,
+  accepted: AcceptedDescriptor,
+): ObjectSchema {
+  const answersOtherwise = Object.keys(ctx.operation.responses ?? {}).some(
+    (status) => status.startsWith('2') && status !== '202',
+  )
+  if (!answersOtherwise) {
+    return acceptedOutput(ctx, accepted)
+  }
+  const { $defs: usualDefs, ...rest } = usual
+  const { $defs: jobDefs, ...job } = acceptedOutput(ctx, accepted)
+  const $defs = {
+    ...(jobDefs as Record<string, JsonSchema> | undefined),
+    ...(usualDefs as Record<string, JsonSchema> | undefined),
+  }
+  return {
+    type: 'object',
+    anyOf: [rest, job],
+    ...(Object.keys($defs).length === 0 ? {} : { $defs }),
   }
 }
 
