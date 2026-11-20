@@ -64,13 +64,20 @@ function keyMemberDescription(
     )
   }
   if (lists.length > 0) {
-    const items = lists.flatMap(([name]) =>
-      (paths[name] ?? [])
-        .filter((path) => path.length === 2 && path[0] === ITEMS)
-        .map((path) => keyList(`${name}.*.<key>`, path[1]!)),
+    // A list whose items are one of several variants has one key pattern per variant.
+    const patterns = lists.map(
+      ([name]) =>
+        [
+          name,
+          (paths[name] ?? [])
+            .filter((path) => path.length === 2 && path[0] === ITEMS)
+            .map((path) => path[1]!),
+        ] as const,
     )
+    const items = patterns.map(([name, keys]) => keyList(`${name}.*.<key>`, ...keys))
+    const variants = patterns.some(([, keys]) => keys.length > 1)
     sentences.push(
-      `${objects.length > 0 ? 'A list' : 'Besides whole fields, a list'} returns every item, in order, with only the named keys when you list \`<attribute>.*.<key>\`, for ${joined(items)}. An item without a named key leaves it out. List the attribute itself to return all of it.`,
+      `${objects.length > 0 ? 'A list' : 'Besides whole fields, a list'} returns every item, in order, with only the named keys when you list \`<attribute>.*.<key>\`, for ${joined(items)}. An item without a named key leaves it out.${variants ? ' Where the items of a list take one of several shapes, each item returns only the named keys its own shape takes, beside the member naming its shape.' : ''} List the attribute itself to return all of it.`,
     )
   }
   const deeper = Object.entries(paths).flatMap(([name, list]) =>
@@ -93,9 +100,15 @@ function keyMemberDescription(
   return sentences.join(' ')
 }
 
-/** A selectable member as the description names it, with its key pattern unless any key goes. */
-function keyList(name: string, pattern: string): string {
-  return ANY_KEYS.has(pattern) ? `\`${name}\`` : `\`${name}\`, whose keys match \`${pattern}\``
+/**
+ * A selectable member as the description names it, with its key patterns unless any key goes. A
+ * list of a union has one pattern per variant.
+ */
+function keyList(name: string, ...patterns: string[]): string {
+  if (patterns.length === 0 || patterns.some((pattern) => ANY_KEYS.has(pattern))) {
+    return `\`${name}\``
+  }
+  return `\`${name}\`, whose keys match ${patterns.map((pattern) => `\`${pattern}\``).join(' or ')}`
 }
 
 /** Entries joined into one list, the last after `and`. */

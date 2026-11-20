@@ -27,7 +27,7 @@ function outputAttribute(doc: OpenApiDocument, name: string, attribute: string):
 }
 
 const DESCRIPTION =
-  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; and `location`, whose keys match `(?:[a-z]+)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A list returns every item, in order, with only the named keys when you list `<attribute>.*.<key>`, for `lines.*.<key>`, whose keys match `(?:sku|quantity|price)`. An item without a named key leaves it out. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; and `lines.*.price.<key>`, whose keys match `(?:amount|currency)`; listing the key itself returns all of it.'
+  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; `location`, whose keys match `(?:[a-z]+)`; and `hero`, whose keys match `(?:src|alt)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A list returns every item, in order, with only the named keys when you list `<attribute>.*.<key>`, for `lines.*.<key>`, whose keys match `(?:sku|quantity|price)`; and `sections.*.<key>`, whose keys match `(?:text|level)` or `(?:src|size)`. An item without a named key leaves it out. Where the items of a list take one of several shapes, each item returns only the named keys its own shape takes, beside the member naming its shape. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; `lines.*.price.<key>`, whose keys match `(?:amount|currency)`; and `sections.*.size.<key>`, whose keys match `(?:width|height)`; listing the key itself returns all of it.'
 
 /**
  * A `fields[<type>]` parameter accepting single keys of an attribute has items that are an `anyOf`
@@ -79,6 +79,57 @@ describe('generator contract 42 (field selection)', () => {
     const price = (item['properties'] as Record<string, JsonSchema>)['price']!
     expect(price['required']).toBeUndefined()
     expect(price['properties']).toMatchObject({ amount: {}, currency: {} })
+  })
+
+  it('lets a union, as a list item or an attribute, miss any key but the one naming its variant', () => {
+    const sections = outputAttribute(selecting, 'articles_get', 'sections')
+    const item = sections['items'] as JsonSchema
+    expect(item['anyOf']).toBeUndefined()
+    expect(item['discriminator']).toEqual({ propertyName: 'kind' })
+    const variants = item['oneOf'] as JsonSchema[]
+    expect(variants.map((variant) => variant['required'])).toEqual([['kind'], ['kind'], ['kind']])
+    for (const variant of variants) {
+      expect((variant['properties'] as Record<string, JsonSchema>)['kind']!['const']).toBeDefined()
+      expect(variant['additionalProperties']).toBe(false)
+    }
+    const size = (variants[1]!['properties'] as Record<string, JsonSchema>)['size']!
+    expect(size['required']).toBeUndefined()
+    expect(size['properties']).toMatchObject({ width: {}, height: {} })
+  })
+
+  it('lets a union attribute miss any key but the one naming its variant', () => {
+    const hero = outputAttribute(selecting, 'articles_get', 'hero')
+    expect(hero['anyOf']).toBeUndefined()
+    expect(hero['discriminator']).toEqual({ propertyName: 'kind' })
+    expect((hero['oneOf'] as JsonSchema[]).map((variant) => variant['required'])).toEqual([
+      ['kind'],
+      ['kind'],
+      undefined,
+    ])
+  })
+
+  it('reads a narrowed union with no discriminator as any of its variants', () => {
+    const doc = structuredClone(selecting)
+    for (const component of [
+      'ArticlesAttributes',
+      'ArticlesCreateAttributes',
+      'ArticlesUpdateAttributes',
+    ]) {
+      const sections = (
+        (doc.components!.schemas![component] as JsonSchema)['properties'] as Record<
+          string,
+          JsonSchema
+        >
+      )['sections']!
+      delete (sections['items'] as JsonSchema)['discriminator']
+    }
+    const item = outputAttribute(doc, 'articles_get', 'sections')['items'] as JsonSchema
+    expect(item['oneOf']).toBeUndefined()
+    expect((item['anyOf'] as JsonSchema[]).map((variant) => variant['required'])).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ])
   })
 
   it('describes a list inside an object and a list alone', () => {
