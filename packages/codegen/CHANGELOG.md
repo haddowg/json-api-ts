@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.21.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.20.0...json-api-codegen-v2.21.0) (2026-11-20)
+
+
+### Features
+
+* **codegen:** read generator contract 42 and selectable keys ([f9b2852](https://github.com/haddowg/json-api-ts/commit/f9b285224d72e9c383b1555aa60c61c6dd04d0e0))
+* **codegen:** read generator contract 43 and typed request meta ([8fdcc32](https://github.com/haddowg/json-api-ts/commit/8fdcc329d6d64e13a79815df1f67ceef44b1bfca))
+* **codegen:** read the meta each relation takes inside an atomic batch ([69e0f0f](https://github.com/haddowg/json-api-ts/commit/69e0f0fd63aa4be6ac5f8b5697dc72175a0dafa1))
+* **codegen:** read the nested paths a fields parameter accepts ([fd72116](https://github.com/haddowg/json-api-ts/commit/fd72116b86c7a1280f232abf941075c5cd688446))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.27.0
+
 ## [2.20.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.19.0...json-api-codegen-v2.20.0) (2026-11-18)
 
 

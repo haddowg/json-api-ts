@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.28.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.27.1...json-api-mcp-v1.28.0) (2026-11-20)
+
+
+### Features
+
+* **mcp:** describe nested key paths and loosen their output ([4dfb111](https://github.com/haddowg/json-api-ts/commit/4dfb111431cab7367fc3228ac0103f5006b72351))
+* **mcp:** describe paths through a list and loosen their items in the output ([efcb49e](https://github.com/haddowg/json-api-ts/commit/efcb49e3850064f149a7ceecf3a8c880334f7f7c))
+* **mcp:** describe the selectable keys of a union and keep its variants apart in the output ([bd1b71e](https://github.com/haddowg/json-api-ts/commit/bd1b71ea7939bcaa20fb6c13255b9fdecf038a7c))
+* **mcp:** read generator contract 42 and describe single-key fields ([f378ea1](https://github.com/haddowg/json-api-ts/commit/f378ea1ddad9093bdba537c32d1efa71f3fe91bc))
+* **mcp:** read generator contract 43 and take declared request meta ([ea17426](https://github.com/haddowg/json-api-ts/commit/ea174268f7c8cb682cf4ffd92d9199df4c4e4dbe))
+
+
+### Bug Fixes
+
+* **mcp:** describe a one-of as a union wherever it appears ([#203](https://github.com/haddowg/json-api-ts/issues/203)) ([d44e846](https://github.com/haddowg/json-api-ts/commit/d44e8466531de3a22c4c2cadc948cbc0d24ef863))
+* **mcp:** return an accepted job beside the meta its 202 document carries ([#197](https://github.com/haddowg/json-api-ts/issues/197)) ([abdd40d](https://github.com/haddowg/json-api-ts/commit/abdd40d4ea35c1ca850c1656b0228b826bbee1a7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.27.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.21.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.21.0
+
 ## [1.27.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.27.0...json-api-mcp-v1.27.1) (2026-11-18)
 
 
