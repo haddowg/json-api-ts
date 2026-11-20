@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.27.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.26.0...json-api-client-v1.27.0) (2026-11-20)
+
+
+### Features
+
+* **client:** group a top-level meta error under $documentMeta ([#196](https://github.com/haddowg/json-api-ts/issues/196)) ([2fdc52c](https://github.com/haddowg/json-api-ts/commit/2fdc52cbfee4799945b2f2e18fffe3961aad650a))
+* **client:** narrow a nested object a key path selects ([caa410b](https://github.com/haddowg/json-api-ts/commit/caa410b383f30372d2df05d794fe858501c6b5e9))
+* **client:** narrow every item of a list a key path selects through * ([64848bd](https://github.com/haddowg/json-api-ts/commit/64848bd17734e6eb67f0afcab34af918ae8896ad))
+* **client:** reach a relationship in an atomic batch through tx.rel ([7c2b218](https://github.com/haddowg/json-api-ts/commit/7c2b21843e5b4890842e8415d815b2456f411ae4))
+* **client:** record relationship operations in an atomic batch ([9d813dc](https://github.com/haddowg/json-api-ts/commit/9d813dc12b6b0fcc5096931ec9ccd4a58c624624))
+* **client:** refuse a relation that takes no verb at tx.rel ([#201](https://github.com/haddowg/json-api-ts/issues/201)) ([a77d956](https://github.com/haddowg/json-api-ts/commit/a77d956fe772cdec316151cba22e2365792d6c89))
+* **client:** select single keys of an attribute through fields ([1a1164a](https://github.com/haddowg/json-api-ts/commit/1a1164a42482acb75767f0b6a72216cc19492f8a))
+* **client:** send and type declared request and resource object meta ([de1f7ca](https://github.com/haddowg/json-api-ts/commit/de1f7cad8998cfb6f0df0a98816feea2c6973975))
+* **client:** type and validate a narrowed union and read a lone wildcard as the whole list ([c1f0c62](https://github.com/haddowg/json-api-ts/commit/c1f0c62c4493f1d75f72b0d07970d94cefc34c68))
+
+
+### Bug Fixes
+
+* **client:** validate a sparse read against what its fieldset selects ([#195](https://github.com/haddowg/json-api-ts/issues/195)) ([136be37](https://github.com/haddowg/json-api-ts/commit/136be37c454856578971ae338d3b52d7149e1cab))
+
 ## [1.26.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.25.0...json-api-client-v1.26.0) (2026-11-18)
 
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.9.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.8.0...json-api-query-v1.9.0) (2026-11-20)
+
+
+### Features
+
+* **query:** keep cached keys a read narrowed through fields leaves out ([7c57f95](https://github.com/haddowg/json-api-ts/commit/7c57f952b0b1cdd3996897ed03ee28a7174a14df))
+* **query:** merge a narrowed list into the cached list item by item ([5d100e7](https://github.com/haddowg/json-api-ts/commit/5d100e7943a6e08dbb99bc3cecf00ebb3babc3f3))
+* **query:** merge a nested narrowed read into the cached object ([b1be2aa](https://github.com/haddowg/json-api-ts/commit/b1be2aacb0e20a57aa0551f2843b20a59df63832))
+* **query:** send declared request meta from the mutation factories ([c2fc421](https://github.com/haddowg/json-api-ts/commit/c2fc4216606bff09ad0394ba20d4da804f85b12f))
+
+
+### Bug Fixes
+
+* **query:** let an atomic batch mutation take any recording callback ([35d9727](https://github.com/haddowg/json-api-ts/commit/35d9727d06cefb4a5bc3987b47a3553c7c1039e8))
+* **query:** merge a narrowed union value only into a cached value of the same variant ([c1206a3](https://github.com/haddowg/json-api-ts/commit/c1206a396b5c52b666545771ec6c218a0d1b2b8f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.27.0
+
 ## [1.8.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.7.2...json-api-query-v1.8.0) (2026-11-18)
 
 
