@@ -3,10 +3,10 @@ import { buildDescriptor } from '@haddowg/json-api-codegen'
 import { describe, expect, it } from 'vitest'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
-import { fakeTransport, modelOf, source, withFieldSelection } from './test-fixtures'
+import { fakeTransport, modelOf, source, withNestedFieldsets } from './test-fixtures'
 
 const { document } = source('contract-witness')
-const selecting = withFieldSelection(document)
+const selecting = withNestedFieldsets(document)
 
 const toolsOf = (doc: OpenApiDocument) => createJsonApiMcp(modelOf(doc)).tools
 const tool = (doc: OpenApiDocument, name: string) =>
@@ -34,12 +34,12 @@ const DESCRIPTION =
  * of the member enum and one pattern per such attribute. The list and get tools describe the key
  * members on that type's `fields` entry, and their output lets a narrowed attribute miss keys.
  */
-describe('generator contract 42 (field selection)', () => {
+describe('generator contract 42 (nested fieldsets)', () => {
   it('reads a document stamped 42', () => {
     expect(createJsonApiMcp(modelOf(selecting)).contract).toBe(42)
   })
 
-  it('describes the key members on each list and get tool that takes the type in fields', () => {
+  it('describes the nested fieldset members on each list and get tool that takes the type in fields', () => {
     for (const name of ['articles_list', 'articles_get', 'tags_articles_list']) {
       expect(fieldsEntry(selecting, name, 'articles')).toEqual({
         type: ['array', 'null'],
@@ -138,8 +138,8 @@ describe('generator contract 42 (field selection)', () => {
       ...descriptor,
       articles: {
         ...descriptor['articles']!,
-        selectableKeys: { lines: '\\*', location: '(?:[a-z]+)' },
-        selectableKeyPaths: {
+        nestedFieldsets: { lines: '\\*', location: '(?:[a-z]+)' },
+        nestedFieldsetPaths: {
           lines: [['\\*', '(?:sku|quantity|price)']],
           location: [
             ['visits', '\\*'],
@@ -164,8 +164,8 @@ describe('generator contract 42 (field selection)', () => {
       ...descriptor,
       articles: {
         ...descriptor['articles']!,
-        selectableKeys: { lines: '\\*' },
-        selectableKeyPaths: { lines: [['\\*', '[^.,*]+']] },
+        nestedFieldsets: { lines: '\\*' },
+        nestedFieldsetPaths: { lines: [['\\*', '[^.,*]+']] },
       },
     }
     const only = (
@@ -186,7 +186,7 @@ describe('generator contract 42 (field selection)', () => {
       ...descriptor,
       articles: {
         ...descriptor['articles']!,
-        selectableKeyPaths: { scores: [['(?:[a-z][a-z0-9_]*)', '[^.,]+']] },
+        nestedFieldsetPaths: { scores: [['(?:[a-z][a-z0-9_]*)', '[^.,]+']] },
       },
     }
     const tools = createJsonApiMcp(modelOf(selecting, scored)).tools
@@ -200,7 +200,7 @@ describe('generator contract 42 (field selection)', () => {
     expect(articles['description']).toContain('for `scores.<key>.<key>`; listing the key itself')
   })
 
-  it('sends the key members and returns the narrowed attribute', async () => {
+  it('sends the nested fieldset members and returns the narrowed attribute', async () => {
     const { transport, requests } = fakeTransport(() => ({
       json: {
         data: { type: 'articles', id: 'a-1', attributes: { title: 'Hi', totals: { views: 3 } } },

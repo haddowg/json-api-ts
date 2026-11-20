@@ -243,10 +243,10 @@ function flatResource(
     Object.assign(properties, attributes['properties'])
   }
   // A read selecting single keys of an attribute returns only the keys the resource has.
-  for (const name of Object.keys(descriptor[type]?.selectableKeys ?? {})) {
+  for (const name of Object.keys(descriptor[type]?.nestedFieldsets ?? {})) {
     if (properties[name] !== undefined) {
       let narrowed = withoutRequiredKeys(properties[name])
-      for (const path of descriptor[type]?.selectableKeyPaths?.[name] ?? []) {
+      for (const path of descriptor[type]?.nestedFieldsetPaths?.[name] ?? []) {
         narrowed = withoutRequiredAlong(narrowed, path)
       }
       properties[name] = narrowed
