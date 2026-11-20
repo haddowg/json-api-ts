@@ -7,7 +7,7 @@ import {
   fakeTransport,
   modelOf,
   source,
-  withFieldSelection,
+  withNestedFieldsets,
   withTypedRequestMeta,
 } from './test-fixtures'
 
@@ -151,7 +151,7 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
 
   it('leaves every tool the pinned witness has as it was', () => {
     const before = new Map(
-      toolsOf(withFieldSelection(document)).map((entry) => [entry.name, entry]),
+      toolsOf(withNestedFieldsets(document)).map((entry) => [entry.name, entry]),
     )
     for (const entry of toolsOf(typed)) {
       const original = before.get(entry.name)

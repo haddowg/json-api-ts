@@ -154,15 +154,15 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
 }
 
 /**
- * A copy of a witness with core's field selection added, stamped 42: the articles' `scores` object,
+ * A copy of a witness with core's nested fieldsets added, stamped 42: the articles' `scores` object,
  * `totals` map and `location` object, and the `fields[articles]` parameter accepting their single
  * keys and the keys of `location.geo`, from the
  * fragment the codegen's tests cut from core main's witness. It goes once the pins move to core's
  * published 2.22 witness.
  */
-export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
+export function withNestedFieldsets(original: OpenApiDocument): OpenApiDocument {
   const fragment = JSON.parse(
-    readFileSync(new URL('../../codegen/test/field-selection.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../codegen/test/nested-fieldsets.json', import.meta.url), 'utf8'),
   ) as { attributes: Record<string, Json>; components: Record<string, Json>; fields: Json }
   const doc = structuredClone(original) as Json
   ;(doc['info'] as Json)['x-generator'] = { contract: 42 }
@@ -229,7 +229,7 @@ function grafted(record: Json, section: Record<string, FragmentEntry>): Json {
 }
 
 /**
- * A copy of the pinned witness as core main exports it, stamped 43: field selection, then the
+ * A copy of the pinned witness as core main exports it, stamped 43: nested fieldsets, then the
  * bookings, rooms and jobs types declaring request, resource, relationship and accepted meta, from
  * the fragment the codegen's tests cut from core main's witness. It goes once the pins move to
  * core's published 2.22 witness.
@@ -238,7 +238,7 @@ export function withTypedRequestMeta(original: OpenApiDocument): OpenApiDocument
   const fragment = JSON.parse(
     readFileSync(new URL('../../codegen/test/typed-request-meta.json', import.meta.url), 'utf8'),
   ) as { witness: FragmentDelta }
-  const doc = withFieldSelection(original) as unknown as Json
+  const doc = withNestedFieldsets(original) as unknown as Json
   ;(doc['info'] as Json)['x-generator'] = { contract: 43 }
   const components = doc['components'] as Json
   for (const key of ['schemas', 'parameters'] as const) {

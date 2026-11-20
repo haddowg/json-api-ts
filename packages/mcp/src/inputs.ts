@@ -48,15 +48,15 @@ export const FIELDS_DESCRIPTION =
   'Sparse fieldsets (JSON:API): per resource type, the attribute and relationship names to return. A relationship only has a value in the result when it is also included. Leave a type null for its default fields.'
 
 /**
- * How a type's fields list selects single keys of the attributes that allow it, under the Field
- * Selection profile, given each attribute's key pattern and the paths into its nested objects.
+ * How a type's fields list selects single keys of the attributes that allow it, under the Nested
+ * Fieldsets profile, given each attribute's key pattern and the paths into its nested objects.
  */
-function keyMemberDescription(
-  selectable: Readonly<Record<string, string>>,
+function nestedFieldsetDescription(
+  fieldsets: Readonly<Record<string, string>>,
   paths: Readonly<Record<string, readonly (readonly string[])[]>> = {},
 ): string {
-  const objects = Object.entries(selectable).filter(([, pattern]) => pattern !== ITEMS)
-  const lists = Object.entries(selectable).filter(([, pattern]) => pattern === ITEMS)
+  const objects = Object.entries(fieldsets).filter(([, pattern]) => pattern !== ITEMS)
+  const lists = Object.entries(fieldsets).filter(([, pattern]) => pattern === ITEMS)
   const sentences: string[] = []
   if (objects.length > 0) {
     sentences.push(
@@ -101,7 +101,7 @@ function keyMemberDescription(
 }
 
 /**
- * A selectable member as the description names it, with its key patterns unless any key goes. A
+ * A member as the description names it, with its key patterns unless any key goes. A
  * list of a union has one pattern per variant.
  */
 function keyList(name: string, ...patterns: string[]): string {
@@ -501,16 +501,16 @@ function queryInput(
   if (fieldTypes.length > 0) {
     const members: Record<string, JsonSchema> = {}
     for (const type of fieldTypes) {
-      const selectable = ctx.descriptor[type]?.selectableKeys
+      const fieldsets = ctx.descriptor[type]?.nestedFieldsets
       members[type] = nullable({
         type: 'array',
         items: { type: 'string' },
-        ...(selectable === undefined
+        ...(fieldsets === undefined
           ? {}
           : {
-              description: keyMemberDescription(
-                selectable,
-                ctx.descriptor[type]?.selectableKeyPaths,
+              description: nestedFieldsetDescription(
+                fieldsets,
+                ctx.descriptor[type]?.nestedFieldsetPaths,
               ),
             }),
       })
