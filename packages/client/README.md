@@ -75,9 +75,9 @@ albums.$meta?.['page'] // raw top-level meta
 
 Where the server allows it, `fields` also takes `<attribute>.<key>` to read one key of an object
 attribute, under the
-[Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/). The
+[Nested Fieldsets profile](https://haddowg.github.io/json-api/profiles/nested-fieldsets/). The
 attribute is then typed with only the selected keys, each optional, and the resource's
-`$keySelection` lists them.
+`$nestedFieldset` lists them.
 
 ### Get one — with a hydrated compound document
 

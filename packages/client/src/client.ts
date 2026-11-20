@@ -12,7 +12,7 @@ import {
 } from './descriptor'
 import { JsonApiError } from './errors'
 import { type FilterSpec, listFilterMatcher } from './filters'
-import { fieldsOfUrl } from './key-selection'
+import { fieldsOfUrl } from './nested-fieldset'
 import { readActionLocation } from './location'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
 import { resolvePaginator } from './pagination'

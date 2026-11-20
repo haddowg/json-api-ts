@@ -18,8 +18,8 @@ const descriptor = {
     paginator: 'page',
     clientId: 'forbidden',
     includable: ['maker'],
-    selectableKeys: { totals: '[^.,]+', lines: '\\*', values: '[a-z]+' },
-    selectableKeyPaths: {
+    nestedFieldsets: { totals: '[^.,]+', lines: '\\*', values: '[a-z]+' },
+    nestedFieldsetPaths: {
       totals: [['geo', '(?:lat|lng)']],
       lines: [
         ['\\*', '(?:sku|qty|price)'],
