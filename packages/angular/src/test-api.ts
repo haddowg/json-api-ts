@@ -22,7 +22,7 @@ const descriptor = {
     paginator: 'page',
     clientId: 'forbidden',
     includable: ['artist'],
-    selectableKeys: { credits: '[a-z][a-z_]*' },
+    nestedFieldsets: { credits: '[a-z][a-z_]*' },
     sortable: ['title', '-title'],
     sortFamilies: [{ prefix: 'value', suffixPattern: '[a-z_]+' }],
     filterable: ['title'],

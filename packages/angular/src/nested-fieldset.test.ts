@@ -24,7 +24,7 @@ afterEach(() => {
 })
 
 describe('single keys selected through fields in the Angular bindings', () => {
-  it('sends the key members and types the narrowed attribute', async () => {
+  it('sends the nested fieldset members and types the narrowed attribute', async () => {
     const albums = TestBed.runInInjectionContext(() =>
       jsonApiResource({
         loader: ({ client, abortSignal }) =>
@@ -54,14 +54,14 @@ describe('single keys selected through fields in the Angular bindings', () => {
       {
         headers: {
           'Content-Type':
-            'application/vnd.api+json; profile="https://haddowg.github.io/json-api/profiles/field-selection/"',
+            'application/vnd.api+json; profile="https://haddowg.github.io/json-api/profiles/nested-fieldsets/"',
         },
       },
     )
     await settle()
     const first = albums.value()![0]!
     expect(first.credits).toEqual({ producer: 'Nigel' })
-    expect(first.$keySelection).toEqual({ credits: ['producer'] })
+    expect(first.$nestedFieldset).toEqual({ credits: ['producer'] })
     expectTypeOf(first.credits).toEqualTypeOf<{ producer?: string } | null>()
     expectTypeOf(first).not.toHaveProperty('steps')
   })
