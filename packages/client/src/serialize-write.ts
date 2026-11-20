@@ -403,7 +403,9 @@ export function withRemappedDocumentMetaPaths(error: JsonApiError): JsonApiError
  * points at `/atomic:operations/{n}/data/...`, so strip the `atomic:operations/{n}` prefix to
  * the op index, resolve that op's wire type (`typeForOp`), and delegate the remaining `/data`
  * tail to the same {@link remapPointer} a standalone write uses (so the flat path is identical
- * — `title`, `releaseInfo.label`, `artist`, …). A pointer without the atomic prefix is remapped
+ * — `title`, `releaseInfo.label`, `artist`, …). A relationship op's tail is remapped under its
+ * relation, as a standalone relationship write's is, when `relationForOp` names one. A pointer
+ * without the atomic prefix is remapped
  * verbatim under the (whole-batch) document at op index `undefined`. The original error is not
  * mutated.
  */
@@ -411,6 +413,7 @@ export function withRemappedAtomicPaths(
   error: JsonApiError,
   descriptor: ApiDescriptor,
   typeForOp: (opIndex: number) => string | undefined,
+  relationForOp?: (opIndex: number) => { rel: string; hasPivot: boolean } | undefined,
 ): JsonApiError {
   return mapErrors(error, (pointer) => {
     const segments = pointer.split('/').filter((s) => s !== '')
@@ -422,8 +425,14 @@ export function withRemappedAtomicPaths(
       return { path: pointer }
     }
     const type = typeForOp(opIndex)
+    const relation = relationForOp?.(opIndex)
     const tail = `/${segments.slice(2).join('/')}`
-    const path = type === undefined ? tail : remapPointer(descriptor, type, tail)
+    const path =
+      relation !== undefined
+        ? remapRelationshipPointer(relation.rel, relation.hasPivot, tail)
+        : type === undefined
+          ? tail
+          : remapPointer(descriptor, type, tail)
     return { opIndex, path }
   })
 }

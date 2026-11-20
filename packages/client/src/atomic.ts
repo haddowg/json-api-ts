@@ -11,7 +11,9 @@
  *   `lid`-bearing relationship ref (`{ type, lid }`) so a just-created resource wires into a
  *   later op without a server-assigned id;
  * - `tx.update({ type, id, …flatFields })` -> an `update` op (a `ref` to the existing resource);
- * - `tx.delete({ type, id })` -> a `remove` op.
+ * - `tx.delete({ type, id })` -> a `remove` op;
+ * - `tx.add`, `tx.remove` and `tx.replace` change the members of a to-many relationship, and
+ *   `tx.set` a to-one's, each targeting `{ type, id | lid, relationship }`.
  *
  * Each create gets a deterministic `lid` from its op index (`atomic-<index>`), so the cross-op
  * reference is stable and human-readable. The flat->envelope serialisation reuses the same
@@ -31,13 +33,18 @@ import type {
   AtomicResultOf,
   CreateInput,
   MetaOption,
+  MutationVerb,
   OptionsArg,
+  RelationName,
+  RelationNameFor,
+  RelationRequestMetaOf,
+  RelationshipMembers,
   RequestMetaOf,
   RequiresRequestMeta,
   TypeName,
   UpdateInput,
 } from './result-types'
-import { toDocument, withRemappedAtomicPaths } from './serialize-write'
+import { toDocument, toRelationshipDocument, withRemappedAtomicPaths } from './serialize-write'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 import { ATOMIC_EXT } from './types'
 
@@ -87,6 +94,29 @@ export type AtomicOperationArgs<
 >
 
 /**
+ * The relationship an atomic relationship operation targets: relation `R` of a resource of type
+ * `T`, named by its server `id` or by the `lid` of a resource created earlier in the batch.
+ */
+export type AtomicRelationshipRef<T extends string = string, R extends string = string> =
+  | { type: T; id: string; lid?: never; relationship: R }
+  | { type: T; lid: string; id?: never; relationship: R }
+
+/**
+ * The options argument of an atomic operation with verb `V` on relation `R` of type `T`: its
+ * `meta`, typed by the relation's `atomicRequestMeta` and required when a member is. A relation
+ * declaring none takes any.
+ */
+export type AtomicRelationshipArgs<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends MutationVerb,
+> = OptionsArg<
+  RequiresRequestMeta<RelationRequestMetaOf<D, T, R, V, true>>,
+  MetaOption<RelationRequestMetaOf<D, T, R, V, true>>
+>
+
+/**
  * The handle a {@link AtomicRecorder.create} returns. It is a `lid`-bearing relationship ref
  * (`{ type, lid }`) — pass it (or spread it) into a later op's relation slot to wire the
  * just-created resource without a server id. It also carries its op `kind` (`'create'`) and its
@@ -120,6 +150,18 @@ export interface AtomicDeleteHandle {
 }
 
 /**
+ * The handle a relationship operation returns ({@link AtomicRecorder.add}, `remove`, `replace` or
+ * `set`): the target's type `T`, its `relationship` `R`, its op `kind` (`'relationship'`) and its
+ * `opIndex`. Its positional result is the linkage the server answered with.
+ */
+export interface AtomicRelationshipHandle<T extends string = string, R extends string = string> {
+  readonly type: T
+  readonly relationship: R
+  readonly kind: 'relationship'
+  readonly opIndex: number
+}
+
+/**
  * Any handle a recorder method returns — the element type of the callback's result tuple, used
  * as the inference constraint for the typed-tuple `atomic` form. The discriminant is left open
  * (`string`, NOT `TypeName<D>`) DELIBERATELY, so the type is descriptor-agnostic: a tighter
@@ -133,11 +175,12 @@ export type AtomicHandle =
   | AtomicCreateHandle<string>
   | AtomicUpdateHandle<string>
   | AtomicDeleteHandle
+  | AtomicRelationshipHandle<string, string>
 
 /** A single recorded atomic operation, in wire shape (`op` + `ref`/`data`, and its `meta`). */
 interface AtomicOperation {
   op: 'add' | 'update' | 'remove'
-  ref?: { type: string; id?: string; lid?: string }
+  ref?: { type: string; id?: string; lid?: string; relationship?: string }
   data?: unknown
   meta?: Readonly<Record<string, unknown>>
 }
@@ -166,7 +209,39 @@ export interface AtomicRecorder<D extends ApiDescriptor, W> {
     ref: AtomicRef & { type: T },
     ...opts: AtomicOperationArgs<D, T, 'delete'>
   ): AtomicDeleteHandle
+  /** Add `members` to to-many relation `R` of the resource `ref` names: an `add` op on its relationship. */
+  add<T extends TypeName<D>, R extends RelationNameFor<D, T, 'add'>>(
+    ref: AtomicRelationshipRef<T, R>,
+    members: RelationshipMembers<D, T, R, 'add'>,
+    ...opts: AtomicRelationshipArgs<D, T, R, 'add'>
+  ): AtomicRelationshipHandle<T, R>
+  /** Remove `members` from to-many relation `R`: a `remove` op on its relationship. */
+  remove<T extends TypeName<D>, R extends RelationNameFor<D, T, 'remove'>>(
+    ref: AtomicRelationshipRef<T, R>,
+    members: RelationshipMembers<D, T, R, 'remove'>,
+    ...opts: AtomicRelationshipArgs<D, T, R, 'remove'>
+  ): AtomicRelationshipHandle<T, R>
+  /** Replace every member of to-many relation `R` with `members`: an `update` op on its relationship. */
+  replace<T extends TypeName<D>, R extends RelationNameFor<D, T, 'replace'>>(
+    ref: AtomicRelationshipRef<T, R>,
+    members: RelationshipMembers<D, T, R, 'replace'>,
+    ...opts: AtomicRelationshipArgs<D, T, R, 'replace'>
+  ): AtomicRelationshipHandle<T, R>
+  /** Set to-one relation `R` to `member`, or clear it with `null`: an `update` op on its relationship. */
+  set<T extends TypeName<D>, R extends RelationNameFor<D, T, 'set'>>(
+    ref: AtomicRelationshipRef<T, R>,
+    member: RelationshipMembers<D, T, R, 'set'>,
+    ...opts: AtomicRelationshipArgs<D, T, R, 'set'>
+  ): AtomicRelationshipHandle<T, R>
 }
+
+/** The wire `op` each relationship verb records: `replace` and `set` both update the relationship. */
+const RELATIONSHIP_OPS = {
+  add: 'add',
+  remove: 'remove',
+  replace: 'update',
+  set: 'update',
+} as const satisfies Record<MutationVerb, AtomicOperation['op']>
 
 /** The options an atomic recorder method takes at runtime. */
 interface AtomicOperationOptions {
@@ -237,8 +312,37 @@ export async function runAtomic(
   const operations: AtomicOperation[] = []
   /** The wire type of each op, by index — drives the error-pointer remap. */
   const typeByOp: string[] = []
+  /** The relation each relationship op writes, by index, which its pointers are remapped under. */
+  const relationByOp = new Map<number, { rel: string; hasPivot: boolean }>()
 
-  const recorder: AtomicRecorder<ApiDescriptor, unknown> = {
+  const relationship = (
+    verb: MutationVerb,
+    ref: unknown,
+    members: unknown,
+    opts: AtomicOperationOptions | undefined,
+  ): AtomicRelationshipHandle => {
+    const opIndex = operations.length
+    const { type, identity } = toRef(ref, `atomic ${verb}`)
+    const name = (ref as { relationship?: unknown }).relationship
+    if (typeof name !== 'string') {
+      throw new TypeError(`atomic ${verb} requires a \`relationship\``)
+    }
+    const { data } = toRelationshipDocument(members, verb === 'set' ? 'one' : 'many')
+    operations.push(
+      withOperationMeta(
+        { op: RELATIONSHIP_OPS[verb], ref: { type, ...identity, relationship: name }, data },
+        opts,
+      ),
+    )
+    typeByOp.push(type)
+    relationByOp.set(opIndex, {
+      rel: name,
+      hasPivot: descriptor[type]?.relations[name]?.pivot === true,
+    })
+    return { type, relationship: name, kind: 'relationship', opIndex }
+  }
+
+  const resources: Omit<AtomicRecorder<ApiDescriptor, unknown>, MutationVerb> = {
     create(input, ...[opts]: [AtomicOperationOptions?]) {
       const opIndex = operations.length
       const lid = lidFor(opIndex)
@@ -260,12 +364,25 @@ export async function runAtomic(
     },
     delete(ref, ...[opts]: [AtomicOperationOptions?]) {
       const opIndex = operations.length
-      const { type, identity } = toRef(ref)
+      const { type, identity } = toRef(ref, 'atomic delete')
       operations.push(withOperationMeta({ op: 'remove', ref: { type, ...identity } }, opts))
       typeByOp.push(type)
       return { kind: 'delete', opIndex }
     },
   }
+
+  // The relationship verbs' generic signatures can't be met over a loose descriptor, whose
+  // relations take no verb, so they join the recorder untyped.
+  const recorder = Object.assign(resources, {
+    add: (ref: unknown, members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
+      relationship('add', ref, members, opts),
+    remove: (ref: unknown, members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
+      relationship('remove', ref, members, opts),
+    replace: (ref: unknown, members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
+      relationship('replace', ref, members, opts),
+    set: (ref: unknown, member: unknown, ...[opts]: [AtomicOperationOptions?]) =>
+      relationship('set', ref, member, opts),
+  }) as AtomicRecorder<ApiDescriptor, unknown>
 
   // The callback always drives the recorder side effect (collecting ops in order); its RETURN
   // VALUE — when it's a tuple of handles — selects the typed positional result per handle.
@@ -285,12 +402,21 @@ export async function runAtomic(
     doc = await execute(request, req)
   } catch (error) {
     if (error instanceof JsonApiError) {
-      throw withRemappedAtomicPaths(error, descriptor, (opIndex) => typeByOp[opIndex])
+      throw withRemappedAtomicPaths(
+        error,
+        descriptor,
+        (opIndex) => typeByOp[opIndex],
+        (opIndex) => relationByOp.get(opIndex),
+      )
     }
     throw error
   }
 
-  const results = parseResults(doc as { ['atomic:results']?: unknown } | undefined, materialiseCtx)
+  const results = parseResults(
+    doc as { ['atomic:results']?: unknown } | undefined,
+    materialiseCtx,
+    (opIndex) => relationByOp.has(opIndex),
+  )
 
   // Loose form: the callback returned nothing, or not an all-handles array -> the ordered results
   // array (backward-compatible). The all-handles guard keeps the runtime in step with the type
@@ -340,16 +466,17 @@ function atomicResourceData(
 }
 
 /**
- * Coerce a remove ref (an identifier, a materialised resource, or a same-batch `{type,lid}`
+ * Coerce an op's target ref (an identifier, a materialised resource, or a same-batch `{type,lid}`
  * handle) to `{ type, identity }` — `identity` an `id` or a `lid`; throws if neither is present.
+ * `what` names the operation in the error.
  */
-function toRef(ref: AtomicRef): { type: string; identity: AtomicIdentity } {
+function toRef(ref: unknown, what: string): { type: string; identity: AtomicIdentity } {
   if (!isObject(ref)) {
-    throw new TypeError('atomic delete requires an identifier `{ type, id }` or `{ type, lid }`')
+    throw new TypeError(`${what} requires an identifier \`{ type, id }\` or \`{ type, lid }\``)
   }
   const { type, id, lid } = ref as { type?: unknown; id?: unknown; lid?: unknown }
   if (typeof type !== 'string') {
-    throw new TypeError('atomic delete requires a `type`')
+    throw new TypeError(`${what} requires a \`type\``)
   }
   if (typeof id === 'string') {
     return { type, identity: { id } }
@@ -357,21 +484,29 @@ function toRef(ref: AtomicRef): { type: string; identity: AtomicIdentity } {
   if (typeof lid === 'string') {
     return { type, identity: { lid } }
   }
-  throw new TypeError('atomic delete requires an `id` or a `lid`')
+  throw new TypeError(`${what} requires an \`id\` or a \`lid\``)
 }
 
-/** Parse `{ "atomic:results": [...] }` positionally, materialising each result's `data`. An absent results array (an all-`204` batch) yields `[]`. */
+/**
+ * Parse `{ "atomic:results": [...] }` positionally, materialising each result's `data`: a
+ * relationship op's as linkage, any other's as a resource. An absent results array (an all-`204`
+ * batch) yields `[]`.
+ */
 function parseResults(
   doc: { ['atomic:results']?: unknown } | undefined,
   ctx: MaterialiseContext,
+  isLinkage: (opIndex: number) => boolean,
 ): AtomicResult[] {
   const results = doc?.['atomic:results']
   if (!Array.isArray(results)) {
     return []
   }
-  return results.map((result) => {
+  return results.map((result, opIndex) => {
     const entry = isObject(result) ? result : {}
-    const data = entry['data'] === undefined ? undefined : materialise({ data: entry['data'] }, ctx)
+    const data =
+      entry['data'] === undefined
+        ? undefined
+        : materialise({ data: entry['data'] }, ctx, isLinkage(opIndex))
     const out: AtomicResult = { data }
     if (isObject(entry['meta'])) {
       out.meta = entry['meta']

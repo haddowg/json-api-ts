@@ -220,6 +220,13 @@ export interface RelationDescriptor {
    */
   requestMeta?: Readonly<Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>>>
   /**
+   * The top-level `meta` each operation on the relation takes inside an atomic batch, keyed by its
+   * verb like {@link requestMeta}, read from the atomic relationship operation kinds the type has
+   * of its own for the relation. A verb that declares none has no entry, and the map is absent
+   * when none does.
+   */
+  atomicRequestMeta?: Readonly<Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>>>
+  /**
    * The top-level `meta` of the meta-only `200` each relationship write answers with instead of
    * the linkage, keyed by its verb. A verb answering with the linkage has no entry, and the map is
    * absent when none answers meta-only.
