@@ -64,12 +64,12 @@ The complete tested version of this list-with-include-and-fields read — reques
 result, and `$page` — is the first `reads` case in
 [example.test.ts](../packages/example/src/example.test.ts).
 
-### Select single keys of an attribute
+### Nested fieldsets
 
 A server can let a sparse fieldset name one key of an object attribute as `<attribute>.<key>`,
-under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/).
+under the [Nested Fieldsets profile](https://haddowg.github.io/json-api/profiles/nested-fieldsets/).
 A table showing a few keys of the same object for every row then reads only those keys. The
-attributes that allow it are in the descriptor's `selectableKeys`, and each adds
+attributes that allow it are in the descriptor's `nestedFieldsets`, and each adds
 `` `<attribute>.${string}` `` to the members `fields` takes for that type. Any other dotted member
 is a compile error.
 
@@ -80,7 +80,7 @@ const products = await client.products.list({
 })
 
 products[0]!.values // { cap?: number; countries?: string[] }
-products[0]!.$keySelection // { values: ['cap', 'countries'] }
+products[0]!.$nestedFieldset // { values: ['cap', 'countries'] }
 ```
 
 An attribute named only through its keys is present and typed with just those keys, each
@@ -89,7 +89,7 @@ optional, since a resource whose value lacks a selected key leaves it out. A `nu
 `fields` array isn't a literal the client can read, every key stays in the type and is optional.
 
 A server can also let a member name a key of an object inside the attribute, one more
-`.<key>` per level. The descriptor's `selectableKeyPaths` lists those paths. The nested object is
+`.<key>` per level. The descriptor's `nestedFieldsetPaths` lists those paths. The nested object is
 narrowed the same way, and the path selects nothing else of the objects it passes through, so
 `location.geo.lat` types and returns `location` holding only `geo`, and `geo` holding only an
 optional `lat`. A key you also list whole, such as `location.geo` beside `location.geo.lat`, comes
@@ -102,7 +102,7 @@ const article = await client.articles.get('a-1', {
 })
 
 article.location // { postcode?: string; geo?: { lat?: number } } | null
-article.$keySelection // { location: ['postcode', 'geo.lat'] }
+article.$nestedFieldset // { location: ['postcode', 'geo.lat'] }
 ```
 
 A list whose items take keys has `*` where a key goes, and `<attribute>.*.<key>` selects that key
@@ -110,7 +110,7 @@ of every item. The list keeps its length and order, each item typed and returned
 selected keys, each optional, and a path keeps going through nested objects and lists the same way.
 Listing the list, or its items as `<attribute>.*`, beside a path into it brings the list back whole.
 `<attribute>.*` on its own is read exactly as `<attribute>`: the whole list, typed whole and left
-out of `$keySelection`. There is no index: a server refuses `lines.0`.
+out of `$nestedFieldset`. There is no index: a server refuses `lines.0`.
 
 ```ts
 // GET /articles/a-1?fields[articles]=lines.*.sku,lines.*.price.amount
@@ -119,7 +119,7 @@ const order = await client.articles.get('a-1', {
 })
 
 order.lines // { sku?: string; price?: { amount?: number } }[] | null
-order.$keySelection // { lines: ['*.sku', '*.price.amount'] }
+order.$nestedFieldset // { lines: ['*.sku', '*.price.amount'] }
 ```
 
 A value that is one of several variants, such as a hero that is an image or a video, or a list of
@@ -138,7 +138,7 @@ article.sections
 // ({ kind: 'heading'; text?: string } | { kind: 'figure'; size?: { width?: number } } | { kind: 'rule' })[] | null
 ```
 
-Each resource's `$keySelection` holds the paths the request selected of each attribute it
+Each resource's `$nestedFieldset` holds the paths the request selected of each attribute it
 narrowed, in request order, each once, leaving out a path whose key the request also lists whole,
 so code that merges two reads of a resource can tell a narrowed value from a whole one. It is empty when nothing was narrowed. A page that `$next()`
 fetches reads the selection off the link it follows.

@@ -149,8 +149,8 @@ A few things the codegen reads from the document that affect the generated clien
   may select, `^<attribute>\.<key>$`, then one per path into a nested object,
   `^<attribute>\.<key>\.<key>$`. A list whose items take keys has the key `\*`,
   `^<attribute>\.\*$`, and one pattern per path into its items, `^<attribute>\.\*\.<key>$`.
-  The codegen records each such attribute in the type's `selectableKeys` with its key pattern,
-  `\*` for a list, and each longer path in `selectableKeyPaths` as the pattern of every key
+  The codegen records each such attribute in the type's `nestedFieldsets` with its key pattern,
+  `\*` for a list, and each longer path in `nestedFieldsetPaths` as the pattern of every key
   along it, splitting at each `\.` outside a group or class, so a path into a list's items
   starts with `\*`. A union, as an attribute, a key or a list's items, has one pattern
   per path each variant declares, all recorded under its attribute, and the client keeps each
@@ -158,7 +158,7 @@ A few things the codegen reads from the document that affect the generated clien
   still carries its variant's `const`, which is what the client reads. The client
   then types `fields` for that type as the member union plus `` `<attribute>.${string}` `` per
   attribute. See
-  [select single keys of an attribute](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute).
+  [select single keys of an attribute](includes-and-sparse-fieldsets.md#nested-fieldsets).
 - **Several methods.** Each method of a multi-method action gets its own action method,
   as described under [several methods](custom-actions.md#an-action-with-several-methods).
   An action's `x-safety` flags go into the descriptor as `readOnly`, `destructive` and

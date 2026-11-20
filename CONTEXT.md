@@ -123,14 +123,14 @@ The `filter` and `sort` a request sends for one relation of the resources it ans
 `relatedQuery`, under the Relationship Queries profile.
 _Avoid_: nested filter, include filter
 
-**Key member**:
+**Nested fieldset member**:
 A `fields` member `<attribute>.<key>` selecting one key of an object attribute the descriptor lists
-in `selectableKeys`, under the Field Selection profile, or `<attribute>.<key>.<key>` selecting one
-key of a nested object along a path in `selectableKeyPaths`, or `<attribute>.*.<key>` selecting a
-key of every item of a list, whose key in `selectableKeys` is `\*`. The resource's
-`$keySelection` holds the paths a read selected of each attribute it narrowed. A member ending in
+in `nestedFieldsets`, under the Nested Fieldsets profile, or `<attribute>.<key>.<key>` selecting one
+key of a nested object along a path in `nestedFieldsetPaths`, or `<attribute>.*.<key>` selecting a
+key of every item of a list, whose key in `nestedFieldsets` is `\*`. The resource's
+`$nestedFieldset` holds the paths a read selected of each attribute it narrowed. A member ending in
 `.*` names the list itself and narrows nothing.
-_Avoid_: dotted field, nested field, sub-field
+_Avoid_: key member, key selection, dotted field, nested field, sub-field
 
 ### Writing
 
