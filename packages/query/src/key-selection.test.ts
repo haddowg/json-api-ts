@@ -191,4 +191,37 @@ describe('a read narrowed to single keys', () => {
     )
     expect(whole.lines).toEqual([{ sku: 'C', qty: 3 }])
   })
+
+  it('merges a narrowed union value only into a cached value of the same variant', async () => {
+    const { client, queryClient } = setup(
+      {
+        data: lined([
+          { kind: 'part', sku: 'A', qty: 1 },
+          { kind: 'part', sku: 'B', qty: 2 },
+        ]),
+      },
+      { data: [lined([{ kind: 'part', qty: 5 }, { kind: 'note' }])] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['lines.*.qty'] } }),
+    )
+    // The second item is now a note: part of a note can't stand for the cached part.
+    expect(whole.lines).toEqual([
+      { kind: 'part', sku: 'A', qty: 5 },
+      { kind: 'part', sku: 'B', qty: 2 },
+    ])
+  })
+
+  it('replaces a cached list a read names through a wildcard alone', async () => {
+    const { client, queryClient } = setup(
+      { data: lined([{ sku: 'A', qty: 1 }]) },
+      { data: [lined([{ qty: 5 }, { sku: 'B' }])] },
+    )
+    const whole = await queryClient.fetchQuery(getQueryOptions(client, 'products', 'p-1'))
+    await queryClient.fetchQuery(
+      listQueryOptions(client, 'products', { fields: { products: ['lines.*'] } }),
+    )
+    expect(whole.lines).toEqual([{ qty: 5 }, { sku: 'B' }])
+  })
 })

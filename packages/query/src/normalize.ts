@@ -268,13 +268,22 @@ function mergedSelection(cached: unknown, fresh: unknown, paths: readonly string
 /**
  * `cached` with the keys of `fresh` the `paths` select merged in, or `cached` itself when nothing
  * changes. A key a path selects whole replaces the cached one, and a key it narrows merges into a
- * cached object or list, keeping what the path didn't select.
+ * cached object or list, keeping what the path didn't select. A key `fresh` carries that no path
+ * selects names the variant of a union value, which renders whatever the selection: when the cached
+ * value doesn't hold the same variant, part of one variant can't stand for another, so `cached`
+ * stays.
  */
 function mergedValue(
   cached: Record<string, unknown>,
   fresh: Record<string, unknown>,
   paths: readonly string[],
 ): Record<string, unknown> {
+  const heads = new Set(paths.map((path) => path.split('.')[0]))
+  for (const [key, value] of Object.entries(fresh)) {
+    if (!heads.has(key) && cached[key] !== value) {
+      return cached
+    }
+  }
   let out = cached
   for (const [key, value] of Object.entries(fresh)) {
     const inner = pathsBelow(paths, key)
