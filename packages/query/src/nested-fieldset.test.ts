@@ -19,8 +19,8 @@ const descriptor = {
     paths: { fetchMany: '/products', fetchOne: '/products/{id}' },
     paginator: 'none',
     clientId: 'forbidden',
-    selectableKeys: { values: '[^.,]+', place: '(?:postcode|geo)', lines: '\\*' },
-    selectableKeyPaths: {
+    nestedFieldsets: { values: '[^.,]+', place: '(?:postcode|geo)', lines: '\\*' },
+    nestedFieldsetPaths: {
       place: [['geo', '(?:lat|lng)']],
       lines: [['\\*', '(?:sku|qty)']],
     },
@@ -71,7 +71,7 @@ describe('a read narrowed to single keys', () => {
     )
     expectTypeOf(list[0]!.values).toEqualTypeOf<{ cap?: number } | null>()
     expect(list[0]!.values).toEqual({ cap: 3 })
-    expect(list[0]!.$keySelection).toEqual({ values: ['cap'] })
+    expect(list[0]!.$nestedFieldset).toEqual({ values: ['cap'] })
   })
 
   it('merges its keys into a cached whole value instead of replacing it', async () => {
