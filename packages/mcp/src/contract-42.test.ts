@@ -20,6 +20,21 @@ function fieldsEntry(doc: OpenApiDocument, name: string, type: string): JsonSche
   return (fields['properties'] as Record<string, JsonSchema>)[type]!
 }
 
+/** A write tool's argument for one attribute. */
+function writeArgument(doc: OpenApiDocument, name: string, attribute: string): JsonSchema {
+  return (tool(doc, name).inputSchema['properties'] as Record<string, JsonSchema>)[attribute]!
+}
+
+/** The values a converted shape allows its `kind` member, if it has one. */
+function kindOf(shape: JsonSchema): unknown {
+  const properties = shape['properties'] as Record<string, JsonSchema> | undefined
+  return properties?.['kind']?.['enum']
+}
+
+const isObjectSchema = (schema: JsonSchema): boolean =>
+  schema['type'] === 'object' ||
+  (Array.isArray(schema['type']) && (schema['type'] as string[]).includes('object'))
+
 /** An attribute's schema in the flattened `articles` resource a tool's output defines. */
 function outputAttribute(doc: OpenApiDocument, name: string, attribute: string): JsonSchema {
   const defs = tool(doc, name).outputSchema!['$defs'] as Record<string, JsonSchema>
@@ -27,7 +42,7 @@ function outputAttribute(doc: OpenApiDocument, name: string, attribute: string):
 }
 
 const DESCRIPTION =
-  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; `location`, whose keys match `(?:[a-z]+)`; and `hero`, whose keys match `(?:src|alt)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A list returns every item, in order, with only the named keys when you list `<attribute>.*.<key>`, for `lines.*.<key>`, whose keys match `(?:sku|quantity|price)`; and `sections.*.<key>`, whose keys match `(?:text|level)` or `(?:src|size)`. An item without a named key leaves it out. Where the items of a list take one of several shapes, each item returns only the named keys its own shape takes, beside the member naming its shape. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; `lines.*.price.<key>`, whose keys match `(?:amount|currency)`; and `sections.*.size.<key>`, whose keys match `(?:width|height)`; listing the key itself returns all of it.'
+  'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `scores`, whose keys match `(?:[a-z][a-z0-9_]*)`; `totals`; `location`, whose keys match `(?:[a-z]+)`; and `hero`, whose keys match `(?:src|alt)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A list returns every item, in order, with only the named keys when you list `<attribute>.*.<key>`, for `lines.*.<key>`, whose keys match `(?:sku|quantity|price)`; and `sections.*.<key>`, whose keys match `(?:text|level)` or `(?:src|size)`. An item without a named key leaves it out. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.geo.<key>`, whose keys match `(?:lat|lng)`; `lines.*.price.<key>`, whose keys match `(?:amount|currency)`; and `sections.*.size.<key>`, whose keys match `(?:width|height)`; listing the key itself returns all of it. Some values take one of several shapes: each item of `sections`, whose `kind` is `heading`, `figure` or `rule`; and `hero`, whose `kind` is `image` or `video`. Such a value returns only the named keys its own shape takes, beside the member naming its shape.'
 
 /**
  * A `fields[<type>]` parameter accepting single keys of an attribute has items that are an `anyOf`
@@ -106,6 +121,180 @@ describe('generator contract 42 (nested fieldsets)', () => {
       ['kind'],
       undefined,
     ])
+  })
+
+  it('describes a union attribute in the output by its shapes and the member naming them', () => {
+    const hero = outputAttribute(selecting, 'articles_get', 'hero')
+    expect(hero['description']).toBe(
+      'One of these shapes, told apart by its `kind` member: `image` or `video`.',
+    )
+    const item = outputAttribute(selecting, 'articles_get', 'sections')['items'] as JsonSchema
+    expect(item['description']).toBe(
+      'One of these shapes, told apart by its `kind` member: `heading`, `figure` or `rule`.',
+    )
+  })
+
+  it.each(['articles_create', 'articles_update'])(
+    'gives %s a union attribute as closed shapes, each sending the value of its discriminator',
+    (name) => {
+      const hero = writeArgument(selecting, name, 'hero')
+      expect(hero['description']).toBe(
+        'One of these shapes, told apart by its `kind` member: `image` or `video`.',
+      )
+      const shapes = hero['anyOf'] as JsonSchema[]
+      expect(shapes.map((shape) => shape['description'])).toEqual([
+        'The `image` shape.',
+        'The `video` shape.',
+        undefined,
+      ])
+      expect(shapes.map((shape) => kindOf(shape))).toEqual([['image'], ['video'], undefined])
+      expect(JSON.stringify(hero)).not.toMatch(/"(oneOf|discriminator|const)"/)
+    },
+  )
+
+  it('keeps the value each list item shape fixes its discriminator to, beside the enum it is bound to', () => {
+    const items = writeArgument(selecting, 'articles_create', 'sections')['items'] as JsonSchema
+    expect(items['description']).toBe(
+      'One of these shapes, told apart by its `kind` member: `heading`, `figure` or `rule`.',
+    )
+    const shapes = items['anyOf'] as JsonSchema[]
+    expect(shapes.map((shape) => kindOf(shape))).toEqual([['heading'], ['figure'], ['rule']])
+    expect(shapes.map((shape) => shape['description'])).toEqual([
+      'The `heading` shape.',
+      'The `figure` shape.',
+      'The `rule` shape.',
+    ])
+  })
+
+  it('sends a union attribute and the items of a union list without the nulls the conversion added', async () => {
+    const { transport, requests } = fakeTransport(() => ({
+      status: 201,
+      json: { data: { type: 'articles', id: 'a-1', attributes: { title: 'Hi' } } },
+    }))
+    const session = await createJsonApiMcp({ ...modelOf(selecting), transport }).forRequest({
+      context: {},
+    })
+    await session.callTool('articles_create', {
+      title: 'Hello',
+      hero: { kind: 'video', url: null },
+      sections: [
+        { kind: 'heading', text: 'Intro', level: null },
+        { kind: 'figure', src: 'a.png', size: null },
+        { kind: 'rule' },
+      ],
+    })
+    const body = JSON.parse(requests[0]!.body!) as { data: { attributes: Record<string, unknown> } }
+    expect(body.data.attributes['hero']).toEqual({ kind: 'video' })
+    expect(body.data.attributes['sections']).toEqual([
+      { kind: 'heading', text: 'Intro' },
+      { kind: 'figure', src: 'a.png' },
+      { kind: 'rule' },
+    ])
+  })
+
+  it('describes a union a nested fieldset reaches inside an object, with its key patterns together', () => {
+    const doc = structuredClone(selecting)
+    const heroOf = (component: string) =>
+      (
+        (doc.components!.schemas![component] as JsonSchema)['properties'] as Record<
+          string,
+          JsonSchema
+        >
+      )['hero']!
+    for (const component of [
+      'ArticlesAttributes',
+      'ArticlesCreateAttributes',
+      'ArticlesUpdateAttributes',
+    ]) {
+      const location = (
+        (doc.components!.schemas![component] as JsonSchema)['properties'] as Record<
+          string,
+          JsonSchema
+        >
+      )['location']!
+      const media = structuredClone(heroOf(component))
+      media['oneOf'] = (media['oneOf'] as JsonSchema[]).filter(
+        (branch) => branch['type'] !== 'null',
+      )
+      ;(location['properties'] as Record<string, JsonSchema>)['media'] = media
+    }
+    const descriptor = buildDescriptor(doc as Parameters<typeof buildDescriptor>[0])
+    const nested: ApiDescriptor = {
+      ...descriptor,
+      articles: {
+        ...descriptor['articles']!,
+        nestedFieldsets: { location: '(?:[a-z]+)' },
+        nestedFieldsetPaths: {
+          location: [
+            ['media', '(?:src|alt)'],
+            ['media', '(?:url)'],
+          ],
+        },
+      },
+    }
+    const tools = createJsonApiMcp(modelOf(doc, nested)).tools
+    const fields = (
+      tools.find((entry) => entry.name === 'articles_get')!.inputSchema['properties'] as Record<
+        string,
+        JsonSchema
+      >
+    )['fields']!
+    expect((fields['properties'] as Record<string, JsonSchema>)['articles']!['description']).toBe(
+      'Besides whole fields, list `<attribute>.<key>` to return that attribute with only the named keys, for `location`, whose keys match `(?:[a-z]+)`. A resource without a named key leaves it out. List the attribute itself to return all of it. A key holding an object takes its own keys the same way, one more `.<key>` per level, for `location.media.<key>`, whose keys match `(?:src|alt)` or `(?:url)`; listing the key itself returns all of it. One value takes one of several shapes: `location.media`, whose `kind` is `image` or `video`. Such a value returns only the named keys its own shape takes, beside the member naming its shape.',
+    )
+    const create = tools.find((entry) => entry.name === 'articles_create')!.inputSchema
+    const location = (create['properties'] as Record<string, JsonSchema>)['location']!
+    const branches = (location['anyOf'] as JsonSchema[] | undefined) ?? [location]
+    const object = branches.find((branch) => isObjectSchema(branch))!
+    const media = (object['properties'] as Record<string, JsonSchema>)['media']!
+    expect(media['description']).toBe(
+      'One of these shapes, told apart by its `kind` member: `image` or `video`.',
+    )
+    const output = (
+      (
+        tools.find((entry) => entry.name === 'articles_get')!.outputSchema!['$defs'] as Record<
+          string,
+          JsonSchema
+        >
+      )['articles']!['properties'] as Record<string, JsonSchema>
+    )['location']!
+    expect(
+      ((output['properties'] as Record<string, JsonSchema>)['media'] as JsonSchema)['description'],
+    ).toBe('One of these shapes, told apart by its `kind` member: `image` or `video`.')
+  })
+
+  it('describes a union with no discriminator as one of several shapes', () => {
+    const doc = structuredClone(selecting)
+    for (const component of [
+      'ArticlesAttributes',
+      'ArticlesCreateAttributes',
+      'ArticlesUpdateAttributes',
+    ]) {
+      const hero = (
+        (doc.components!.schemas![component] as JsonSchema)['properties'] as Record<
+          string,
+          JsonSchema
+        >
+      )['hero']!
+      delete hero['discriminator']
+      for (const branch of hero['oneOf'] as JsonSchema[]) {
+        delete (branch['properties'] as Record<string, JsonSchema> | undefined)?.['kind']
+      }
+    }
+    const tools = createJsonApiMcp(modelOf(doc)).tools
+    const hero = writeArgument(doc, 'articles_create', 'hero')
+    expect(hero['description']).toBe('One of these shapes. Send the members of exactly one.')
+    const fields = (
+      tools.find((entry) => entry.name === 'articles_get')!.inputSchema['properties'] as Record<
+        string,
+        JsonSchema
+      >
+    )['fields']!
+    expect(
+      (fields['properties'] as Record<string, JsonSchema>)['articles']!['description'],
+    ).toContain(
+      'each item of `sections`, whose `kind` is `heading`, `figure` or `rule`; and `hero`. Such a value',
+    )
   })
 
   it('reads a narrowed union with no discriminator as any of its variants', () => {
