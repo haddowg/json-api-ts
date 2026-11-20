@@ -18,6 +18,8 @@ const descriptor = {
       totals: 'object',
       notes: 'object',
       lines: 'array',
+      media: 'unknown',
+      panel: 'object',
     },
     relations: {
       maker: { cardinality: 'one', types: ['makers'], pivot: false, mutations: { set: true } },
@@ -25,8 +27,15 @@ const descriptor = {
     paths: { fetchMany: '/products', fetchOne: '/products/{id}', update: '/products/{id}' },
     paginator: 'page',
     clientId: 'forbidden',
-    selectableKeys: { values: '[a-z]+', totals: '[^,]+', lines: '\\*' },
+    selectableKeys: {
+      values: '[a-z]+',
+      totals: '[^,]+',
+      lines: '\\*',
+      media: '(?:text|src|size)',
+      panel: '[a-z]+',
+    },
     selectableKeyPaths: {
+      panel: [['media', '(?:text|src)']],
       lines: [
         ['\\*', '(?:sku|qty|price)'],
         ['\\*', 'price', '(?:amount|currency)'],
@@ -49,9 +58,15 @@ interface Attributes {
     totals: { views: number; shares: number; geo: { lat: number; lng: number } | null }
     notes: { text: string }
     lines: { sku: string; qty: number; price: { amount: number; currency: string } | null }[] | null
+    media: Media | null
+    panel: { title: string; media: Media }
   }
   makers: { name: string }
 }
+
+type Media =
+  | { kind: 'note'; text: string }
+  | { kind: 'photo'; src: string; size: { width: number; height: number } }
 
 interface WriteAttributes {
   products: { update: { name?: string } }
@@ -108,7 +123,13 @@ describe('keySelection', () => {
     expect(keySelection(['lines.*.sku', 'lines.*.price.amount'])).toEqual({
       lines: ['*.sku', '*.price.amount'],
     })
-    expect(keySelection(['lines.*.sku', 'lines.*'])).toEqual({ lines: ['*'] })
+    expect(keySelection(['lines.*.sku', 'lines.*'])).toEqual({})
+    expect(keySelection(['lines.*'])).toEqual({})
+    expect(keySelection(['name', 'lines.*'])).toEqual({})
+    expect(keySelection(['lines.*.tags.*', 'lines.*.sku'])).toEqual({ lines: ['*.tags', '*.sku'] })
+    expect(keySelection(['totals.parcels.*', 'totals.parcels.*.weight'])).toEqual({
+      totals: ['parcels'],
+    })
     expect(keySelection(['lines', 'lines.*.sku'])).toEqual({})
     expect(keySelection(['lines.*.price', 'lines.*.price.amount'])).toEqual({
       lines: ['*.price'],
@@ -176,7 +197,11 @@ describe('selecting single keys through fields', () => {
 
   it('types key members for the attributes that declare them', () => {
     expectTypeOf<KeyMember<typeof descriptor, 'products'>>().toEqualTypeOf<
-      `values.${string}` | `totals.${string}` | `lines.${string}`
+      | `values.${string}`
+      | `totals.${string}`
+      | `lines.${string}`
+      | `media.${string}`
+      | `panel.${string}`
     >()
     expectTypeOf<KeyMember<typeof descriptor, 'makers'>>().toBeNever()
     expectTypeOf<'values.cap'>().toExtend<MemberName<typeof descriptor, 'products'>>()
@@ -256,6 +281,28 @@ describe('selecting single keys through fields', () => {
     const product = await client.products.get('p-1', { fields: { products: ['lines.*.sku'] } })
     expect(product.$keySelection).toEqual({ lines: ['*.sku'] })
     expect(product.lines).toEqual([{ sku: 'A1' }, {}])
+  })
+
+  it('types a union attribute or a union inside an object by variant, keeping its discriminator', async () => {
+    const { client } = recorder()
+    const product = await client.products.get('p-1', {
+      fields: { products: ['media.text', 'media.size.width', 'panel.media.src'] },
+    })
+    expectTypeOf(product.media).toEqualTypeOf<
+      { kind: 'note'; text?: string } | { kind: 'photo'; size?: { width?: number } } | null
+    >()
+    expectTypeOf(product.panel).toEqualTypeOf<{
+      media?: { kind: 'note' } | { kind: 'photo'; src?: string }
+    }>()
+  })
+
+  it('reads a list named through a wildcard alone as the whole list', async () => {
+    const { client } = recorder({
+      data: { type: 'products', id: 'p-1', attributes: { lines: [{ sku: 'A1', qty: 2 }] } },
+    })
+    const product = await client.products.get('p-1', { fields: { products: ['lines.*'] } })
+    expect(product.$keySelection).toEqual({})
+    expectTypeOf(product.lines).toEqualTypeOf<Attributes['products']['lines']>()
   })
 
   it('reads the paths of a nested selection', async () => {

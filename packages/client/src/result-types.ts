@@ -192,14 +192,43 @@ type PathTail<K extends string, Head extends string> = K extends `${Head}.${infe
   ? Tail
   : never
 
+/** Whether `T` is a union of more than one member. */
+type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : never
+
+/** The keys of `V` whose value is one string literal, such as a union variant's discriminator. */
+type LiteralStringKey<V> = {
+  [P in keyof V]-?: V[P] extends string ? (string extends V[P] ? never : P) : never
+}[keyof V]
+
+/**
+ * The key every member of the union `U` holds as one string literal, which names its variant, or
+ * `never` when `U` is not a union.
+ */
+type DiscriminatorKey<U> =
+  true extends IsUnion<U>
+    ? Exclude<keyof U, U extends unknown ? Exclude<keyof U, LiteralStringKey<U>> : never>
+    : never
+
+/** One object type for an intersection, each key keeping whether it is optional. */
+type Flatten<T> = { [P in keyof T]: T[P] }
+
 /**
  * An attribute value narrowed to the paths `K`, each key optional, since a value without a selected
  * key leaves it out. A path into a nested object (`geo.lat`) narrows that object the same way,
  * unless `K` also lists its key whole. A list narrowed through `*` (`*.sku`) keeps every item, each
- * narrowed to the rest of the path, unless `K` also lists `*` whole. `null` stays as it is, and a
- * key type the client can't list keeps every key.
+ * narrowed to the rest of the path, unless `K` also lists `*` whole. A value that is one of several
+ * variants, as an attribute, a nested key or a list's item, narrows each variant on its own and
+ * keeps the key naming it. `null` stays as it is, and a key type the client can't list keeps every
+ * key.
  */
-type KeySelected<V, K extends string> = V extends readonly (infer Item)[]
+type KeySelected<V, K extends string> = KeySelectedAs<
+  V,
+  K,
+  DiscriminatorKey<Exclude<V, null | undefined | readonly unknown[]>>
+>
+
+/** {@link KeySelected}, given the key `D` naming the variant of a union value. */
+type KeySelectedAs<V, K extends string, D> = V extends readonly (infer Item)[]
   ? string extends K
     ? Partial<Item>[]
     : '*' extends K
@@ -208,12 +237,15 @@ type KeySelected<V, K extends string> = V extends readonly (infer Item)[]
   : V extends object
     ? string extends K
       ? Partial<V>
-      : {
-          [P in Extract<PathHead<K>, keyof V>]?: P extends K
-            ? V[P]
-            : KeySelected<V[P], PathTail<K, P>>
-        }
+      : [D] extends [never]
+        ? NarrowedObject<V, K>
+        : Flatten<NarrowedObject<V, K> & Pick<V, Extract<D, keyof V>>>
     : V
+
+/** The keys of the object `V` the paths `K` select, each optional and narrowed in turn. */
+type NarrowedObject<V, K extends string> = {
+  [P in Extract<PathHead<K>, keyof V>]?: P extends K ? V[P] : KeySelected<V[P], PathTail<K, P>>
+}
 
 /**
  * {@link PickSelected} for attributes: an attribute the selection names only through key members

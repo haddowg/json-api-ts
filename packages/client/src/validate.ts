@@ -226,12 +226,42 @@ function narrowed(
     }
   }
   const out: Record<string, unknown> = { ...schema }
+  // The member naming a union's variant renders whatever the selection, so it stays required and
+  // its `const` still tells the narrowed variants apart.
+  const discriminator = isObject(out['discriminator']) ? out['discriminator']['propertyName'] : null
+  const branchNarrowing =
+    typeof discriminator === 'string'
+      ? { keep: new Set([...narrowing.keep, discriminator]), children: narrowing.children }
+      : narrowing
   for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
     const branches = out[key]
     if (Array.isArray(branches)) {
-      out[key] = branches.map((branch) => narrowed(root, branch, narrowing, depth + 1))
+      out[key] = branches.map((branch) => narrowed(root, branch, branchNarrowing, depth + 1))
     }
   }
+  // Without a discriminator, narrowed variants can no longer be told apart by their required
+  // members, so a value may match more than one of them.
+  if (Array.isArray(out['oneOf']) && typeof discriminator !== 'string') {
+    const { oneOf, ...rest } = out
+    return out['anyOf'] === undefined
+      ? narrowedLevel(root, { ...rest, anyOf: oneOf }, narrowing, depth)
+      : narrowedLevel(
+          root,
+          { ...rest, allOf: [...((rest['allOf'] as unknown[]) ?? []), { anyOf: oneOf }] },
+          narrowing,
+          depth,
+        )
+  }
+  return narrowedLevel(root, out, narrowing, depth)
+}
+
+/** The rest of {@link narrowed}: one level's own `required` and keys. */
+function narrowedLevel(
+  root: Record<string, unknown>,
+  out: Record<string, unknown>,
+  narrowing: Narrowing,
+  depth: number,
+): unknown {
   const required = out['required']
   if (Array.isArray(required)) {
     out['required'] = required.filter((key) => typeof key === 'string' && narrowing.keep.has(key))
@@ -309,7 +339,10 @@ export function sparseSchema(schema: unknown, members: readonly string[]): unkno
   }
   const selection = keySelection(members)
   const selected = new Set([
-    ...members.filter((member) => member !== '' && !member.includes('.')),
+    // `lines.*` names the list itself, as `lines` does.
+    ...members
+      .map((member) => member.replace(/(?:\.\*)+$/, ''))
+      .filter((member) => member !== '' && !member.includes('.')),
     ...Object.keys(selection),
   ])
   const children = new Map<string, Narrowing>()

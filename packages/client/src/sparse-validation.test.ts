@@ -252,6 +252,57 @@ describe.each(['adapter', 'config'] as const)('validating a sparse read (%s)', (
 const attributes = (schema: unknown) =>
   (schema as { properties: { attributes: Record<string, unknown> } }).properties.attributes
 
+/** A variant of a union: its keys as strings, and its `kind` pinned to its name when `kind` names it. */
+const variant = (kind: string, keys: string[], discriminated: boolean) => ({
+  type: 'object',
+  properties: {
+    ...Object.fromEntries(keys.map((key) => [key, { type: 'string' }])),
+    ...(discriminated ? { kind: { type: 'string', const: kind } } : {}),
+  },
+  required: [...keys, ...(discriminated ? ['kind'] : [])],
+  additionalProperties: false,
+})
+
+/** A union of a heading, a figure and a rule, discriminated by `kind` or not. */
+const union = (discriminated: boolean) => ({
+  oneOf: [
+    variant('heading', ['text'], discriminated),
+    variant('figure', ['src'], discriminated),
+    variant('rule', [], discriminated),
+  ],
+  ...(discriminated ? { discriminator: { propertyName: 'kind' } } : {}),
+})
+
+/** A `pages` resource with a list of a union, a nullable union attribute and a union inside an object. */
+const pagesSchema = (discriminated: boolean) => {
+  const nullable = union(discriminated)
+  return {
+    type: 'object',
+    properties: {
+      type: { type: 'string', const: 'pages' },
+      id: { type: 'string' },
+      attributes: {
+        type: 'object',
+        properties: {
+          sections: { type: 'array', items: union(discriminated) },
+          cover: { ...nullable, oneOf: [...nullable.oneOf, { type: 'null' }] },
+          panel: {
+            type: 'object',
+            properties: { title: { type: 'string' }, media: union(discriminated) },
+            required: ['title', 'media'],
+          },
+        },
+        required: ['sections', 'cover', 'panel'],
+      },
+    },
+    required: ['type', 'id', 'attributes'],
+  }
+}
+
+/** A narrowed schema's attribute schema. */
+const propertyOf = (schema: unknown, name: string) =>
+  (attributes(schema)['properties'] as Record<string, Record<string, unknown>>)[name]!
+
 describe('sparseSchema', () => {
   it('keeps only the selected members required, and the resource needs neither member object', () => {
     const out = sparseSchema(schemas['products'], ['name', 'maker']) as Record<string, unknown>
@@ -281,6 +332,90 @@ describe('sparseSchema', () => {
       geo: { anyOf: [{ required: ['lat'] }, { type: 'null' }] },
     })
     expect(props['lines']!['items']).toMatchObject({ required: ['sku'] })
+  })
+
+  it('reads a list named through a wildcard alone as the whole list', () => {
+    const attrs = attributes(sparseSchema(schemas['products'], ['lines.*']))
+    const props = attrs['properties'] as Record<string, Record<string, unknown>>
+    expect(attrs['required']).toEqual(['lines'])
+    const whole = attributes(schemas['products'])['properties'] as Record<string, unknown>
+    expect(props['lines']).toEqual(whole['lines'])
+  })
+
+  it('narrows every variant of a union item and keeps its discriminator pinning one variant', () => {
+    const out = sparseSchema(pagesSchema(true), ['sections.*.text'])
+    const items = propertyOf(out, 'sections')['items'] as Record<string, unknown>
+    expect(items['anyOf']).toBeUndefined()
+    expect((items['oneOf'] as Record<string, unknown>[]).map((v) => v['required'])).toEqual([
+      ['text', 'kind'],
+      ['kind'],
+      ['kind'],
+    ])
+    const validate = new Ajv2020({ strict: false }).compile(out as object)
+    const resource = (sections: unknown[]) => ({ type: 'pages', id: '1', attributes: { sections } })
+    expect(
+      validate(
+        resource([{ kind: 'heading', text: 'Intro' }, { kind: 'figure' }, { kind: 'rule' }]),
+      ),
+    ).toBe(true)
+    expect(validate(resource([{ text: 'Intro' }]))).toBe(false)
+    expect(validate(resource([{ kind: 'figure', text: 'Intro' }]))).toBe(false)
+  })
+
+  it('narrows a union attribute and a union inside an object the same way', () => {
+    const out = sparseSchema(pagesSchema(true), ['cover.text', 'panel.media.src'])
+    const cover = propertyOf(out, 'cover')
+    expect((cover['oneOf'] as Record<string, unknown>[]).map((v) => v['required'])).toEqual([
+      ['text', 'kind'],
+      ['kind'],
+      ['kind'],
+      undefined,
+    ])
+    const media = (
+      propertyOf(out, 'panel')['properties'] as Record<string, Record<string, unknown>>
+    )['media']!
+    expect((media['oneOf'] as Record<string, unknown>[]).map((v) => v['required'])).toEqual([
+      ['kind'],
+      ['src', 'kind'],
+      ['kind'],
+    ])
+    const validate = new Ajv2020({ strict: false }).compile(out as object)
+    expect(
+      validate({
+        type: 'pages',
+        id: '1',
+        attributes: { cover: { kind: 'figure' }, panel: { media: { kind: 'figure', src: 'a' } } },
+      }),
+    ).toBe(true)
+    expect(
+      validate({
+        type: 'pages',
+        id: '1',
+        attributes: { cover: null, panel: { media: { kind: 'rule' } } },
+      }),
+    ).toBe(true)
+    expect(
+      validate({
+        type: 'pages',
+        id: '1',
+        attributes: { cover: null, panel: { media: { kind: 'figure' } } },
+      }),
+    ).toBe(false)
+  })
+
+  it('reads a narrowed union with no discriminator as any of its variants', () => {
+    const out = sparseSchema(pagesSchema(false), ['sections.*.text'])
+    const items = propertyOf(out, 'sections')['items'] as Record<string, unknown>
+    expect(items['oneOf']).toBeUndefined()
+    expect((items['anyOf'] as Record<string, unknown>[]).map((v) => v['required'])).toEqual([
+      ['text'],
+      [],
+      [],
+    ])
+    const validate = new Ajv2020({ strict: false }).compile(out as object)
+    expect(
+      validate({ type: 'pages', id: '1', attributes: { sections: [{}, { text: 'a' }] } }),
+    ).toBe(true)
   })
 
   it('keeps a key of a shared map value required only when every selected key selects it', () => {

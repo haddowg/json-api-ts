@@ -109,7 +109,8 @@ A list whose items take keys has `*` where a key goes, and `<attribute>.*.<key>`
 of every item. The list keeps its length and order, each item typed and returned with only the
 selected keys, each optional, and a path keeps going through nested objects and lists the same way.
 Listing the list, or its items as `<attribute>.*`, beside a path into it brings the list back whole.
-There is no index: a server refuses `lines.0`.
+`<attribute>.*` on its own is read exactly as `<attribute>`: the whole list, typed whole and left
+out of `$keySelection`. There is no index: a server refuses `lines.0`.
 
 ```ts
 // GET /articles/a-1?fields[articles]=lines.*.sku,lines.*.price.amount
@@ -119,6 +120,22 @@ const order = await client.articles.get('a-1', {
 
 order.lines // { sku?: string; price?: { amount?: number } }[] | null
 order.$keySelection // { lines: ['*.sku', '*.price.amount'] }
+```
+
+A value that is one of several variants, such as a hero that is an image or a video, or a list of
+headings and figures, takes the keys any variant lets a fieldset select, whether it is an attribute,
+a key of an object or the items of a list. Every value comes back with the member naming its
+variant and only the selected keys its own variant has, so the type narrows on the discriminator as
+it does whole:
+
+```ts
+// GET /articles/a-1?fields[articles]=sections.*.text,sections.*.size.width
+const article = await client.articles.get('a-1', {
+  fields: { articles: ['sections.*.text', 'sections.*.size.width'] },
+})
+
+article.sections
+// ({ kind: 'heading'; text?: string } | { kind: 'figure'; size?: { width?: number } } | { kind: 'rule' })[] | null
 ```
 
 Each resource's `$keySelection` holds the paths the request selected of each attribute it

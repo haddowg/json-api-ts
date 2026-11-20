@@ -128,7 +128,8 @@ A `fields` member `<attribute>.<key>` selecting one key of an object attribute t
 in `selectableKeys`, under the Field Selection profile, or `<attribute>.<key>.<key>` selecting one
 key of a nested object along a path in `selectableKeyPaths`, or `<attribute>.*.<key>` selecting a
 key of every item of a list, whose key in `selectableKeys` is `\*`. The resource's
-`$keySelection` holds the paths a read selected of each attribute it narrowed.
+`$keySelection` holds the paths a read selected of each attribute it narrowed. A member ending in
+`.*` names the list itself and narrows nothing.
 _Avoid_: dotted field, nested field, sub-field
 
 ### Writing
