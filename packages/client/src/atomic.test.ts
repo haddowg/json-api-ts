@@ -518,8 +518,50 @@ describe('client.atomic — relationship operations', () => {
         tx.rel({ type: 'albums', id: '1' }, 'editions').remove([])
         // @ts-expect-error -- nor replaced.
         tx.rel({ type: 'albums', id: '1' }, 'editions').replace([])
+      })
+      .catch(() => undefined)
+  })
+
+  it('refuses a relation that takes no verb at the rel call', () => {
+    const typed = {
+      ...descriptor,
+      albums: {
+        ...descriptor.albums,
+        relations: {
+          ...descriptor.albums.relations,
+          // A to-many whose relationship writes are suppressed.
+          archive: { cardinality: 'many', types: ['tracks'], pivot: false, mutations: {} },
+          // A to-many advertising only replace.
+          lineup: {
+            cardinality: 'many',
+            types: ['artists'],
+            pivot: false,
+            mutations: { replace: true },
+          },
+          // A to-one advertising only verbs a to-one can't take.
+          cover: { cardinality: 'one', types: ['artists'], pivot: false, mutations: { add: true } },
+        },
+      },
+    } as const satisfies ApiDescriptor
+    const { transport } = atomicTransport()
+    const client = createClient(typed, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+    void client
+      .atomic((tx) => {
+        const album = { type: 'albums', id: '1' } as const
         // @ts-expect-error -- the label's relationship takes no write.
-        tx.rel({ type: 'albums', id: '1' }, 'label').set(null)
+        tx.rel(album, 'label')
+        // @ts-expect-error -- nor does the archive's.
+        tx.rel(album, 'archive')
+        // @ts-expect-error -- a to-one takes no add, so the cover takes no verb.
+        tx.rel(album, 'cover')
+        tx.rel(album, 'artist').set(null)
+        tx.rel(album, 'tracks').add([])
+        tx.rel(album, 'editions').add([])
+        tx.rel(album, 'lineup').replace([])
       })
       .catch(() => undefined)
   })
