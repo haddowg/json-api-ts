@@ -464,13 +464,11 @@ describe('client.atomic — relationship operations', () => {
     const { client, requests } = recording()
     await client.atomic((tx) => {
       const album = tx.create({ type: 'albums', title: 'Kid A' })
-      tx.add({ type: 'albums', lid: album.lid, relationship: 'tracks' }, [
-        { type: 'tracks', id: '5' },
-      ])
-      tx.remove({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'tracks', id: '6' }])
-      tx.replace({ type: 'albums', id: '1', relationship: 'related' }, [album])
-      tx.set({ type: 'tracks', id: '5', relationship: 'album' }, album)
-      tx.set({ type: 'albums', id: '1', relationship: 'artist' }, null, { meta: { by: 'desk' } })
+      tx.rel({ type: 'albums', lid: album.lid }, 'tracks').add([{ type: 'tracks', id: '5' }])
+      tx.rel({ type: 'albums', id: '1' }, 'tracks').remove([{ type: 'tracks', id: '6' }])
+      tx.rel({ type: 'albums', id: '1' }, 'related').replace([album])
+      tx.rel({ type: 'tracks', id: '5' }, 'album').set(album)
+      tx.rel({ type: 'albums', id: '1' }, 'artist').set(null, { meta: { by: 'desk' } })
     })
     expect(bodyOf(requests[0]!)['atomic:operations']).toEqual([
       { op: 'add', data: { type: 'albums', lid: 'atomic-0', attributes: { title: 'Kid A' } } },
@@ -508,20 +506,20 @@ describe('client.atomic — relationship operations', () => {
     void client
       .atomic((tx) => {
         // @ts-expect-error -- a to-one takes no add.
-        tx.add({ type: 'albums', id: '1', relationship: 'artist' }, [{ type: 'artists', id: '1' }])
+        tx.rel({ type: 'albums', id: '1' }, 'artist').add([{ type: 'artists', id: '1' }])
         // @ts-expect-error -- a to-many is replaced, not set.
-        tx.set({ type: 'albums', id: '1', relationship: 'tracks' }, null)
+        tx.rel({ type: 'albums', id: '1' }, 'tracks').set(null)
         // @ts-expect-error -- tracks relate to albums, not artists.
-        tx.add({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'artists', id: '1' }])
+        tx.rel({ type: 'albums', id: '1' }, 'tracks').add([{ type: 'artists', id: '1' }])
         // @ts-expect-error -- albums have no such relation.
-        tx.remove({ type: 'albums', id: '1', relationship: 'covers' }, [])
-        tx.add({ type: 'albums', id: '1', relationship: 'editions' }, [{ type: 'albums', id: '2' }])
+        tx.rel({ type: 'albums', id: '1' }, 'covers').remove([])
+        tx.rel({ type: 'albums', id: '1' }, 'editions').add([{ type: 'albums', id: '2' }])
         // @ts-expect-error -- editions can't be removed.
-        tx.remove({ type: 'albums', id: '1', relationship: 'editions' }, [])
+        tx.rel({ type: 'albums', id: '1' }, 'editions').remove([])
         // @ts-expect-error -- nor replaced.
-        tx.replace({ type: 'albums', id: '1', relationship: 'editions' }, [])
+        tx.rel({ type: 'albums', id: '1' }, 'editions').replace([])
         // @ts-expect-error -- the label's relationship takes no write.
-        tx.set({ type: 'albums', id: '1', relationship: 'label' }, null)
+        tx.rel({ type: 'albums', id: '1' }, 'label').set(null)
       })
       .catch(() => undefined)
   })
@@ -539,9 +537,9 @@ describe('client.atomic — relationship operations', () => {
       }),
     }))
     const [tracks, album, artist] = await client.atomic((tx) => [
-      tx.add({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'tracks', id: '5' }]),
-      tx.set({ type: 'tracks', id: '5', relationship: 'album' }, { type: 'albums', id: '1' }),
-      tx.set({ type: 'albums', id: '1', relationship: 'artist' }, null),
+      tx.rel({ type: 'albums', id: '1' }, 'tracks').add([{ type: 'tracks', id: '5' }]),
+      tx.rel({ type: 'tracks', id: '5' }, 'album').set({ type: 'albums', id: '1' }),
+      tx.rel({ type: 'albums', id: '1' }, 'artist').set(null),
     ])
     expect(tracks.data).toEqual([{ type: 'tracks', id: '5' }])
     expect(album.data).toEqual({ type: 'albums', id: '1' })
@@ -569,8 +567,8 @@ describe('client.atomic — relationship operations', () => {
     const error = (await client
       .atomic((tx) => {
         tx.create({ type: 'albums', title: 'Kid A' })
-        tx.add({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'tracks', id: '5' }])
-        tx.set({ type: 'tracks', id: '5', relationship: 'album' }, null)
+        tx.rel({ type: 'albums', id: '1' }, 'tracks').add([{ type: 'tracks', id: '5' }])
+        tx.rel({ type: 'tracks', id: '5' }, 'album').set(null)
       })
       .catch((e: unknown) => e)) as JsonApiError
     expect(error.errors.map(({ opIndex, path }) => ({ opIndex, path }))).toEqual([
@@ -579,6 +577,105 @@ describe('client.atomic — relationship operations', () => {
       // The operation's own meta is grouped as a standalone relationship write's is.
       { opIndex: 1, path: '$documentMeta.changedBy' },
     ])
+  })
+})
+
+describe('client.atomic — reaching a relationship', () => {
+  const recording = () => {
+    const { transport, requests } = atomicTransport()
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+    return { client, requests }
+  }
+
+  it('takes a create handle or a materialised resource as the ref', async () => {
+    const { client, requests } = recording()
+    const track = { type: 'tracks', id: '5', title: 'Idioteque' } as const
+    await client.atomic((tx) => {
+      const album = tx.create({ type: 'albums' })
+      tx.rel(album, 'tracks').add([{ type: 'tracks', id: '5' }])
+      tx.rel(track, 'album').set(album)
+    })
+    expect(bodyOf(requests[0]!)['atomic:operations']).toEqual([
+      { op: 'add', data: { type: 'albums', lid: 'atomic-0' } },
+      {
+        op: 'add',
+        ref: { type: 'albums', lid: 'atomic-0', relationship: 'tracks' },
+        data: [{ type: 'tracks', id: '5' }],
+      },
+      {
+        op: 'update',
+        ref: { type: 'tracks', id: '5', relationship: 'album' },
+        data: { type: 'albums', lid: 'atomic-0' },
+      },
+    ])
+  })
+
+  it('records each operation when its verb is called, so one relationship can take several', async () => {
+    const { client, requests } = recording()
+    const [added, removed] = await client.atomic((tx) => {
+      const tracks = tx.rel({ type: 'albums', id: '1' }, 'tracks')
+      tx.delete({ type: 'tracks', id: '9' })
+      return [
+        tracks.add([{ type: 'tracks', id: '5' }]),
+        tracks.remove([{ type: 'tracks', id: '6' }]),
+      ] as const
+    })
+    expect(
+      (bodyOf(requests[0]!)['atomic:operations'] as { op: string }[]).map(({ op }) => op),
+    ).toEqual(['remove', 'add', 'remove'])
+    expect(added).toBeUndefined()
+    expect(removed).toBeUndefined()
+  })
+
+  it('refuses a ref with neither an id nor a lid, and a missing relationship name', async () => {
+    const { client } = recording()
+    const loose = client as unknown as {
+      atomic: (build: (tx: { rel: (ref: unknown, name?: unknown) => unknown }) => void) => unknown
+    }
+    await expect(loose.atomic((tx) => tx.rel({ type: 'albums' }, 'tracks'))).rejects.toThrow(
+      /atomic rel requires an `id` or a `lid`/,
+    )
+    await expect(loose.atomic((tx) => tx.rel({ type: 'albums', id: '1' }))).rejects.toThrow(
+      /atomic rel requires a relationship name/,
+    )
+  })
+
+  it('takes any meta on a relation declaring none for a batch, whatever its standalone write takes', () => {
+    const typed = {
+      ...descriptor,
+      albums: {
+        ...descriptor.albums,
+        relations: {
+          ...descriptor.albums.relations,
+          tags: {
+            cardinality: 'many',
+            types: ['artists'],
+            pivot: false,
+            requestMeta: { add: { fields: { reason: 'string' } } },
+          },
+        },
+      },
+    } as const satisfies ApiDescriptor
+    const { transport } = atomicTransport()
+    const client = createClient(typed, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+    void client
+      .atomic((tx) => {
+        tx.rel({ type: 'albums', id: '1' }, 'tags').add([])
+        tx.rel({ type: 'albums', id: '1' }, 'tags').add([], { meta: { reason: 1, other: true } })
+      })
+      .catch(() => undefined)
+    const tags = client.albums.id('1').tags
+    // @ts-expect-error -- the standalone add must still send its reason.
+    const standalone = () => tags.add([])
+    void standalone
   })
 })
 

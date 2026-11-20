@@ -349,13 +349,12 @@ describe('typed request meta', () => {
   it('carries each atomic relationship operation’s meta, typed by the relation', async () => {
     const { client, sent } = answering({ body: { 'atomic:results': [] } })
     await client.atomic((tx) => {
-      tx.add(
-        { type: 'bookings', id: 'bk-1', relationship: 'rooms' },
+      tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').add(
         [{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }],
         { meta: { changedBy: 'desk', batch: 4 } },
       )
-      tx.replace({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [])
-      tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null, {
+      tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').replace([])
+      tx.rel({ type: 'bookings', id: 'bk-1' }, 'guest').set(null, {
         meta: { deskId: 'd-1' },
       })
     })
@@ -379,12 +378,12 @@ describe('typed request meta', () => {
     void client
       .atomic((tx) => {
         // @ts-expect-error -- setting the guest in a batch must send the desk.
-        tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null)
-        tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null, {
+        tx.rel({ type: 'bookings', id: 'bk-1' }, 'guest').set(null)
+        tx.rel({ type: 'bookings', id: 'bk-1' }, 'guest').set(null, {
           // @ts-expect-error -- the desk is a string.
           meta: { deskId: 1 },
         })
-        tx.remove({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [], {
+        tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').remove([], {
           // @ts-expect-error -- the changedBy is a string.
           meta: { changedBy: 1 },
         })
