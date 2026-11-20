@@ -182,7 +182,8 @@ booking.$meta?.nights // number | null | undefined
 ```
 
 A `422` on a member of `$meta` comes back keyed `$meta.<member>` by `byPath()`. One on the
-top-level `meta` keeps its pointer, such as `/meta/idempotencyKey`.
+top-level `meta` you passed as the `meta` option comes back keyed `$documentMeta.<member>`, such
+as `$documentMeta.idempotencyKey` for `/meta/idempotencyKey`.
 
 ## Errors surface by your flat input path
 

@@ -18,6 +18,17 @@ const PIVOT_KEY = '$pivot'
 /** The resource object's own `meta`, supplied in a write input as the `$meta` key. */
 const META_KEY = '$meta'
 
+/**
+ * The key an error on the request document's top-level `meta`, sent as a write's `meta` option, is
+ * grouped under: `$meta` names the resource object's, so the document's is `$documentMeta`.
+ */
+const DOCUMENT_META_KEY = '$documentMeta'
+
+/** The flat path of a pointer into the request document's top-level `meta`, else `undefined`. */
+function documentMetaPath(segments: readonly string[]): string | undefined {
+  return segments[0] === 'meta' ? [DOCUMENT_META_KEY, ...segments.slice(1)].join('.') : undefined
+}
+
 /** The reserved input keys never routed to attributes/relationships. */
 const RESERVED_INPUT: ReadonlySet<string> = new Set(['type', 'id'])
 
@@ -234,6 +245,7 @@ const describe = (value: unknown): string =>
  * - `/data/attributes/releaseInfo/label`                     -> `releaseInfo.label` (nested map)
  * - `/data/relationships/orderedTracks/data/0/meta/pivot/position` -> `orderedTracks[0].$pivot.position`
  * - `/data/meta/source`                                      -> `$meta.source`
+ * - `/meta/idempotencyKey`                                   -> `$documentMeta.idempotencyKey`
  *
  * Pivot values nest under a member's `meta.pivot` (symmetric with reads — see
  * `JsonPointerBuilder::forLinkageMeta`), so a `meta/pivot/<field>` tail on
@@ -247,7 +259,7 @@ const describe = (value: unknown): string =>
 export function remapPointer(descriptor: ApiDescriptor, type: string, pointer: string): string {
   const segments = pointer.split('/').filter((s) => s !== '')
   if (segments[0] !== 'data') {
-    return pointer
+    return documentMetaPath(segments) ?? pointer
   }
   if (segments[1] === 'meta') {
     return [META_KEY, ...segments.slice(2)].join('.')
@@ -325,12 +337,13 @@ function remapRelationship(
  *   to the relation name (drop the `relationships/<name>` prefix) rather than treating
  *   `relationships` as a linkage sub-segment.
  *
- * A non-`data` pointer, such as one at the top-level `meta`, is returned verbatim.
+ * A pointer into the top-level `meta` becomes `$documentMeta.<member>`, and any other non-`data`
+ * pointer is returned verbatim.
  */
 export function remapRelationshipPointer(rel: string, hasPivot: boolean, pointer: string): string {
   const segments = pointer.split('/').filter((s) => s !== '')
   if (segments[0] !== 'data') {
-    return pointer
+    return documentMetaPath(segments) ?? pointer
   }
   // A resource-document relationship pointer (`/data/relationships/<name>...`): the route's
   // relation name owns the path; drop the `relationships/<name>` prefix (segments[2] is the
@@ -366,6 +379,23 @@ export function withRemappedRelationshipPaths(
   hasPivot: boolean,
 ): JsonApiError {
   return mapErrors(error, (pointer) => ({ path: remapRelationshipPointer(rel, hasPivot, pointer) }))
+}
+
+/**
+ * Give each error on the request document's top-level `meta` its `$documentMeta.<member>` path,
+ * for a request whose other members the client didn't build, such as a bespoke action document or
+ * a meta-only one. Every other error is passed through unchanged. The original error is not
+ * mutated.
+ */
+export function withRemappedDocumentMetaPaths(error: JsonApiError): JsonApiError {
+  const remapped: JsonApiErrorObject[] = error.errors.map((e) => {
+    const path =
+      e.source?.pointer === undefined
+        ? undefined
+        : documentMetaPath(e.source.pointer.split('/').filter((s) => s !== ''))
+    return path === undefined ? e : { ...e, path }
+  })
+  return new JsonApiError(error.status, remapped, error.message)
 }
 
 /**

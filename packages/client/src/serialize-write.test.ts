@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { ApiDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
-import { remapPointer, toDocument, withRemappedPaths } from './serialize-write'
+import {
+  remapPointer,
+  remapRelationshipPointer,
+  toDocument,
+  withRemappedPaths,
+} from './serialize-write'
 
 const descriptor = {
   albums: {
@@ -206,7 +211,13 @@ describe('remapPointer', () => {
 
   it('leaves a query-side / non-write pointer as-is', () => {
     expect(remapPointer(descriptor, 'albums', 'filter[title]')).toBe('filter[title]')
-    expect(remapPointer(descriptor, 'albums', '/meta/something')).toBe('/meta/something')
+  })
+
+  it('remaps a top-level meta pointer to $documentMeta', () => {
+    expect(remapPointer(descriptor, 'albums', '/meta/something')).toBe('$documentMeta.something')
+    expect(remapRelationshipPointer('tracks', false, '/meta/something')).toBe(
+      '$documentMeta.something',
+    )
   })
 })
 
