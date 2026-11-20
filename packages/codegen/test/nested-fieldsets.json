@@ -578,7 +578,7 @@
   "fields": {
     "name": "fields[articles]",
     "in": "query",
-    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals`, `location` or `hero` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it. Select keys of every item of `lines` or `sections` as `<attribute>.*.<key>`; the list keeps its length and order. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
+    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals`, `location` or `hero` as `<attribute>.<key>` under the [Nested Fieldsets profile](https://haddowg.github.io/json-api/profiles/nested-fieldsets/); listing the attribute itself selects all of it. Select keys of every item of `lines` or `sections` as `<attribute>.*.<key>`; the list keeps its length and order. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
     "schema": {
       "type": "array",
       "items": {
