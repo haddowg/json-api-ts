@@ -313,18 +313,49 @@ function flatResource(
   return schema
 }
 
-/** An object schema whose keys may each be absent, through any `anyOf`, `oneOf` or `allOf`. */
-function withoutRequiredKeys(schema: JsonSchema): JsonSchema {
-  const { required: _required, ...rest } = schema
+/**
+ * `schema` free of `required`, and each branch of an `anyOf`, `oneOf` or `allOf` too, so a value a
+ * read narrowed may miss any of its keys. A branch keeps the member `discriminator` names required,
+ * since every narrowed value still carries it, so its `const` keeps a `oneOf` exclusive. A `oneOf`
+ * with no discriminator becomes an `anyOf`, since its branches can no longer be told apart.
+ */
+function withoutRequiredKeys(schema: JsonSchema, keep?: string): JsonSchema {
+  const { required, ...rest } = schema
+  if (keep !== undefined && Array.isArray(required) && required.includes(keep)) {
+    rest['required'] = [keep]
+  }
+  const discriminator = discriminatorOf(schema)
   for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
     const branches = rest[key]
     if (Array.isArray(branches)) {
       rest[key] = branches.map((branch) =>
-        isObject(branch) ? withoutRequiredKeys(branch as JsonSchema) : branch,
+        isObject(branch) ? withoutRequiredKeys(branch as JsonSchema, discriminator) : branch,
       )
     }
   }
-  return rest
+  return discriminator === undefined ? exclusiveAsAny(rest) : rest
+}
+
+/** The member a union schema's `discriminator` names, if it has one. */
+function discriminatorOf(schema: JsonSchema): string | undefined {
+  const discriminator = schema['discriminator']
+  return isObject(discriminator) && typeof discriminator['propertyName'] === 'string'
+    ? discriminator['propertyName']
+    : undefined
+}
+
+/**
+ * `schema` with a `oneOf` read as an `anyOf`: variants that may miss their required members can no
+ * longer be told apart by them, so a value may match more than one.
+ */
+function exclusiveAsAny(schema: JsonSchema): JsonSchema {
+  if (!Array.isArray(schema['oneOf'])) {
+    return schema
+  }
+  const { oneOf, ...rest } = schema
+  return rest['anyOf'] === undefined
+    ? { ...rest, anyOf: oneOf }
+    : { ...rest, allOf: [...((rest['allOf'] as unknown[] | undefined) ?? []), { anyOf: oneOf }] }
 }
 
 /**

@@ -163,10 +163,11 @@ export function retype(original: OpenApiDocument, shapes: readonly string[]): Op
 export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
   const fragment = JSON.parse(
     readFileSync(new URL('../../codegen/test/field-selection.json', import.meta.url), 'utf8'),
-  ) as { attributes: Record<string, Json>; fields: Json }
+  ) as { attributes: Record<string, Json>; components: Record<string, Json>; fields: Json }
   const doc = structuredClone(original) as Json
   ;(doc['info'] as Json)['x-generator'] = { contract: 42 }
   const schemas = (doc['components'] as Json)['schemas'] as Record<string, Json>
+  Object.assign(schemas, structuredClone(fragment.components))
   for (const [component, added] of Object.entries(fragment.attributes)) {
     const schema = schemas[component]!
     const properties: Json = {}
