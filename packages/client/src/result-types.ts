@@ -13,6 +13,7 @@ import type { Accepted, PollOptions } from './accepted'
 import type {
   AtomicCreateHandle,
   AtomicDeleteHandle,
+  AtomicRelationshipHandle,
   AtomicHandle,
   AtomicRecorder,
   AtomicResult,
@@ -1255,13 +1256,19 @@ export type MutationMetaOf<
     : never
   : never
 
-/** The top-level `meta` relation `R`'s write with verb `V` takes, or `never` when it declares none. */
+/**
+ * The top-level `meta` relation `R`'s write with verb `V` takes, or, with `Atomic`, the operation's
+ * inside an atomic batch. `never` when it declares none.
+ */
 export type RelationRequestMetaOf<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   V extends keyof RelationMutations,
-> = D[T]['relations'][R] extends { requestMeta: infer M }
+  Atomic extends boolean = false,
+> = D[T]['relations'][R] extends {
+  [K in Atomic extends true ? 'atomicRequestMeta' : 'requestMeta']: infer M
+}
   ? V extends keyof M
     ? M[V] extends { fields: object }
       ? MetaObject<M[V]>
@@ -1432,6 +1439,39 @@ export interface RelationshipAccessor<
 }
 
 /**
+ * The relations of type `T` that take verb `V`: of the verb's cardinality, a to-one for `set` and
+ * a to-many for the rest, and advertising the verb in their `mutations` flags, as the relationship
+ * accessor gates it (see {@link AdvertisesVerb}).
+ */
+export type RelationNameFor<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  V extends MutationVerb,
+> = {
+  [R in RelationName<D, T>]: D[T]['relations'][R]['cardinality'] extends VerbCardinality<V>
+    ? AdvertisesVerb<D, T, R, V> extends true
+      ? R
+      : never
+    : never
+}[RelationName<D, T>]
+
+/**
+ * The members a relationship write with verb `V` on relation `R` takes, as the relationship
+ * accessor's verbs take them: refs with an optional `$pivot` to add or replace, refs to remove, and
+ * one ref or `null` to set.
+ */
+export type RelationshipMembers<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends MutationVerb,
+> = V extends 'set'
+  ? LinkageRefOf<RelatedType<D, T, R>> | null
+  : V extends 'remove'
+    ? readonly LinkageRefOf<RelatedType<D, T, R>>[]
+    : readonly WriteRef<D, T, R>[]
+
+/**
  * A linkage ref for a to-many membership WRITE on relation `R` (`add`/`replace`, or a create or
  * update input), with `$pivot` typed from the relation's `writePivot` — so a `belongsToMany` add
  * carries the precise pivot shape (`{ position, weight?, … }`) instead of a loose record.
@@ -1471,7 +1511,7 @@ type ReadsRelationship<
 > = D[T]['relations'][R] extends { writeOnly: true } ? false : ExposesRelationship<D, T, R>
 
 /** The mutation verb a relationship accessor method maps to (`add`/`remove`/`replace` to-many, `set` to-one). */
-type MutationVerb = 'add' | 'remove' | 'replace' | 'set'
+export type MutationVerb = 'add' | 'remove' | 'replace' | 'set'
 
 /** The cardinality a mutation verb belongs to (`set` is to-one; the rest are to-many). */
 type VerbCardinality<V extends MutationVerb> = V extends 'set' ? 'one' : 'many'
@@ -1877,22 +1917,31 @@ export type UpdateMethod<
  *   wrapping the materialised resource view of `T` (the same {@link ResourceObjectView} a
  *   standalone create/update read returns — `data` is typed, not `unknown`, plus the optional op
  *   `meta`);
- * - an {@link AtomicDeleteHandle} -> `undefined` (a remove carries no data).
+ * - an {@link AtomicDeleteHandle} -> `undefined` (a remove carries no data);
+ * - an {@link AtomicRelationshipHandle} for relation `R` of `T` -> the `AtomicResult` wrapping the
+ *   linkage the server answered with, as the relationship accessor's verbs return it, or
+ *   `undefined` data when it answered with an empty result.
  *
  * Drives the per-op positional typing of {@link AtomicResults} (the callback's returned tuple of
  * handles maps to a tuple of these).
  */
 export type AtomicResultOf<D extends ApiDescriptor, A, Handle> = Handle extends AtomicDeleteHandle
   ? undefined
-  : Handle extends AtomicCreateHandle<infer T>
+  : Handle extends AtomicRelationshipHandle<infer T, infer R>
     ? T extends TypeName<D>
-      ? AtomicResult<ResourceObjectView<D, A, T>>
+      ? R extends RelationName<D, T>
+        ? AtomicResult<LinkageValue<D, T, R> | undefined>
+        : never
       : never
-    : Handle extends AtomicUpdateHandle<infer T>
+    : Handle extends AtomicCreateHandle<infer T>
       ? T extends TypeName<D>
         ? AtomicResult<ResourceObjectView<D, A, T>>
         : never
-      : never
+      : Handle extends AtomicUpdateHandle<infer T>
+        ? T extends TypeName<D>
+          ? AtomicResult<ResourceObjectView<D, A, T>>
+          : never
+        : never
 
 // ── Custom actions (docs/custom-actions.md) ────────────────────────────────────────────────────
 

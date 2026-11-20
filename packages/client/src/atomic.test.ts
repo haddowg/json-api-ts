@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient } from './client'
 import type { ApiDescriptor } from './descriptor'
 import { JsonApiError } from './errors'
@@ -16,6 +16,15 @@ const descriptor = {
       tracks: { cardinality: 'many', types: ['tracks'], pivot: false },
       // A to-many self-relation: lets a test wire an `albums` create handle into a to-many slot.
       related: { cardinality: 'many', types: ['albums'], pivot: false },
+      // Members can be added but not removed or replaced.
+      editions: {
+        cardinality: 'many',
+        types: ['albums'],
+        pivot: false,
+        mutations: { add: true },
+      },
+      // A relationship whose writes are suppressed.
+      label: { cardinality: 'one', types: ['artists'], pivot: false, mutations: {} },
     },
     paths: { create: '/albums', update: '/albums/{id}', delete: '/albums/{id}' },
     paginator: 'page',
@@ -437,6 +446,139 @@ describe('client.atomic — error remapping', () => {
       .catch((e: unknown) => e)) as JsonApiError
     expect(error).toBeInstanceOf(JsonApiError)
     expect(error.status).toBe(500)
+  })
+})
+
+describe('client.atomic — relationship operations', () => {
+  const recording = (reply?: (req: TransportRequest) => TransportResponse) => {
+    const { transport, requests } = atomicTransport(reply)
+    const client = createClient(descriptor, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+    return { client, requests }
+  }
+
+  it('records add, remove, replace and set on a relationship, by id or by a same-batch lid', async () => {
+    const { client, requests } = recording()
+    await client.atomic((tx) => {
+      const album = tx.create({ type: 'albums', title: 'Kid A' })
+      tx.add({ type: 'albums', lid: album.lid, relationship: 'tracks' }, [
+        { type: 'tracks', id: '5' },
+      ])
+      tx.remove({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'tracks', id: '6' }])
+      tx.replace({ type: 'albums', id: '1', relationship: 'related' }, [album])
+      tx.set({ type: 'tracks', id: '5', relationship: 'album' }, album)
+      tx.set({ type: 'albums', id: '1', relationship: 'artist' }, null, { meta: { by: 'desk' } })
+    })
+    expect(bodyOf(requests[0]!)['atomic:operations']).toEqual([
+      { op: 'add', data: { type: 'albums', lid: 'atomic-0', attributes: { title: 'Kid A' } } },
+      {
+        op: 'add',
+        ref: { type: 'albums', lid: 'atomic-0', relationship: 'tracks' },
+        data: [{ type: 'tracks', id: '5' }],
+      },
+      {
+        op: 'remove',
+        ref: { type: 'albums', id: '1', relationship: 'tracks' },
+        data: [{ type: 'tracks', id: '6' }],
+      },
+      {
+        op: 'update',
+        ref: { type: 'albums', id: '1', relationship: 'related' },
+        data: [{ type: 'albums', lid: 'atomic-0' }],
+      },
+      {
+        op: 'update',
+        ref: { type: 'tracks', id: '5', relationship: 'album' },
+        data: { type: 'albums', lid: 'atomic-0' },
+      },
+      {
+        op: 'update',
+        ref: { type: 'albums', id: '1', relationship: 'artist' },
+        data: null,
+        meta: { by: 'desk' },
+      },
+    ])
+  })
+
+  it('types each verb by the relation it targets and the verbs it advertises', () => {
+    const { client } = recording()
+    void client
+      .atomic((tx) => {
+        // @ts-expect-error -- a to-one takes no add.
+        tx.add({ type: 'albums', id: '1', relationship: 'artist' }, [{ type: 'artists', id: '1' }])
+        // @ts-expect-error -- a to-many is replaced, not set.
+        tx.set({ type: 'albums', id: '1', relationship: 'tracks' }, null)
+        // @ts-expect-error -- tracks relate to albums, not artists.
+        tx.add({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'artists', id: '1' }])
+        // @ts-expect-error -- albums have no such relation.
+        tx.remove({ type: 'albums', id: '1', relationship: 'covers' }, [])
+        tx.add({ type: 'albums', id: '1', relationship: 'editions' }, [{ type: 'albums', id: '2' }])
+        // @ts-expect-error -- editions can't be removed.
+        tx.remove({ type: 'albums', id: '1', relationship: 'editions' }, [])
+        // @ts-expect-error -- nor replaced.
+        tx.replace({ type: 'albums', id: '1', relationship: 'editions' }, [])
+        // @ts-expect-error -- the label's relationship takes no write.
+        tx.set({ type: 'albums', id: '1', relationship: 'label' }, null)
+      })
+      .catch(() => undefined)
+  })
+
+  it('materialises each relationship result as linkage, typed by the returned handle', async () => {
+    const { client } = recording(() => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        'atomic:results': [
+          { data: [{ type: 'tracks', id: '5' }] },
+          { data: { type: 'albums', id: '1' } },
+          {},
+        ],
+      }),
+    }))
+    const [tracks, album, artist] = await client.atomic((tx) => [
+      tx.add({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'tracks', id: '5' }]),
+      tx.set({ type: 'tracks', id: '5', relationship: 'album' }, { type: 'albums', id: '1' }),
+      tx.set({ type: 'albums', id: '1', relationship: 'artist' }, null),
+    ])
+    expect(tracks.data).toEqual([{ type: 'tracks', id: '5' }])
+    expect(album.data).toEqual({ type: 'albums', id: '1' })
+    expect(artist.data).toBeUndefined()
+    expectTypeOf(tracks.data?.[0]?.type).toEqualTypeOf<'tracks' | undefined>()
+    expectTypeOf(album.data).toMatchTypeOf<{ type: 'albums'; id: string } | null | undefined>()
+  })
+
+  it('remaps a relationship operation’s 422 under its relation', async () => {
+    const { client } = recording(() => ({
+      status: 422,
+      headers: {},
+      body: JSON.stringify({
+        errors: [
+          { status: '422', detail: 'gone', source: { pointer: '/atomic:operations/1/data/0' } },
+          { status: '422', detail: 'locked', source: { pointer: '/atomic:operations/2/data' } },
+          {
+            status: '422',
+            detail: 'required',
+            source: { pointer: '/atomic:operations/1/meta/changedBy' },
+          },
+        ],
+      }),
+    }))
+    const error = (await client
+      .atomic((tx) => {
+        tx.create({ type: 'albums', title: 'Kid A' })
+        tx.add({ type: 'albums', id: '1', relationship: 'tracks' }, [{ type: 'tracks', id: '5' }])
+        tx.set({ type: 'tracks', id: '5', relationship: 'album' }, null)
+      })
+      .catch((e: unknown) => e)) as JsonApiError
+    expect(error.errors.map(({ opIndex, path }) => ({ opIndex, path }))).toEqual([
+      { opIndex: 1, path: 'tracks[0]' },
+      { opIndex: 2, path: 'album' },
+      // The operation's own meta is grouped as a standalone relationship write's is.
+      { opIndex: 1, path: '$documentMeta.changedBy' },
+    ])
   })
 })
 

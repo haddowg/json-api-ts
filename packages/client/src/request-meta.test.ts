@@ -44,9 +44,16 @@ const descriptor = {
         },
         mutations: { add: true, remove: true, replace: true },
         requestMeta: { add: CHANGED_BY, remove: CHANGED_BY, replace: CHANGED_BY },
+        atomicRequestMeta: { add: CHANGED_BY, remove: CHANGED_BY, replace: CHANGED_BY },
         mutationMeta: { add: { fields: { moved: 'integer' } } },
       },
-      guest: { cardinality: 'one', types: ['rooms'], pivot: false, mutations: { set: true } },
+      guest: {
+        cardinality: 'one',
+        types: ['rooms'],
+        pivot: false,
+        mutations: { set: true },
+        atomicRequestMeta: { set: { fields: { deskId: 'string' } } },
+      },
     },
     paths: {
       create: '/bookings',
@@ -337,6 +344,52 @@ describe('typed request meta', () => {
     })
     // @ts-expect-error -- an atomic add of a booking must send its idempotency key.
     void client.atomic((tx) => [tx.create({ type: 'bookings', title: 'W' })]).catch(() => undefined)
+  })
+
+  it('carries each atomic relationship operation’s meta, typed by the relation', async () => {
+    const { client, sent } = answering({ body: { 'atomic:results': [] } })
+    await client.atomic((tx) => {
+      tx.add(
+        { type: 'bookings', id: 'bk-1', relationship: 'rooms' },
+        [{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }],
+        { meta: { changedBy: 'desk', batch: 4 } },
+      )
+      tx.replace({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [])
+      tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null, {
+        meta: { deskId: 'd-1' },
+      })
+    })
+    expect(sent(0)).toEqual({
+      'atomic:operations': [
+        {
+          op: 'add',
+          ref: { type: 'bookings', id: 'bk-1', relationship: 'rooms' },
+          data: [{ type: 'rooms', id: 'rm-1', meta: { pivot: { nights: 2 } } }],
+          meta: { changedBy: 'desk', batch: 4 },
+        },
+        { op: 'update', ref: { type: 'bookings', id: 'bk-1', relationship: 'rooms' }, data: [] },
+        {
+          op: 'update',
+          ref: { type: 'bookings', id: 'bk-1', relationship: 'guest' },
+          data: null,
+          meta: { deskId: 'd-1' },
+        },
+      ],
+    })
+    void client
+      .atomic((tx) => {
+        // @ts-expect-error -- setting the guest in a batch must send the desk.
+        tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null)
+        tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null, {
+          // @ts-expect-error -- the desk is a string.
+          meta: { deskId: 1 },
+        })
+        tx.remove({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [], {
+          // @ts-expect-error -- the changedBy is a string.
+          meta: { changedBy: 1 },
+        })
+      })
+      .catch(() => undefined)
   })
 
   it('remaps a resource object meta pointer to $meta, and a top-level one to $documentMeta', async () => {

@@ -17,7 +17,7 @@ artist.data.type // 'artists' — typed
 album.data.title // 'Geogaddi' — typed
 ```
 
-The callback returns the handles it wants results for (`as const` keeps the tuple positional). Each handle resolves to its own materialised result — `{ data, meta? }`, where `data` is the created/updated resource, materialised exactly as a read would be. A `create`/`update` handle types its `data` as the resource of its type; a `delete` handle resolves to `undefined` (a delete carries no data).
+The callback returns the handles it wants results for (`as const` keeps the tuple positional). Each handle resolves to its own materialised result — `{ data, meta? }`, where `data` is the created/updated resource, materialised exactly as a read would be. A `create`/`update` handle types its `data` as the resource of its type; a `delete` handle resolves to `undefined` (a delete carries no data); a relationship handle types its `data` as the relation's linkage.
 
 !!! note "The result tuple follows what you return"
     Results are resolved by each returned handle's operation index, not by callback order, so the tuple is sound whichever handles you return and in whatever order. Return nothing at all and you get the loose, ordered `AtomicResult[]` instead.
@@ -47,7 +47,22 @@ await client.atomic((tx) => {
 })
 ```
 
-The recorder has no relationship operations, so a type's own atomic relationship kinds aren't reached through it.
+### Relationship operations
+
+`tx.add`, `tx.remove` and `tx.replace` change the members of a to-many relationship, and `tx.set` sets a to-one or clears it with `null`, as the [relationship accessor](relationship-mutation.md)'s verbs do. Each targets `{ type, id, relationship }`, or `{ type, lid, relationship }` for a resource created earlier in the batch, and takes the members the matching verb takes, `$pivot` included:
+
+```ts
+const [rooms] = await client.atomic((tx) => {
+  const booking = tx.create({ type: 'bookings', title: 'Weekend' }, { meta: { idempotencyKey: 'k-3' } })
+  return [
+    tx.add({ type: 'bookings', lid: booking.lid, relationship: 'rooms' }, [{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }], { meta: { changedBy: 'desk' } }),
+    tx.set({ type: 'bookings', lid: booking.lid, relationship: 'guest' }, null),
+  ] as const
+})
+rooms.data // the linkage the server answered with, as identifiers
+```
+
+`add` and `remove` record their own ops; `replace` and `set` both record an `update` of the relationship. A verb is typed only for a relation of its cardinality that advertises it, as the relationship accessor's verbs are, so `tx.set` on a to-many doesn't compile, and neither does `tx.remove` on a relation whose members can't be removed or any verb on a relation whose relationship writes are suppressed. The `meta` option is typed from what the type declares for that relationship's operation inside a batch, required when a member is, and a relation declaring none takes any. A relationship handle resolves to `{ data, meta? }` with `data` the linkage, or `undefined` when the server answered with an empty result.
 
 The batch is posted as one request — `{ "atomic:operations": [...] }` to the server's `/operations` endpoint — and the server's `{ "atomic:results": [...] }` is parsed back positionally.
 
