@@ -12,8 +12,9 @@
  *   later op without a server-assigned id;
  * - `tx.update({ type, id, …flatFields })` -> an `update` op (a `ref` to the existing resource);
  * - `tx.delete({ type, id })` -> a `remove` op;
- * - `tx.add`, `tx.remove` and `tx.replace` change the members of a to-many relationship, and
- *   `tx.set` a to-one's, each targeting `{ type, id | lid, relationship }`.
+ * - `tx.rel(ref, relationship)` reaches a relationship of the resource `ref` names, as the
+ *   standalone relationship accessor does: its `add`, `remove` and `replace` change the members of
+ *   a to-many, and its `set` a to-one's.
  *
  * Each create gets a deterministic `lid` from its op index (`atomic-<index>`), so the cross-op
  * reference is stable and human-readable. The flat->envelope serialisation reuses the same
@@ -36,11 +37,11 @@ import type {
   MutationVerb,
   OptionsArg,
   RelationName,
-  RelationNameFor,
   RelationRequestMetaOf,
   RelationshipMembers,
   RequestMetaOf,
   RequiresRequestMeta,
+  TakesVerb,
   TypeName,
   UpdateInput,
 } from './result-types'
@@ -94,14 +95,6 @@ export type AtomicOperationArgs<
 >
 
 /**
- * The relationship an atomic relationship operation targets: relation `R` of a resource of type
- * `T`, named by its server `id` or by the `lid` of a resource created earlier in the batch.
- */
-export type AtomicRelationshipRef<T extends string = string, R extends string = string> =
-  | { type: T; id: string; lid?: never; relationship: R }
-  | { type: T; lid: string; id?: never; relationship: R }
-
-/**
  * The options argument of an atomic operation with verb `V` on relation `R` of type `T`: its
  * `meta`, typed by the relation's `atomicRequestMeta` and required when a member is. A relation
  * declaring none takes any.
@@ -150,9 +143,10 @@ export interface AtomicDeleteHandle {
 }
 
 /**
- * The handle a relationship operation returns ({@link AtomicRecorder.add}, `remove`, `replace` or
- * `set`): the target's type `T`, its `relationship` `R`, its op `kind` (`'relationship'`) and its
- * `opIndex`. Its positional result is the linkage the server answered with.
+ * The handle a relationship operation returns (the `add`, `remove`, `replace` or `set` of
+ * {@link AtomicRecorder.rel}): the target's type `T`, its `relationship` `R`, its op `kind`
+ * (`'relationship'`) and its `opIndex`. Its positional result is the linkage the server answered
+ * with.
  */
 export interface AtomicRelationshipHandle<T extends string = string, R extends string = string> {
   readonly type: T
@@ -176,6 +170,44 @@ export type AtomicHandle =
   | AtomicUpdateHandle<string>
   | AtomicDeleteHandle
   | AtomicRelationshipHandle<string, string>
+
+/**
+ * A relationship verb inside an atomic batch: present only when relation `R`'s cardinality matches
+ * the verb's and the relation advertises it in its `mutations` flags, as the standalone accessor's
+ * verbs are gated, and `never` otherwise.
+ */
+type AtomicRelationMutation<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  V extends MutationVerb,
+> =
+  TakesVerb<D, T, R, V> extends true
+    ? (
+        members: RelationshipMembers<D, T, R, V>,
+        ...opts: AtomicRelationshipArgs<D, T, R, V>
+      ) => AtomicRelationshipHandle<T, R>
+    : never
+
+/**
+ * What {@link AtomicRecorder.rel} returns: relation `R` of a resource of type `T`, whose verbs
+ * each record one relationship operation. A to-many takes `add`, `remove` and `replace` and a
+ * to-one `set`, each only when the relation advertises it.
+ */
+export interface AtomicRelationshipRecorder<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> {
+  /** Add `members` to the to-many: an `add` op on its relationship. */
+  add: AtomicRelationMutation<D, T, R, 'add'>
+  /** Remove `members` from the to-many: a `remove` op on its relationship. */
+  remove: AtomicRelationMutation<D, T, R, 'remove'>
+  /** Replace every member of the to-many with `members`: an `update` op on its relationship. */
+  replace: AtomicRelationMutation<D, T, R, 'replace'>
+  /** Set the to-one to `member`, or clear it with `null`: an `update` op on its relationship. */
+  set: AtomicRelationMutation<D, T, R, 'set'>
+}
 
 /** A single recorded atomic operation, in wire shape (`op` + `ref`/`data`, and its `meta`). */
 interface AtomicOperation {
@@ -209,30 +241,14 @@ export interface AtomicRecorder<D extends ApiDescriptor, W> {
     ref: AtomicRef & { type: T },
     ...opts: AtomicOperationArgs<D, T, 'delete'>
   ): AtomicDeleteHandle
-  /** Add `members` to to-many relation `R` of the resource `ref` names: an `add` op on its relationship. */
-  add<T extends TypeName<D>, R extends RelationNameFor<D, T, 'add'>>(
-    ref: AtomicRelationshipRef<T, R>,
-    members: RelationshipMembers<D, T, R, 'add'>,
-    ...opts: AtomicRelationshipArgs<D, T, R, 'add'>
-  ): AtomicRelationshipHandle<T, R>
-  /** Remove `members` from to-many relation `R`: a `remove` op on its relationship. */
-  remove<T extends TypeName<D>, R extends RelationNameFor<D, T, 'remove'>>(
-    ref: AtomicRelationshipRef<T, R>,
-    members: RelationshipMembers<D, T, R, 'remove'>,
-    ...opts: AtomicRelationshipArgs<D, T, R, 'remove'>
-  ): AtomicRelationshipHandle<T, R>
-  /** Replace every member of to-many relation `R` with `members`: an `update` op on its relationship. */
-  replace<T extends TypeName<D>, R extends RelationNameFor<D, T, 'replace'>>(
-    ref: AtomicRelationshipRef<T, R>,
-    members: RelationshipMembers<D, T, R, 'replace'>,
-    ...opts: AtomicRelationshipArgs<D, T, R, 'replace'>
-  ): AtomicRelationshipHandle<T, R>
-  /** Set to-one relation `R` to `member`, or clear it with `null`: an `update` op on its relationship. */
-  set<T extends TypeName<D>, R extends RelationNameFor<D, T, 'set'>>(
-    ref: AtomicRelationshipRef<T, R>,
-    member: RelationshipMembers<D, T, R, 'set'>,
-    ...opts: AtomicRelationshipArgs<D, T, R, 'set'>
-  ): AtomicRelationshipHandle<T, R>
+  /**
+   * Relation `relationship` of the resource `ref` names, by its server `id` or the `lid` of a
+   * resource created earlier in the batch. Its verbs record operations on the relationship.
+   */
+  rel<T extends TypeName<D>, R extends RelationName<D, T>>(
+    ref: AtomicRef & { type: T },
+    relationship: R,
+  ): AtomicRelationshipRecorder<D, T, R>
 }
 
 /** The wire `op` each relationship verb records: `replace` and `set` both update the relationship. */
@@ -317,16 +333,12 @@ export async function runAtomic(
 
   const relationship = (
     verb: MutationVerb,
-    ref: unknown,
+    { type, identity }: { type: string; identity: AtomicIdentity },
+    name: string,
     members: unknown,
     opts: AtomicOperationOptions | undefined,
   ): AtomicRelationshipHandle => {
     const opIndex = operations.length
-    const { type, identity } = toRef(ref, `atomic ${verb}`)
-    const name = (ref as { relationship?: unknown }).relationship
-    if (typeof name !== 'string') {
-      throw new TypeError(`atomic ${verb} requires a \`relationship\``)
-    }
     const { data } = toRelationshipDocument(members, verb === 'set' ? 'one' : 'many')
     operations.push(
       withOperationMeta(
@@ -342,7 +354,7 @@ export async function runAtomic(
     return { type, relationship: name, kind: 'relationship', opIndex }
   }
 
-  const resources: Omit<AtomicRecorder<ApiDescriptor, unknown>, MutationVerb> = {
+  const recorder: AtomicRecorder<ApiDescriptor, unknown> = {
     create(input, ...[opts]: [AtomicOperationOptions?]) {
       const opIndex = operations.length
       const lid = lidFor(opIndex)
@@ -369,20 +381,24 @@ export async function runAtomic(
       typeByOp.push(type)
       return { kind: 'delete', opIndex }
     },
+    rel(ref, name) {
+      const target = toRef(ref, 'atomic rel')
+      if (typeof name !== 'string') {
+        throw new TypeError('atomic rel requires a relationship name')
+      }
+      const verb =
+        (v: MutationVerb) =>
+        (members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
+          relationship(v, target, name, members, opts)
+      // Over a loose descriptor no relation takes a verb, so the verbs join untyped.
+      return {
+        add: verb('add'),
+        remove: verb('remove'),
+        replace: verb('replace'),
+        set: verb('set'),
+      } as never
+    },
   }
-
-  // The relationship verbs' generic signatures can't be met over a loose descriptor, whose
-  // relations take no verb, so they join the recorder untyped.
-  const recorder = Object.assign(resources, {
-    add: (ref: unknown, members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
-      relationship('add', ref, members, opts),
-    remove: (ref: unknown, members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
-      relationship('remove', ref, members, opts),
-    replace: (ref: unknown, members: unknown, ...[opts]: [AtomicOperationOptions?]) =>
-      relationship('replace', ref, members, opts),
-    set: (ref: unknown, member: unknown, ...[opts]: [AtomicOperationOptions?]) =>
-      relationship('set', ref, member, opts),
-  }) as AtomicRecorder<ApiDescriptor, unknown>
 
   // The callback always drives the recorder side effect (collecting ops in order); its RETURN
   // VALUE — when it's a tuple of handles — selects the typed positional result per handle.

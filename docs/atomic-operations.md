@@ -49,20 +49,20 @@ await client.atomic((tx) => {
 
 ### Relationship operations
 
-`tx.add`, `tx.remove` and `tx.replace` change the members of a to-many relationship, and `tx.set` sets a to-one or clears it with `null`, as the [relationship accessor](relationship-mutation.md)'s verbs do. Each targets `{ type, id, relationship }`, or `{ type, lid, relationship }` for a resource created earlier in the batch, and takes the members the matching verb takes, `$pivot` included:
+`tx.rel(ref, name)` reaches relationship `name` of the resource `ref` names, as `client.<type>.id(id).rel(name)` reaches it outside a batch (see [relationship mutation](relationship-mutation.md)). `ref` is an identifier `{ type, id }`, a materialised resource, or a create handle or `{ type, lid }` for a resource created earlier in the batch. Its verbs take the members the accessor's verbs take, `$pivot` included, and each records one operation: `.add`, `.remove` and `.replace` on a to-many, and `.set` on a to-one, which clears it with `null`.
 
 ```ts
 const [rooms] = await client.atomic((tx) => {
   const booking = tx.create({ type: 'bookings', title: 'Weekend' }, { meta: { idempotencyKey: 'k-3' } })
   return [
-    tx.add({ type: 'bookings', lid: booking.lid, relationship: 'rooms' }, [{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }], { meta: { changedBy: 'desk' } }),
-    tx.set({ type: 'bookings', lid: booking.lid, relationship: 'guest' }, null),
+    tx.rel(booking, 'rooms').add([{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }], { meta: { changedBy: 'desk' } }),
+    tx.rel(booking, 'guest').set(null),
   ] as const
 })
 rooms.data // the linkage the server answered with, as identifiers
 ```
 
-`add` and `remove` record their own ops; `replace` and `set` both record an `update` of the relationship. A verb is typed only for a relation of its cardinality that advertises it, as the relationship accessor's verbs are, so `tx.set` on a to-many doesn't compile, and neither does `tx.remove` on a relation whose members can't be removed or any verb on a relation whose relationship writes are suppressed. The `meta` option is typed from what the type declares for that relationship's operation inside a batch, required when a member is, and a relation declaring none takes any. A relationship handle resolves to `{ data, meta? }` with `data` the linkage, or `undefined` when the server answered with an empty result.
+`add` and `remove` record their own ops; `replace` and `set` both record an `update` of the relationship. The operation is recorded when the verb is called, so one `tx.rel(...)` can record several operations, each in its own place in the batch. A verb is typed only for a relation of its cardinality that advertises it, as the accessor's verbs are, so `.set` on a to-many doesn't compile, and neither does `.remove` on a relation whose members can't be removed or any verb on a relation whose relationship writes are suppressed. The `meta` option is typed from what the type declares for that relationship's operation inside a batch, required when a member is. A relation declaring none for a batch takes any `meta`, whatever its standalone relationship write takes. A relationship handle resolves to `{ data, meta? }` with `data` the linkage, or `undefined` when the server answered with an empty result. The tested snippet is the `atomic operations` block of [example.test.ts](../packages/example/src/example.test.ts).
 
 The batch is posted as one request — `{ "atomic:operations": [...] }` to the server's `/operations` endpoint — and the server's `{ "atomic:results": [...] }` is parsed back positionally.
 

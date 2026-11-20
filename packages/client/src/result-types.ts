@@ -1439,21 +1439,19 @@ export interface RelationshipAccessor<
 }
 
 /**
- * The relations of type `T` that take verb `V`: of the verb's cardinality, a to-one for `set` and
- * a to-many for the rest, and advertising the verb in their `mutations` flags, as the relationship
- * accessor gates it (see {@link AdvertisesVerb}).
+ * True when relation `R` of type `T` takes verb `V`: it has the verb's cardinality, a to-one for
+ * `set` and a to-many for the rest, and advertises the verb in its `mutations` flags, as the
+ * relationship accessor gates it (see {@link AdvertisesVerb}).
  */
-export type RelationNameFor<
+export type TakesVerb<
   D extends ApiDescriptor,
   T extends TypeName<D>,
+  R extends RelationName<D, T>,
   V extends MutationVerb,
-> = {
-  [R in RelationName<D, T>]: D[T]['relations'][R]['cardinality'] extends VerbCardinality<V>
-    ? AdvertisesVerb<D, T, R, V> extends true
-      ? R
-      : never
-    : never
-}[RelationName<D, T>]
+> =
+  D[T]['relations'][R]['cardinality'] extends VerbCardinality<V>
+    ? AdvertisesVerb<D, T, R, V>
+    : false
 
 /**
  * The members a relationship write with verb `V` on relation `R` takes, as the relationship
