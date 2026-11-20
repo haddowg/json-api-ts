@@ -71,6 +71,127 @@
           "required": ["sku", "quantity", "price"],
           "additionalProperties": false
         }
+      },
+      "sections": {
+        "type": ["array", "null"],
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": ["string", "null"]
+                },
+                "level": {
+                  "type": ["integer", "null"]
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "heading",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["text", "level", "kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "src": {
+                  "type": ["string", "null"]
+                },
+                "size": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "width": {
+                      "type": ["integer", "null"]
+                    },
+                    "height": {
+                      "type": ["integer", "null"]
+                    }
+                  },
+                  "required": ["width", "height"],
+                  "additionalProperties": false
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "figure",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["src", "size", "kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "rule",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ],
+          "discriminator": {
+            "propertyName": "kind"
+          }
+        }
+      },
+      "hero": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "src": {
+                "type": ["string", "null"]
+              },
+              "alt": {
+                "type": ["string", "null"]
+              },
+              "kind": {
+                "type": "string",
+                "const": "image"
+              }
+            },
+            "required": ["src", "alt", "kind"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": ["string", "null"]
+              },
+              "kind": {
+                "type": "string",
+                "const": "video"
+              }
+            },
+            "required": ["url", "kind"],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        }
       }
     },
     "ArticlesCreateAttributes": {
@@ -138,6 +259,126 @@
             }
           },
           "additionalProperties": false
+        }
+      },
+      "sections": {
+        "type": "array",
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "heading",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "src": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "figure",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "rule",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ],
+          "discriminator": {
+            "propertyName": "kind"
+          }
+        }
+      },
+      "hero": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "src": {
+                "type": "string"
+              },
+              "alt": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "image"
+              }
+            },
+            "required": ["kind"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "video"
+              }
+            },
+            "required": ["kind"],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
         }
       }
     },
@@ -207,13 +448,137 @@
           },
           "additionalProperties": false
         }
+      },
+      "sections": {
+        "type": "array",
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "heading",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "src": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "figure",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "rule",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SectionKind"
+                    }
+                  ]
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ],
+          "discriminator": {
+            "propertyName": "kind"
+          }
+        }
+      },
+      "hero": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "src": {
+                "type": "string"
+              },
+              "alt": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "image"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "video"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        }
       }
+    }
+  },
+  "components": {
+    "SectionKind": {
+      "enum": ["heading", "figure", "rule"],
+      "x-enum-varnames": ["Heading", "Figure", "Rule"]
     }
   },
   "fields": {
     "name": "fields[articles]",
     "in": "query",
-    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals` or `location` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it. Select keys of every item of `lines` as `<attribute>.*.<key>`; the list keeps its length and order. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
+    "description": "A comma-separated list of `articles` fields to return (sparse fieldsets). Select single keys of `scores`, `totals`, `location` or `hero` as `<attribute>.<key>` under the [Field Selection profile](https://haddowg.github.io/json-api/profiles/field-selection/); listing the attribute itself selects all of it. Select keys of every item of `lines` or `sections` as `<attribute>.*.<key>`; the list keeps its length and order. A key of a nested object is selected as `<attribute>.<key>.<key>`, and listing the key itself selects all of it.",
     "schema": {
       "type": "array",
       "items": {
@@ -261,9 +626,13 @@
               "totals",
               "location",
               "lines",
+              "sections",
+              "hero",
               "value",
               "threshold",
               "level",
+              "amount",
+              "reading",
               "defaultValue",
               "fallbackValue",
               "reviewedBy",
@@ -312,6 +681,26 @@
           {
             "type": "string",
             "pattern": "^lines\\.\\*\\.price\\.(?:amount|currency)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^sections\\.\\*$"
+          },
+          {
+            "type": "string",
+            "pattern": "^sections\\.\\*\\.(?:text|level)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^sections\\.\\*\\.(?:src|size)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^sections\\.\\*\\.size\\.(?:width|height)$"
+          },
+          {
+            "type": "string",
+            "pattern": "^hero\\.(?:src|alt)$"
           }
         ]
       }

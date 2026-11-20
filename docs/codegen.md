@@ -152,7 +152,10 @@ A few things the codegen reads from the document that affect the generated clien
   The codegen records each such attribute in the type's `selectableKeys` with its key pattern,
   `\*` for a list, and each longer path in `selectableKeyPaths` as the pattern of every key
   along it, splitting at each `\.` outside a group or class, so a path into a list's items
-  starts with `\*`. The client
+  starts with `\*`. A union, as an attribute, a key or a list's items, has one pattern
+  per path each variant declares, all recorded under its attribute, and the client keeps each
+  value's discriminator when it narrows the value. A discriminator bound to an enum component
+  still carries its variant's `const`, which is what the client reads. The client
   then types `fields` for that type as the member union plus `` `<attribute>.${string}` `` per
   attribute. See
   [select single keys of an attribute](includes-and-sparse-fieldsets.md#select-single-keys-of-an-attribute).

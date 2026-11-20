@@ -4,25 +4,30 @@ import type { OpenApiDocument } from '../src/openapi'
 type Json = Record<string, unknown>
 
 /**
- * Core's field selection, cut from the contract witness of haddowg/json-api#396: the `scores`,
- * `totals`, `location` and `lines` attributes of the articles, as each attributes component writes
- * them, and the `fields[articles]` parameter whose items accept single keys of the three objects,
- * the keys of `location.geo`, and the keys of every item of `lines` and of each item's `price`. It
- * goes once the pins move to core's published 2.22 witness.
+ * Core's field selection, cut from the contract witness of haddowg/json-api#416: the `scores`,
+ * `totals`, `location`, `lines`, `sections` and `hero` attributes of the articles, as each
+ * attributes component writes them, the `SectionKind` enum the `sections` discriminator is bound
+ * to, and the `fields[articles]` parameter whose items accept single keys of the three objects, the
+ * keys of `location.geo`, the keys of every item of `lines` and of each item's `price`, the keys
+ * each variant of the `sections` union declares, with the keys of a figure's `size`, and the keys
+ * of the `hero` union's image variant. It goes once the pins move to core's published 2.22
+ * witness.
  */
 const FIELD_SELECTION = JSON.parse(
   readFileSync(new URL('./field-selection.json', import.meta.url), 'utf8'),
-) as { attributes: Record<string, Json>; fields: Json }
+) as { attributes: Record<string, Json>; components: Record<string, Json>; fields: Json }
 
 /**
- * A copy of a witness with the articles' `scores` object, `totals` map, `location` object and
- * `lines` list added after `metrics`, the way core writes them, and every `fields[articles]` parameter replaced by the
- * one accepting their single keys, stamped with generator contract 42.
+ * A copy of a witness with the articles' `scores` object, `totals` map, `location` object, `lines`
+ * and `sections` lists and `hero` union added after `metrics`, the way core writes them, the
+ * `SectionKind` component added, and every `fields[articles]` parameter replaced by the one
+ * accepting their single keys, stamped with generator contract 42.
  */
 export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
   const doc = structuredClone(original) as Json
   ;(doc['info'] as Json)['x-generator'] = { contract: 42 }
   const schemas = (doc['components'] as Json)['schemas'] as Record<string, Json>
+  Object.assign(schemas, structuredClone(FIELD_SELECTION.components))
   for (const [component, added] of Object.entries(FIELD_SELECTION.attributes)) {
     const schema = schemas[component]!
     const properties: Json = {}
