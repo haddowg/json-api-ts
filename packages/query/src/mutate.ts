@@ -24,10 +24,8 @@
  */
 import {
   type ApiDescriptor,
-  type AtomicHandle,
   type AtomicRecorder,
   type AtomicResult,
-  type AtomicResults,
   type CreateInput,
   type CreateMethod,
   type DeleteArgs,
@@ -695,9 +693,10 @@ export function removeRelationshipMutationOptions<
 
 /**
  * A thin atomic-batch mutation (`POST /operations`): `mutationFn` forwards the `build` callback to
- * `client.atomic(build)`, preserving the client's per-op `const`-tuple result inference (the
- * variables ARE the build callback). On success the materialised results are run through
- * {@link normalize} so any updated resource patches across the cache.
+ * `client.atomic(build)`. The variables are the build callback, which may record any operation and
+ * return anything, and the result is the loose, ordered `AtomicResult[]`. On success the
+ * materialised results are run through {@link normalize} so any updated resource patches across
+ * the cache.
  *
  * INVALIDATION is the caller's responsibility for atomic: a batch can mix creates/updates/deletes
  * across many types, and the recorded ops aren't enumerable after the build runs, so the binding
@@ -710,12 +709,7 @@ export function atomicMutationOptions<D extends ApiDescriptor, A, W>(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,
-): MutationOptions<
-  AtomicResult[],
-  <const Ops>(
-    tx: AtomicRecorder<D, W>,
-  ) => Ops extends readonly AtomicHandle[] ? AtomicResults<D, A, Ops> : Ops
-> {
+): MutationOptions<AtomicResult[], (tx: AtomicRecorder<D, W>) => unknown> {
   return {
     mutationFn: (build) =>
       // The client's `atomic` carries the precise per-op return type; the binding's loose
