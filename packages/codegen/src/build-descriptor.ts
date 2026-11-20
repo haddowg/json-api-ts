@@ -263,11 +263,11 @@ export class DescriptorBuilder {
       if (included !== undefined) {
         descriptor.included = included
       }
-      const selectable = this.selectableKeys(wireType)
-      if (selectable !== undefined) {
-        descriptor.selectableKeys = selectable.keys
-        if (selectable.paths !== undefined) {
-          descriptor.selectableKeyPaths = selectable.paths
+      const fieldsets = this.nestedFieldsets(wireType)
+      if (fieldsets !== undefined) {
+        descriptor.nestedFieldsets = fieldsets.keys
+        if (fieldsets.paths !== undefined) {
+          descriptor.nestedFieldsetPaths = fieldsets.paths
         }
       }
       const sortable = this.sortable(collection)
@@ -1937,10 +1937,10 @@ export class DescriptorBuilder {
    * rendering the type carries the same parameter, so the first that accepts any key answers.
    * Returns `undefined` when none does.
    */
-  private selectableKeys(wireType: string): SelectableKeys | undefined {
+  private nestedFieldsets(wireType: string): NestedFieldsets | undefined {
     for (const item of Object.values(this.paths)) {
       for (const op of Object.values(item) as (OperationObject | undefined)[]) {
-        const keys = selectableKeysOf(op, wireType)
+        const keys = nestedFieldsetsOf(op, wireType)
         if (keys !== undefined) {
           return keys
         }
@@ -2163,7 +2163,7 @@ function paramSchema(op: OperationObject | undefined, paramName: string): Schema
 }
 
 /** The keys and nested paths a type's `fields[<type>]` parameter accepts, by attribute. */
-interface SelectableKeys {
+interface NestedFieldsets {
   keys: Record<string, string>
   paths?: Record<string, string[][]>
 }
@@ -2176,10 +2176,10 @@ interface SelectableKeys {
  * splits into one pattern per key at each `\.` outside a group or class. Returns `undefined` when
  * the items list no pattern.
  */
-function selectableKeysOf(
+function nestedFieldsetsOf(
   op: OperationObject | undefined,
   wireType: string,
-): SelectableKeys | undefined {
+): NestedFieldsets | undefined {
   const branches = paramSchema(op, `fields[${wireType}]`)?.items?.anyOf
   if (branches === undefined) {
     return undefined

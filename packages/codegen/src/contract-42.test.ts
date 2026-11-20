@@ -9,15 +9,15 @@ import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
-import { withFieldSelection } from '../test/field-selection'
+import { withNestedFieldsets } from '../test/nested-fieldsets'
 
 const load = (
   name: 'contract-witness.json' | 'contract-witness-baseline.json' | 'music-catalog.openapi.json',
 ) => JSON.parse(readFileSync(documentPath(name), 'utf8')) as OpenApiDocument
 const witness = load('contract-witness.json')
-const selecting = withFieldSelection(witness)
+const selecting = withNestedFieldsets(witness)
 
-const scratch = mkdtempSync(join(tmpdir(), 'json-api-field-selection-'))
+const scratch = mkdtempSync(join(tmpdir(), 'json-api-nested-fieldsets-'))
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
 
 /** Type-check a generated module against the client's source, returning the error messages. */
@@ -70,7 +70,7 @@ const SECTION_PATHS = [
   ['\\*', 'size', '(?:width|height)'],
 ]
 
-describe('generator contract 42 (field selection)', () => {
+describe('generator contract 42 (nested fieldsets)', () => {
   it('reads a document stamped 42 without a warning', () => {
     expect(selecting.info?.['x-generator']?.contract).toBe(42)
     expect(checkContract(selecting)).toBeUndefined()
@@ -78,7 +78,7 @@ describe('generator contract 42 (field selection)', () => {
 
   it('records each attribute that takes single keys, with the pattern its key matches', () => {
     const articles = buildDescriptor(selecting)['articles']!
-    expect(articles.selectableKeys).toEqual({
+    expect(articles.nestedFieldsets).toEqual({
       scores: '(?:[a-z][a-z0-9_]*)',
       totals: '[^.,*]+',
       location: '(?:[a-z]+)',
@@ -86,7 +86,7 @@ describe('generator contract 42 (field selection)', () => {
       sections: '\\*',
       hero: '(?:src|alt)',
     })
-    expect(articles.selectableKeyPaths).toEqual({
+    expect(articles.nestedFieldsetPaths).toEqual({
       location: [['geo', '(?:lat|lng)']],
       lines: LINE_PATHS,
       sections: SECTION_PATHS,
@@ -120,8 +120,8 @@ describe('generator contract 42 (field selection)', () => {
     }
     const articles = buildDescriptor(doc)['articles']!
     // The attribute's own key pattern is the one with no full stop, whichever comes first.
-    expect(articles.selectableKeys).toMatchObject({ location: '(?:[a-z]+)' })
-    expect(articles.selectableKeyPaths).toEqual({
+    expect(articles.nestedFieldsets).toMatchObject({ location: '(?:[a-z]+)' })
+    expect(articles.nestedFieldsetPaths).toEqual({
       scores: [['(?:[a-z][a-z0-9_]*)', '(?:a\\.b|[.])']],
       location: [
         ['geo', '(?:lat|lng)'],
@@ -140,8 +140,8 @@ describe('generator contract 42 (field selection)', () => {
       load('music-catalog.openapi.json'),
     ]) {
       for (const descriptor of Object.values(buildDescriptor(doc))) {
-        expect(descriptor.selectableKeys).toBeUndefined()
-        expect(descriptor.selectableKeyPaths).toBeUndefined()
+        expect(descriptor.nestedFieldsets).toBeUndefined()
+        expect(descriptor.nestedFieldsetPaths).toBeUndefined()
       }
     }
   })
@@ -154,7 +154,7 @@ describe('generator contract 42 (field selection)', () => {
         expect(after[type]).toEqual(descriptor)
       }
     }
-    const { selectableKeys, selectableKeyPaths, attributes, ...articles } = after['articles']!
+    const { nestedFieldsets, nestedFieldsetPaths, attributes, ...articles } = after['articles']!
     const { attributes: beforeAttributes, ...beforeArticles } = before['articles']!
     expect(articles).toEqual(beforeArticles)
     expect(attributes).toEqual({
@@ -166,8 +166,8 @@ describe('generator contract 42 (field selection)', () => {
       sections: 'array',
       hero: 'unknown',
     })
-    expect(selectableKeys).toBeDefined()
-    expect(selectableKeyPaths).toBeDefined()
+    expect(nestedFieldsets).toBeDefined()
+    expect(nestedFieldsetPaths).toBeDefined()
   })
 
   it('reads a pattern only by the attribute it names', () => {
@@ -189,10 +189,10 @@ describe('generator contract 42 (field selection)', () => {
         }
       }
     }
-    expect(buildDescriptor(doc)['articles']?.selectableKeys).toBeUndefined()
+    expect(buildDescriptor(doc)['articles']?.nestedFieldsets).toBeUndefined()
   })
 
-  it('compiles to a client whose fields take key members and narrow the attribute', () => {
+  it('compiles to a client whose fields take nested fieldset members and narrow the attribute', () => {
     const probes = [
       "const api = createClient({ baseUrl: 'https://api.example' })",
       'export async function probe(): Promise<void> {',
@@ -206,7 +206,7 @@ describe('generator contract 42 (field selection)', () => {
       '  void article.totals?.shares',
       '  // @ts-expect-error -- metrics was not selected.',
       '  void article.metrics',
-      '  const selected: Readonly<Record<string, readonly string[]>> = article.$keySelection',
+      '  const selected: Readonly<Record<string, readonly string[]>> = article.$nestedFieldset',
       '  const listed = await api.articles.list({',
       "    fields: { articles: ['scores', 'scores.maths'] },",
       '  })',
@@ -267,7 +267,7 @@ describe('generator contract 42 (field selection)', () => {
     ]
     const source = emit(selecting, buildDescriptor(selecting))
     expect(source).toContain(
-      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,*]+",\n      location: "(?:[a-z]+)",\n      lines: "\\\\*",\n      sections: "\\\\*",\n      hero: "(?:src|alt)"\n    },',
+      '    nestedFieldsets: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,*]+",\n      location: "(?:[a-z]+)",\n      lines: "\\\\*",\n      sections: "\\\\*",\n      hero: "(?:src|alt)"\n    },',
     )
     expect(typecheck(`${source}\n${probes.join('\n')}\n`)).toEqual([])
   })

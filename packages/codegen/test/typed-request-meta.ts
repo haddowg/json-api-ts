@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { OpenApiDocument } from '../src/openapi'
-import { withFieldSelection } from './field-selection'
+import { withNestedFieldsets } from './nested-fieldsets'
 
 type Json = Record<string, unknown>
 
@@ -22,7 +22,7 @@ interface DocumentDelta {
 /**
  * Core's typed request and resource object meta, cut from the contract witness of core main after
  * haddowg/json-api#389: every component and path that witness adds or changes against the pinned
- * one with field selection grafted on, and the baseline's closed pivots. It goes once the pins move
+ * one with nested fieldsets grafted on, and the baseline's closed pivots. It goes once the pins move
  * to core's published 2.22 witness.
  */
 const TYPED_REQUEST_META = JSON.parse(
@@ -70,12 +70,12 @@ function graft(original: OpenApiDocument, delta: DocumentDelta): OpenApiDocument
 }
 
 /**
- * A copy of the pinned witness as core main exports it, stamped 43: field selection, then the
+ * A copy of the pinned witness as core main exports it, stamped 43: nested fieldsets, then the
  * bookings, rooms and jobs types that declare request, resource, relationship and accepted meta,
  * the atomic kinds of their own, and the closed pivot and identifier meta objects.
  */
 export function withTypedRequestMeta(witness: OpenApiDocument): OpenApiDocument {
-  return graft(withFieldSelection(witness), TYPED_REQUEST_META.witness)
+  return graft(withNestedFieldsets(witness), TYPED_REQUEST_META.witness)
 }
 
 /** A copy of the pinned baseline witness as core main exports it: its pivots closed, stamped 43. */

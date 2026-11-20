@@ -4,7 +4,7 @@ import type { OpenApiDocument } from '../src/openapi'
 type Json = Record<string, unknown>
 
 /**
- * Core's field selection, cut from the contract witness of haddowg/json-api#416: the `scores`,
+ * Core's nested fieldsets, cut from the contract witness of haddowg/json-api#423: the `scores`,
  * `totals`, `location`, `lines`, `sections` and `hero` attributes of the articles, as each
  * attributes component writes them, the `SectionKind` enum the `sections` discriminator is bound
  * to, and the `fields[articles]` parameter whose items accept single keys of the three objects, the
@@ -13,8 +13,8 @@ type Json = Record<string, unknown>
  * of the `hero` union's image variant. It goes once the pins move to core's published 2.22
  * witness.
  */
-const FIELD_SELECTION = JSON.parse(
-  readFileSync(new URL('./field-selection.json', import.meta.url), 'utf8'),
+const NESTED_FIELDSETS = JSON.parse(
+  readFileSync(new URL('./nested-fieldsets.json', import.meta.url), 'utf8'),
 ) as { attributes: Record<string, Json>; components: Record<string, Json>; fields: Json }
 
 /**
@@ -23,12 +23,12 @@ const FIELD_SELECTION = JSON.parse(
  * `SectionKind` component added, and every `fields[articles]` parameter replaced by the one
  * accepting their single keys, stamped with generator contract 42.
  */
-export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
+export function withNestedFieldsets(original: OpenApiDocument): OpenApiDocument {
   const doc = structuredClone(original) as Json
   ;(doc['info'] as Json)['x-generator'] = { contract: 42 }
   const schemas = (doc['components'] as Json)['schemas'] as Record<string, Json>
-  Object.assign(schemas, structuredClone(FIELD_SELECTION.components))
-  for (const [component, added] of Object.entries(FIELD_SELECTION.attributes)) {
+  Object.assign(schemas, structuredClone(NESTED_FIELDSETS.components))
+  for (const [component, added] of Object.entries(NESTED_FIELDSETS.attributes)) {
     const schema = schemas[component]!
     const properties: Json = {}
     for (const [name, property] of Object.entries(schema['properties'] as Json)) {
@@ -48,7 +48,7 @@ export function withFieldSelection(original: OpenApiDocument): OpenApiDocument {
       const parameters = op['parameters'] as Json[] | undefined
       const at = parameters?.findIndex((param) => param['name'] === 'fields[articles]') ?? -1
       if (at >= 0) {
-        parameters![at] = structuredClone(FIELD_SELECTION.fields)
+        parameters![at] = structuredClone(NESTED_FIELDSETS.fields)
       }
     }
   }

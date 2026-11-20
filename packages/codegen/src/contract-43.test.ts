@@ -9,7 +9,7 @@ import { checkContract, MAXIMUM_CONTRACT } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
-import { withFieldSelection } from '../test/field-selection'
+import { withNestedFieldsets } from '../test/nested-fieldsets'
 import { baselineWithClosedPivots, withTypedRequestMeta } from '../test/typed-request-meta'
 
 const load = (
@@ -194,7 +194,7 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
   })
 
   it('leaves every type the graft does not add as it was, but for the closed identifier meta', () => {
-    const before = buildDescriptor(withFieldSelection(witness))
+    const before = buildDescriptor(withNestedFieldsets(witness))
     const after = buildDescriptor(typed)
     for (const [type, descriptor] of Object.entries(before)) {
       const relations = Object.fromEntries(
