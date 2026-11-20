@@ -149,6 +149,25 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
     expect(guest.mutationMeta).toBeUndefined()
   })
 
+  it("records each relation's meta inside an atomic batch, from the type's own kinds", () => {
+    const descriptor = buildDescriptor(typed)
+    const rooms = descriptor['bookings']!.relations['rooms']!
+    // The one update kind is a to-many's replace.
+    expect(rooms.atomicRequestMeta).toEqual({
+      add: CHANGED_BY,
+      remove: CHANGED_BY,
+      replace: CHANGED_BY,
+    })
+    expect(descriptor['bookings']!.relations['guest']!.atomicRequestMeta).toBeUndefined()
+    for (const [type, resource] of Object.entries(descriptor)) {
+      for (const [name, relation] of Object.entries(resource.relations)) {
+        if (type !== 'bookings' || name !== 'rooms') {
+          expect(relation.atomicRequestMeta).toBeUndefined()
+        }
+      }
+    }
+  })
+
   it("records an action's request meta, and a meta-only request as no input", () => {
     const actions = buildDescriptor(typed)['bookings']!.actions!
     expect(actions['confirm']).toMatchObject({
@@ -212,6 +231,7 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
         for (const relation of Object.values(descriptor.relations)) {
           expect(relation.requestMeta).toBeUndefined()
           expect(relation.mutationMeta).toBeUndefined()
+          expect(relation.atomicRequestMeta).toBeUndefined()
           expect(relation.identifierMeta?.additional).toBeUndefined()
         }
       }
@@ -229,6 +249,10 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
     ]) {
       expect(source).toContain(entry)
     }
+    // The relation's atomic meta is documented as its relationship write's is.
+    expect(source).toContain(
+      '        atomicRequestMeta: {\n          add: {\n            fields: {\n              /** @example desk */\n              changedBy: "string"',
+    )
   })
 
   it('compiles to a client that types every declared meta', () => {
@@ -289,9 +313,19 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
       "    tx.delete({ type: 'bookings', id: 'bk-1' }, { meta: { cancellationReason: 'ill' } }),",
       "    tx.create({ type: 'rooms' }),",
       '  ])',
+      '  const [added] = await api.atomic((tx) => [',
+      "    tx.add({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [{ type: 'rooms', id: 'rm-1', $pivot: { nights: 2 } }], { meta: { changedBy: 'desk', anything: 1 } }),",
+      "    tx.replace({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, []),",
+      "    tx.set({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, null),",
+      '  ])',
+      "  const addedRoom: 'rooms' | undefined = added.data?.[0]?.type",
+      '  // @ts-expect-error -- the changedBy is a string.',
+      "  await api.atomic((tx) => [tx.remove({ type: 'bookings', id: 'bk-1', relationship: 'rooms' }, [], { meta: { changedBy: 1 } })])",
+      '  // @ts-expect-error -- the guest is a to-one.',
+      "  await api.atomic((tx) => [tx.add({ type: 'bookings', id: 'bk-1', relationship: 'guest' }, [])])",
       '  // @ts-expect-error -- an atomic add of a booking must send its idempotency key.',
       "  await api.atomic((tx) => [tx.create({ type: 'bookings', title: 'Weekend' })])",
-      '  void [floor, moved, linkage, view, pivotNights, extra, addedVia, tagPosition, confirmed, results]',
+      '  void [floor, moved, linkage, view, pivotNights, extra, addedVia, tagPosition, confirmed, results, addedRoom]',
       '}',
     ]
     const source = emit(typed, buildDescriptor(typed))

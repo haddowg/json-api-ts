@@ -132,7 +132,10 @@ A few things the codegen reads from the document that affect the generated clien
   update and action input types don't change, and records the declared members as
   `requestMeta`: on the type keyed `create`, `update` or `delete`, on a relation keyed by
   verb, and on an action. A meta-only action request is `input: 'none'` with its
-  `requestMeta`. A type's own atomic operation kinds give `atomicRequestMeta`. The
+  `requestMeta`. A type's own atomic operation kinds give `atomicRequestMeta`, and its
+  atomic relationship operation kinds give a relation's, keyed by verb: the add, remove
+  and update kinds are a to-many's `add`, `remove` and `replace`, and the update kind is a
+  to-one's `set`. The
   components marked `x-resource-meta` give `resourceMeta`: `read`, `create` and `update`,
   and `atomicCreate` and `atomicUpdate` only where they differ. A relationship write
   answering with a meta-only `200` records its members as the relation's `mutationMeta`,

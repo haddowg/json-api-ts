@@ -5,7 +5,12 @@ import {
   HANDLE_RESERVED,
   type ResourceDescriptor,
 } from '@haddowg/json-api-client'
-import { buildAtomic, isResultStatus } from './build-descriptor'
+import {
+  ATOMIC_RELATIONSHIP_KINDS,
+  atomicRelationshipOperations,
+  buildAtomic,
+  isResultStatus,
+} from './build-descriptor'
 import { type DeclaredLink, readDeclaredLinks } from './declared-links'
 import { codeList, Deprecations, splitSunset } from './deprecation'
 import { actionOperation, operationExamples } from './build-examples'
@@ -815,6 +820,14 @@ export class Emitter {
         for (const [key, kind] of Object.entries(kinds)) {
           const meta = this.schemas[`${base}Atomic${kind}Operation`]?.properties?.['meta']
           this.metaDocs(`${type}/atomicRequestMeta/${key}`, metaMembers(meta, this.schemas))
+        }
+        for (const [relation, kinds] of atomicRelationshipOperations(this.schemas, base, type)) {
+          for (const [verb, kind] of Object.entries(ATOMIC_RELATIONSHIP_KINDS)) {
+            this.metaDocs(
+              `${type}/relations/${relation}/atomicRequestMeta/${verb}`,
+              metaMembers(kinds[kind]?.properties?.['meta'], this.schemas),
+            )
+          }
         }
         const dataMeta = (component: string): SchemaOrBool | undefined => {
           const data = this.schemas[component]?.properties?.['data']
