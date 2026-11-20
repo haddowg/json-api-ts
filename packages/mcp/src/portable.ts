@@ -135,6 +135,16 @@ export function nullable(schema: JsonSchema): JsonSchema {
   return out
 }
 
+/** A portable schema no longer allowing the `null` {@link nullable} added. */
+function withoutNull(schema: JsonSchema): JsonSchema {
+  const type = schema['type']
+  if (!Array.isArray(type)) {
+    return schema
+  }
+  const types = (type as string[]).filter((t) => t !== 'null')
+  return { ...schema, type: types.length === 1 ? types[0] : types }
+}
+
 /** Whether a document schema is marked deprecated. */
 export function isDeprecated(schema: unknown): boolean {
   return isObject(schema) && schema['deprecated'] === true
@@ -459,14 +469,22 @@ function follow(
   }
 }
 
-/** The one value a converted branch's member allows, such as a discriminator's const. */
+/**
+ * The one value a branch's member allows, such as a discriminator's const, read from a `const`
+ * or an `enum` of one value.
+ */
 function constOf(branch: JsonSchema, member: string): string | number | boolean | undefined {
   const props = branch['properties']
   const prop = isObject(props) ? props[member] : undefined
-  if (!isObject(prop) || !Array.isArray(prop['enum'])) {
+  if (!isObject(prop)) {
     return undefined
   }
-  const values = (prop['enum'] as unknown[]).filter((v) => v !== null)
+  const values =
+    prop['const'] !== undefined
+      ? [prop['const']]
+      : Array.isArray(prop['enum'])
+        ? (prop['enum'] as unknown[]).filter((v) => v !== null)
+        : []
   const only = values[0]
   return values.length === 1 &&
     (typeof only === 'string' || typeof only === 'number' || typeof only === 'boolean')
@@ -474,15 +492,22 @@ function constOf(branch: JsonSchema, member: string): string | number | boolean 
     : undefined
 }
 
+/** A union's object branches told apart by one member, with the value each branch fixes it to. */
+export interface Discriminated {
+  member: string
+  values: (string | number | boolean)[]
+}
+
 /**
- * A decoder picking an object branch by its discriminator, so the nulls the conversion added
- * inside the branch are dropped. The discriminator is the `discriminator.propertyName`, else a
- * member every branch fixes to its own value. A pass-through when there's no such member.
+ * The member telling a union's object branches apart: the `discriminator.propertyName`, else a
+ * member every branch fixes to its own value. `undefined` when there's no such member.
  */
-function unionDecoder(node: JsonSchema, converted: readonly Portable[]): Decoder {
-  const objects = converted.filter((c) => c.decoder.kind === 'object')
+export function discriminate(
+  node: JsonSchema,
+  objects: readonly JsonSchema[],
+): Discriminated | undefined {
   if (objects.length === 0) {
-    return VALUE
+    return undefined
   }
   const declared = isObject(node['discriminator'])
     ? node['discriminator']['propertyName']
@@ -490,22 +515,120 @@ function unionDecoder(node: JsonSchema, converted: readonly Portable[]): Decoder
   const candidates =
     typeof declared === 'string'
       ? [declared]
-      : Object.keys(
-          isObject(objects[0]!.schema['properties']) ? objects[0]!.schema['properties'] : {},
-        )
+      : Object.keys(isObject(objects[0]!['properties']) ? objects[0]!['properties'] : {})
   for (const member of candidates) {
-    const branches: UnionBranch[] = []
-    for (const c of objects) {
-      const value = constOf(c.schema, member)
-      if (value !== undefined && !branches.some((b) => b.value === value)) {
-        branches.push({ value, decoder: c.decoder })
+    const values: (string | number | boolean)[] = []
+    for (const branch of objects) {
+      const value = constOf(branch, member)
+      if (value !== undefined && !values.includes(value)) {
+        values.push(value)
       }
     }
-    if (branches.length === objects.length) {
-      return { kind: 'union', discriminator: member, branches }
+    if (values.length === objects.length) {
+      return { member, values }
     }
   }
-  return VALUE
+  return undefined
+}
+
+/**
+ * A sentence naming the shapes of a union of two or more objects and the member that tells them
+ * apart, such as ``One of these shapes, told apart by its `kind` member: `image` or `video`.``
+ * An exclusive union nothing tells apart is `One of these shapes.`, with what to send when the
+ * value is an input. `undefined` for any other union.
+ */
+export function unionNote(
+  discriminated: Discriminated | undefined,
+  objects: number,
+  exclusive: boolean,
+  input = true,
+): string | undefined {
+  if (objects < 2) {
+    return undefined
+  }
+  if (discriminated === undefined) {
+    if (!exclusive) {
+      return undefined
+    }
+    return input ? 'One of these shapes. Send the members of exactly one.' : 'One of these shapes.'
+  }
+  const values = discriminated.values.map((v) => `\`${String(v)}\``)
+  return `One of these shapes, told apart by its \`${discriminated.member}\` member: ${orList(values)}.`
+}
+
+/** Entries joined into one list, the last after `or`. */
+function orList(entries: readonly string[]): string {
+  return entries.length === 1
+    ? entries[0]!
+    : `${entries.slice(0, -1).join(', ')} or ${entries[entries.length - 1]!}`
+}
+
+/**
+ * A decoder picking an object branch by its discriminator, so the nulls the conversion added
+ * inside the branch are dropped. A pass-through when no member tells the branches apart.
+ */
+function unionDecoder(node: JsonSchema, converted: readonly Portable[]): Decoder {
+  const objects = converted.filter((c) => c.decoder.kind === 'object')
+  const discriminated = discriminate(
+    node,
+    objects.map((c) => c.schema),
+  )
+  if (discriminated === undefined) {
+    return VALUE
+  }
+  return {
+    kind: 'union',
+    discriminator: discriminated.member,
+    branches: objects.map((c, index) => ({
+      value: discriminated.values[index]!,
+      decoder: c.decoder,
+    })),
+  }
+}
+
+/**
+ * A union's converted branches and its description, each object branch named by the value its
+ * discriminator takes, and the union's own description naming its shapes.
+ */
+function describeUnion(
+  node: JsonSchema,
+  converted: readonly Portable[],
+  description: string,
+): { schemas: JsonSchema[]; description: string } {
+  const objects = converted.filter((c) => c.decoder.kind === 'object')
+  const discriminated = discriminate(
+    node,
+    objects.map((c) => c.schema),
+  )
+  const schemas = converted.map((c) => {
+    const at = objects.indexOf(c)
+    if (discriminated === undefined || at < 0 || objects.length < 2) {
+      return c.schema
+    }
+    const value = discriminated.values[at]!
+    const properties = c.schema['properties'] as Record<string, JsonSchema>
+    return {
+      ...c.schema,
+      // OpenAPI has a discriminator always sent, so it never takes the null an optional
+      // member does.
+      properties: {
+        ...properties,
+        [discriminated.member]: withoutNull({
+          ...properties[discriminated.member],
+          enum: [value],
+        }),
+      },
+      description: joinText(
+        `The \`${String(value)}\` shape.`,
+        c.schema['description'] as string | undefined,
+      ),
+    }
+  })
+  const exclusive = Array.isArray(node['oneOf'])
+  return {
+    schemas,
+    description: joinText(description, unionNote(discriminated, objects.length, exclusive)),
+  }
 }
 
 const isNull = (b: unknown): boolean => isObject(b) && b['type'] === 'null'
@@ -560,21 +683,25 @@ export function toPortable(
     }
     const next = primitive ? Math.min(depth + 1, MAX_DEPTH - 1) : depth + 1
     const converted = others.map((b) => toPortable(doc, b, path, next))
-    const schemas = converted.map((c) => c.schema)
-    const schema: JsonSchema = { anyOf: withNull ? [...schemas, { type: 'null' }] : schemas }
-    const text = joinText(description, constraintNote(node))
-    if (text !== '') {
-      schema['description'] = text
+    const union = describeUnion(node, converted, joinText(description, constraintNote(node)))
+    const schema: JsonSchema = {
+      anyOf: withNull ? [...union.schemas, { type: 'null' }] : union.schemas,
+    }
+    if (union.description !== '') {
+      schema['description'] = union.description
     }
     return { schema, decoder: unionDecoder(node, converted) }
   }
 
   let { types, nullable: isNullable } = typeKeys(node)
-  const enumValues = Array.isArray(node['enum'])
-    ? (node['enum'] as unknown[])
-    : node['const'] !== undefined
+  // A `const` beside an `enum`, such as a union variant's discriminator beside the enum it is
+  // bound to, is the narrower of the two.
+  const enumValues =
+    node['const'] !== undefined
       ? [node['const']]
-      : undefined
+      : Array.isArray(node['enum'])
+        ? (node['enum'] as unknown[])
+        : undefined
   if (enumValues !== undefined && enumValues.includes(null)) {
     isNullable = true
   }

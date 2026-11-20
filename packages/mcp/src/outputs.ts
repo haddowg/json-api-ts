@@ -7,6 +7,7 @@ import {
   type ApiDescriptor,
   isPolymorphic,
 } from '@haddowg/json-api-client'
+import { discriminate, unionNote } from './portable'
 import {
   deref,
   isObject,
@@ -37,7 +38,7 @@ export function outputSchema(
     }
     const { $ref: _ref, ...siblings } = value
     const target = outputSchema(doc, resolvePointer(doc, ref), [...stack, ref])
-    return { ...target, ...outputSchema(doc, siblings, stack) }
+    return withUnionNote({ ...target, ...outputSchema(doc, siblings, stack) })
   }
   const out: JsonSchema = {}
   for (const [key, member] of Object.entries(value)) {
@@ -61,7 +62,35 @@ export function outputSchema(
       out[key] = member
     }
   }
-  return out
+  return withUnionNote(out)
+}
+
+/**
+ * `schema` with its description naming the shapes of a union of objects and the member telling
+ * them apart, as a tool's inputs describe them.
+ */
+function withUnionNote(schema: JsonSchema): JsonSchema {
+  const exclusive = Array.isArray(schema['oneOf'])
+  const branches = (schema['oneOf'] ?? schema['anyOf']) as unknown[] | undefined
+  if (!Array.isArray(branches)) {
+    return schema
+  }
+  const objects = branches.filter(
+    (branch): branch is JsonSchema =>
+      isObject(branch) &&
+      (branch['type'] === 'object' ||
+        (Array.isArray(branch['type']) && branch['type'].includes('object')) ||
+        (branch['type'] === undefined && isObject(branch['properties']))),
+  )
+  const note = unionNote(discriminate(schema, objects), objects.length, exclusive, false)
+  if (note === undefined) {
+    return schema
+  }
+  const own = typeof schema['description'] === 'string' ? schema['description'].trim() : ''
+  if (own.endsWith(note)) {
+    return schema
+  }
+  return { ...schema, description: own === '' ? note : `${own} ${note}` }
 }
 
 /** Index the document's resource object schemas by their type, preferring `<Type>Resource`. */

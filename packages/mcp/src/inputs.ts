@@ -21,11 +21,13 @@ import {
   type ParameterObject,
   type RequestBodyObject,
 } from './openapi'
-import { capIncludePaths, includePaths, keyName } from './outputs'
+import { capIncludePaths, includePaths, keyName, outputSchema, resourceSchemas } from './outputs'
 import {
   allowsNull,
   closedObject,
   type Decoder,
+  type Discriminated,
+  discriminate,
   isDeprecated,
   markDeprecated,
   nullable,
@@ -49,11 +51,13 @@ export const FIELDS_DESCRIPTION =
 
 /**
  * How a type's fields list selects single keys of the attributes that allow it, under the Nested
- * Fieldsets profile, given each attribute's key pattern and the paths into its nested objects.
+ * Fieldsets profile, given each attribute's key pattern, the paths into its nested objects and the
+ * values among them that take one of several shapes.
  */
 function nestedFieldsetDescription(
   fieldsets: Readonly<Record<string, string>>,
   paths: Readonly<Record<string, readonly (readonly string[])[]>> = {},
+  unions: readonly UnionSite[] = [],
 ): string {
   const objects = Object.entries(fieldsets).filter(([, pattern]) => pattern !== ITEMS)
   const lists = Object.entries(fieldsets).filter(([, pattern]) => pattern === ITEMS)
@@ -75,29 +79,143 @@ function nestedFieldsetDescription(
         ] as const,
     )
     const items = patterns.map(([name, keys]) => keyList(`${name}.*.<key>`, ...keys))
-    const variants = patterns.some(([, keys]) => keys.length > 1)
     sentences.push(
-      `${objects.length > 0 ? 'A list' : 'Besides whole fields, a list'} returns every item, in order, with only the named keys when you list \`<attribute>.*.<key>\`, for ${joined(items)}. An item without a named key leaves it out.${variants ? ' Where the items of a list take one of several shapes, each item returns only the named keys its own shape takes, beside the member naming its shape.' : ''} List the attribute itself to return all of it.`,
+      `${objects.length > 0 ? 'A list' : 'Besides whole fields, a list'} returns every item, in order, with only the named keys when you list \`<attribute>.*.<key>\`, for ${joined(items)}. An item without a named key leaves it out. List the attribute itself to return all of it.`,
     )
   }
-  const deeper = Object.entries(paths).flatMap(([name, list]) =>
-    list
-      .filter(
-        (path) => path[path.length - 1] !== ITEMS && !(path.length === 2 && path[0] === ITEMS),
-      )
-      .map((path) => [name, path] as const),
-  )
-  if (deeper.length > 0) {
-    const nested = deeper.map(([name, path]) => {
+  // A union has one key pattern per variant at the same path, listed together.
+  const deeper = new Map<string, { through: boolean; patterns: string[] }>()
+  for (const [name, list] of Object.entries(paths)) {
+    for (const path of list) {
+      if (path[path.length - 1] === ITEMS || (path.length === 2 && path[0] === ITEMS)) {
+        continue
+      }
       const keys = path.slice(0, -1).map((segment) => keyName(segment) ?? '<key>')
-      return keyList(`${[name, ...keys].join('.')}.<key>`, path[path.length - 1]!)
-    })
-    const throughLists = deeper.some(([, path]) => path.indexOf(ITEMS) > 0)
+      const label = `${[name, ...keys].join('.')}.<key>`
+      const entry = deeper.get(label) ?? { through: false, patterns: [] }
+      entry.through ||= path.indexOf(ITEMS) > 0
+      entry.patterns.push(path[path.length - 1]!)
+      deeper.set(label, entry)
+    }
+  }
+  if (deeper.size > 0) {
+    const nested = [...deeper].map(([label, entry]) => keyList(label, ...entry.patterns))
+    const throughLists = [...deeper.values()].some((entry) => entry.through)
     sentences.push(
       `A key holding an object takes its own keys the same way, one more \`.<key>\` per level${throughLists ? ', and a key holding a list takes `.*` before the keys of its items' : ''}, for ${joined(nested)}; listing the key itself returns all of it.`,
     )
   }
+  if (unions.length > 0) {
+    const sites = unions.map((site) => {
+      const shapes =
+        site.discriminated === undefined
+          ? ''
+          : `, whose \`${site.discriminated.member}\` is ${orList(site.discriminated.values.map((value) => `\`${String(value)}\``))}`
+      return `${site.label}${shapes}`
+    })
+    sentences.push(
+      `${unions.length === 1 ? 'One value takes' : 'Some values take'} one of several shapes: ${joined(sites)}. Such a value returns only the named keys its own shape takes, beside the member naming its shape.`,
+    )
+  }
   return sentences.join(' ')
+}
+
+/** A value a nested fieldset reaches that takes one of several shapes. */
+interface UnionSite {
+  /** How the description names it, such as `` `hero` `` or ``each item of `sections` ``. */
+  label: string
+  discriminated: Discriminated | undefined
+}
+
+/**
+ * The values the nested fieldsets of `type` reach that are unions of objects: an attribute, an
+ * item of a list or a key of an object, read from the type's attributes in the document.
+ */
+function unionSites(
+  doc: OpenApiDocument,
+  type: string,
+  fieldsets: Readonly<Record<string, string>>,
+  paths: Readonly<Record<string, readonly (readonly string[])[]>> = {},
+): UnionSite[] {
+  const resource = resourceSchemas(doc).get(type)
+  const props = isObject(resource?.['properties']) ? resource['properties'] : {}
+  const attributes = outputSchema(doc, props['attributes'])
+  const members = isObject(attributes['properties']) ? attributes['properties'] : {}
+  const sites: UnionSite[] = []
+  const seen = new Set<string>()
+  for (const name of Object.keys(fieldsets)) {
+    const prefixes = [[], ...(paths[name] ?? []).map((path) => path.slice(0, -1))]
+    for (const prefix of prefixes) {
+      const key = [name, ...prefix].join('\u0000')
+      if (seen.has(key)) {
+        continue
+      }
+      seen.add(key)
+      let node: unknown = members[name]
+      for (const segment of prefix) {
+        node = isObject(node) ? stepInto(node, segment) : undefined
+      }
+      const union = isObject(node) ? objectUnion(node) : undefined
+      if (union === undefined) {
+        continue
+      }
+      const items = prefix[prefix.length - 1] === ITEMS
+      const keys = (items ? prefix.slice(0, -1) : prefix).map(
+        (segment) => keyName(segment) ?? '<key>',
+      )
+      const named = `\`${[name, ...keys].join('.')}\``
+      sites.push({
+        label: items ? `each item of ${named}` : named,
+        discriminated: union ?? undefined,
+      })
+    }
+  }
+  return sites
+}
+
+/** The schema one segment of a key path leads to, through any union the schema is. */
+function stepInto(schema: JsonSchema, segment: string): unknown {
+  const branches = (schema['oneOf'] ?? schema['anyOf']) as unknown[] | undefined
+  if (Array.isArray(branches)) {
+    for (const branch of branches) {
+      const found = isObject(branch) ? stepInto(branch, segment) : undefined
+      if (found !== undefined) {
+        return found
+      }
+    }
+    return undefined
+  }
+  if (segment === ITEMS) {
+    return schema['items']
+  }
+  const name = keyName(segment)
+  const properties = schema['properties']
+  if (name !== undefined) {
+    return isObject(properties) ? properties[name] : undefined
+  }
+  return schema['additionalProperties']
+}
+
+/**
+ * How a union of two or more objects tells its shapes apart: the member and its values, or `null`
+ * when nothing does. `undefined` when the schema isn't such a union.
+ */
+function objectUnion(schema: JsonSchema): Discriminated | null | undefined {
+  const branches = (schema['oneOf'] ?? schema['anyOf']) as unknown[] | undefined
+  if (!Array.isArray(branches)) {
+    return undefined
+  }
+  const objects = branches.filter(
+    (branch): branch is JsonSchema => isObject(branch) && isObject(branch['properties']),
+  )
+  return objects.length < 2 ? undefined : (discriminate(schema, objects) ?? null)
+}
+
+/** Entries joined into one list, the last after `or`. */
+function orList(entries: readonly string[]): string {
+  return entries.length === 1
+    ? entries[0]!
+    : `${entries.slice(0, -1).join(', ')} or ${entries[entries.length - 1]!}`
 }
 
 /**
@@ -511,6 +629,7 @@ function queryInput(
               description: nestedFieldsetDescription(
                 fieldsets,
                 ctx.descriptor[type]?.nestedFieldsetPaths,
+                unionSites(doc, type, fieldsets, ctx.descriptor[type]?.nestedFieldsetPaths),
               ),
             }),
       })

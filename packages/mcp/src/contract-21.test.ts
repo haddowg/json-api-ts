@@ -35,6 +35,7 @@ const writeSteps: JsonSchema = {
         properties: { operation: { type: 'string', enum: ['trim'] } },
         required: ['operation'],
         additionalProperties: false,
+        description: 'The `trim` shape.',
       },
       {
         type: 'object',
@@ -52,8 +53,11 @@ const writeSteps: JsonSchema = {
         },
         required: ['params', 'operation'],
         additionalProperties: false,
+        description: 'The `find_replace` shape.',
       },
     ],
+    description:
+      'One of these shapes, told apart by its `operation` member: `trim` or `find_replace`.',
   },
   description: 'At most 50 items.',
 }
