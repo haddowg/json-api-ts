@@ -508,6 +508,61 @@ describe('atomic operations', () => {
     const response = ajv.getSchema('spec#/components/schemas/AtomicResultsResponse')!
     expect(response(results), JSON.stringify(response.errors)).toBe(true)
   })
+  it('changes a relationship inside a batch through tx.rel, as the relationship accessor does', async () => {
+    const results = {
+      'atomic:results': [
+        { data: { type: 'playlists', id: '7', attributes: { title: 'Late night' } } },
+        { data: [{ type: 'tracks', id: '5' }] },
+        {},
+      ],
+    }
+    const { transport, requests } = mockTransport({
+      [`POST ${BASE}/operations`]: JSON.stringify(results),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+
+    // `tx.rel(ref, name)` reaches a relationship of the resource `ref` names, here one the batch
+    // creates, and its verbs record one operation each, typed and gated like the accessor's.
+    const [, tracks] = await client.atomic((tx) => {
+      const playlist = tx.create({ type: 'playlists', title: 'Late night' })
+      return [
+        playlist,
+        tx
+          .rel(playlist, 'orderedTracks')
+          .add([{ type: 'tracks', id: '5', $pivot: { position: 1 } }]),
+        tx.rel(playlist, 'publicOwner').set({ type: 'public-profiles', id: '1' }),
+      ] as const
+    })
+    expect(tracks.data?.[0]?.id).toBe('5')
+
+    const sent = JSON.parse(requests[0]!.body!) as { 'atomic:operations': unknown[] }
+    expect(sent['atomic:operations'].slice(1)).toEqual([
+      {
+        op: 'add',
+        ref: { type: 'playlists', lid: 'atomic-0', relationship: 'orderedTracks' },
+        data: [{ type: 'tracks', id: '5', meta: { pivot: { position: 1 } } }],
+      },
+      {
+        op: 'update',
+        ref: { type: 'playlists', lid: 'atomic-0', relationship: 'publicOwner' },
+        data: { type: 'public-profiles', id: '1' },
+      },
+    ])
+    const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false })
+    ajv.addSchema(
+      JSON.parse(
+        readFileSync(
+          createRequire(import.meta.url).resolve(
+            '@haddowg/json-api-symfony-specs/music-catalog.openapi.json',
+          ),
+          'utf8',
+        ),
+      ),
+      'spec',
+    )
+    const request = ajv.getSchema('spec#/components/schemas/AtomicOperationsRequest')!
+    expect(request(sent), JSON.stringify(request.errors)).toBe(true)
+  })
 })
 
 describe('TanStack Query bindings', () => {
