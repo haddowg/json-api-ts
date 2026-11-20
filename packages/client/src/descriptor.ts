@@ -554,22 +554,22 @@ export interface ResourceDescriptor {
    */
   included?: readonly string[]
   /**
-   * The attributes whose single keys a sparse fieldset may select, under the Field Selection
+   * The attributes whose single keys a sparse fieldset may select, under the Nested Fieldsets
    * profile: attribute name -> the pattern a key must match (a regular expression source,
    * unanchored and without delimiters), `\*` for a list whose items take keys. Each adds
    * `<attribute>.${string}` to the members `fields` takes for this type. Absent when no attribute
-   * declares selectable keys.
+   * declares a nested fieldset.
    */
-  selectableKeys?: Readonly<Record<string, string>>
+  nestedFieldsets?: Readonly<Record<string, string>>
   /**
    * The paths into nested objects a sparse fieldset may select of the attributes in
-   * {@link selectableKeys}: attribute name -> one entry per path, each the pattern of every key
+   * {@link nestedFieldsets}: attribute name -> one entry per path, each the pattern of every key
    * along it after the attribute's own, such as `['geo', '(?:lat|lng)']` for `location.geo.lat`,
    * or `['\\*', '(?:sku|qty)']` for `lines.*.sku`, where `\*` stands for every item of a list.
-   * A key that is a plain name is escaped the way the server escapes it. Absent when no selectable
+   * A key that is a plain name is escaped the way the server escapes it. Absent when no nested fieldset
    * key holds an object or a list whose own keys may be selected.
    */
-  selectableKeyPaths?: Readonly<Record<string, readonly (readonly string[])[]>>
+  nestedFieldsetPaths?: Readonly<Record<string, readonly (readonly string[])[]>>
   /**
    * The sort tokens the COLLECTION read accepts in `sort` — signed field names (`title`,
    * `-title`). Drives `sort` narrowing. Absent when the collection advertises no sorting (so

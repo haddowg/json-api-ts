@@ -32,7 +32,7 @@ import type {
   RelatedQueryOperation,
   ResourceCountOperation,
 } from './descriptor'
-import type { KeySelection } from './key-selection'
+import type { NestedFieldset } from './nested-fieldset'
 import type { ActionLocation } from './location'
 import type {
   ArrayEnvelope,
@@ -101,10 +101,10 @@ export interface ResourceAccessors<
   readonly $document: DocumentEnvelope
   readonly $raw: Record<string, unknown>
   /**
-   * The keys the request's sparse fieldset selected of each attribute it narrowed, under the Field
-   * Selection profile. Empty when the request narrowed no attribute of this type.
+   * The keys the request's sparse fieldset selected of each attribute it narrowed, under the Nested
+   * Fieldsets profile. Empty when the request narrowed no attribute of this type.
    */
-  readonly $keySelection: KeySelection
+  readonly $nestedFieldset: NestedFieldset
   $rel(name: string): RelationView | undefined
 }
 
@@ -178,10 +178,10 @@ type SelectedFields<F, T extends string> = F extends FieldSelectionMap
  */
 type PickSelected<Obj, Sel> = [Sel] extends [AllFields] ? Obj : Pick<Obj, Extract<keyof Obj, Sel>>
 
-/** The attribute a key member names: `values` for `values.cap`. */
-type KeyMemberAttribute<Sel> = Sel extends `${infer Attribute}.${string}` ? Attribute : never
+/** The attribute a nested fieldset member names: `values` for `values.cap`. */
+type NestedFieldsetAttribute<Sel> = Sel extends `${infer Attribute}.${string}` ? Attribute : never
 
-/** The paths of attribute `Attr` the key members in `Sel` select: everything after the first dot. */
+/** The paths of attribute `Attr` the nested fieldset members in `Sel` select: everything after the first dot. */
 type SelectedKeysOf<Sel, Attr extends string> = Sel extends `${Attr}.${infer Key}` ? Key : never
 
 /** The first key of each path in `K`: `geo` for `geo.lat`, `*` for `*.sku`. */
@@ -248,16 +248,15 @@ type NarrowedObject<V, K extends string> = {
 }
 
 /**
- * {@link PickSelected} for attributes: an attribute the selection names only through key members
+ * {@link PickSelected} for attributes: an attribute the selection names only through nested fieldset members
  * (`values.cap`) is present and narrowed to those keys, while one it lists whole stays whole.
  */
 type PickSelectedAttributes<Obj, Sel> = [Sel] extends [AllFields]
   ? Obj
   : Pick<Obj, Extract<keyof Obj, Sel>> & {
-      [K in keyof Obj as K extends Exclude<KeyMemberAttribute<Sel>, Sel> ? K : never]: KeySelected<
-        Obj[K],
-        SelectedKeysOf<Sel, K & string>
-      >
+      [K in keyof Obj as K extends Exclude<NestedFieldsetAttribute<Sel>, Sel>
+        ? K
+        : never]: KeySelected<Obj[K], SelectedKeysOf<Sel, K & string>>
     }
 
 /**
@@ -765,15 +764,15 @@ export type FieldsMap<D extends ApiDescriptor> = {
 export type MemberName<D extends ApiDescriptor, T extends TypeName<D>> =
   | Extract<keyof D[T]['attributes'], string>
   | ReadableRelationName<D, T>
-  | KeyMember<D, T>
+  | NestedFieldsetMember<D, T>
 
 /**
- * A key member of type `T`: `<attribute>.${string}` for each attribute whose single keys a sparse
- * fieldset may select (the descriptor's `selectableKeys`), under the Field Selection profile.
+ * A nested fieldset member of type `T`: `<attribute>.${string}` for each attribute whose single keys a sparse
+ * fieldset may select (the descriptor's `nestedFieldsets`), under the Nested Fieldsets profile.
  * `never` when the type declares none.
  */
-export type KeyMember<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
-  selectableKeys: infer S
+export type NestedFieldsetMember<D extends ApiDescriptor, T extends TypeName<D>> = D[T] extends {
+  nestedFieldsets: infer S
 }
   ? `${Extract<keyof S, string>}.${string}`
   : never

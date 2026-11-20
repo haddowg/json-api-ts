@@ -1,6 +1,6 @@
 /**
- * The keys a sparse fieldset selected of each attribute it narrowed, under the Field Selection
- * profile (https://haddowg.github.io/json-api/profiles/field-selection/): attribute name -> the
+ * The keys a sparse fieldset selected of each attribute it narrowed, under the Nested Fieldsets
+ * profile (https://haddowg.github.io/json-api/profiles/nested-fieldsets/): attribute name -> the
  * paths `fields[type]=<attribute>.<path>` named, in request order, each once. A path into a nested
  * object, such as `geo.lat`, names one key per level, and a path through a list names its items
  * `*`, such as `*.sku`. An attribute the fieldset also lists whole
@@ -8,16 +8,16 @@
  * those whole. A path ending in `*` names the list itself, so `lines.*` lists `lines` whole and
  * `shipping.parcels.*` selects `parcels` whole. Empty when nothing was narrowed.
  */
-export type KeySelection = Readonly<Record<string, readonly string[]>>
+export type NestedFieldset = Readonly<Record<string, readonly string[]>>
 
-const NONE: KeySelection = Object.freeze({})
+const NONE: NestedFieldset = Object.freeze({})
 
 /**
- * The {@link KeySelection} of one type's `fields[type]` members. The path is everything after the
+ * The {@link NestedFieldset} of one type's `fields[type]` members. The path is everything after the
  * first full stop, as the server reads it, and a member with an empty key at any level selects
  * nothing.
  */
-export function keySelection(listed: readonly string[] | undefined): KeySelection {
+export function nestedFieldset(listed: readonly string[] | undefined): NestedFieldset {
   if (listed === undefined) {
     return NONE
   }

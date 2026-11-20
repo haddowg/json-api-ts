@@ -1,5 +1,5 @@
 import { StructuralGuardError } from './errors'
-import { keySelection } from './key-selection'
+import { nestedFieldset } from './nested-fieldset'
 import type { Document } from './request'
 
 /**
@@ -337,7 +337,7 @@ export function sparseSchema(schema: unknown, members: readonly string[]): unkno
   if (!isObject(schema)) {
     return schema
   }
-  const selection = keySelection(members)
+  const selection = nestedFieldset(members)
   const selected = new Set([
     // `lines.*` names the list itself, as `lines` does.
     ...members

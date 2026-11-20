@@ -5,7 +5,7 @@ import type {
   RelationDescriptor,
 } from './descriptor'
 import { type Page, type ResolvedPaginator, resolvePaginator } from './pagination'
-import { type KeySelection, keySelection } from './key-selection'
+import { type NestedFieldset, nestedFieldset } from './nested-fieldset'
 import type { Document } from './request'
 import { assertJsonApiDocument, type ResolvedValidator, validateDocument } from './validate'
 
@@ -64,10 +64,10 @@ export interface ResourceEnvelope {
   readonly $document: DocumentEnvelope
   readonly $raw: RawResource
   /**
-   * The keys the request's sparse fieldset selected of each attribute it narrowed, under the Field
-   * Selection profile. An attribute named here holds only those of its keys the resource has.
+   * The keys the request's sparse fieldset selected of each attribute it narrowed, under the Nested
+   * Fieldsets profile. An attribute named here holds only those of its keys the resource has.
    */
-  readonly $keySelection: KeySelection
+  readonly $nestedFieldset: NestedFieldset
   $rel(name: string): RelationView | undefined
   /**
    * A relationship's count, from its `meta.total` (a `withCount` read): a finite number, else
@@ -128,7 +128,7 @@ export interface MaterialiseContext {
   validate?: ResolvedValidator | undefined
   /**
    * The sparse fieldsets the request sent, by type, which tell an attribute narrowed to some of
-   * its keys from one rendered whole (see {@link ResourceEnvelope.$keySelection}).
+   * its keys from one rendered whole (see {@link ResourceEnvelope.$nestedFieldset}).
    */
   fields?: Readonly<Record<string, readonly string[]>> | undefined
 }
@@ -301,7 +301,7 @@ function buildNode(
     )
   }
 
-  attachResourceEnvelope(node, raw, env, rels, keySelection(ctx.fields?.[raw.type]))
+  attachResourceEnvelope(node, raw, env, rels, nestedFieldset(ctx.fields?.[raw.type]))
   return node
 }
 
@@ -375,20 +375,20 @@ function resolveMember(
   return buildIdentifierView(member, relationEdge)
 }
 
-/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$keySelection/$rel/$count). */
+/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$nestedFieldset/$rel/$count). */
 function attachResourceEnvelope(
   node: object,
   raw: RawResource,
   env: DocumentEnvelope,
   rels: Record<string, RawRelationship>,
-  selection: KeySelection,
+  selection: NestedFieldset,
 ): void {
   defineGetter(node, '$meta', () => raw.meta)
   defineGetter(node, '$links', () => raw.links)
   defineGetter(node, '$self', () => linkHref(raw.links?.self))
   defineGetter(node, '$document', () => env)
   defineGetter(node, '$raw', () => raw)
-  defineGetter(node, '$keySelection', () => selection)
+  defineGetter(node, '$nestedFieldset', () => selection)
   define(node, '$rel', (name: string): RelationView | undefined => {
     const rel = rels[name]
     if (!rel) return undefined
@@ -426,7 +426,7 @@ function buildEdgeView(node: object, member: RawResource, relationEdge?: Relatio
     '$self',
     '$document',
     '$raw',
-    '$keySelection',
+    '$nestedFieldset',
     '$rel',
     '$count',
   ] as const) {
