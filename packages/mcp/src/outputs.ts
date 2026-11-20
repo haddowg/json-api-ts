@@ -82,7 +82,7 @@ function withUnionNote(schema: JsonSchema): JsonSchema {
         (Array.isArray(branch['type']) && branch['type'].includes('object')) ||
         (branch['type'] === undefined && isObject(branch['properties']))),
   )
-  const note = unionNote(discriminate(schema, objects), objects.length, exclusive)
+  const note = unionNote(discriminate(schema, objects), objects.length, exclusive, false)
   if (note === undefined) {
     return schema
   }

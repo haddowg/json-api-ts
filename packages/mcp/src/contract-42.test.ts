@@ -284,6 +284,7 @@ describe('generator contract 42 (nested fieldsets)', () => {
     const tools = createJsonApiMcp(modelOf(doc)).tools
     const hero = writeArgument(doc, 'articles_create', 'hero')
     expect(hero['description']).toBe('One of these shapes. Send the members of exactly one.')
+    expect(outputAttribute(doc, 'articles_get', 'hero')['description']).toBe('One of these shapes.')
     const fields = (
       tools.find((entry) => entry.name === 'articles_get')!.inputSchema['properties'] as Record<
         string,

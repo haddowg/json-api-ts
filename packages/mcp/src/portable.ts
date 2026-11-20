@@ -534,18 +534,23 @@ export function discriminate(
 /**
  * A sentence naming the shapes of a union of two or more objects and the member that tells them
  * apart, such as ``One of these shapes, told apart by its `kind` member: `image` or `video`.``
- * `undefined` for any other union.
+ * An exclusive union nothing tells apart is `One of these shapes.`, with what to send when the
+ * value is an input. `undefined` for any other union.
  */
 export function unionNote(
   discriminated: Discriminated | undefined,
   objects: number,
   exclusive: boolean,
+  input = true,
 ): string | undefined {
   if (objects < 2) {
     return undefined
   }
   if (discriminated === undefined) {
-    return exclusive ? 'One of these shapes. Send the members of exactly one.' : undefined
+    if (!exclusive) {
+      return undefined
+    }
+    return input ? 'One of these shapes. Send the members of exactly one.' : 'One of these shapes.'
   }
   const values = discriminated.values.map((v) => `\`${String(v)}\``)
   return `One of these shapes, told apart by its \`${discriminated.member}\` member: ${orList(values)}.`
