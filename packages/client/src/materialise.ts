@@ -203,7 +203,7 @@ export function materialise(
   // run the opt-in per-field validation over each wire resource by its type.
   assertJsonApiDocument(doc)
   if (ctx.validate !== undefined) {
-    validateDocument(doc, ctx.validate)
+    validateDocument(doc, ctx.validate, ctx.fields)
   }
 
   const env: DocumentEnvelope = {}
