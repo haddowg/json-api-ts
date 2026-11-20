@@ -168,8 +168,15 @@ later: the materialised job, its `contentLocation` and `retryAfter`, and `$poll(
 _Avoid_: pending result, async result
 
 **Atomic handle**:
-The value a `tx.create` in `client.atomic()` returns, which doubles as a `{ type, lid }` relation
-reference for later operations in the batch.
+The value a recorder method in `client.atomic()` returns, which picks that operation's result out
+of the batch. A `tx.create` handle doubles as a `{ type, lid }` relation reference for later
+operations in the batch, and a relationship verb's handle resolves to the linkage.
+
+**Relationship recorder**:
+The object `tx.rel(ref, name)` returns inside `client.atomic()`, the batch's counterpart of the
+relationship accessor. Its `add`, `remove`, `replace` and `set` each record one operation on the
+relationship, gated and typed as the accessor's verbs are.
+_Avoid_: atomic relationship accessor
 
 ### Runtime seams
 
