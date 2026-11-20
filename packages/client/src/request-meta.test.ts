@@ -339,7 +339,7 @@ describe('typed request meta', () => {
     void client.atomic((tx) => [tx.create({ type: 'bookings', title: 'W' })]).catch(() => undefined)
   })
 
-  it('remaps a resource object meta pointer to $meta, and leaves a top-level one as sent', async () => {
+  it('remaps a resource object meta pointer to $meta, and a top-level one to $documentMeta', async () => {
     const { client } = answering({
       status: 422,
       body: {
@@ -355,7 +355,53 @@ describe('typed request meta', () => {
     expect(error).toBeInstanceOf(JsonApiError)
     expect((error as JsonApiError).errors.map((e) => e.path)).toEqual([
       '$meta.source',
-      '/meta/idempotencyKey',
+      '$documentMeta.idempotencyKey',
     ])
+  })
+
+  it('groups a top-level meta error under $documentMeta on every write that takes meta', async () => {
+    const metaError = (pointer: string) => ({
+      status: 422,
+      body: { errors: [{ status: '422', source: { pointer } }] },
+    })
+    const { client } = answering(
+      metaError('/meta/cancellationReason'),
+      metaError('/meta/changedBy'),
+      metaError('/meta/silent'),
+      metaError('/meta/currency'),
+      metaError('/atomic:operations/1/meta/cancellationReason'),
+      metaError('/data/attributes/title'),
+    )
+    const paths = async (call: () => Promise<unknown>) => {
+      const error = (await call().catch((e: unknown) => e)) as JsonApiError
+      return Object.keys(error.byPath())
+    }
+    expect(
+      await paths(() => client.bookings.id('bk-1').delete({ meta: { cancellationReason: '' } })),
+    ).toEqual(['$documentMeta.cancellationReason'])
+    expect(
+      await paths(() =>
+        client.bookings
+          .id('bk-1')
+          .rooms.add([{ type: 'rooms', id: 'rm-1' }], { meta: { changedBy: '' } }),
+      ),
+    ).toEqual(['$documentMeta.changedBy'])
+    expect(
+      await paths(() => client.bookings.id('bk-1').actions.confirm({ meta: { silent: true } })),
+    ).toEqual(['$documentMeta.silent'])
+    expect(
+      await paths(() => client.bookings.actions.quote({ title: 'W' }, { meta: { currency: '' } })),
+    ).toEqual(['$documentMeta.currency'])
+    const atomic = (await client
+      .atomic((tx) => {
+        tx.update({ type: 'bookings', id: 'bk-2', title: 'Later' })
+        tx.delete({ type: 'bookings', id: 'bk-1' }, { meta: { cancellationReason: '' } })
+      })
+      .catch((e: unknown) => e)) as JsonApiError
+    expect(atomic.errors[0]).toMatchObject({ opIndex: 1, path: '$documentMeta.cancellationReason' })
+    // Any other pointer keeps the mapping it had.
+    expect(
+      await paths(() => client.bookings.create({ title: '' }, { meta: { idempotencyKey: 'k' } })),
+    ).toEqual(['title'])
   })
 })

@@ -43,6 +43,7 @@ import {
   toDocument,
   toRelationshipDocument,
   withTopLevelMeta,
+  withRemappedDocumentMetaPaths,
   withRemappedPaths,
   withRemappedRelationshipPaths,
 } from './serialize-write'
@@ -518,11 +519,13 @@ async function runAction(
       // A bespoke command document (no resolvable input type): pass the caller's envelope through.
       req.body =
         typeof input === 'object' && input !== null ? withTopLevelMeta(input, options.meta) : input
+      remap = withRemappedDocumentMetaPaths
     }
   } else if (action.input === 'none' && options.meta !== undefined) {
     // An action taking no document may still declare its request `meta`, sent meta-only.
     req.body = { meta: options.meta }
     req.contentType = JSON_API_MEDIA_TYPE
+    remap = withRemappedDocumentMetaPaths
   } else if (action.input === 'raw') {
     req.body = encodeFields(action.contentType ?? '*/*', undefined, input)
     // Send the action's declared media type (e.g. application/octet-stream); fall back to a

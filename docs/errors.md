@@ -138,6 +138,10 @@ The remapping is descriptor-aware, so it follows the same nesting your input use
 | `/data/relationships/artist/data` | `artist` |
 | `/data/attributes/releaseInfo/label` | `releaseInfo.label` |
 | `/data/relationships/orderedTracks/data/0/meta/pivot/position` | `orderedTracks[0].$pivot.position` |
+| `/data/meta/source` | `$meta.source` |
+| `/meta/idempotencyKey` | `$documentMeta.idempotencyKey` |
+
+A pointer into the request document's top-level `meta`, which a write takes as its `meta` option, is keyed `$documentMeta.<member>`, the document's counterpart of the `$meta` a resource object's own meta goes under. That holds for every write taking meta, actions and relationship writes included, and for an atomic operation's `meta` beside its `opIndex`.
 
 The raw `source.pointer` stays on each error object as an escape hatch, and `byPath()` falls back to it (then to `source.parameter`, then `_`) when no flat `path` was resolved.
 
