@@ -60,6 +60,16 @@ const LINE_PATHS = [
   ['\\*', 'price', '(?:amount|currency)'],
 ]
 
+/**
+ * The paths into the items of the articles' `sections`, a union whose `heading` and `figure`
+ * variants each declare their own keys and whose `rule` declares none.
+ */
+const SECTION_PATHS = [
+  ['\\*', '(?:text|level)'],
+  ['\\*', '(?:src|size)'],
+  ['\\*', 'size', '(?:width|height)'],
+]
+
 describe('generator contract 42 (field selection)', () => {
   it('reads a document stamped 42 without a warning', () => {
     expect(selecting.info?.['x-generator']?.contract).toBe(42)
@@ -73,16 +83,21 @@ describe('generator contract 42 (field selection)', () => {
       totals: '[^.,*]+',
       location: '(?:[a-z]+)',
       lines: '\\*',
+      sections: '\\*',
+      hero: '(?:src|alt)',
     })
     expect(articles.selectableKeyPaths).toEqual({
       location: [['geo', '(?:lat|lng)']],
       lines: LINE_PATHS,
+      sections: SECTION_PATHS,
     })
     expect(articles.attributes).toMatchObject({
       scores: 'object',
       totals: 'object',
       location: 'object',
       lines: 'array',
+      sections: 'array',
+      hero: 'unknown',
     })
   })
 
@@ -114,6 +129,7 @@ describe('generator contract 42 (field selection)', () => {
         ['lat', 'long'],
       ],
       lines: LINE_PATHS,
+      sections: SECTION_PATHS,
     })
   })
 
@@ -147,6 +163,8 @@ describe('generator contract 42 (field selection)', () => {
       totals: 'object',
       location: 'object',
       lines: 'array',
+      sections: 'array',
+      hero: 'unknown',
     })
     expect(selectableKeys).toBeDefined()
     expect(selectableKeyPaths).toBeDefined()
@@ -219,12 +237,37 @@ describe('generator contract 42 (field selection)', () => {
       '  void lined.lines?.[0]?.price?.currency',
       "  const items = await api.articles.get('a-1', { fields: { articles: ['lines.*', 'lines.*.sku'] } })",
       '  const quantity: number | null | undefined = items.lines?.[0]?.quantity',
+      "  const sectioned = await api.articles.get('a-1', {",
+      "    fields: { articles: ['sections.*.text', 'sections.*.size.width'] },",
+      '  })',
+      '  const section = sectioned.sections?.[0]',
+      '  // Every item keeps the member naming its variant, and only the keys its variant has.',
+      "  const kind: 'heading' | 'figure' | 'rule' = sectioned.sections![0]!.kind",
+      "  const text: string | null | undefined = section?.kind === 'heading' ? section.text : undefined",
+      "  const width: number | null | undefined = section?.kind === 'figure' ? section.size?.width : undefined",
+      '  // @ts-expect-error -- level was not selected.',
+      "  void (section?.kind === 'heading' ? section.level : undefined)",
+      '  // @ts-expect-error -- src was not selected.',
+      "  void (section?.kind === 'figure' ? section.src : undefined)",
+      '  // @ts-expect-error -- height was not selected.',
+      "  void (section?.kind === 'figure' ? section.size?.height : undefined)",
+      "  const listed2 = await api.articles.get('a-1', { fields: { articles: ['sections.*'] } })",
+      "  const level: number | null | undefined = listed2.sections?.[0]?.kind === 'heading' ? listed2.sections[0].level : undefined",
       '  void [title, maths, views, selected, whole, lat, postcode, lng, sku, amount, quantity]',
+      "  const covered = await api.articles.get('a-1', { fields: { articles: ['hero.alt'] } })",
+      '  const hero = covered.hero',
+      "  const heroKind: 'image' | 'video' = covered.hero!.kind",
+      "  const alt: string | null | undefined = hero?.kind === 'image' ? hero.alt : undefined",
+      '  // @ts-expect-error -- src was not selected.',
+      "  void (hero?.kind === 'image' ? hero.src : undefined)",
+      '  // @ts-expect-error -- url was not selected, and the video variant takes no keys.',
+      "  void (hero?.kind === 'video' ? hero.url : undefined)",
+      '  void [kind, text, width, level, heroKind, alt]',
       '}',
     ]
     const source = emit(selecting, buildDescriptor(selecting))
     expect(source).toContain(
-      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,*]+",\n      location: "(?:[a-z]+)",\n      lines: "\\\\*"\n    },',
+      '    selectableKeys: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,*]+",\n      location: "(?:[a-z]+)",\n      lines: "\\\\*",\n      sections: "\\\\*",\n      hero: "(?:src|alt)"\n    },',
     )
     expect(typecheck(`${source}\n${probes.join('\n')}\n`)).toEqual([])
   })
