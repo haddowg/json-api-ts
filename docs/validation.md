@@ -91,6 +91,18 @@ The adapter throws an `AjvValidationError` aggregating every failing field into
 failing `keyword`, and the `message`), with a summary message listing the failing
 pointers. See [errors](errors.md) for catching and inspecting it.
 
+A read that sends a sparse fieldset gets back only the members it asked for, so each
+resource is checked against its type's schema relaxed for that fieldset. A member the
+fieldset leaves out is no longer required. An attribute narrowed to some of its keys, such
+as `totals.geo.lat` or `lines.*.sku`, requires only the keys selected at each level along
+the path, through every item of a list for `*`. What the response does carry is still
+checked in full, and a member the fieldset also names whole is checked whole:
+
+```ts
+// The schema requires every album attribute; this read asks for the title only.
+await client.albums.get('1', { fields: { albums: ['title'] } }) // passes with just the title
+```
+
 !!! tip "ajv options that matter"
     - Use **`Ajv2020`** — the server emits the JSON Schema 2020-12 dialect.
     - **`strict: false`** tolerates the `x-enum-*` annotations the server attaches.
@@ -127,9 +139,14 @@ on but rarely have to think about.
     The `createAjvValidator` adapter is itself a bare validator: it compiles each schema
     once up front and looks the compiled function up by `resource.type` internally.
 
+    A bare validator gets a third argument, `{ fields }`, when the request sent a sparse
+    fieldset for the resource's type. Pass the schema and those members to `sparseSchema`
+    for the relaxed copy; the ajv adapter compiles one per fieldset the first time it
+    sees it. The schema-driven config form hands the validator the relaxed schema already.
+
 ??? note "Going deeper: writing your own adapter"
-    A `Validator` is just `(resource: WireResource, schema: unknown) => void` — throw on
-    an invalid resource, return on a valid one. So any engine works: compile the
+    A `Validator` is just `(resource: WireResource, schema: unknown, context?) => void` —
+    throw on an invalid resource, return on a valid one. So any engine works: compile the
     generated `schemas` with your validator of choice and wrap it in that signature. The
     ajv adapter is the reference implementation — see [ajv.ts](../packages/client/src/ajv.ts)
     for the pattern (compile-once, look up by type, skip uncovered types, aggregate errors).

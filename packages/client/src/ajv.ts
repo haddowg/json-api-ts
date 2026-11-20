@@ -33,7 +33,13 @@
  * (`@haddowg/json-api-client/ajv`); importing the main entry never pulls ajv in.
  */
 import type { ErrorObject, ValidateFunction } from 'ajv'
-import type { SchemaMap, Validator, WireResource } from './validate'
+import {
+  type SchemaMap,
+  sparseSchema,
+  type ValidationContext,
+  type Validator,
+  type WireResource,
+} from './validate'
 
 /**
  * The minimal ajv surface the adapter uses: `compile(schema)` -> a validate function. Any
@@ -113,6 +119,10 @@ function toFailures(
  * skips a type the bundle does not cover (graceful partial coverage), and on a failing resource
  * throws an aggregated {@link AjvValidationError} listing the failing pointers.
  *
+ * A response to a request carrying a sparse fieldset for the resource's type is checked against
+ * the type's schema relaxed for that fieldset ({@link sparseSchema}), compiled the first time the
+ * fieldset is seen and reused after, so the members it leaves out aren't reported missing.
+ *
  * @param ajv   A configured ajv instance ({@link AjvLike}) — typically `new Ajv2020({ allErrors: true })`.
  * @param schemas The codegen-emitted `schemas` map (type -> resource-object JSON Schema 2020-12 doc).
  */
@@ -123,15 +133,38 @@ export function createAjvValidator(ajv: AjvLike, schemas: SchemaMap): Validator 
   for (const [type, schema] of Object.entries(schemas)) {
     compiled.set(type, ajv.compile(schema))
   }
+  const sparse = new Map<string, ValidateFunction>()
 
-  // The bare-`Validator` seam form: `(resource, schema) => void`. The adapter owns its own compiled
-  // lookup (by `resource.type`), so the seam's `schema` argument is unused (the runtime passes
-  // `undefined` for a bare validator); it is accepted only to satisfy the {@link Validator} signature.
-  const validator: Validator = (resource: WireResource): void => {
+  /** The type's validator, relaxed for the fieldset when the request sent one. */
+  const validatorFor = (
+    type: string,
+    fields: readonly string[] | undefined,
+  ): ValidateFunction | undefined => {
+    const whole = compiled.get(type)
+    if (whole === undefined || fields === undefined) {
+      return whole
+    }
+    const key = `${type}\n${fields.join(',')}`
+    let validate = sparse.get(key)
+    if (validate === undefined) {
+      validate = ajv.compile(sparseSchema(schemas[type], fields))
+      sparse.set(key, validate)
+    }
+    return validate
+  }
+
+  // The bare-`Validator` seam form: `(resource, schema, context) => void`. The adapter owns its own
+  // compiled lookup (by `resource.type`), so the seam's `schema` argument is unused (the runtime
+  // passes `undefined` for a bare validator); `context` carries the request's fieldset.
+  const validator: Validator = (
+    resource: WireResource,
+    _schema: unknown,
+    context?: ValidationContext,
+  ): void => {
     // Read `type`/`id` up front: ajv's `ValidateFunction` is a type guard, so calling it narrows
     // `resource` in the failing branch and the props would no longer be reachable off it.
     const { type, id } = resource
-    const validate = compiled.get(type)
+    const validate = validatorFor(type, context?.fields)
     // A type the bundle does not cover is skipped, not failed — matches the seam's graceful posture.
     if (validate === undefined) {
       return
