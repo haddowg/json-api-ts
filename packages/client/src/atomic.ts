@@ -44,6 +44,7 @@ import type {
   TakesVerb,
   TypeName,
   UpdateInput,
+  WritableRelationName,
 } from './result-types'
 import { toDocument, toRelationshipDocument, withRemappedAtomicPaths } from './serialize-write'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
@@ -243,9 +244,10 @@ export interface AtomicRecorder<D extends ApiDescriptor, W> {
   ): AtomicDeleteHandle
   /**
    * Relation `relationship` of the resource `ref` names, by its server `id` or the `lid` of a
-   * resource created earlier in the batch. Its verbs record operations on the relationship.
+   * resource created earlier in the batch. Its verbs record operations on the relationship. Only
+   * a relation that takes at least one verb is accepted.
    */
-  rel<T extends TypeName<D>, R extends RelationName<D, T>>(
+  rel<T extends TypeName<D>, R extends WritableRelationName<D, T>>(
     ref: AtomicRef & { type: T },
     relationship: R,
   ): AtomicRelationshipRecorder<D, T, R>

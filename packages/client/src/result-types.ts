@@ -1454,6 +1454,18 @@ export type TakesVerb<
     : false
 
 /**
+ * The relations of type `T` that take at least one verb (see {@link TakesVerb}), the names
+ * {@link AtomicRecorder.rel} accepts.
+ */
+export type WritableRelationName<D extends ApiDescriptor, T extends TypeName<D>> = {
+  [R in RelationName<D, T>]: true extends {
+    [V in MutationVerb]: TakesVerb<D, T, R, V>
+  }[MutationVerb]
+    ? R
+    : never
+}[RelationName<D, T>]
+
+/**
  * The members a relationship write with verb `V` on relation `R` takes, as the relationship
  * accessor's verbs take them: refs with an optional `$pivot` to add or replace, refs to remove, and
  * one ref or `null` to set.
