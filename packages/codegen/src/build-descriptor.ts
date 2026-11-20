@@ -315,6 +315,7 @@ export class DescriptorBuilder {
       if (atomicRequestMeta !== undefined) {
         descriptor.atomicRequestMeta = atomicRequestMeta
       }
+      this.withAtomicRelationshipMeta(descriptor.relations, base, wireType)
       const resourceMeta = this.resourceMeta(base, schema)
       if (resourceMeta !== undefined) {
         descriptor.resourceMeta = resourceMeta
@@ -524,6 +525,36 @@ export class DescriptorBuilder {
       }
     }
     return Object.keys(out).length === 0 ? undefined : out
+  }
+
+  /**
+   * Record on each relation the top-level `meta` its atomic relationship operation kinds of its own
+   * declare, keyed by verb: `add`, `remove` and `replace` on a to-many, `set` on a to-one.
+   */
+  private withAtomicRelationshipMeta(
+    relations: Record<string, RelationDescriptor>,
+    base: string,
+    wireType: string,
+  ): void {
+    for (const [name, kinds] of atomicRelationshipOperations(this.schemas, base, wireType)) {
+      const relation = relations[name]
+      if (relation === undefined) {
+        continue
+      }
+      const verbs: (keyof RelationMutations)[] =
+        relation.cardinality === 'many' ? ['add', 'remove', 'replace'] : ['set']
+      const out: Partial<Record<keyof RelationMutations, DocumentMetaDescriptor>> = {}
+      for (const verb of verbs) {
+        const meta = kinds[ATOMIC_RELATIONSHIP_KINDS[verb]]?.properties?.['meta']
+        const descriptor = isSchema(meta) ? this.metaDescriptor(meta) : undefined
+        if (descriptor !== undefined) {
+          out[verb] = descriptor
+        }
+      }
+      if (Object.keys(out).length > 0) {
+        relations[name] = { ...relation, atomicRequestMeta: out }
+      }
+    }
   }
 
   /**
@@ -2577,6 +2608,62 @@ function locationMediaType(schema: SchemaObject): string | undefined {
 /** Build the {@link ApiDescriptor} from a parsed OpenAPI document. */
 export function buildDescriptor(doc: OpenApiDocument): ApiDescriptor {
   return new DescriptorBuilder(doc).build()
+}
+
+/** The atomic relationship operation kind each relationship verb records. */
+export const ATOMIC_RELATIONSHIP_KINDS = {
+  add: 'Add',
+  remove: 'Remove',
+  replace: 'Update',
+  set: 'Update',
+} as const satisfies Record<keyof RelationMutations, string>
+
+type AtomicRelationshipKind = (typeof ATOMIC_RELATIONSHIP_KINDS)[keyof RelationMutations]
+
+/** The `const` a schema, or any `allOf` member of it, pins property `name` to. */
+function pinned(schema: SchemaOrBool | undefined, name: string): unknown {
+  if (!isSchema(schema)) {
+    return undefined
+  }
+  const own = schema.properties?.[name]
+  if (isSchema(own) && own.const !== undefined) {
+    return own.const
+  }
+  for (const member of schema.allOf ?? []) {
+    const value = pinned(member, name)
+    if (value !== undefined) {
+      return value
+    }
+  }
+  return undefined
+}
+
+/**
+ * The atomic relationship operation kinds a type has of its own, by relation and kind: the
+ * components marked `x-request-meta` named `<Base><Rel>AtomicRelationship<Kind>Operation`, whose
+ * `ref` pins the type and the relationship.
+ */
+export function atomicRelationshipOperations(
+  schemas: Readonly<Record<string, SchemaObject>>,
+  base: string,
+  wireType: string,
+): Map<string, Partial<Record<AtomicRelationshipKind, SchemaObject>>> {
+  const out = new Map<string, Partial<Record<AtomicRelationshipKind, SchemaObject>>>()
+  for (const [name, component] of Object.entries(schemas)) {
+    const kind = /AtomicRelationship(Add|Update|Remove)Operation$/.exec(name)?.[1] as
+      | AtomicRelationshipKind
+      | undefined
+    if (kind === undefined || !name.startsWith(base) || component['x-request-meta'] !== true) {
+      continue
+    }
+    const ref = component.properties?.['ref']
+    const relationship = pinned(ref, 'relationship')
+    if (pinned(ref, 'type') !== wireType || typeof relationship !== 'string') {
+      continue
+    }
+    out.set(relationship, { ...out.get(relationship), [kind]: component })
+  }
+  return out
 }
 
 /** Detect the server-level Atomic Operations capability (`null` when none). */
