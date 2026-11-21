@@ -30,7 +30,7 @@ const FIRST_PAGE: AlbumsPage = { size: 5 }
     } @else if (albums.data(); as list) {
       <ul [attr.aria-busy]="albums.isPlaceholderData()">
         @for (album of list; track album.id) {
-          <li [class.pending]="isRenaming(album.id)">
+          <li [class.pending]="album.$optimistic">
             <button type="button" (click)="selectedId.set(album.id)">{{ album.title }}</button>
             <span>{{ album.artist?.name }}, {{ album.releasedAt | date: 'yyyy' }}</span>
           </li>
@@ -53,7 +53,9 @@ const FIRST_PAGE: AlbumsPage = { size: 5 }
       <section>
         <h2>{{ album.title }}</h2>
         <p>by {{ album.artist?.name }}</p>
-        <form (submit)="$event.preventDefault(); rename.mutate({ title: title.value })">
+        <form
+          (submit)="$event.preventDefault(); rename.mutate({ id: album.id, title: title.value })"
+        >
           <input #title [value]="album.title" aria-label="Title" />
           <button type="submit" [disabled]="rename.isPending()">Rename</button>
         </form>
@@ -95,18 +97,13 @@ export class AlbumList {
   )
 
   // The new title shows at once, in the list and the detail alike, and is rolled back if the
-  // server refuses it. On success the server's version patches both in place: no refetch.
+  // server refuses it. On success the server's version patches both in place: no refetch. The
+  // album's id travels in the variables, so one mutation renames whichever album is picked.
   readonly rename = injectMutation(() => ({
-    // The form that fires it only exists while an album is selected.
-    ...this.writes.albums.id(this.selectedId() ?? '').update({ optimistic: true }),
+    ...this.writes.albums.update({ optimistic: true }),
     onMutate: () => this.saved.set(undefined),
     onSuccess: (album: { title: string }) => this.saved.set(`Saved as "${album.title}"`),
   }))
-
-  /** Whether a rename of this album is still waiting for the server. */
-  isRenaming(id: string): boolean {
-    return this.rename.isPending() && this.selectedId() === id
-  }
 
   next(): AlbumsPage | undefined {
     return nextPage(this.albums.data())
