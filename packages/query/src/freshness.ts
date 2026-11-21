@@ -45,6 +45,11 @@ export function stampUnknown(result: object): void {
   }
 }
 
+/** The stamp `result` was given, or `undefined` when nothing stamped it yet. */
+export function peekStamp(result: object): number | undefined {
+  return resultStamps.get(result)
+}
+
 /**
  * The stamp of `result`. A result nothing stamped, such as one an app's own query function
  * resolved, is stamped now, at its arrival, which keeps the order responses arrive in for data

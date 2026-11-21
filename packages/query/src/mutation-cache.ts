@@ -10,7 +10,7 @@
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { type Mutation, MutationCache, type QueryClient } from '@tanstack/query-core'
 import { installedDescriptor } from './install'
-import type { Snapshot } from './normalize'
+import type { OptimisticDraft } from './draft'
 import {
   applyOptimistic,
   invalidateFor,
@@ -63,11 +63,12 @@ function descriptorOf(queryClient: QueryClient, plan: JsonApiMutationPlan): ApiD
  *
  * Its config hooks read the plan a mutation factory put in the mutation's `meta` and carry it out:
  *
- *  - `onMutate`: apply the optimistic change, keeping the snapshot that undoes it;
- *  - `onError`: restore that snapshot;
+ *  - `onMutate`: apply the optimistic change through a draft, keeping the draft;
+ *  - `onError`: roll the draft back;
  *  - `onSuccess`: normalize the result across the cache;
  *  - `onSettled`: invalidate what the write changed, returning the promise so the mutation stays
- *    pending until the invalidation (and any refetch it starts) has finished.
+ *    pending until the invalidation (and any refetch it starts) has finished, then commit the
+ *    draft, clearing its markers.
  *
  * TanStack awaits each of these before the mutation's own callback of the same name, so the
  * `onMutate`/`onSuccess`/`onError`/`onSettled` an app adds to the options run after the upkeep,
@@ -78,39 +79,38 @@ function descriptorOf(queryClient: QueryClient, plan: JsonApiMutationPlan): ApiD
  */
 export class JsonApiMutationCache extends MutationCache {
   constructor(config: MutationCacheConfig = {}) {
-    // The snapshot to roll back to, per in-flight optimistic mutation. Held here rather than in
-    // the mutation's context, which belongs to the app's own `onMutate`.
-    const snapshots = new WeakMap<Mutation<unknown, unknown, unknown>, Snapshot>()
+    // The draft holding each in-flight optimistic mutation's change. Held here rather than in the
+    // mutation's context, which belongs to the app's own `onMutate`.
+    const drafts = new WeakMap<Mutation<unknown, unknown, unknown>, OptimisticDraft>()
     super({
       onMutate: async (variables, mutation, context) => {
         const plan = planOfMutation(mutation)
         if (plan !== undefined) {
           // Applied before any await, so the optimistic change is visible as soon as `mutate()`
           // returns, as it is from a mutation's own synchronous `onMutate`.
-          const snapshot = applyOptimistic(
+          const draft = applyOptimistic(
             plan,
             variables,
             context.client,
             descriptorOf(context.client, plan),
           )
-          if (snapshot !== undefined) {
-            snapshots.set(mutation, snapshot)
+          if (draft !== undefined) {
+            drafts.set(mutation, draft)
           }
         }
         return config.onMutate?.(variables, mutation, context)
       },
       onError: async (error, variables, onMutateResult, mutation, context) => {
-        const snapshot = snapshots.get(mutation)
-        snapshots.delete(mutation)
+        const draft = drafts.get(mutation)
+        drafts.delete(mutation)
         try {
-          snapshot?.restore()
+          draft?.rollback()
         } finally {
           await config.onError?.(error, variables, onMutateResult, mutation, context)
         }
       },
       onSuccess: async (data, variables, onMutateResult, mutation, context) => {
         const plan = planOfMutation(mutation)
-        snapshots.delete(mutation)
         if (plan !== undefined) {
           normalizeResult(plan, data, context.client, descriptorOf(context.client, plan))
         }
@@ -118,9 +118,14 @@ export class JsonApiMutationCache extends MutationCache {
       },
       onSettled: async (data, error, variables, onMutateResult, mutation, context) => {
         const plan = planOfMutation(mutation)
-        snapshots.delete(mutation)
-        if (plan !== undefined) {
-          await invalidateFor(plan, context.client)
+        const draft = drafts.get(mutation)
+        drafts.delete(mutation)
+        try {
+          if (plan !== undefined) {
+            await invalidateFor(plan, context.client)
+          }
+        } finally {
+          draft?.commit()
         }
         return config.onSettled?.(data, error, variables, onMutateResult, mutation, context)
       },

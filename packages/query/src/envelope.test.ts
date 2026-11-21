@@ -6,7 +6,7 @@ import {
 } from '@haddowg/json-api-client'
 import { QueryClient } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
-import { applyOptimisticMembership } from './normalize'
+import { openDraft } from './draft'
 import { getQueryOptions, listQueryOptions, relatedQueryOptions } from './read'
 
 const BASE = 'https://music.example'
@@ -100,17 +100,24 @@ describe('a materialised value in the cache keeps its accessors', () => {
     await queryClient.fetchQuery(related)
     const before = queryClient.getQueryData(related.queryKey) as unknown as Envelope
 
-    const snapshot = applyOptimisticMembership(queryClient, 'albums', '1', 'tracks', (members) => [
-      ...members,
-      { type: 'tracks', id: '2' },
-    ])
+    // The related read has a next page, so the member is placed explicitly, on this first page.
+    const draft = openDraft(queryClient, descriptor)
+    draft.attach(
+      'albums',
+      '1',
+      'tracks',
+      [{ type: 'tracks', id: '2', title: 'Paranoid Android' }],
+      {
+        into: () => 'start',
+      },
+    )
     const optimistic = queryClient.getQueryData(related.queryKey) as unknown as Envelope & unknown[]
     expect(optimistic).toHaveLength(2)
     expect(optimistic.$page).toBe(before.$page)
     expect(typeof optimistic.$next).toBe('function')
     expect(optimistic.$links).toBe(before.$links)
 
-    snapshot.restore()
+    draft.rollback()
     const restored = queryClient.getQueryData(related.queryKey) as unknown as Envelope & unknown[]
     expect(restored).toHaveLength(1)
     expect(restored.$page).toBe(before.$page)

@@ -8,12 +8,8 @@ import {
 import { type InfiniteData, InfiniteQueryObserver, QueryClient } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
 import { installNormalization } from './install'
-import {
-  applyOptimisticMembership,
-  applyOptimisticPatch,
-  applyOptimisticToOne,
-  isMaterialisedData,
-} from './normalize'
+import { openDraft } from './draft'
+import { applyOptimisticPatch, isMaterialisedData } from './normalize'
 import { getQueryOptions, infiniteListQueryOptions, infiniteRelatedQueryOptions } from './read'
 
 const BASE = 'https://music.example'
@@ -213,29 +209,30 @@ describe('normalisation of infinite queries', () => {
     expect(isMaterialisedData(restored)).toBe(true)
   })
 
-  it('leaves infinite pages alone on an optimistic membership or to-one edit', async () => {
+  it('reaches infinite pages on an optimistic membership edit, and leaves them alone on a to-one one', async () => {
     const { client, queryClient } = setup()
     const related = infiniteRelatedQueryOptions(client, 'albums', '1', 'tracks')
     await queryClient.fetchInfiniteQuery(related)
     const before = queryClient.getQueryData(related.queryKey)
+    const ids = () =>
+      (
+        queryClient.getQueryData(related.queryKey) as unknown as InfiniteData<{ id: string }[]>
+      ).pages.map((page) => page.map((track) => track.id))
 
-    const membership = applyOptimisticMembership(
-      queryClient,
-      'albums',
-      '1',
-      'tracks',
-      (members) => [...members, { type: 'tracks', id: 't2' }],
-    )
-    expect(queryClient.getQueryData(related.queryKey)).toBe(before)
-    membership.restore()
-    expect(queryClient.getQueryData(related.queryKey)).toBe(before)
+    // The complete, unfiltered related read takes the added track on its last page.
+    const membership = openDraft(queryClient, descriptor)
+    membership.attach('albums', '1', 'tracks', [{ type: 'tracks', id: 't2', title: 'T2' }])
+    expect(ids()).toEqual([['t1', 't2']])
+    membership.rollback()
+    expect(ids()).toEqual([['t1']])
 
-    const toOne = applyOptimisticToOne(queryClient, 'albums', '1', 'tracks', {
-      type: 'tracks',
-      id: 't2',
-    })
-    expect(queryClient.getQueryData(related.queryKey)).toBe(before)
-    toOne.restore()
-    expect(queryClient.getQueryData(related.queryKey)).toBe(before)
+    // `tracks` is a to-many, so linking it as a to-one changes nothing.
+    const toOne = openDraft(queryClient, descriptor)
+    toOne.link('albums', '1', 'tracks' as never, { type: 'tracks', id: 't2' })
+    expect(ids()).toEqual([['t1']])
+    toOne.rollback()
+    expect(ids()).toEqual([['t1']])
+    expect(isMaterialisedData(queryClient.getQueryData(related.queryKey))).toBe(true)
+    expect(before).toBeDefined()
   })
 })

@@ -494,6 +494,7 @@ describe('relationship mutations — optimistic membership (D35b)', () => {
   it('add: appends the ref to EVERY cached page variant of the relation, rolls back on error', async () => {
     const { client: c } = makeClient({
       'GET /albums/1/tracks': { data: [resource('tracks', 't1', { title: 'One' })] },
+      'GET /tracks/t2': { data: resource('tracks', 't2', { title: 'Two' }) },
       'POST /albums/1/relationships/tracks': 'error', // the write rejects -> rollback
     })
     const qc = jsonApiQueryClient()
@@ -503,6 +504,8 @@ describe('relationship mutations — optimistic membership (D35b)', () => {
     const page10 = relatedQueryOptions(c, 'albums', '1', 'tracks', { page: { size: 10 } })
     await qc.fetchQuery(page50)
     await qc.fetchQuery(page10)
+    // The added track is cached, so it fills the related reads' resource slots.
+    await qc.fetchQuery(getQueryOptions(c, 'tracks', 't2'))
 
     const options = addRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks', {
       optimistic: true,
@@ -563,11 +566,14 @@ describe('relationship mutations — optimistic membership (D35b)', () => {
   it('replace: swaps the whole cached membership to the new refs (order preserved)', async () => {
     const { client: c } = makeClient({
       'GET /albums/1/tracks': { data: [resource('tracks', 't1'), resource('tracks', 't2')] },
+      'GET /tracks/t3': { data: resource('tracks', 't3', { title: 'Three' }) },
       'PATCH /albums/1/relationships/tracks': { data: [resource('tracks', 't3')] },
     })
     const qc = jsonApiQueryClient()
     const page = trackPage(c, 50)
     await qc.fetchQuery(page)
+    // The new member is cached, so it fills the related read's resource slot.
+    await qc.fetchQuery(getQueryOptions(c, 'tracks', 't3'))
 
     const options = replaceRelationshipMutationOptions(qc, c, descriptor, 'albums', '1', 'tracks', {
       optimistic: true,

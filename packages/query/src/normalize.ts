@@ -28,8 +28,9 @@
  */
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
-import { stampOf, stampUnknown, UNKNOWN_STAMP } from './freshness'
-import { keyHasPrefix, parentRelationReadKeys, type QueryKey, scopeOf } from './keys'
+import { peekStamp, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
+import { scopeOf } from './keys'
+import { describeQuery, viewShape, type ViewShape, walkShaped } from './view-shape'
 
 /** A `type:id` cache key for a resource. */
 type ResourceKey = string
@@ -39,8 +40,66 @@ const resourceKey = (type: string, id: string): ResourceKey => `${type}:${id}`
 /** The materialised value each republished root reads through to. */
 const roots = new WeakMap<object, object>()
 
-/** The materialised value behind `value`, seeing through a republished root. */
-const targetOf = (value: object): object => roots.get(value) ?? value
+/**
+ * The materialised value behind `value`, seeing through a republished root.
+ * @internal
+ */
+export const targetOf = (value: object): object => roots.get(value) ?? value
+
+/**
+ * The array each membership edit derived a new array from (see {@link withMembers}), keyed by the
+ * new array. A derived array is a materialised value's edited copy: it was read from the server as
+ * much as its source was.
+ */
+const derived = new WeakMap<object, object>()
+
+/** The materialised value `value` was published or derived from, through every root and edit. */
+function originOf(value: object): object {
+  let at = targetOf(value)
+  for (let source = derived.get(at); source !== undefined; source = derived.get(at)) {
+    at = targetOf(source)
+  }
+  return at
+}
+
+/**
+ * Whether `value` is `ancestor`, or was derived from it by membership edits (through any root a
+ * patch republished it under). A rollback undoes its edit of a list only while the list still
+ * descends from the one it produced: one a read replaced since is the server's, and left alone.
+ * @internal
+ */
+export function descends(value: unknown, ancestor: object): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const goal = targetOf(ancestor)
+  let at: object | undefined = targetOf(value)
+  while (at !== undefined) {
+    if (at === goal) {
+      return true
+    }
+    const source: object | undefined = derived.get(at)
+    at = source === undefined ? undefined : targetOf(source)
+  }
+  return false
+}
+
+/**
+ * `members` as an array carrying `source`'s envelope (its `$page`, `$links`, `$next()` and other
+ * non-index properties), recorded as derived from `source`, and carrying `source`'s freshness stamp
+ * when it has one. The array a membership edit publishes in place of `source`.
+ * @internal
+ */
+export function withMembers(source: readonly unknown[], members: readonly unknown[]): unknown[] {
+  const out = withEnvelope(source, members)
+  const origin = targetOf(source)
+  derived.set(out, origin)
+  const stamp = peekStamp(origin)
+  if (stamp !== undefined) {
+    stampResult(out, stamp)
+  }
+  return out
+}
 
 /** TanStack's cached data for an infinite query: its pages and the params that read them. */
 interface InfiniteValue {
@@ -68,12 +127,16 @@ export function isInfiniteValue(value: unknown): value is InfiniteValue {
  * The read results a query's data holds: an infinite query's pages, or the data itself. Each is
  * walked, patched and republished on its own.
  */
-function partsOf(data: unknown): readonly unknown[] {
+/** @internal */
+export function partsOf(data: unknown): readonly unknown[] {
   return isInfiniteValue(data) ? data.pages : [data]
 }
 
-/** A new root reference for `value` that reads through to the same materialised value. */
-function reroot(value: object): object {
+/**
+ * A new root reference for `value` that reads through to the same materialised value.
+ * @internal
+ */
+export function reroot(value: object): object {
   const target = targetOf(value)
   const root = new Proxy(target, {})
   roots.set(root, target)
@@ -109,6 +172,39 @@ function republish(query: Query, touched: readonly unknown[]): void {
 }
 
 /**
+ * Publish a query's edited data once: `data` is what the query should now hold (its cached data, or
+ * an edit of it whose arrays and pages are new), and `changed` the parts (by their materialised
+ * value) whose objects were edited in place and so need a new root. A part that is already a new
+ * object is published as it is; an infinite query's untouched pages keep their identity. Nothing is
+ * set when nothing changed. Like {@link republish}, it sets the state directly, so the query keeps
+ * its `isInvalidated` flag and isn't normalised as a fresh success.
+ * @internal
+ */
+export function publishData(query: Query, data: unknown, changed: ReadonlySet<object>): void {
+  const isChanged = (part: unknown): part is object =>
+    typeof part === 'object' && part !== null && changed.has(targetOf(part))
+  if (!isInfiniteValue(data)) {
+    if (data !== query.state.data) {
+      query.setState({ data })
+    } else if (isChanged(data)) {
+      query.setState({ data: reroot(data) })
+    }
+    return
+  }
+  let touched = data !== query.state.data
+  const pages = data.pages.map((page) => {
+    if (isChanged(page)) {
+      touched = true
+      return reroot(page)
+    }
+    return page
+  })
+  if (touched) {
+    query.setState({ data: { ...data, pages } })
+  }
+}
+
+/**
  * Whether cached query data is a materialised client result, seeing through a republished root.
  * Infinite-query data (`{ pages, pageParams }`) is materialised when every page is.
  * @internal
@@ -117,7 +213,7 @@ export function isMaterialisedData(data: unknown): boolean {
   if (typeof data !== 'object' || data === null) {
     return false
   }
-  if (isMaterialised(roots.get(data) ?? data)) {
+  if (isMaterialised(originOf(data))) {
     return true
   }
   const pages = (data as { pages?: unknown }).pages
@@ -126,7 +222,7 @@ export function isMaterialisedData(data: unknown): boolean {
     Array.isArray((data as { pageParams?: unknown }).pageParams) &&
     pages.length > 0 &&
     pages.every((page) =>
-      isMaterialised(typeof page === 'object' && page !== null ? (roots.get(page) ?? page) : page),
+      isMaterialised(typeof page === 'object' && page !== null ? originOf(page) : page),
     )
   )
 }
@@ -198,6 +294,21 @@ function recordOf(node: object): NodeRecord {
     records.set(target, record)
   }
   return record
+}
+
+/**
+ * Give `view`, a per-edge view a draft built over `source`, the record of what `source` holds from
+ * the server, so its values keep their age: they were copied from `source`. A view over a value
+ * with no record (a member the caller supplied) holds no server value, and is recorded as of
+ * unknown age.
+ * @internal
+ */
+export function adoptRecord(view: object, source: object): void {
+  const record = records.get(targetOf(source))
+  records.set(targetOf(view), {
+    born: record?.born ?? UNKNOWN_STAMP,
+    written: new Map(record?.written),
+  })
 }
 
 /** Record that `node` was materialised from a response stamped `stamp`, unless it already was. */
@@ -318,39 +429,6 @@ export function walkResources(
       walkResources(slot, descriptor, visit, seen)
     }
   }
-}
-
-/**
- * Patch one materialised node IN PLACE from `attributes`: overwrite each attribute key on the
- * target's own enumerable props (relations and `type`/`id` are left untouched), and shallow-set
- * any new keys. The non-enumerable `$`-accessors and the per-edge `$pivot`/`$edge` getters are
- * defined separately (closing over the original wire member), so they survive unchanged — a
- * per-edge view keeps its own pivot while its shared attributes update.
- *
- * `$raw` is intentionally NOT mutated: it is the immutable original wire object (the escape
- * hatch). Only the flattened, own-enumerable attribute props — the values consumers read —
- * are patched. Returns whether any value actually changed, so an idempotent re-application
- * (e.g. installNormalization re-running after a factory's own `onSuccess`) reports no change and
- * is not written back / re-notified.
- */
-function patchNode(
-  target: Record<string, unknown>,
-  attributes: Record<string, unknown>,
-  narrowed?: NestedFieldset,
-): boolean {
-  let changed = false
-  for (const [k, v] of Object.entries(attributes)) {
-    const paths = narrowed?.[k]
-    if (paths !== undefined) {
-      changed = mergeKeys(target, k, v, paths) || changed
-      continue
-    }
-    if (!(k in target) || target[k] !== v) {
-      target[k] = v
-      changed = true
-    }
-  }
-  return changed
 }
 
 /**
@@ -537,6 +615,35 @@ function raiseToNewest(queries: readonly Query[], fresh: Fresh, descriptor: ApiD
 }
 
 /**
+ * Whether a patch may write attribute `k` onto `node`, a copy in a slot of `shape`: when the copy
+ * already holds the key, or the slot's fieldset selects it for the copy's type. A sparse copy never
+ * gains an attribute its view's type says is absent, and an identifier gains none. With no known
+ * shape (a query the binding didn't key), only keys the copy holds are written.
+ * @internal
+ */
+export function writable(node: object, k: string, shape: ViewShape | undefined): boolean {
+  if (Object.hasOwn(node, k)) {
+    return true
+  }
+  if (shape?.kind !== 'resources') {
+    return false
+  }
+  const type = (node as { type?: unknown }).type
+  return typeof type === 'string' && shape.attributes.get(type)?.has(k) === true
+}
+
+/**
+ * The shape a cached query's data promises at its top level, when its key decodes.
+ * @internal
+ */
+export function shapeOfQuery(query: Query, descriptor: ApiDescriptor): ViewShape | undefined {
+  const description = describeQuery(query, descriptor)
+  return description === undefined || description.skipped
+    ? undefined
+    : viewShape(description, descriptor)
+}
+
+/**
  * Write one attribute's newest server value onto a node and record it, merging a value its read
  * narrowed into the cached one. Returns whether the node's value changed.
  */
@@ -546,12 +653,12 @@ function writeServerValue(node: MaterialisedResource, k: string, fresh: ServerVa
   if (fresh.paths !== undefined) {
     changed = mergeKeys(target, k, fresh.value, fresh.paths)
   } else {
-    changed = !(k in target) || target[k] !== fresh.value
+    changed = !Object.hasOwn(target, k) || target[k] !== fresh.value
     if (changed) {
       target[k] = fresh.value
     }
   }
-  if (k in target) {
+  if (Object.hasOwn(target, k)) {
     recordOf(node).written.set(k, { value: target[k], stamp: fresh.stamp, paths: fresh.paths })
   }
   return changed
@@ -559,7 +666,8 @@ function writeServerValue(node: MaterialisedResource, k: string, fresh: ServerVa
 
 /**
  * Patch every materialised node in `cached` whose `type:id` appears in `fresh`, in place, returning
- * whether any VALUE actually changed. Each attribute is written only onto a node holding an older
+ * whether any VALUE actually changed. An attribute is written only where {@link writable} allows it
+ * (a key the copy holds, or one its slot's fieldset selects), and only onto a node holding an older
  * server value of it, or none, or one as old when the response being normalised carried it: a
  * node whose value came from a request started later keeps it. We mutate the cached objects
  * directly (preserving their identity/accessors) rather than rebuilding them, so writing the same
@@ -567,9 +675,15 @@ function writeServerValue(node: MaterialisedResource, k: string, fresh: ServerVa
  * per-edge views. A node already holding the values is a no-op (reports unchanged), so a redundant
  * re-application doesn't write back or re-notify.
  */
-function patchCached(cached: unknown, fresh: Fresh, descriptor: ApiDescriptor): boolean {
+function patchCached(
+  cached: unknown,
+  fresh: Fresh,
+  descriptor: ApiDescriptor,
+  shape: ViewShape | undefined,
+): boolean {
   let changed = false
-  walkResources(cached, descriptor, (node) => {
+  walkShaped(cached, shape, descriptor, (visited, at) => {
+    const node = visited as unknown as MaterialisedResource
     const ident = identity(node)
     if (ident === undefined) {
       return
@@ -581,6 +695,9 @@ function patchCached(cached: unknown, fresh: Fresh, descriptor: ApiDescriptor): 
     for (const [k, value] of attributes) {
       const held = heldStamp(node, k)
       if (held !== undefined && (held > value.stamp || (held === value.stamp && !value.incoming))) {
+        continue
+      }
+      if (!writable(node, k, at)) {
         continue
       }
       if (writeServerValue(node, k, value)) {
@@ -651,8 +768,11 @@ export function stampHydrated(data: unknown): void {
   }
 }
 
-/** The cached queries in `scope`: those whose key carries it, or every unscoped one. */
-function queriesIn(queryClient: QueryClient, scope: string | undefined): Query[] {
+/**
+ * The cached queries in `scope`: those whose key carries it, or every unscoped one.
+ * @internal
+ */
+export function queriesIn(queryClient: QueryClient, scope: string | undefined): Query[] {
   return queryClient
     .getQueryCache()
     .getAll()
@@ -671,194 +791,37 @@ function patchAll(queries: readonly Query[], fresh: Fresh, descriptor: ApiDescri
     if (data === undefined || data === null) {
       continue
     }
-    const touched = partsOf(data).filter((part) => patchCached(part, fresh, descriptor))
+    const shape = shapeOfQuery(query, descriptor)
+    const touched = partsOf(data).filter((part) => patchCached(part, fresh, descriptor, shape))
     if (touched.length > 0) {
       republish(query, touched)
     }
   }
 }
 
-// ── Optimistic patching (write-through, with rollback) — ./mutate.ts ─────────────────────────
+// ── Optimistic patching (write-through, with rollback) ────────────────────────────────────────
 
 /**
- * A captured snapshot of the prior state of every node an optimistic patch touched, with a
- * `restore()` that puts each one back. The snapshot records, per affected cached node, the exact
- * prior value of every attribute key the patch overwrote (and which keys were newly added), so a
- * rollback is precise — it never disturbs keys the patch didn't touch, and it restores in place
- * (preserving identity + the per-edge `$pivot`/`$edge`, exactly as the forward patch does).
+ * Undoes an optimistic change: `restore()` rolls it back, compare-and-swap, so a value written since
+ * (by a response, or another optimistic change) is left alone.
  */
 export interface Snapshot {
-  /** Undo the optimistic patch — restore every touched node to its pre-patch attributes. */
+  /** Undo the optimistic change, leaving every value changed since alone. */
   restore(): void
 }
 
-/** One recorded node edit: the target object + the prior values to put back (undefined = was absent). */
-interface NodeEdit {
-  target: Record<string, unknown>
-  /** Prior value per overwritten key; a key absent here that the patch added is recorded in `added`. */
-  prior: Map<string, unknown>
-  /** Keys the patch newly added (absent before) — restored by deletion. */
-  added: Set<string>
-  /**
-   * The value THIS patch wrote, per key. Restore is compare-and-swap against it: a key is reverted
-   * only if its current value is still the one we wrote, so an earlier patch rolling back can't stomp
-   * a later concurrent optimistic patch's value on the same key (the later patch's own restore owns it).
-   */
-  wrote: Record<string, unknown>
-}
+export { applyOptimisticPatch } from './draft'
 
 /**
- * Apply an OPTIMISTIC attribute patch to a single `type:id` across every cached query and return a
- * {@link Snapshot} to roll it back. Mirrors the success path ({@link normalize}) — same in-place
- * attribute overwrite, same edge preservation — but for one known resource whose fresh attributes
- * the caller predicts (an update patch's attribute keys), and it captures the prior state first so
- * an error can restore it. Used by the update / relationship-set mutation factories' `onMutate`.
- */
-export function applyOptimisticPatch(
-  queryClient: QueryClient,
-  type: string,
-  id: string,
-  attributes: Record<string, unknown>,
-  descriptor: ApiDescriptor,
-  scope?: string,
-): Snapshot {
-  const key = resourceKey(type, id)
-  const edits: NodeEdit[] = []
-  const touchedQueries: { query: Query; parts: readonly unknown[] }[] = []
-
-  // Walk the cache explicitly (not `setQueriesData({}, ...)`) so we only write back queries that
-  // actually hold this `type:id` — preserving untouched queries' identity and `isInvalidated`
-  // flags, exactly as the success path ({@link patchAll}) does. It records no freshness: a
-  // prediction isn't a server value, so the next real response follows the usual rule.
-  for (const query of queriesIn(queryClient, scope)) {
-    const data = query.state.data
-    if (data === undefined || data === null) {
-      continue
-    }
-    const parts = partsOf(data).filter((part) => {
-      let touched = false
-      walkResources(part, descriptor, (node) => {
-        const ident = identity(node)
-        if (ident === undefined || resourceKey(ident.type, ident.id) !== key) {
-          return
-        }
-        const target = node as unknown as Record<string, unknown>
-        // Capture prior values BEFORE overwriting, so the snapshot is precise.
-        const prior = new Map<string, unknown>()
-        const added = new Set<string>()
-        for (const k of Object.keys(attributes)) {
-          if (k in target) {
-            prior.set(k, target[k])
-          } else {
-            added.add(k)
-          }
-        }
-        edits.push({ target, prior, added, wrote: { ...attributes } })
-        patchNode(target, attributes)
-        touched = true
-      })
-      return touched
-    })
-    if (parts.length > 0) {
-      republish(query, parts)
-      touchedQueries.push({ query, parts })
-    }
-  }
-
-  return {
-    restore() {
-      for (const edit of edits) {
-        for (const [k, v] of edit.prior) {
-          // Compare-and-swap: only revert a key still holding the value WE wrote. If a later
-          // concurrent optimistic patch overwrote it, leave that newer value alone — its own
-          // restore (or the success patch) owns the key now.
-          if (edit.target[k] === edit.wrote[k]) {
-            edit.target[k] = v
-          }
-        }
-        for (const k of edit.added) {
-          // Likewise: only delete a key we added that no later patch has since re-set.
-          if (edit.target[k] === edit.wrote[k]) {
-            delete edit.target[k]
-          }
-        }
-      }
-      for (const { query, parts } of touchedQueries) {
-        republish(query, parts)
-      }
-    },
-  }
-}
-
-// ── Optimistic relationship membership (by key prefix, with rollback) — ./mutate.ts ──────────
-
-/**
- * A to-many array member for the optimistic patch: at minimum a linkage identifier (`type`+`id`,
- * optional `$pivot`), but any extra own props are preserved — so a caller who passes a fully
- * hydrated member (a resource view carrying attributes) gets a rich optimistic row, while a bare
- * `{type,id}` identifier is equally valid. Membership identity is by `type:id` alone (`sameRef`).
+ * A to-many member an optimistic change places: at minimum a linkage identifier (`type`+`id`,
+ * optional `$pivot`). A member carrying attributes too can fill a slot that holds resources.
+ * Membership identity is by `type:id` alone (`sameRef`).
  */
 export interface MembershipRef {
   type: string
   id: string
   $pivot?: Record<string, unknown>
   [key: string]: unknown
-}
-
-/**
- * A membership transform over the CURRENT members of a cached related/relationship read: given the
- * present members (each an identifier `{type,id}` or a hydrated resource view — both expose
- * `type`/`id`), return the optimistic next members. The relationship-mutation factories build one
- * per verb (append the added refs, drop the removed ones, or swap in the replacement set).
- */
-export type MembershipTransform = (members: readonly MembershipRef[]) => readonly MembershipRef[]
-
-/**
- * Apply an OPTIMISTIC membership change to EVERY cached read of one parent's one relation — both its
- * related-collection (`fetchRelated`) and its relationship-linkage (`fetchRelationship`) reads,
- * matched BY KEY PREFIX so every page/param variant is covered at once (no coupling to the page
- * params a read used — the pain point D35b removes). The to-many read caches an array of members, so
- * the transform runs over that array; the snapshot restores each touched query's PRIOR data
- * wholesale on error. On settle the factory invalidates the relation subtree, so the server
- * reconciles regardless (a degraded optimistic member — an identifier without attributes — is
- * replaced by the real one). A to-one `set` is handled separately (it caches a single value, not an
- * array). `id` is `undefined` for a singleton parent, whose keys carry none.
- */
-export function applyOptimisticMembership(
-  queryClient: QueryClient,
-  type: string,
-  id: string | undefined,
-  rel: string,
-  transform: MembershipTransform,
-  scope?: string,
-): Snapshot {
-  const prefixes = parentRelationReadKeys(type, id, rel, scope)
-  const edits: { query: Query; previous: unknown }[] = []
-
-  for (const query of queryClient.getQueryCache().getAll()) {
-    const key = query.queryKey as QueryKey
-    if (!prefixes.some((prefix) => keyHasPrefix(key, prefix))) {
-      continue
-    }
-    const data = query.state.data
-    if (!Array.isArray(data)) {
-      // Only a to-many read caches an array; skip anything else (e.g. an in-flight/empty entry, or
-      // an infinite read's pages, whose membership this doesn't edit).
-      continue
-    }
-    edits.push({ query, previous: data })
-    // The new members keep the array's `$page`, `$links` and `$next()`, which still describe the
-    // page the server sent until the settle refetch reconciles it.
-    query.setState({ data: withEnvelope(data, transform(data as readonly MembershipRef[])) })
-  }
-
-  return {
-    restore() {
-      for (const edit of edits) {
-        edit.query.setState({ data: edit.previous })
-      }
-    },
-  }
 }
 
 /**
@@ -883,51 +846,4 @@ function withEnvelope(source: readonly unknown[], members: readonly unknown[]): 
 /** True when two refs address the same resource (`type:id`). Ignores `$pivot`/attributes. */
 export function sameRef(a: MembershipRef, b: MembershipRef): boolean {
   return a.type === b.type && a.id === b.id
-}
-
-/**
- * Apply an OPTIMISTIC to-one `set` to every cached relationship/related read of one parent's one
- * relation (by key prefix): swap each cached value to `next` (a bare identifier ref, or `null` to
- * clear), snapshotting the prior value for rollback. A to-one read caches a single value (not an
- * array), so a plain replacement is correct; the settle refetch reconciles a bare identifier into
- * the fully-hydrated resource. `undefined` next means the ref carried no cache identity (an
- * lid-only atomic handle) — the cache is left untouched (the wire write still happens). `id` is
- * `undefined` for a singleton parent.
- */
-export function applyOptimisticToOne(
-  queryClient: QueryClient,
-  type: string,
-  id: string | undefined,
-  rel: string,
-  next: MembershipRef | null | undefined,
-  scope?: string,
-): Snapshot {
-  const prefixes = parentRelationReadKeys(type, id, rel, scope)
-  const edits: { query: Query; previous: unknown }[] = []
-  if (next === undefined) {
-    return { restore() {} }
-  }
-
-  for (const query of queryClient.getQueryCache().getAll()) {
-    const key = query.queryKey as QueryKey
-    if (!prefixes.some((prefix) => keyHasPrefix(key, prefix))) {
-      continue
-    }
-    const data = query.state.data
-    // A to-one read caches a single value or null: an array, or an infinite read's pages, would be
-    // a to-many, so skip it.
-    if (Array.isArray(data) || isInfiniteValue(data)) {
-      continue
-    }
-    edits.push({ query, previous: data })
-    query.setState({ data: next })
-  }
-
-  return {
-    restore() {
-      for (const edit of edits) {
-        edit.query.setState({ data: edit.previous })
-      }
-    },
-  }
 }

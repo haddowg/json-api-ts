@@ -40,12 +40,28 @@
  *
  * Optimistic RELATIONSHIP membership (D35b): `{ optimistic: true }` on a relationship
  * `add`/`remove`/`replace`/`set` pre-applies the membership/linkage change to the parent's cached
- * related + relationship reads BY KEY PREFIX — covering every page/param variant at once (no
- * coupling to the params a page read with) — snapshots them, and rolls back on error; the settle
+ * related + relationship reads (every page/param variant, infinite pages included) and to the
+ * relation's slot on every cached copy of the parent, and rolls back on error; the settle
  * invalidation still reconciles against the server. The public key helper `relationReadKeys(type,
  * id, rel)` (both `(parent, relation)` prefixes) lets an app target those caches without
  * reconstructing keys by hand.
+ *
+ * Every optimistic change goes through an optimistic draft (`openDraft`): a typed transaction over
+ * the normalised cache that places members only where they fit, marks what it touched
+ * (`$optimistic`, `$pending(rel)`, an adjusted `$count`), and rolls back compare-and-swap.
  */
+export {
+  type DeferredMembers,
+  type DraftMember,
+  type DraftOptions,
+  type DraftQuery,
+  type DraftRef,
+  type Into,
+  openDraft,
+  type OptimisticDraft,
+  type Placement,
+  type PlaceOptions,
+} from './draft'
 export { installNormalization, jsonApiShouldDehydrateQuery, type Teardown } from './install'
 export {
   infiniteKeyFor,
@@ -100,11 +116,8 @@ export {
 export { JsonApiMutationCache } from './mutation-cache'
 export { type ScopeOption, withScope } from './scope'
 export {
-  applyOptimisticMembership,
   applyOptimisticPatch,
-  applyOptimisticToOne,
   type MembershipRef,
-  type MembershipTransform,
   normalize,
   sameRef,
   type Snapshot,
