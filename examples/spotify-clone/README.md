@@ -38,10 +38,17 @@ VITE_API_URL=/api VITE_API_TOKEN=ada@example.com pnpm --filter @haddowg/json-api
   **writable pivot** `position`. A playlist's ordered tracks carry their per-edge `position`
   (`$pivot`); a reorder is a relationship `replace` that carries the new `$pivot.position` on each
   member, so the order persists server-side.
-- **Optimistic + write-through normalization** — mutations update the cache immediately and
-  reconcile on settle; `installNormalization` does `type:id` write-through patching, so an edit on
-  the detail page (e.g. renaming a playlist) reflects in the Playlists list and Browse with **no
-  refetch** ("edit once, updates everywhere").
+- **Optimistic writes through the draft** — rename, add, remove, reorder and create pass
+  `{ optimistic: true }` (or `{ into }` to place a new playlist at the top of the newest-first
+  list) and the mutation cache does the rest: it predicts the change on every cached copy, rolls
+  it back if the server refuses, and refetches on settle. The pages only render the markers:
+  `track.$optimistic` (a `data-optimistic="pending"` attribute) on rows a pending write touched,
+  and `playlist.$pending('orderedTracks')` as skeleton rows for tracks added from the picker, which
+  no cached view can render yet. A created playlist carries a temporary id until the server's
+  replaces it. See [`docs/optimistic-updates.md`](../../docs/optimistic-updates.md).
+- **Write-through normalization** — `installNormalization` does `type:id` write-through patching,
+  so an edit on the detail page (e.g. renaming a playlist) reflects in the Playlists list and
+  Browse with **no refetch** ("edit once, updates everywhere").
 - **A singleton** — the caller's account at `/me`, read with `reads.accounts.get()` and renamed
   with `writes.accounts.update()`, whose input carries the id the read returned.
 - **Polymorphic and boolean-set filters** — the Liked page filters favorites by the type they
@@ -65,7 +72,10 @@ root writes it from the pinned `@haddowg/json-api-symfony-specs`.
 The mock lives in `src/mock/`: `seed.ts` (the dataset), `store.ts` (rows → JSON:API resources +
 write methods), `handler.ts` (the focused request handler), `transport.ts` (the transport adapter).
 
-Playlist mutations live in `src/api/playlist-tracks.ts` — thin wrappers over the relationship
-mutation factories that add an optimistic patch of the related-tracks cache (add appends, remove
-filters, reorder maps the new order back through `$pivot.position`), then let the factory's own
-`onSettled` invalidate so the read reconciles against the mock.
+The playlist pages call the mutation factories directly, with `optimistic` set. What
+`src/api/playlist-tracks.ts` keeps is the domain shape of the refs they send: a track carrying its
+`$pivot.{position,weight}`, built per add and per reorder.
+
+The mock can refuse a write on demand: `mockStore.failNextWrite(403, 'detail')` fails the next
+non-GET request, which is how the render smoke test (`src/App.test.tsx`) drives an optimistic
+write through to its rollback.

@@ -10,7 +10,7 @@ interface TrackPickerProps {
   excludeIds: string[]
   /** The id of the track whose add is in flight (shows a per-row pending state). */
   pendingId: string | null
-  /** Called with the full catalogue track to add (so the add can patch the cache optimistically). */
+  /** Called with the catalogue track to add, as the picker read it (the optimistic add places it). */
   onAdd: (track: OrderedTrackLike) => void
 }
 

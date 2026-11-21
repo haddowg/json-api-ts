@@ -122,6 +122,94 @@ describe('app smoke', () => {
     expect(within(airbagRow as HTMLElement).getByText('3')).toBeInTheDocument()
   })
 
+  it("shows an add as a skeleton row while it is pending, then as the server's row once it settles", async () => {
+    renderAt('/playlists/00000000-0000-4000-8000-000000000002')
+    expect(await screen.findByLabelText('Remove Everything in Its Right Place')).toBeInTheDocument()
+
+    // The picker's Airbag is a narrow catalogue row the playlist's tracks view can't render, so
+    // the draft defers it: no row yet, but the playlist reports it as pending.
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Airbag' }))
+    const skeleton = await screen.findByLabelText('Adding a track')
+    expect(skeleton).toHaveClass('track-row--skeleton')
+    expect(screen.queryByLabelText('Remove Airbag')).not.toBeInTheDocument()
+
+    // Once the write settles (and its refetch lands) the server's row replaces the skeleton, with
+    // its position and no pending marker anywhere.
+    const remove = await screen.findByLabelText('Remove Airbag')
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Adding a track')).not.toBeInTheDocument()
+    })
+    const row = remove.closest('.track-row') as HTMLElement
+    expect(within(row).getByText('3')).toBeInTheDocument()
+    expect(document.querySelector('[data-optimistic]')).toBeNull()
+    expect(mockStore?.orderedEdges('00000000-0000-4000-8000-000000000002')).toHaveLength(3)
+  })
+
+  it('marks a rename and a removal pending, then rolls the removal back when the server refuses', async () => {
+    renderAt('/playlists/00000000-0000-4000-8000-000000000002')
+    const name = await screen.findByRole('heading', { name: 'Focus Beats', level: 1 })
+    expect(await screen.findByLabelText('Remove Everything in Its Right Place')).toBeInTheDocument()
+
+    // The rename shows its title at once, marked pending until the write settles.
+    fireEvent.click(name)
+    const input = screen.getByLabelText('Rename playlist')
+    fireEvent.change(input, { target: { value: 'Deep Focus' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const renamed = await screen.findByRole('heading', { name: 'Deep Focus', level: 1 })
+    expect(renamed).toHaveAttribute('data-optimistic', 'pending')
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Deep Focus', level: 1 })).not.toHaveAttribute(
+        'data-optimistic',
+      )
+    })
+    expect(mockStore?.playlist('00000000-0000-4000-8000-000000000002')?.title).toBe('Deep Focus')
+
+    // A removal the server refuses: the row leaves at once, then the rollback restores it and the
+    // error is shown. Nothing stays marked pending.
+    mockStore?.failNextWrite(403, 'This playlist is read-only.')
+    fireEvent.click(screen.getByLabelText('Remove Everything in Its Right Place'))
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText('Remove Everything in Its Right Place'),
+      ).not.toBeInTheDocument()
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('This playlist is read-only.')
+    expect(await screen.findByLabelText('Remove Everything in Its Right Place')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.querySelector('[data-optimistic]')).toBeNull()
+    })
+    expect(mockStore?.orderedEdges('00000000-0000-4000-8000-000000000002')).toHaveLength(2)
+  })
+
+  it('puts a created playlist at the top of the newest-first list at once, then under its real id', async () => {
+    renderAt('/playlists')
+    expect(await screen.findByText('Late Night')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('New playlist name'), { target: { value: 'Brand New' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create playlist' }))
+
+    // The new card is first, pending and not yet a link (it only has a temporary id).
+    const pending = (await screen.findByText('Brand New')).closest('.card') as HTMLElement
+    expect(pending).toHaveAttribute('data-optimistic', 'pending')
+    expect(pending.tagName).toBe('DIV')
+    expect(document.querySelector('.grid .card')).toBe(pending)
+
+    // After the settle it is the server's playlist, still first, linking to its real id.
+    await waitFor(() => {
+      const card = screen.getByText('Brand New').closest('.card') as HTMLElement
+      expect(card).not.toHaveAttribute('data-optimistic')
+      expect(card.tagName).toBe('A')
+    })
+    const created = mockStore?.playlists().find((p) => p.title === 'Brand New')
+    expect(screen.getByText('Brand New').closest('a')).toHaveAttribute(
+      'href',
+      `/playlists/${created?.id}`,
+    )
+    expect(document.querySelector('.grid .card')).toBe(
+      screen.getByText('Brand New').closest('.card'),
+    )
+  })
+
   it('shows the caller from the /me singleton and renames them with the id it read', async () => {
     renderAt('/account')
 

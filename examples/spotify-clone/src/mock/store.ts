@@ -48,10 +48,28 @@ const relLinks = (type: string, id: string, rel: string): RelationshipObject['li
 export class MockStore {
   private data: SeedData = createSeed()
   private nextId = 1000
+  private writeFailure: { status: number; detail: string } | undefined
 
   reset(): void {
     this.data = createSeed()
     this.nextId = 1000
+    this.writeFailure = undefined
+  }
+
+  /**
+   * Make the next write (any non-GET request) fail with a JSON:API error, once. It is how a demo
+   * or a test shows an optimistic write rolling back: the prediction appears, the server refuses,
+   * and the view returns to what it was.
+   */
+  failNextWrite(status: number, detail: string): void {
+    this.writeFailure = { status, detail }
+  }
+
+  /** The failure {@link failNextWrite} armed, consumed by the handler on the next write. */
+  takeWriteFailure(): { status: number; detail: string } | undefined {
+    const failure = this.writeFailure
+    this.writeFailure = undefined
+    return failure
   }
 
   // --- row access -------------------------------------------------------------------------

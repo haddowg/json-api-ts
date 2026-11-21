@@ -97,22 +97,41 @@ const albumQuery = useQuery(reads.albums.get(id, { include: ['artist', 'tracks']
 
 ### Playlist detail — relationship mutation and the writable pivot
 
-[`PlaylistDetailPage.tsx`](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) is where the app writes. It reads the playlist plus its **ordered** tracks (the related endpoint carries the writable pivot `position`), and manages the list through the relationship-mutation factories:
+[`PlaylistDetailPage.tsx`](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) is where the app writes. It reads the playlist plus its **ordered** tracks (the related endpoint carries the writable pivot `position`), and manages the list through the relationship-mutation factories. Every write is [optimistic](optimistic-updates.md), and the page does no cache work of its own:
 
 ```ts
 const relTracks = writes.playlists.id(id).rel('orderedTracks')
 const add = useMutation(relTracks.add({ optimistic: true }))
 const remove = useMutation(relTracks.remove({ optimistic: true }))
 const reorder = useMutation(relTracks.replace({ optimistic: true })) // carries $pivot.position
-const rename = useMutation(writes.playlists.id(id).update({ optimistic: true }))
+const rename = useMutation(writes.playlists.update({ optimistic: true })) // the id rides the variables
+// rename.mutate({ id, title })
 ```
 
+The page only renders what the draft reports:
+
+- **Pending rows.** A row a pending write touched has `track.$optimistic === 'pending'`, which the page renders as `data-optimistic="pending"` (dimmed in the stylesheet). A removal makes the row leave at once and a reorder swaps the rows at once. The renamed title carries the same marker.
+- **Deferred adds.** The track picker reads tracks with a narrow fieldset, which the playlist's tracks view (whole tracks) can't render, so the draft *defers* an added track: the view keeps its rows and `playlist.$pending('orderedTracks')` lists the member. The page draws each as a skeleton row until the write settles and the refetch brings the server's row.
+- **Rollback.** A refused write is undone step by step and its error stays on the mutation, which the page shows; the mock's `failNextWrite()` makes the next write fail, to see it.
 - **Reorder** is a wholesale `replace` that carries each member's `$pivot.position`, so the new order persists server-side.
-- **Rename** is an attribute update; because normalisation does `type:id` write-through patching, the new title shows up in the Playlists list and Browse with no refetch — "edit once, updates everywhere".
-- The ref builders (position → `$pivot`) live in [`api/playlist-tracks.ts`](../examples/spotify-clone/src/api/playlist-tracks.ts); [`components/TrackPicker.tsx`](../examples/spotify-clone/src/components/TrackPicker.tsx) is the add-tracks surface.
+- **Rename** is an attribute update; because normalisation does `type:id` write-through patching, the new title shows up in the Playlists list and Browse with no refetch, "edit once, updates everywhere".
+- The ref builders (position → `$pivot`) are all that remain in [`api/playlist-tracks.ts`](../examples/spotify-clone/src/api/playlist-tracks.ts); [`components/TrackPicker.tsx`](../examples/spotify-clone/src/components/TrackPicker.tsx) is the add-tracks surface.
+
+[`PlaylistsPage.tsx`](../examples/spotify-clone/src/pages/PlaylistsPage.tsx) creates playlists optimistically. A create is never placed automatically, so `into` puts the new playlist at the top of the newest-first list:
+
+```ts
+writes.playlists.create({
+  optimistic: { into: (q) => (q.params.filter === undefined ? 'start' : false) },
+})
+```
+
+Playlists take no client ids, so the new card carries a temporary id and `$optimistic: 'pending'`, renders as a plain card rather than a link (no route can open a temporary id), and gets the server's id when the write succeeds. The list reads only `title` and `public`, the fieldset the create's input satisfies: a list of whole playlists would refuse the row, which would need the server-made `slug` and `externalId`.
 
 !!! note "The optimism is the library's"
-    `{ optimistic: true }` makes the mutation cache apply the change through a draft: the parent's related and relationship reads (every page variant) and its relation slot on every cached copy, placed where each member fits, rolled back step by step if the write fails, and refetched by the last overlapping write to settle. The app only shapes the refs. See [Optimistic updates](optimistic-updates.md).
+    `{ optimistic: true }` makes the mutation cache apply the change through a draft: the parent's related and relationship reads (every page variant) and its relation slot on every cached copy, placed where each member fits, rolled back step by step if the write fails, and refetched by the last overlapping write to settle. The app only shapes the refs and renders the markers. See [Optimistic updates](optimistic-updates.md).
+
+!!! info "Tested"
+    The render smoke test, [`App.test.tsx`](../examples/spotify-clone/src/App.test.tsx), drives an add from its skeleton row to the server's row, a rename and a refused removal through to their rollback, and a create from its pending card to the real one.
 
 → [Relationship mutation](relationship-mutation.md) · [Writes](writes.md) · [TanStack Query bindings](tanstack-query.md)
 
@@ -123,7 +142,7 @@ The caller's account is a [singleton](reads.md#singletons) the server serves at 
 [`LikedPage.tsx`](../examples/spotify-clone/src/pages/LikedPage.tsx) lists the caller's liked tracks. `filter: { favoritable: { type: 'tracks' } }` is a `WhereMorph` filter on the polymorphic `favoritable` relation, so liked albums and artists stay out. `dated` is a `WhereSet` filter that defaults to dated favorites; the "Include undated likes" box sends `dated: [true, false]` to ask for both. See [list filters](filtering-and-sorting.md#list-filters).
 
 ??? note "Going deeper: the routes"
-    [`App.tsx`](../examples/spotify-clone/src/App.tsx) wires the routes — `/` (Browse), `/search`, `/playlists`, `/playlists/:id`, `/albums/:id`, `/artists/:id`, `/liked` and `/account`. `PlaylistsPage.tsx` lists playlists and creates new ones; each detail route maps to the page above.
+    [`App.tsx`](../examples/spotify-clone/src/App.tsx) wires the routes — `/` (Browse), `/search`, `/playlists`, `/playlists/:id`, `/albums/:id`, `/artists/:id`, `/liked` and `/account`. `PlaylistsPage.tsx` lists playlists and creates new ones (see above); each detail route maps to the page above.
 
 ## See it in the example app
 
