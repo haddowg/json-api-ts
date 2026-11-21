@@ -644,6 +644,54 @@ describe('the cache-layer overlay', () => {
       setMaterialisedOverlay(undefined)
     }
   })
+
+  it('a list reports the layer’s pending creates and moves its totals, a copy asking about itself', () => {
+    type List = AugArray<Related> & {
+      $pending(): readonly unknown[]
+      $meta: Record<string, unknown> | undefined
+    }
+    const list = materialise(
+      {
+        data: [{ type: 'albums', id: '1', attributes: { title: 'One' } }],
+        meta: { total: 7, page: { currentPage: 1, total: 7 } },
+      },
+      context(),
+      false,
+      'albums',
+    ) as List
+    // Without a layer: nothing pending, the response's totals.
+    expect(list.$pending()).toEqual([])
+    expect(list.$page.meta?.['total']).toBe(7)
+    expect(list.$meta?.['total']).toBe(7)
+
+    const copy: unknown[] = [...list]
+    for (const key of ['$pending', '$page', '$meta']) {
+      Object.defineProperty(copy, key, Object.getOwnPropertyDescriptor(list, key)!)
+    }
+    const entry = { type: 'albums', id: '$tmp:1', at: 'start' as const, input: { title: 'New' } }
+    setMaterialisedOverlay({
+      optimistic: () => undefined,
+      pending: () => [],
+      count: (_targets, _name, raw) => raw,
+      creates: (targets) => (targets.includes(copy) ? [entry] : []),
+      total: (targets, raw) => (targets.includes(copy) ? raw + 1 : raw),
+    })
+    try {
+      const edited = copy as unknown as List
+      expect(edited.$pending()).toEqual([entry])
+      expect(edited.$page.meta?.['total']).toBe(8)
+      expect(edited.$meta?.['total']).toBe(8)
+      // The same moved total reads back the same object.
+      expect(edited.$page).toBe(edited.$page)
+      expect(edited.$meta).toBe(edited.$meta)
+      // The original is untouched.
+      expect(list.$pending()).toEqual([])
+      expect(list.$page.meta?.['total']).toBe(7)
+      expect(Object.keys(edited)).not.toContain('$pending')
+    } finally {
+      setMaterialisedOverlay(undefined)
+    }
+  })
 })
 
 describe('edgeViewOf and identifierViewOf', () => {
