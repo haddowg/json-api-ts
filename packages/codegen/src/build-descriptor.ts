@@ -433,7 +433,7 @@ export class DescriptorBuilder {
         continue
       }
       fields[name] = formatHint(prop, this.schemas)
-      const listed = literalValues(prop, this.schemas)
+      const listed = memberValues(prop, fields[name], this.schemas)
       if (listed !== undefined) {
         values[name] = listed
       }
@@ -481,7 +481,7 @@ export class DescriptorBuilder {
     if (isNullable(additional)) {
       out.nullable = true
     }
-    const values = literalValues(additional, this.schemas)
+    const values = memberValues(additional, out.format, this.schemas)
     if (values !== undefined) {
       out.values = values
     }
@@ -1524,7 +1524,7 @@ export class DescriptorBuilder {
         continue
       }
       fields[name] = formatHint(prop, this.schemas)
-      const listed = literalValues(prop, this.schemas)
+      const listed = memberValues(prop, fields[name], this.schemas)
       if (listed !== undefined) {
         values[name] = listed
       }
@@ -2132,6 +2132,52 @@ function isNullable(schema: SchemaObject): boolean {
     return true
   }
   return [...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].some((branch) => branch.type === 'null')
+}
+
+/**
+ * The literals a meta member lists: a list's for its items when its hint is `array`, else its own.
+ * See {@link literalValues} and {@link listValues}.
+ */
+function memberValues(
+  schema: SchemaObject,
+  hint: string,
+  schemas: Record<string, SchemaObject>,
+): MetaLiteral[] | undefined {
+  return hint === 'array' ? listValues(schema, schemas) : literalValues(schema, schemas)
+}
+
+/**
+ * The literals every item of a list limits itself to, read from its `items` as
+ * {@link literalValues} reads a value, following a `$ref`, a lone `allOf` and the one non-null
+ * branch of a nullable `anyOf` or `oneOf` to the list. `undefined` when its items take other
+ * values, `null` among them.
+ */
+function listValues(
+  schema: SchemaObject,
+  schemas: Record<string, SchemaObject>,
+  seen: ReadonlySet<string> = new Set(),
+): MetaLiteral[] | undefined {
+  if (typeof schema.$ref === 'string') {
+    const target = refName(schema.$ref)
+    const resolved = target === undefined || seen.has(target) ? undefined : schemas[target]
+    return resolved === undefined
+      ? undefined
+      : listValues(resolved, schemas, new Set([...seen, target!]))
+  }
+  if (schema.allOf?.length === 1) {
+    return listValues(schema.allOf[0]!, schemas, seen)
+  }
+  const items = schema.items
+  if (typeKeys(schema.type).includes('array') && isSchema(items)) {
+    const takesNull = (node: SchemaObject): boolean =>
+      isNullable(node) ||
+      node.const === null ||
+      (Array.isArray(node.enum) && node.enum.includes(null)) ||
+      [...(node.anyOf ?? []), ...(node.oneOf ?? [])].some(takesNull)
+    return takesNull(items) ? undefined : literalValues(items, schemas)
+  }
+  const branches = (schema.anyOf ?? schema.oneOf ?? []).filter((branch) => branch.type !== 'null')
+  return branches.length === 1 ? listValues(branches[0]!, schemas, seen) : undefined
 }
 
 /**
