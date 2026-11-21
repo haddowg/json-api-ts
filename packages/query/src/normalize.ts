@@ -28,6 +28,7 @@
  */
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
+import { stampOf, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { keyHasPrefix, parentRelationReadKeys, type QueryKey, scopeOf } from './keys'
 
 /** A `type:id` cache key for a resource. */
@@ -158,12 +159,87 @@ interface MaterialisedResource {
 }
 
 /**
- * A resource's freshest attributes, with the attributes its read narrowed to some of their keys,
- * which hold only part of the value.
+ * One attribute's value as the server sent it: the value, the stamp of the request that read it
+ * (see ./freshness.ts), and the paths its read narrowed it to (`undefined` for the whole value).
  */
-interface FreshAttributes {
-  attributes: Record<string, unknown>
-  narrowed: NestedFieldset | undefined
+interface ServerValue {
+  value: unknown
+  stamp: number
+  paths: readonly string[] | undefined
+}
+
+/** A candidate for an attribute's newest server value: whether the response being normalised carried it. */
+interface Candidate extends ServerValue {
+  incoming: boolean
+}
+
+/** The newest server value of each attribute a response carries, by `type:id` then attribute. */
+type Fresh = Map<ResourceKey, Map<string, Candidate>>
+
+/**
+ * What a cached node holds from the server: the stamp of the response it was materialised from,
+ * and each attribute a normalisation has written onto it since, with that write's stamp. Kept per
+ * node (each per-edge view and each canonical node), keyed by the materialised object behind it.
+ * An optimistic patch writes no record, so a prediction is never mistaken for a server value.
+ */
+interface NodeRecord {
+  born: number
+  written: Map<string, ServerValue>
+}
+
+const records = new WeakMap<object, NodeRecord>()
+
+/** The record of `node`, created (as of unknown age) when it has none. */
+function recordOf(node: object): NodeRecord {
+  const target = targetOf(node)
+  let record = records.get(target)
+  if (record === undefined) {
+    record = { born: UNKNOWN_STAMP, written: new Map() }
+    records.set(target, record)
+  }
+  return record
+}
+
+/** Record that `node` was materialised from a response stamped `stamp`, unless it already was. */
+function recordBirth(node: object, stamp: number): void {
+  const target = targetOf(node)
+  if (!records.has(target)) {
+    records.set(target, { born: stamp, written: new Map() })
+  }
+}
+
+/** The paths `node`'s own read narrowed attribute `k` to, when it narrowed it. */
+const narrowedPaths = (node: MaterialisedResource, k: string): readonly string[] | undefined =>
+  node.$nestedFieldset?.[k]
+
+/**
+ * The server value of each attribute `node` holds: what a normalisation last wrote, else what it
+ * was materialised with (its `$raw.attributes`, which no patch changes), stamped with its birth.
+ */
+function serverValues(node: MaterialisedResource): Map<string, ServerValue> {
+  const record = records.get(targetOf(node))
+  const values = new Map(record?.written)
+  const raw = attributesOf(node)
+  if (raw !== undefined) {
+    const born = record?.born ?? UNKNOWN_STAMP
+    for (const [k, value] of Object.entries(raw)) {
+      if (!values.has(k)) {
+        values.set(k, { value, stamp: born, paths: narrowedPaths(node, k) })
+      }
+    }
+  }
+  return values
+}
+
+/** The stamp of the server value `node` holds for attribute `k`, or `undefined` when it holds none. */
+function heldStamp(node: MaterialisedResource, k: string): number | undefined {
+  const record = records.get(targetOf(node))
+  const written = record?.written.get(k)
+  if (written !== undefined) {
+    return written.stamp
+  }
+  const raw = attributesOf(node)
+  return raw !== undefined && Object.hasOwn(raw, k) ? (record?.born ?? UNKNOWN_STAMP) : undefined
 }
 
 /** A materialised resource's `type`+`id`, when it is a real resource (string type + id). */
@@ -176,11 +252,10 @@ function identity(node: MaterialisedResource): { type: string; id: string } | un
 }
 
 /**
- * The freshest attributes for a node, read from its `$raw.attributes` (the wire split of
+ * The attributes a node was materialised with, read from its `$raw.attributes` (the wire split of
  * attributes from relations). Returns `undefined` when the node carries no `$raw` or no
- * attributes block (a bare identifier view, or an attribute-less resource) — nothing to
- * propagate. Never falls back to enumerating own props, which would conflate relation slots
- * with attributes.
+ * attributes block (a bare identifier view, or an attribute-less resource). Never falls back to
+ * enumerating own props, which would conflate relation slots with attributes.
  */
 function attributesOf(node: MaterialisedResource): Record<string, unknown> | undefined {
   const attrs = node.$raw?.attributes
@@ -387,61 +462,130 @@ function mergedValue(
   return out
 }
 
+/** Make `candidate` the attribute's newest value when it is newer, or as new and `tieWins`. */
+function consider(
+  fresh: Fresh,
+  key: ResourceKey,
+  k: string,
+  candidate: Candidate,
+  tieWins: boolean,
+): void {
+  const attributes = fresh.get(key) ?? new Map<string, Candidate>()
+  fresh.set(key, attributes)
+  const current = attributes.get(k)
+  if (
+    current === undefined ||
+    candidate.stamp > current.stamp ||
+    (tieWins && candidate.stamp === current.stamp)
+  ) {
+    attributes.set(k, candidate)
+  }
+}
+
 /**
- * Index every resource in `result` by `type:id` → its freshest attributes, then return the
- * set of `type:id`s the result carries. The caller patches every cached query holding any of
- * those keys (see {@link normalize}).
+ * Index the server value of every attribute of every resource in `result` by `type:id`, each with
+ * the stamp of the response that read it: the result's own (an infinite query's pages each have
+ * theirs), or, for an attribute a newer response already wrote onto one of its nodes, that
+ * response's. Each node of the result is recorded as born at its result's stamp.
  */
-function collectAttributes(
-  result: unknown,
-  descriptor: ApiDescriptor,
-): Map<ResourceKey, FreshAttributes> {
-  const fresh = new Map<ResourceKey, FreshAttributes>()
-  walkResources(result, descriptor, (node) => {
-    const ident = identity(node)
-    if (ident === undefined) {
-      return
+function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
+  const fresh: Fresh = new Map()
+  for (const part of partsOf(result)) {
+    if (typeof part !== 'object' || part === null) {
+      continue
     }
-    const attributes = attributesOf(node)
-    if (attributes !== undefined) {
-      // Last write wins: a later occurrence (e.g. the primary resource vs an included copy)
-      // overwrites an earlier one. For one response they are the same wire object anyway.
-      const narrowed = node.$nestedFieldset
-      fresh.set(resourceKey(ident.type, ident.id), {
-        attributes,
-        narrowed:
-          narrowed === undefined || Object.keys(narrowed).length === 0 ? undefined : narrowed,
-      })
-    }
-  })
+    const stamp = stampOf(targetOf(part))
+    walkResources(part, descriptor, (node) => {
+      const ident = identity(node)
+      if (ident === undefined) {
+        return
+      }
+      recordBirth(node, stamp)
+      const key = resourceKey(ident.type, ident.id)
+      for (const [k, value] of serverValues(node)) {
+        // A later occurrence wins a tie: for one response, the copies are the same wire object.
+        consider(fresh, key, k, { ...value, incoming: true }, true)
+      }
+    })
+  }
   return fresh
 }
 
 /**
- * Patch every materialised node in `cached` whose `type:id` appears in `fresh`, in place,
- * with the freshest attributes — returning whether any VALUE actually changed. We mutate the
- * cached objects directly (preserving their identity/accessors) rather than rebuilding them, so
- * writing the same reference back triggers TanStack's subscribers without a structural-sharing diff
- * fighting the per-edge views. A node whose attributes already equal `fresh` is a no-op (reports
- * unchanged), so a redundant re-application doesn't write back or re-notify.
+ * Raise each attribute in `fresh` to the newest server value any cached copy of its resource holds,
+ * so a response arriving after a newer one takes the newer values rather than spreading its own.
  */
-function patchCached(
-  cached: unknown,
-  fresh: Map<ResourceKey, FreshAttributes>,
-  descriptor: ApiDescriptor,
-): boolean {
+function raiseToNewest(queries: readonly Query[], fresh: Fresh, descriptor: ApiDescriptor): void {
+  for (const query of queries) {
+    walkResources(query.state.data, descriptor, (node) => {
+      const ident = identity(node)
+      if (ident === undefined) {
+        return
+      }
+      const key = resourceKey(ident.type, ident.id)
+      const attributes = fresh.get(key)
+      if (attributes === undefined) {
+        return
+      }
+      for (const [k, value] of serverValues(node)) {
+        if (attributes.has(k)) {
+          consider(fresh, key, k, { ...value, incoming: false }, false)
+        }
+      }
+    })
+  }
+}
+
+/**
+ * Write one attribute's newest server value onto a node and record it, merging a value its read
+ * narrowed into the cached one. Returns whether the node's value changed.
+ */
+function writeServerValue(node: MaterialisedResource, k: string, fresh: ServerValue): boolean {
+  const target = node as unknown as Record<string, unknown>
+  let changed: boolean
+  if (fresh.paths !== undefined) {
+    changed = mergeKeys(target, k, fresh.value, fresh.paths)
+  } else {
+    changed = !(k in target) || target[k] !== fresh.value
+    if (changed) {
+      target[k] = fresh.value
+    }
+  }
+  if (k in target) {
+    recordOf(node).written.set(k, { value: target[k], stamp: fresh.stamp, paths: fresh.paths })
+  }
+  return changed
+}
+
+/**
+ * Patch every materialised node in `cached` whose `type:id` appears in `fresh`, in place, returning
+ * whether any VALUE actually changed. Each attribute is written only onto a node holding an older
+ * server value of it, or none, or one as old when the response being normalised carried it: a
+ * node whose value came from a request started later keeps it. We mutate the cached objects
+ * directly (preserving their identity/accessors) rather than rebuilding them, so writing the same
+ * reference back triggers TanStack's subscribers without a structural-sharing diff fighting the
+ * per-edge views. A node already holding the values is a no-op (reports unchanged), so a redundant
+ * re-application doesn't write back or re-notify.
+ */
+function patchCached(cached: unknown, fresh: Fresh, descriptor: ApiDescriptor): boolean {
   let changed = false
   walkResources(cached, descriptor, (node) => {
     const ident = identity(node)
     if (ident === undefined) {
       return
     }
-    const entry = fresh.get(resourceKey(ident.type, ident.id))
-    if (
-      entry !== undefined &&
-      patchNode(node as unknown as Record<string, unknown>, entry.attributes, entry.narrowed)
-    ) {
-      changed = true
+    const attributes = fresh.get(resourceKey(ident.type, ident.id))
+    if (attributes === undefined) {
+      return
+    }
+    for (const [k, value] of attributes) {
+      const held = heldStamp(node, k)
+      if (held !== undefined && (held > value.stamp || (held === value.stamp && !value.incoming))) {
+        continue
+      }
+      if (writeServerValue(node, k, value)) {
+        changed = true
+      }
     }
   })
   return changed
@@ -449,18 +593,27 @@ function patchCached(
 
 /**
  * Write-through patch (the heart of Strategy 2). Given a freshly-resolved materialised
- * `result`, index its resources by `type:id` and patch every OTHER cached query that holds any
- * of those `type:id`s in place, so a single response updates the same resource everywhere it
+ * `result`, index its resources by `type:id` and patch every cached query that holds any of
+ * those `type:id`s in place, so a single response updates the same resource everywhere it
  * is cached ("edit once, updates everywhere").
+ *
+ * Newer data wins, whatever order responses arrive in. A result is stamped with its request's
+ * start (see ./freshness.ts), and each cached node records the stamp of each attribute value it
+ * holds. An attribute is patched only where the cached value is no newer than the result's; where
+ * a cached copy holds a newer value, that value is written over the result's own nodes instead, so
+ * every copy ends with the newest value. The unit is the attribute: a sparse read carrying only
+ * some attributes still updates those a newer read didn't carry, and an attribute a read narrowed
+ * to some of its keys is stamped as a whole.
  *
  * Edge-local `$pivot`/`$edge` and a node's identity are preserved (only own-enumerable
  * attribute props are overwritten). Pass `result` from an option factory's `onSuccess` (or use
- * {@link installNormalization} to subscribe to every query/mutation success automatically).
+ * {@link installNormalization} to subscribe to every query/mutation success automatically). A
+ * result no factory stamped is stamped when it is first normalised, so it keeps arrival order.
  *
  * `result` is the materialised value the client produced for this response (a resource, a
  * `Collection`, a related collection, or linkage). The same reference may also be the cached
- * entry for the query that produced it — we mutate it too (idempotently), which is harmless and
- * keeps every surface holding that resource consistent.
+ * entry for the query that produced it — we mutate it too, which keeps every surface holding that
+ * resource consistent.
  *
  * CONTRACT: one descriptor per scope of a QueryClient. The patch matches a cached node purely by
  * `type:id` and rewrites it with `descriptor`'s attribute split, so it patches only the queries
@@ -474,11 +627,28 @@ export function normalize(
   descriptor: ApiDescriptor,
   scope?: string,
 ): void {
-  const fresh = collectAttributes(unnormalisedPages(result), descriptor)
+  // An infinite query's earlier pages are indexed again each time a page is added. Their nodes'
+  // records carry any newer value written since, so indexing them again never spreads stale data.
+  const fresh = collectIncoming(result, descriptor)
   if (fresh.size === 0) {
     return
   }
-  patchAll(queryClient, fresh, descriptor, scope)
+  const queries = queriesIn(queryClient, scope)
+  raiseToNewest(queries, fresh, descriptor)
+  patchAll(queries, fresh, descriptor)
+}
+
+/**
+ * Record cached data that arrived without a request stamp, hydrated from a server render or
+ * restored from storage, as the oldest possible, so any read made in this process replaces it.
+ * @internal
+ */
+export function stampHydrated(data: unknown): void {
+  for (const part of partsOf(data)) {
+    if (typeof part === 'object' && part !== null) {
+      stampUnknown(targetOf(part))
+    }
+  }
 }
 
 /** The cached queries in `scope`: those whose key carries it, or every unscoped one. */
@@ -489,47 +659,14 @@ function queriesIn(queryClient: QueryClient, scope: string | undefined): Query[]
     .filter((query) => scopeOf(query.queryKey) === scope)
 }
 
-/** The pages of infinite queries' data {@link normalize} has already indexed. */
-const normalisedPages = new WeakSet<object>()
-
 /**
- * `result`, or for an infinite query's `InfiniteData` only the pages {@link normalize} hasn't
- * indexed yet. Fetching the next or previous page settles the whole `InfiniteData` again, and its
- * earlier pages carry the attributes of their own, older responses (a page's `$raw` never changes
- * when a patch updates its nodes), which would otherwise overwrite fresher copies elsewhere. A
- * refetch reads every page again, as new objects, so they are all indexed then.
+ * Patch the cached `queries` with the newest server values in `fresh`. We republish only the
+ * queries that {@link patchCached} actually mutated, under a new root (see {@link republish}), so
+ * their observers notify. Untouched queries keep their data reference, and every query keeps its
+ * `isInvalidated` flag, so a patch never undoes the invalidation a create or delete made.
  */
-function unnormalisedPages(result: unknown): unknown {
-  if (!isInfiniteValue(result)) {
-    return result
-  }
-  return result.pages.filter((page) => {
-    if (typeof page !== 'object' || page === null) {
-      return false
-    }
-    const target = targetOf(page)
-    if (normalisedPages.has(target)) {
-      return false
-    }
-    normalisedPages.add(target)
-    return true
-  })
-}
-
-/**
- * Patch every cached query with a `type:id -> fresh attributes` map. We walk the query cache
- * explicitly and republish only the queries that {@link patchCached} actually mutated, under a new
- * root (see {@link republish}), so their observers notify. Untouched queries keep their data
- * reference, and every query keeps its `isInvalidated` flag, so a patch never undoes the
- * invalidation a create or delete made.
- */
-function patchAll(
-  queryClient: QueryClient,
-  fresh: Map<ResourceKey, FreshAttributes>,
-  descriptor: ApiDescriptor,
-  scope: string | undefined,
-): void {
-  for (const query of queriesIn(queryClient, scope)) {
+function patchAll(queries: readonly Query[], fresh: Fresh, descriptor: ApiDescriptor): void {
+  for (const query of queries) {
     const data = query.state.data
     if (data === undefined || data === null) {
       continue
@@ -591,7 +728,8 @@ export function applyOptimisticPatch(
 
   // Walk the cache explicitly (not `setQueriesData({}, ...)`) so we only write back queries that
   // actually hold this `type:id` — preserving untouched queries' identity and `isInvalidated`
-  // flags, exactly as the success path ({@link patchAll}) does.
+  // flags, exactly as the success path ({@link patchAll}) does. It records no freshness: a
+  // prediction isn't a server value, so the next real response follows the usual rule.
   for (const query of queriesIn(queryClient, scope)) {
     const data = query.state.data
     if (data === undefined || data === null) {

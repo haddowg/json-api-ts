@@ -43,6 +43,7 @@ import {
   type WriteOptions,
 } from '@haddowg/json-api-client'
 import type { MutationFunctionContext, QueryClient } from '@tanstack/query-core'
+import { stamped } from './freshness'
 import { assertUpkeepRuns } from './mutation-cache'
 import { scopeApi, type ScopeOption } from './scope'
 import type { ResourceId } from './read'
@@ -86,7 +87,8 @@ function planned<TData, TVars>(
     mutationKey: planKey(plan),
     mutationFn: (variables, context) => {
       assertUpkeepRuns(context)
-      return run(variables)
+      // Stamped with the write's start, so its result patches only data older than it.
+      return stamped(() => run(variables))
     },
     meta: { [JSON_API_PLAN]: plan },
   }

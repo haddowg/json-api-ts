@@ -12,7 +12,7 @@
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
 import { type ReadOperation, scopeOf } from './keys'
-import { isMaterialisedData, normalize } from './normalize'
+import { isMaterialisedData, normalize, stampHydrated } from './normalize'
 import { jsonApiRetry } from './read'
 import type { ScopeOption } from './scope'
 import { planOf } from './upkeep'
@@ -263,6 +263,11 @@ export function installNormalization(
       const { query } = event
       if (scopeOf(query.queryKey) !== scope) {
         return
+      }
+      if (isMaterialisedData(query.state.data)) {
+        // Arrived with data no request here stamped (hydrated, restored, or seeded): it is the
+        // oldest possible, so any read made in this process replaces it.
+        stampHydrated(query.state.data)
       }
       if (isStripped(query)) {
         warnOnce(queryClient, query)
