@@ -168,7 +168,11 @@ function listResources(store: MockStore, type: string): Resource[] {
     case 'tracks':
       return store.tracks().map((r) => store.serializeTrack(r))
     case 'playlists':
-      return store.playlists().map((r) => store.serializePlaylist(r))
+      // Newest first, as a server defaulting to `-createdAt` lists them.
+      return store
+        .playlists()
+        .toReversed()
+        .map((r) => store.serializePlaylist(r))
     default:
       return []
   }
@@ -271,6 +275,11 @@ export function handle(store: MockStore, req: TransportRequest): TransportRespon
   const [type, id, third, fourth] = segments
 
   if (!type) return error(404, 'not found')
+
+  if (method !== 'GET') {
+    const failure = store.takeWriteFailure()
+    if (failure) return error(failure.status, failure.detail)
+  }
 
   if (type === 'me') return accountEndpoint(store, req, method, id, page)
   if (type === 'favorites' && !id && method === 'GET') {
