@@ -14,6 +14,13 @@ import {
   loadAll,
   provideJsonApiClient,
 } from '@haddowg/json-api-angular'
+import {
+  asJsonApiError,
+  injectJsonApiReads,
+  injectJsonApiWrites,
+  JsonApiErrorPipe,
+  provideJsonApiQuery,
+} from '@haddowg/json-api-angular/query'
 import { createJsonApiMcp, readActionSafety } from '@haddowg/json-api-mcp'
 import { generateMcpModel, writeMcpModel } from '@haddowg/json-api-mcp/generate'
 import { createQueryApi, keyFor, listQueryOptions } from '@haddowg/json-api-query'
@@ -31,6 +38,11 @@ for (const [name, fn] of [
   ['jsonApiResource', jsonApiResource],
   ['jsonApiMutation', jsonApiMutation],
   ['loadAll', loadAll],
+  ['provideJsonApiQuery', provideJsonApiQuery],
+  ['injectJsonApiReads', injectJsonApiReads],
+  ['injectJsonApiWrites', injectJsonApiWrites],
+  ['asJsonApiError', asJsonApiError],
+  ['JsonApiErrorPipe', JsonApiErrorPipe],
   ['createJsonApiMcp', createJsonApiMcp],
   ['readActionSafety', readActionSafety],
   ['generateMcpModel', generateMcpModel],
@@ -40,5 +52,5 @@ for (const [name, fn] of [
 }
 
 console.log(
-  '[esm] @haddowg/json-api-client, /ajv, -query, -angular, -mcp and -mcp/generate resolved from dist OK',
+  '[esm] @haddowg/json-api-client, /ajv, -query, -angular, -angular/query, -mcp and -mcp/generate resolved from dist OK',
 )

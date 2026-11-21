@@ -2,7 +2,7 @@
   "name": "@haddowg/json-api-smoke",
   "version": "0.0.0",
   "private": true,
-  "description": "Dual ESM/CJS resolution smoke for the built dist of @haddowg/json-api-client, -query, -angular and -mcp, plus the codegen bin run through a node_modules/.bin symlink. Not published; not aliased to source — it resolves the published `exports` map + conditions against `dist`.",
+  "description": "Dual ESM/CJS resolution smoke for the built dist of @haddowg/json-api-client, -query, -angular (and /query) and -mcp, plus the codegen bin run through a node_modules/.bin symlink. Not published; not aliased to source — it resolves the published `exports` map + conditions against `dist`.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "@haddowg/json-api-client": "workspace:^",
     "@haddowg/json-api-mcp": "workspace:^",
     "@haddowg/json-api-query": "workspace:^",
+    "@tanstack/angular-query": "^5.108.1",
     "@tanstack/query-core": "^5.108.2",
     "ajv": "^8.20.0",
     "rxjs": "^7.8.0"
