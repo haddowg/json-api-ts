@@ -66,6 +66,8 @@ const albumAttributes = {
   availableFrom: null,
   availableUntil: null,
   releaseInfo: null,
+  credits: null,
+  editions: null,
 }
 
 function transportFor(body: string): {

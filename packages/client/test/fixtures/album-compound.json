@@ -12,7 +12,9 @@
       "status": "released",
       "availableFrom": "1997-05-21",
       "availableUntil": "2030-12-31",
-      "releaseInfo": { "label": "Parlophone", "catalogueNumber": "NODATA 01" }
+      "releaseInfo": { "label": "Parlophone", "catalogueNumber": "NODATA 01" },
+      "credits": { "producer": "Nigel Godrich" },
+      "editions": [{ "format": "CD", "year": 1997, "label": "Parlophone" }]
     },
     "relationships": {
       "artist": {
