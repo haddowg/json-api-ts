@@ -148,8 +148,10 @@ A few things the codegen reads from the document that affect the generated clien
   enum component or in each branch of a nullable `anyOf`, records them under the entry's
   `values`, keyed by member, beside its hint. The client types that member as one of the
   literals, plus `null` when it is nullable, so `{ source: 'nope' }` fails to compile where
-  the server lists `web`, `import` and `api`. An open object's undeclared members record
-  theirs on `additional.values`. A descriptor without `values` types each member by its
+  the server lists `web`, `import` and `api`. A list member, hinted `array`, records the
+  values its items list the same ways, and the client types it as a list of those literals.
+  Items that may be `null` record none. An open object's undeclared members record theirs on
+  `additional.values`. A descriptor without `values` types each member by its
   hint.
   See [sending meta with a write](writes.md#sending-meta-with-a-write).
 - **Single keys in `fields`.** A `fields[<type>]` parameter's items are the member enum,
