@@ -147,6 +147,31 @@ prediction with the server's old value.
 as they were. A patched query goes stale on its original schedule, because patching some fields of
 some resources doesn't make the whole query fresh.
 
+### A8. SSR guard, for every framework
+
+SSR is unsupported in this pass (see [SSR and persistence](ssr-and-persistence.md)). Today an
+SSR app using `json-api-query`, in React or Angular, silently renders results whose `$page`,
+`$next()` and other accessors are missing after hydration. The guard turns that into a refetch and
+a warning, and lives in `json-api-query`, so both frameworks get it.
+
+- **Server side: a dehydrate default.** `installNormalization` adds a `shouldDehydrateQuery`
+  default that excludes queries whose key has the binding's shape, and composes with any default
+  the app already set. Angular's `provideTanStackQuery` calls `dehydrate` without options, so it
+  always applies there.
+- **Browser side: a hydration check.** A `dehydrate()` call with explicit options overrides the
+  defaults (verified in `query-core`), as the usual Next.js streaming setup does. So
+  `installNormalization` also watches the query cache's `added` event. A binding-keyed query that
+  arrives with data that isn't a materialised value is reset, so it refetches, and a dev-mode
+  warning names the query and points to the docs. The client exports `isMaterialised(value)`
+  (a `WeakSet` brand on its results) for that check, which is additive.
+- **Composing with app options.** `jsonApiShouldDehydrateQuery(next?)` wraps an app's own
+  predicate, so an app passing explicit options can keep its pending-query streaming without
+  tripping the browser check.
+
+The cost to an SSR app is a refetch in the browser, so the first render can differ from the server
+HTML. That's the honest state until real support lands and replaces the guard as a strict
+improvement.
+
 ## Part B: first-class optimistic updates
 
 ### B0. Where it stands
@@ -552,7 +577,8 @@ export class PlaylistPage {
 
 1. `fix(query)`: forward the abort signal (A1).
 2. `feat(client)`: `nextPageParams`/`prevPageParams`. `feat(query)`: typed keys/errors and
-   `skipToken` (A2), infinite factories and normalisation (A3, A4).
+   `skipToken` (A2), infinite factories and normalisation (A3, A4). `feat(client)` +
+   `feat(query)`: `isMaterialised` and the SSR guard (A8).
 3. `feat(query)!` or `feat(query)` depending on D1's migration: `JsonApiMutationCache`, plans in
    `meta`, mutation keys and scopes (A5, A6).
 4. `feat(query)`: read coherence (A7 R1–R3), then the optimistic draft, targeting and lifecycle
@@ -584,7 +610,9 @@ Changelog-kept behaviour changes:
 - 4xx reads stop retrying by default (D3);
 - the QueryClient needs `JsonApiMutationCache` (D1);
 - deleted resources' reads are removed rather than refetched (D8);
-- infinite queries are normalised.
+- infinite queries are normalised;
+- under SSR, binding queries are no longer dehydrated and refetch in the browser, with a dev-mode
+  warning (A8).
 
 ## Open risks to verify during build
 
@@ -625,9 +653,10 @@ Constraints adopted now, so the later work adds rather than changes:
    shows in `injectMutationState`.
 4. **Mutation keys grow only by trailing segments.** Prefix matching keeps any filter an app has
    already written working.
-5. **SSR guard, now:** on the server platform, `provideJsonApiQuery` excludes binding queries from
-   dehydration and warns in dev mode. An SSR app then refetches instead of rendering values that
-   lack their `$`-accessors. Real support replaces the guard later as a strict improvement.
+5. **SSR guard, now (A8):** binding queries are excluded from dehydration, and any that reach the
+   browser without being materialised are reset and warned about, in React and Angular alike. An
+   SSR app then refetches instead of rendering values that lack their `$`-accessors. Real support
+   replaces the guard later as a strict improvement.
 
 ## Appendix: SSR and persistence, deferred
 

@@ -154,11 +154,11 @@ This follow-on:
 - Offline write resumption stays its own project, only if offline-first editing becomes a
   requirement.
 
-## Open question: a guard for React in the main pass
+## Until then: the SSR guard
 
-The main design adds an SSR guard for Angular only: on the server platform, `provideJsonApiQuery`
-excludes binding queries from dehydration and warns in dev mode, so an SSR app refetches instead of
-rendering values without their accessors. React apps using `json-api-query` under SSR have the same
-silent breakage today. The equivalent guard, `installNormalization` adding a
-`shouldDehydrateQuery` default that excludes binding queries and warns once, is small and could ride
-the main pass.
+The main pass ships an SSR guard in `json-api-query` for React and Angular alike (main design
+A8): binding queries are excluded from dehydration by default, and any that reach the browser
+without being materialised are reset and warned about. SSR apps refetch in the browser rather than
+render values without their accessors. This follow-on replaces the guard: S2's serialise and
+deserialise defaults take the place of its exclusion, and its browser check stays as a safety net
+for apps whose explicit `dehydrate` options skip the serialiser.
