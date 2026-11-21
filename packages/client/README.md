@@ -266,7 +266,11 @@ resource wires into later ops without a server id. Results are typed positionall
 ```ts
 const [artist, geogaddi] = await client.atomic((tx) => {
   const newArtist = tx.create({ type: 'artists', name: 'Boards of Canada' })
-  const newAlbum = tx.create({ type: 'albums', title: 'Geogaddi', artist: newArtist })
+  // The example server requires an album created in a batch to say where it came from.
+  const newAlbum = tx.create(
+    { type: 'albums', title: 'Geogaddi', artist: newArtist },
+    { meta: { source: 'import' } },
+  )
   return [newArtist, newAlbum] as const
 })
 
