@@ -60,7 +60,7 @@ describe('generator contract 32 (named components)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(41)
+    expect(mcp.contract).toBe(43)
   })
 
   it('leaves no reference to a document component in any tool schema', () => {

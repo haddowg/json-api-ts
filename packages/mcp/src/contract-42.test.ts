@@ -2,11 +2,28 @@ import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { buildDescriptor } from '@haddowg/json-api-codegen'
 import { describe, expect, it } from 'vitest'
 import { createJsonApiMcp } from './mcp'
-import type { JsonSchema, OpenApiDocument } from './openapi'
-import { fakeTransport, modelOf, source, withNestedFieldsets } from './test-fixtures'
+import { HTTP_METHODS, type JsonSchema, type OpenApiDocument } from './openapi'
+import { fakeTransport, modelOf, source } from './test-fixtures'
 
-const { document } = source('contract-witness')
-const selecting = withNestedFieldsets(document)
+const { document: selecting } = source('contract-witness')
+
+/** The witness with each `fields[articles]` parameter taking only its member names. */
+function plainFields(): OpenApiDocument {
+  const doc = structuredClone(selecting)
+  for (const item of Object.values(doc.paths ?? {})) {
+    for (const method of HTTP_METHODS) {
+      for (const param of item[method]?.parameters ?? []) {
+        if ('name' in param && param.name === 'fields[articles]') {
+          const items = param.schema!['items'] as JsonSchema
+          param.schema = { type: 'array', items: (items['anyOf'] as JsonSchema[])[0]! }
+        }
+      }
+    }
+  }
+  return doc
+}
+
+const document = plainFields()
 
 const toolsOf = (doc: OpenApiDocument) => createJsonApiMcp(modelOf(doc)).tools
 const tool = (doc: OpenApiDocument, name: string) =>
@@ -50,8 +67,8 @@ const DESCRIPTION =
  * members on that type's `fields` entry, and their output lets a narrowed attribute miss keys.
  */
 describe('generator contract 42 (nested fieldsets)', () => {
-  it('reads a document stamped 42', () => {
-    expect(createJsonApiMcp(modelOf(selecting)).contract).toBe(42)
+  it('reads the witness', () => {
+    expect(createJsonApiMcp(modelOf(selecting)).contract).toBe(43)
   })
 
   it('describes the nested fieldset members on each list and get tool that takes the type in fields', () => {

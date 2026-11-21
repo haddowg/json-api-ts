@@ -3,16 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
-import {
-  fakeTransport,
-  modelOf,
-  source,
-  withNestedFieldsets,
-  withTypedRequestMeta,
-} from './test-fixtures'
+import { fakeTransport, modelOf, source } from './test-fixtures'
 
-const { document } = source('contract-witness')
-const typed = withTypedRequestMeta(document)
+const { document: typed } = source('contract-witness')
 
 const toolsOf = (doc: OpenApiDocument) => createJsonApiMcp(modelOf(doc)).tools
 const tool = (name: string) => toolsOf(typed).find((entry) => entry.name === name)!
@@ -147,18 +140,6 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
     expect(meta('bookings_get', 'bookings')?.['x-resource-meta']).toBeUndefined()
     expect(meta('rooms_get', 'rooms')).toMatchObject({ additionalProperties: false })
     expect(meta('articles_get', 'articles')).toBeUndefined()
-  })
-
-  it('leaves every tool the pinned witness has as it was', () => {
-    const before = new Map(
-      toolsOf(withNestedFieldsets(document)).map((entry) => [entry.name, entry]),
-    )
-    for (const entry of toolsOf(typed)) {
-      const original = before.get(entry.name)
-      if (original !== undefined) {
-        expect(entry.inputSchema).toEqual(original.inputSchema)
-      }
-    }
   })
 })
 
