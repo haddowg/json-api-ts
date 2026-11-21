@@ -2,7 +2,7 @@
   "name": "@haddowg/json-api-angular-catalog",
   "version": "0.0.0",
   "private": true,
-  "description": "A small standalone Angular app reading and writing the music catalogue through the signal-based Angular bindings, with an interceptor in the HttpClient chain.",
+  "description": "A small standalone Angular app reading and writing the music catalogue through TanStack Query, with an interceptor in the HttpClient chain.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -17,6 +17,8 @@
     "@angular/platform-browser": "^21.0.0",
     "@haddowg/json-api-angular": "workspace:^",
     "@haddowg/json-api-client": "workspace:^",
+    "@haddowg/json-api-query": "workspace:^",
+    "@tanstack/angular-query": "^5.108.1",
     "rxjs": "^7.8.0",
     "tslib": "^2.8.0"
   },
