@@ -13,6 +13,7 @@ import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
 import type { ReadOperation } from './keys'
 import { isMaterialisedData, normalize } from './normalize'
+import { jsonApiRetry } from './read'
 
 const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
   'fetchMany',
@@ -96,6 +97,11 @@ const installed = new WeakMap<QueryClient, ApiDescriptor>()
  * per typed client/server. Re-installing the *same* descriptor is allowed (idempotent-friendly):
  * it just adds another subscription pair with its own teardown.
  *
+ * It also installs the client's defaults the binding relies on, each only where the app set none,
+ * and removes them on teardown while they are still the installed value: a `dehydrate`
+ * predicate that leaves the binding's reads out, and {@link jsonApiRetry} as `queries.retry`, so a
+ * read failing with a 4xx JSON:API error or a non-JSON:API response isn't retried.
+ *
  * Re-entrancy is guarded: the patch pass itself sets data on other queries (firing further
  * `success` events), so while a pass runs we ignore the events it generates — otherwise a
  * single response would cascade into a loop. Returns a {@link Teardown} that removes both
@@ -129,6 +135,20 @@ export function installNormalization(
     })
   }
   withDehydrate(shouldDehydrateQuery)
+
+  // Retry default: the JSON:API policy, only when the app configured no `retry` of its own.
+  const installsRetry = queryClient.getDefaultOptions().queries?.retry === undefined
+  const withRetry = (retry: typeof jsonApiRetry | undefined) => {
+    const current = queryClient.getDefaultOptions()
+    const { retry: _replaced, ...rest } = current.queries ?? {}
+    queryClient.setDefaultOptions({
+      ...current,
+      queries: retry === undefined ? rest : { ...rest, retry },
+    })
+  }
+  if (installsRetry) {
+    withRetry(jsonApiRetry)
+  }
 
   let normalizing = false
 
@@ -185,6 +205,9 @@ export function installNormalization(
     unsubscribeMutations()
     if (queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery === shouldDehydrateQuery) {
       withDehydrate(previousDehydrate)
+    }
+    if (installsRetry && queryClient.getDefaultOptions().queries?.retry === jsonApiRetry) {
+      withRetry(undefined)
     }
     // Release the install record so a different descriptor can be installed afterwards (only when
     // ours is still the active record — a same-descriptor re-install left it pointing at the same

@@ -219,7 +219,7 @@ importers:
         version: link:../client
     devDependencies:
       '@tanstack/query-core':
-        specifier: ^5.0.0
+        specifier: ^5.62.0
         version: 5.101.2
 
   scripts/smoke:

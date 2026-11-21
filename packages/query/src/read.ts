@@ -5,7 +5,9 @@
  * `@tanstack/query-core` — the user passes it to their framework's `useQuery` or to a
  * `QueryClient.fetchQuery`. The binding depends ONLY on `query-core` (framework-agnostic) and
  * preserves the client's full static narrowing: `include` widens relations to hydrated, `fields`
- * narrows to the sparse fieldset, the result type is the client's own materialised view.
+ * narrows to the sparse fieldset, the result type is the client's own materialised view. The key
+ * is `DataTag`ged with that result and the read's error, so `getQueryData(key)` is typed, and the
+ * options' declared `retry` type carries the error into `error`.
  *
  * Surface, exposed two equivalent ways:
  *  - standalone factories — `listQueryOptions(client, type, query)`, `getQueryOptions(...)`,
@@ -13,29 +15,33 @@
  *  - a bound API — `createQueryApi(client).<type>.list(query)` etc. — sugar over the same
  *    factories with `client`/`type` pre-applied (the cleanest per-type call shape).
  */
-import type {
-  ApiDescriptor,
-  Collection,
-  CollectionMeta,
-  FieldsMap,
-  CountToken,
-  IncludePath,
-  ListPageParams,
-  PageOf,
-  ReadResult,
-  RelationName,
-  RelationReadQuery,
-  RelationshipAccessor,
-  ResourceCountToken,
-  SingleReadQuery,
-  TypedReadQuery,
-  TypedRelatedReadQuery,
-  TypedRelationReadQuery,
-  TypeName,
-  OperationMeta,
-  WithDocumentMeta,
+import {
+  type ApiDescriptor,
+  type Client,
+  type Collection,
+  type CollectionMeta,
+  type FieldsMap,
+  type CountToken,
+  type IncludePath,
+  JsonApiError,
+  type ListPageParams,
+  type PageOf,
+  type ReadResult,
+  type RelationName,
+  type RelationReadQuery,
+  type RelationshipAccessor,
+  type ResourceCountToken,
+  type SingleReadQuery,
+  StructuralGuardError,
+  type TypedReadQuery,
+  type TypedRelatedReadQuery,
+  type TypedRelationReadQuery,
+  type TypeName,
+  type OperationMeta,
+  type WithDocumentMeta,
 } from '@haddowg/json-api-client'
-import { type KeyTarget, keyFor, type QueryKey } from './keys'
+import { type DataTag, type SkipToken, skipToken } from '@tanstack/query-core'
+import { type KeyTarget, keyFor, type QueryKey, type ReadOperation } from './keys'
 
 /**
  * What a collection read resolves to: the client's `Collection`, its `$page` typed by the strategy
@@ -94,25 +100,85 @@ type LinkageResult<
   : unknown
 
 /**
- * A TanStack-compatible query-options object: the deterministic {@link QueryKey} plus a
- * `queryFn` resolving the materialised result `R`. The `queryFn` passes TanStack's abort `signal`
- * to the read, so a query whose key changes, or whose last observer goes away, cancels its request. Structurally assignable to
- * `query-core`'s `QueryOptions`/`UseQueryOptions` (the user merges in `staleTime` etc.), so the
- * binding needn't import or re-export query-core's option type — it stays a peer.
+ * What a read rejects with: a {@link JsonApiError} carrying the server's error-code union `C` (a
+ * generated client's `ErrorCode`), a {@link StructuralGuardError} when the response isn't a
+ * JSON:API document, or any other `Error` (a network failure, an abort).
+ */
+export type ReadError<C extends string = string> = JsonApiError<C> | StructuralGuardError | Error
+
+/**
+ * A typed TanStack `retry` callback. The read options declare it, optional and never set, so TanStack
+ * infers the query's `error` as `E` while the QueryClient's configured `retry` still applies.
+ */
+export type ReadRetry<E = ReadError> = (failureCount: number, error: E) => boolean
+
+/** A read's query function: it passes TanStack's abort `signal` to the client call. */
+export type ReadQueryFn<R> = (context?: QueryFnContext) => Promise<R>
+
+/**
+ * A TanStack-compatible query-options object: the deterministic {@link QueryKey}, `DataTag`ged
+ * with the result `R` and the error `E` so `queryClient.getQueryData(options.queryKey)` and
+ * `setQueryData` are typed, plus a `queryFn` resolving the materialised result `R`. The tag is a
+ * type-level brand only; the runtime key is the plain tuple {@link keyFor} builds.
+ *
+ * The `queryFn` passes TanStack's abort `signal` to the read, so a query whose key changes, or
+ * whose last observer goes away, cancels its request. `retry` is declared, typed with `E`, but never
+ * set: the declaration is how TanStack types the query's `error`, and leaving the property absent
+ * keeps the QueryClient's configured `retry` in charge (see {@link jsonApiRetry} for the default
+ * `installNormalization` installs). Structurally
+ * assignable to `query-core`'s `QueryOptions`/`UseQueryOptions` (the user merges in `staleTime`
+ * etc.), so the binding needn't re-export query-core's option type — it stays a peer.
  *
  * `structuralSharing` is off. A materialised value carries non-enumerable accessors such as
  * `$page`, `$next` and `$self`, and TanStack's structural sharing rebuilds a value that changed on
  * refetch as plain arrays and objects, which drops them.
  */
-export interface QueryOptions<R> {
-  queryKey: QueryKey
-  queryFn: (context?: QueryFnContext) => Promise<R>
+export interface QueryOptions<R, E = ReadError> {
+  queryKey: DataTag<QueryKey, R, E>
+  queryFn: ReadQueryFn<R>
+  retry?: ReadRetry<E>
   structuralSharing: false
 }
+
+/**
+ * The options of a read that may be skipped: built from `skipToken` in place of the id (or of a
+ * list's query), its `queryFn` is TanStack's `skipToken`, which disables the query.
+ */
+export interface SkippableQueryOptions<R, E = ReadError> extends Omit<
+  QueryOptions<R, E>,
+  'queryFn'
+> {
+  queryFn: ReadQueryFn<R> | SkipToken
+}
+
+/** {@link QueryOptions}, or {@link SkippableQueryOptions} when the address `I` may be `skipToken`. */
+export type ReadOptions<R, E, I> = SkipToken extends I
+  ? SkippableQueryOptions<R, E>
+  : QueryOptions<R, E>
 
 /** The part of TanStack's query-function context a read factory uses. */
 export interface QueryFnContext {
   signal: AbortSignal
+}
+
+/** How many times {@link jsonApiRetry} retries a failure it retries at all (TanStack's default). */
+const DEFAULT_RETRIES = 3
+
+/**
+ * The JSON:API read retry policy: never retry a {@link JsonApiError} below 500 (a 4xx won't change
+ * on a retry) or a {@link StructuralGuardError}; retry anything else (a 5xx, a network failure)
+ * while `failureCount < 3`, TanStack's default count. `installNormalization` installs it as
+ * the QueryClient's `defaultOptions.queries.retry` when the app configured none; set it yourself
+ * when you build the defaults another way.
+ */
+export function jsonApiRetry(failureCount: number, error: unknown): boolean {
+  if (error instanceof JsonApiError && error.status < 500) {
+    return false
+  }
+  if (error instanceof StructuralGuardError) {
+    return false
+  }
+  return failureCount < DEFAULT_RETRIES
 }
 
 /**
@@ -121,6 +187,26 @@ export interface QueryFnContext {
  */
 function withSignal<Q extends object>(query: Q | undefined, signal: AbortSignal | undefined): Q {
   return (signal === undefined ? query : { ...query, signal }) as Q
+}
+
+/** Brand a runtime key with the read's result and error types. */
+function tag<R, E>(key: QueryKey): DataTag<QueryKey, R, E> {
+  return key as DataTag<QueryKey, R, E>
+}
+
+/**
+ * The segment a skipped read's key carries where the id would go (or, for a list or a singleton,
+ * after the operation): `[type, operation, '$skip', rel?]`. A skipped read keeps no params, so
+ * every skipped read of one `(type, operation, rel)` shares a key, which never collides with a
+ * list's or a singleton's real reads (whose segment there is a params object, or absent).
+ */
+export const SKIPPED_SEGMENT = '$skip'
+
+/** The deterministic key of a skipped read. */
+function skippedKey(type: string, operation: ReadOperation, rel?: string): QueryKey {
+  return rel === undefined
+    ? [type, operation, SKIPPED_SEGMENT]
+    : [type, operation, SKIPPED_SEGMENT, rel]
 }
 
 /**
@@ -151,12 +237,21 @@ interface SingletonReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
   rel(name: RelationName<D, T>): RelationReads
 }
 
-/** A client narrowed to its per-type accessors (drops the `atomic` member, which reads don't use). */
-type TypedClient<D extends ApiDescriptor, A> = {
+/**
+ * The key the client carries its error-code union under. The client keeps the symbol private (a
+ * type-only member, read back with `ErrorCodeOf`), so it is recovered from the `Client` type.
+ */
+type ErrorCodesKey = Extract<keyof Client<{}>, symbol>
+
+/**
+ * A client narrowed to its per-type accessors (drops the `atomic` member, which reads don't use),
+ * plus the error-code union `C` it carries, which the factories infer to type `error`.
+ */
+type TypedClient<D extends ApiDescriptor, A, C extends string = string> = {
   [T in TypeName<D>]: D[T] extends { singleton: true }
     ? SingletonReads<D, A, T>
     : TypeReads<D, A, T>
-}
+} & { readonly [K in ErrorCodesKey]?: C }
 
 /** A collection type's read accessor. */
 interface TypeReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
@@ -213,10 +308,88 @@ function target(
   }
 }
 
+// ── Implementations (shared by the standalone factories and the bound API) ─────────────────
+
+/** Options whose `queryFn` is TanStack's `skipToken`, under the skipped read's key. */
+function skipped(
+  type: string,
+  operation: ReadOperation,
+  rel?: string,
+): SkippableQueryOptions<unknown, unknown> {
+  // Annotated: an unannotated `skipToken` in an object literal widens to `symbol`.
+  const queryFn: SkipToken = skipToken
+  return {
+    queryKey: tag(skippedKey(type, operation, rel)),
+    queryFn,
+    structuralSharing: false,
+  }
+}
+
+function listOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  query: object | SkipToken | undefined,
+): SkippableQueryOptions<unknown, unknown> {
+  if (query === skipToken) {
+    return skipped(type, 'fetchMany')
+  }
+  const accessor = readsOf(client, type)
+  return {
+    queryKey: tag(keyFor({ type, operation: 'fetchMany' }, query)),
+    structuralSharing: false,
+    queryFn: (context) => accessor.list(withSignal(query, context?.signal) as never),
+  }
+}
+
+function getOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  id: string | undefined | SkipToken,
+  query: object | undefined,
+): SkippableQueryOptions<unknown, unknown> {
+  if (id === skipToken) {
+    return skipped(type, 'fetchOne')
+  }
+  const accessor = readsOf(client, type)
+  return {
+    queryKey: tag(keyFor(target(type, 'fetchOne', id), query)),
+    structuralSharing: false,
+    queryFn: (context) =>
+      id === undefined
+        ? accessor.get(withSignal(query, context?.signal) as never)
+        : accessor.get(id, withSignal(query, context?.signal) as never),
+  }
+}
+
+function relationOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  operation: 'fetchRelated' | 'fetchRelationship',
+  id: string | undefined | SkipToken,
+  rel: RelationName<D, TypeName<D>>,
+  query: RelationReadQuery | undefined,
+): SkippableQueryOptions<unknown, unknown> {
+  if (id === skipToken) {
+    return skipped(type, operation, rel)
+  }
+  return {
+    queryKey: tag(keyFor(target(type, operation, id, rel), query)),
+    structuralSharing: false,
+    queryFn: (context) => {
+      const reads = relationReads(client, type, id, rel)
+      const params = withSignal(query, context?.signal)
+      return operation === 'fetchRelated' ? reads.related(params) : reads.get(params)
+    },
+  }
+}
+
+// ── Standalone factories ──────────────────────────────────────────────────────────────────
+
 /**
  * The collection-list read (`GET /{type}`): options resolving the typed `Collection`, narrowed by
  * `include`/`fields` exactly as `client.<type>.list(query)`. The key is `[type, 'fetchMany',
  * <params>]` — the normalised query rides the trailing segment, so two equal queries share a key.
+ * Passing `skipToken` for the query skips the read (key `[type, 'fetchMany', '$skip']`).
  */
 export function listQueryOptions<
   D extends ApiDescriptor,
@@ -226,17 +399,32 @@ export function listQueryOptions<
   const F extends FieldsMap<D> = {},
   const Pg extends ListPageParams<D, T> | undefined = undefined,
   const Cnt extends readonly CountToken<D, T>[] = [],
+  C extends string = string,
 >(
-  client: TypedClient<D, A>,
+  client: TypedClient<D, A, C>,
   type: T,
   query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>> {
-  const accessor = readsOf(client, type)
-  return {
-    queryKey: keyFor({ type, operation: 'fetchMany' }, query),
-    structuralSharing: false,
-    queryFn: (context) => accessor.list<Inc, F, Pg, Cnt>(withSignal(query, context?.signal)),
-  }
+): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ReadError<C>>
+export function listQueryOptions<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  const Inc extends readonly IncludePath<D, T>[] = [],
+  const F extends FieldsMap<D> = {},
+  const Pg extends ListPageParams<D, T> | undefined = undefined,
+  const Cnt extends readonly CountToken<D, T>[] = [],
+  C extends string = string,
+>(
+  client: TypedClient<D, A, C>,
+  type: T,
+  query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
+): SkippableQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ReadError<C>>
+export function listQueryOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  query?: object | SkipToken,
+): unknown {
+  return listOptions(client, type, query)
 }
 
 /**
@@ -244,7 +432,8 @@ export function listQueryOptions<
  * narrowed by `include`/`fields` and counted by `withCount` as `client.<type>.get(id, query)`.
  * Key: `[type, 'fetchOne', id, <params>]` — the `id` sits at a fixed position so {@link keyFor}'s
  * prefix matches a resource's reads. A singleton (`GET /inbox`) takes `undefined` for the id and
- * reads as `client.<type>.get(query)`, keyed `[type, 'fetchOne', <params>]`.
+ * reads as `client.<type>.get(query)`, keyed `[type, 'fetchOne', <params>]`. Passing `skipToken`
+ * for the id skips the read (key `[type, 'fetchOne', '$skip']`), as in `get(id ?? skipToken)`.
  */
 export function getQueryOptions<
   D extends ApiDescriptor,
@@ -253,22 +442,20 @@ export function getQueryOptions<
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
   const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  C extends string = string,
+  I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A>,
+  client: TypedClient<D, A, C>,
   type: T,
-  id: ResourceId<D, T>,
+  id: I,
   query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>> {
-  const accessor = readsOf(client, type)
-  const resource: string | undefined = id
-  return {
-    queryKey: keyFor(target(type, 'fetchOne', resource), query),
-    structuralSharing: false,
-    queryFn: (context) =>
-      resource === undefined
-        ? accessor.get<Inc, F, Cnt>(withSignal(query, context?.signal))
-        : accessor.get<Inc, F, Cnt>(resource, withSignal(query, context?.signal)),
-  }
+): ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, ReadError<C>, I> {
+  return getOptions(
+    client,
+    type,
+    id as string | undefined | SkipToken,
+    query as object | undefined,
+  ) as ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, ReadError<C>, I>
 }
 
 /**
@@ -278,27 +465,30 @@ export function getQueryOptions<
  * shape; the relationship endpoint's per-relation value is loose at the `.rel(name)` boundary, so
  * the option resolves `unknown` unless the caller annotates it (parity with the client's runtime).
  * A singleton takes `undefined` for the id, keyed `[type, 'fetchRelationship', rel, <params>]`.
+ * Passing `skipToken` for the id skips the read (key `[type, 'fetchRelationship', '$skip', rel]`).
  */
 export function relationshipQueryOptions<
   D extends ApiDescriptor,
   A,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
+  C extends string = string,
+  I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A>,
+  client: TypedClient<D, A, C>,
   type: T,
-  id: ResourceId<D, T>,
+  id: I,
   rel: R,
   query?: TypedRelationReadQuery<D, T, R>,
-): QueryOptions<LinkageResult<D, A, T, R>> {
-  return {
-    queryKey: keyFor(target(type, 'fetchRelationship', id, rel), query),
-    structuralSharing: false,
-    queryFn: (context) =>
-      relationReads(client, type, id, rel).get(withSignal(query, context?.signal)) as Promise<
-        LinkageResult<D, A, T, R>
-      >,
-  }
+): ReadOptions<LinkageResult<D, A, T, R>, ReadError<C>, I> {
+  return relationOptions(
+    client,
+    type,
+    'fetchRelationship',
+    id as string | undefined | SkipToken,
+    rel,
+    query,
+  ) as ReadOptions<LinkageResult<D, A, T, R>, ReadError<C>, I>
 }
 
 /**
@@ -306,34 +496,40 @@ export function relationshipQueryOptions<
  * related resource(s), via `client.<type>.id(id).rel(rel).related(query)`. Key: `[type,
  * 'fetchRelated', id, rel, <params>]`. As with linkage, the related value is loose at the
  * `.rel(name)` boundary, so this resolves `unknown` (parity with the client runtime). A singleton
- * takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>]`.
+ * takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>]`. Passing `skipToken`
+ * for the id skips the read (key `[type, 'fetchRelated', '$skip', rel]`).
  */
 export function relatedQueryOptions<
   D extends ApiDescriptor,
   A,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
+  C extends string = string,
+  I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A>,
+  client: TypedClient<D, A, C>,
   type: T,
-  id: ResourceId<D, T>,
+  id: I,
   rel: R,
   query?: TypedRelatedReadQuery<D, T, R>,
-): QueryOptions<RelatedResult<D, A, T, R>> {
-  return {
-    queryKey: keyFor(target(type, 'fetchRelated', id, rel), query),
-    structuralSharing: false,
-    queryFn: (context) =>
-      relationReads(client, type, id, rel).related(withSignal(query, context?.signal)) as Promise<
-        RelatedResult<D, A, T, R>
-      >,
-  }
+): ReadOptions<RelatedResult<D, A, T, R>, ReadError<C>, I> {
+  return relationOptions(
+    client,
+    type,
+    'fetchRelated',
+    id as string | undefined | SkipToken,
+    rel,
+    query as RelationReadQuery | undefined,
+  ) as ReadOptions<RelatedResult<D, A, T, R>, ReadError<C>, I>
 }
 
 // ── Bound per-type API (sugar over the standalone factories) ──────────────────────────────
 
-/** The per-type read-option factories, with `client`/`type` pre-applied (`api.<type>.list(...)`). */
-export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>> {
+/**
+ * The per-type read-option factories, with `client`/`type` pre-applied (`api.<type>.list(...)`).
+ * `E` is the read's error. Each id (and a list's query) accepts `skipToken`.
+ */
+export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>, E = ReadError> {
   list<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -341,72 +537,98 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-  ): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>>
+  ): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, E>
+  list<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Pg extends ListPageParams<D, T> | undefined = undefined,
+    const Cnt extends readonly CountToken<D, T>[] = [],
+  >(
+    query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
+  ): SkippableQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, E>
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+    I extends string | SkipToken = string,
   >(
-    id: string,
+    id: I,
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>>
-  relationship<R extends RelationName<D, T>>(
-    id: string,
+  ): ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, E, I>
+  relationship<R extends RelationName<D, T>, I extends string | SkipToken = string>(
+    id: I,
     rel: R,
     query?: TypedRelationReadQuery<D, T, R>,
-  ): QueryOptions<LinkageResult<D, A, T, R>>
-  related<R extends RelationName<D, T>>(
-    id: string,
+  ): ReadOptions<LinkageResult<D, A, T, R>, E, I>
+  related<R extends RelationName<D, T>, I extends string | SkipToken = string>(
+    id: I,
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R>,
-  ): QueryOptions<RelatedResult<D, A, T, R>>
+  ): ReadOptions<RelatedResult<D, A, T, R>, E, I>
 }
 
 /**
  * A singleton's read-option factories (`api.inboxes.get(query)`), which take no id, as the
- * client's singleton accessor doesn't.
+ * client's singleton accessor doesn't. Passing `skipToken` for the query skips the read.
  */
-export interface SingletonQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>> {
+export interface SingletonQueryApi<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  E = ReadError,
+> {
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>>
+  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, E>
+  get<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
+  >(
+    query: SingleReadQuery<D, T, Inc, F, Cnt> | SkipToken,
+  ): SkippableQueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, E>
   relationship<R extends RelationName<D, T>>(
     rel: R,
     query?: TypedRelationReadQuery<D, T, R>,
-  ): QueryOptions<LinkageResult<D, A, T, R>>
+  ): QueryOptions<LinkageResult<D, A, T, R>, E>
+  relationship<R extends RelationName<D, T>>(
+    rel: R,
+    query: TypedRelationReadQuery<D, T, R> | SkipToken,
+  ): SkippableQueryOptions<LinkageResult<D, A, T, R>, E>
   related<R extends RelationName<D, T>>(
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R>,
-  ): QueryOptions<RelatedResult<D, A, T, R>>
+  ): QueryOptions<RelatedResult<D, A, T, R>, E>
+  related<R extends RelationName<D, T>>(
+    rel: R,
+    query: TypedRelatedReadQuery<D, T, R> | SkipToken,
+  ): SkippableQueryOptions<RelatedResult<D, A, T, R>, E>
 }
 
 /**
  * The bound query API: one {@link TypeQueryApi} per wire type (`api.albums.list(...)`), or a
- * {@link SingletonQueryApi} for a singleton type.
+ * {@link SingletonQueryApi} for a singleton type. `C` is the client's error-code union.
  */
-export type QueryApi<D extends ApiDescriptor, A> = {
+export type QueryApi<D extends ApiDescriptor, A, C extends string = string> = {
   [T in TypeName<D>]: D[T] extends { singleton: true }
-    ? SingletonQueryApi<D, A, T>
-    : TypeQueryApi<D, A, T>
+    ? SingletonQueryApi<D, A, T, ReadError<C>>
+    : TypeQueryApi<D, A, T, ReadError<C>>
 }
 
 /**
  * Bind a client to its per-type read-option factories: `createQueryApi(client).albums.list(query)`
- * returns the same `{ queryKey, queryFn }` as `listQueryOptions(client, 'albums', query)`, with
- * `client`/`type` pre-applied. A Proxy (descriptor-free — type validity is enforced by the static
- * `QueryApi` shape) so no per-type allocation until first access.
+ * returns the same options as `listQueryOptions(client, 'albums', query)`, with `client`/`type`
+ * pre-applied. A Proxy (descriptor-free — type validity is enforced by the static `QueryApi` shape) so
+ * no per-type allocation until first access.
  */
-export function createQueryApi<D extends ApiDescriptor, A>(
-  client: TypedClient<D, A>,
-): QueryApi<D, A> {
-  const cache = new Map<
-    string,
-    TypeQueryApi<D, A, TypeName<D>> | SingletonQueryApi<D, A, TypeName<D>>
-  >()
+export function createQueryApi<D extends ApiDescriptor, A, C extends string = string>(
+  client: TypedClient<D, A, C>,
+): QueryApi<D, A, C> {
+  const cache = new Map<string, LooseTypeQueryApi | LooseSingletonQueryApi>()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
       if (typeof prop !== 'string') {
@@ -424,49 +646,87 @@ export function createQueryApi<D extends ApiDescriptor, A>(
       }
       return api
     },
-  }) as QueryApi<D, A>
+  }) as QueryApi<D, A, C>
 }
 
-/** Build one type's bound read-option factories (delegates to the standalone factories). */
-function typeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
+type LooseOptions = SkippableQueryOptions<unknown, unknown>
+
+/** One type's bound factories as built at runtime; the static `QueryApi` shape types them. */
+interface LooseTypeQueryApi {
+  list(query?: unknown): LooseOptions
+  get(id: string | SkipToken, query?: unknown): LooseOptions
+  relationship(id: string | SkipToken, rel: string, query?: unknown): LooseOptions
+  related(id: string | SkipToken, rel: string, query?: unknown): LooseOptions
+}
+
+/** A singleton's bound factories as built at runtime. */
+interface LooseSingletonQueryApi {
+  get(query?: unknown): LooseOptions
+  relationship(rel: string, query?: unknown): LooseOptions
+  related(rel: string, query?: unknown): LooseOptions
+}
+
+/** Build one type's bound read-option factories (shares the standalone factories' builders). */
+function typeQueryApi<D extends ApiDescriptor, A>(
   client: TypedClient<D, A>,
-  type: T,
-): TypeQueryApi<D, A, T> {
-  // A collection type's id is a string, which the deferred `ResourceId` can't see here.
-  const of = (id: string) => id as ResourceId<D, T>
+  type: TypeName<D>,
+): LooseTypeQueryApi {
+  type Rel = RelationName<D, TypeName<D>>
   return {
-    list: (query) => listQueryOptions(client, type, query),
-    get: (id, query) => getQueryOptions(client, type, of(id), query),
-    relationship<R extends RelationName<D, T>>(
-      id: string,
-      rel: R,
-      query?: TypedRelationReadQuery<D, T, R>,
-    ) {
-      return relationshipQueryOptions(client, type, of(id), rel, query)
-    },
-    related<R extends RelationName<D, T>>(
-      id: string,
-      rel: R,
-      query?: TypedRelatedReadQuery<D, T, R>,
-    ) {
-      return relatedQueryOptions(client, type, of(id), rel, query)
-    },
+    list: (query) => listOptions(client, type, query as object | SkipToken),
+    get: (id, query) => getOptions(client, type, id, query as object),
+    relationship: (id, rel, query) =>
+      relationOptions(
+        client,
+        type,
+        'fetchRelationship',
+        id,
+        rel as Rel,
+        query as RelationReadQuery,
+      ),
+    related: (id, rel, query) =>
+      relationOptions(client, type, 'fetchRelated', id, rel as Rel, query as RelationReadQuery),
   }
 }
 
-/** Build a singleton's bound read-option factories, which address it with no id. */
-function singletonQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>>(
+/** A singleton read's address: `skipToken` (where a resource's id would go) when it is skipped. */
+function singletonAt(query: unknown): undefined | SkipToken {
+  return query === skipToken ? skipToken : undefined
+}
+
+/** A singleton read's query, or none when it is skipped. */
+function singletonParams(query: unknown): RelationReadQuery | undefined {
+  return query === skipToken ? undefined : (query as RelationReadQuery | undefined)
+}
+
+/**
+ * Build a singleton's bound read-option factories, which address it with no id; `skipToken` in
+ * place of the query skips the read.
+ */
+function singletonQueryApi<D extends ApiDescriptor, A>(
   client: TypedClient<D, A>,
-  type: T,
-): SingletonQueryApi<D, A, T> {
-  const none = undefined as ResourceId<D, T>
+  type: TypeName<D>,
+): LooseSingletonQueryApi {
+  type Rel = RelationName<D, TypeName<D>>
   return {
-    get: (query) => getQueryOptions(client, type, none, query),
-    relationship<R extends RelationName<D, T>>(rel: R, query?: TypedRelationReadQuery<D, T, R>) {
-      return relationshipQueryOptions(client, type, none, rel, query)
-    },
-    related<R extends RelationName<D, T>>(rel: R, query?: TypedRelatedReadQuery<D, T, R>) {
-      return relatedQueryOptions(client, type, none, rel, query)
-    },
+    get: (query) => getOptions(client, type, singletonAt(query), singletonParams(query) as object),
+    relationship: (rel, query) =>
+      relationOptions(
+        client,
+        type,
+        'fetchRelationship',
+        singletonAt(query),
+        rel as Rel,
+        singletonParams(query),
+      ),
+    related: (rel, query) =>
+      relationOptions(
+        client,
+        type,
+        'fetchRelated',
+        singletonAt(query),
+        rel as Rel,
+        singletonParams(query),
+      ),
   }
 }

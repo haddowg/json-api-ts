@@ -21,7 +21,7 @@ to your framework's `useQuery` / `useMutation`.
 pnpm add @haddowg/json-api-query @tanstack/query-core
 ```
 
-`@tanstack/query-core` is a peer dependency.
+`@tanstack/query-core` (5.62 or later) is a peer dependency.
 
 ## Binding the client
 
@@ -68,6 +68,13 @@ const albums = await queryClient.fetchQuery(listOpts)
 
 The standalone factories are `listQueryOptions`, `getQueryOptions`, `relationshipQueryOptions`,
 `relatedQueryOptions`.
+
+Each key is tagged with the read's result, so `queryClient.getQueryData(getOpts.queryKey)` is
+typed, and the options' type declares a `retry` that types the query's `error` as
+`ReadError<ErrorCode>` without setting one, so your QueryClient's `retry` still applies. When you
+configure none, `installNormalization` installs `jsonApiRetry`, which doesn't retry a 4xx
+JSON:API error or a response that isn't a JSON:API document. An id (or a list's query) accepts
+`skipToken`.
 
 ## The query-key factory
 

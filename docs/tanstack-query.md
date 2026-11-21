@@ -8,7 +8,7 @@ The binding exposes **option factories, not pre-bound hooks**, over `@tanstack/q
 npm install @haddowg/json-api-query @tanstack/query-core
 ```
 
-`@tanstack/query-core` is a peer dependency (your framework adapter — `@tanstack/react-query` etc. — brings it in).
+`@tanstack/query-core` (5.62 or later) is a peer dependency (your framework adapter — `@tanstack/react-query` etc. — brings it in).
 
 ## Bind the client once
 
@@ -89,6 +89,60 @@ useQuery({
 
 Every read factory also passes TanStack's abort `signal` to the read. When a query's key changes, or its last observer goes away while a request is in flight, TanStack cancels the query and the request is aborted on the wire, so a search box leaves one request running rather than one per keystroke. The example above does the same with `{ signal }`. See [cancelling a read](reads.md#cancelling-a-read).
 
+### Typed cache reads
+
+Each factory's `queryKey` is tagged with the read's result and error types (TanStack's `DataTag`), so `getQueryData`, `setQueryData` and `getQueryState` are typed without a cast. The tag exists only in the types: the key is the plain tuple described under [deterministic query keys](#deterministic-query-keys).
+
+```ts
+const albumOptions = reads.albums.get(id, { include: ['artist'] })
+const cached = queryClient.getQueryData(albumOptions.queryKey) // the album view | undefined
+cached?.title
+
+queryClient.setQueryData(albumOptions.queryKey, (old) => old) // `old` is the album view too
+```
+
+### Typed errors and retries
+
+TanStack types a query's `error` from a typed callback in its options, so each factory's options type declares an optional `retry` typed with what a read rejects with: `ReadError<ErrorCode>`, which is `JsonApiError<ErrorCode> | StructuralGuardError | Error`, `ErrorCode` being the generated client's error-code union. The options never set `retry`, so the `retry` your QueryClient is configured with still applies.
+
+```ts
+import { hasErrorCode } from '../generated/music-catalog.gen'
+
+const albumQuery = useQuery(reads.albums.get(id))
+albumQuery.error // ReadError<ErrorCode> | null
+if (hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')) {
+  albumQuery.error.errors // JsonApiErrorObject<ErrorCode>[]
+}
+```
+
+See [errors.md](errors.md) for `hasErrorCode` and the other helpers.
+
+When you configure no `retry`, `installNormalization` sets `jsonApiRetry` as the QueryClient's `defaultOptions.queries.retry`, keeping your other defaults, and removes it again on teardown. It never retries a `JsonApiError` below 500 (a 4xx won't change on a retry) or a `StructuralGuardError` (a response that isn't a JSON:API document), and retries anything else, such as a 5xx or a network failure, up to three times, as TanStack does by default. Being a default, it applies to `fetchQuery` and `prefetchQuery` too, which TanStack otherwise runs without retries. A `retry` you configure yourself, such as `retry: false` above, is left as it is.
+
+If you build your QueryClient's defaults without `installNormalization`, set the policy yourself:
+
+```ts
+import { jsonApiRetry } from '@haddowg/json-api-query'
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: jsonApiRetry } } })
+```
+
+A `retry` you spread over a factory's options is used for that query, and its `error` falls back to TanStack's default `Error`.
+
+### Skipping a read with `skipToken`
+
+Pass TanStack's `skipToken` in place of the id, or of a list's whole query, to keep a read disabled until its input exists. The options' `queryFn` is then `skipToken`, which `useQuery` treats as `enabled: false` while keeping the result typed.
+
+```ts
+import { skipToken, useQuery } from '@tanstack/react-query'
+
+const albumQuery = useQuery(reads.albums.get(albumId ?? skipToken))
+const albumsQuery = useQuery(reads.albums.list(ready ? { include: ['artist'] } : skipToken))
+const artistQuery = useQuery(reads.albums.related(albumId ?? skipToken, 'artist'))
+```
+
+A singleton takes `skipToken` in place of its query (`reads.inboxes.get(skipToken)`). A skipped read's key carries the segment `'$skip'` where the id would go, `[type, operation, '$skip', rel?]`, with no params, so it is deterministic and never matches a list's or singleton's real reads. `useSuspenseQuery` doesn't accept `skipToken`, as TanStack documents.
+
 ## A basic mutation
 
 Mutation factories return a `MutationOptions` — the `mutationFn` plus the lifecycle callbacks the binding wires for cache upkeep. Spread it into `useMutation`; the variables mirror the client (`create()` takes the flat create input, `update()` the patch, and so on).
@@ -145,6 +199,8 @@ mutations.inboxes.update({ optimistic: true }) // mutate({ id: inbox.id, seenUpT
 The update's variables carry the resource's `id`, as the client's singleton update does, and an
 optimistic update patches the resource that id names. `singletonRelationReadKeys(type, rel)` gives
 a singleton relation's two read prefixes.
+
+A [skipped read](#skipping-a-read-with-skiptoken)'s key is `[type, operation, '$skip', rel?]`.
 
 You rarely build a key yourself — the factories embed the right key, and normalisation drives invalidation from mutations. The helpers (`keyFor`, `typeKey`, `operationKey`, `resourceKey`, `relationKey`, `relationReadKeys`, `normalizeParams`) are exported for the cases where you need a targeted invalidation of your own.
 
