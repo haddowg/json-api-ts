@@ -30,6 +30,7 @@ import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddow
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { peekStamp, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { scopeOf } from './keys'
+import { propagateRelationships, type ServerSlot } from './relationships'
 import { describeQuery, viewShape, type ViewShape, walkShaped } from './view-shape'
 
 /** A `type:id` cache key for a resource. */
@@ -288,13 +289,16 @@ type Fresh = Map<ResourceKey, Map<string, Candidate>>
 
 /**
  * What a cached node holds from the server: the stamp of the response it was materialised from,
- * and each attribute a normalisation has written onto it since, with that write's stamp. Kept per
- * node (each per-edge view and each canonical node), keyed by the materialised object behind it.
- * An optimistic patch writes no record, so a prediction is never mistaken for a server value.
+ * each attribute a normalisation has written onto it since, with that write's stamp, and each
+ * relation slot a read's linkage has replaced since (design A7 R3), with that read's stamp and
+ * linkage. Kept per node (each per-edge view and each canonical node), keyed by the materialised
+ * object behind it. An optimistic change writes no record, so a prediction is never mistaken for a
+ * server value.
  */
 interface NodeRecord {
   born: number
   written: Map<string, ServerValue>
+  slots: Map<string, ServerSlot>
 }
 
 const records = new WeakMap<object, NodeRecord>()
@@ -304,10 +308,33 @@ function recordOf(node: object): NodeRecord {
   const target = targetOf(node)
   let record = records.get(target)
   if (record === undefined) {
-    record = { born: UNKNOWN_STAMP, written: new Map() }
+    record = { born: UNKNOWN_STAMP, written: new Map(), slots: new Map() }
     records.set(target, record)
   }
   return record
+}
+
+/**
+ * The stamp of the response `node` was materialised from, or {@link UNKNOWN_STAMP} when none is
+ * recorded.
+ * @internal
+ */
+export const bornOf = (node: object): number => records.get(targetOf(node))?.born ?? UNKNOWN_STAMP
+
+/**
+ * The linkage a read last wrote into relation slot `rel` of `node`, with that read's stamp, when one
+ * has (design A7 R3).
+ * @internal
+ */
+export const writtenSlot = (node: object, rel: string): ServerSlot | undefined =>
+  records.get(targetOf(node))?.slots.get(rel)
+
+/**
+ * Record that relation slot `rel` of `node` holds the server linkage `slot` describes.
+ * @internal
+ */
+export function recordSlot(node: object, rel: string, slot: ServerSlot): void {
+  recordOf(node).slots.set(rel, slot)
 }
 
 /**
@@ -322,6 +349,7 @@ export function adoptRecord(view: object, source: object): void {
   records.set(targetOf(view), {
     born: record?.born ?? UNKNOWN_STAMP,
     written: new Map(record?.written),
+    slots: new Map(record?.slots),
   })
 }
 
@@ -329,7 +357,7 @@ export function adoptRecord(view: object, source: object): void {
 function recordBirth(node: object, stamp: number): void {
   const target = targetOf(node)
   if (!records.has(target)) {
-    records.set(target, { born: stamp, written: new Map() })
+    records.set(target, { born: stamp, written: new Map(), slots: new Map() })
   }
 }
 
@@ -792,7 +820,24 @@ export function normalize(
   descriptor: ApiDescriptor,
   scope?: string,
 ): void {
-  normalizeWith(queryClient, result, descriptor, scope, undefined)
+  normalizeRead(queryClient, result, descriptor, scope, undefined)
+}
+
+/**
+ * {@link normalize} for a read's result, `landed` being the query it landed in when known: the
+ * attributes are patched as for any response, and the relationships it carries are propagated to
+ * the other cached copies of their resources (design A7 R3, see ./relationships.ts), never
+ * invalidating `landed` itself.
+ * @internal
+ */
+export function normalizeRead(
+  queryClient: QueryClient,
+  result: unknown,
+  descriptor: ApiDescriptor,
+  scope: string | undefined,
+  landed: Query | undefined,
+): void {
+  run(queryClient, result, descriptor, scope, undefined, landed ?? null)
 }
 
 /**
@@ -807,15 +852,37 @@ export function normalizeWith(
   scope: string | undefined,
   wins: ReadonlySet<string> | undefined,
 ): void {
+  run(queryClient, result, descriptor, scope, wins, undefined)
+}
+
+/**
+ * Normalise `result`: patch its attributes everywhere, and, for a read (`read` is the query it
+ * landed in, `null` when unknown, `undefined` for a write's response), propagate its relationships.
+ */
+function run(
+  queryClient: QueryClient,
+  result: unknown,
+  descriptor: ApiDescriptor,
+  scope: string | undefined,
+  wins: ReadonlySet<string> | undefined,
+  read: Query | null | undefined,
+): void {
   // An infinite query's earlier pages are indexed again each time a page is added. Their nodes'
   // records carry any newer value written since, so indexing them again never spreads stale data.
   const fresh = collectIncoming(result, descriptor)
-  if (fresh.size === 0) {
+  const queries = queriesIn(queryClient, scope)
+  // Relationships first, so a member a slot gains is patched with the newest attributes below.
+  const relinked =
+    read === undefined
+      ? new Map<Query, Set<object>>()
+      : propagateRelationships(queryClient, result, descriptor, scope, queries, read ?? undefined)
+  if (fresh.size === 0 && relinked.size === 0) {
     return
   }
-  const queries = queriesIn(queryClient, scope)
-  raiseToNewest(queries, fresh, descriptor, wins)
-  patchAll(queryClient, scope, queries, fresh, descriptor)
+  if (fresh.size > 0) {
+    raiseToNewest(queries, fresh, descriptor, wins)
+  }
+  patchAll(queryClient, scope, queries, fresh, descriptor, relinked)
 }
 
 /**
@@ -844,8 +911,9 @@ export function queriesIn(queryClient: QueryClient, scope: string | undefined): 
 
 /**
  * Patch the cached `queries` with the newest server values in `fresh`. We republish only the
- * queries that {@link patchCached} actually mutated, under a new root (see {@link republish}), so
- * their observers notify. Untouched queries keep their data reference, and every query keeps its
+ * queries that {@link patchCached} actually mutated, or whose relation slots a read relinked
+ * (`relinked`, by query, the parts holding them), under a new root (see {@link republish}), so
+ * their observers notify once. Untouched queries keep their data reference, and every query keeps its
  * `isInvalidated` flag, so a patch never undoes the invalidation a create or delete made.
  */
 function patchAll(
@@ -854,6 +922,7 @@ function patchAll(
   queries: readonly Query[],
   fresh: Fresh,
   descriptor: ApiDescriptor,
+  relinked: ReadonlyMap<Query, ReadonlySet<object>>,
 ): void {
   for (const query of queries) {
     const data = query.state.data
@@ -862,7 +931,14 @@ function patchAll(
     }
     const shape = shapeOfQuery(query, descriptor)
     const at: PatchContext = { queryClient, scope, query }
-    const touched = partsOf(data).filter((part) => patchCached(part, fresh, descriptor, shape, at))
+    const slots = relinked.get(query)
+    const touched = partsOf(data).filter((part) => {
+      const patched = fresh.size > 0 && patchCached(part, fresh, descriptor, shape, at)
+      return (
+        patched ||
+        (typeof part === 'object' && part !== null && slots?.has(targetOf(part)) === true)
+      )
+    })
     if (touched.length > 0) {
       republish(query, touched)
     }
