@@ -102,11 +102,19 @@ export {
   createMutationApi,
   createMutationOptions,
   deleteMutationOptions,
+  type AttachTo,
+  type CreateMutationOpts,
+  type DeleteByIdVariables,
   type DeleteMutationArgs,
+  type DeleteMutationOpts,
   type HandleMutationApi,
+  jsonApiMutationOptions,
+  type JsonApiMutationConfig,
   type MutationApi,
+  type MutationError,
   type MutationMeta,
   type MutationMetaOption,
+  type MutationRetry,
   type MutationOptions,
   type RelationMutationApi,
   type RelationshipMutationOpts,
@@ -117,10 +125,15 @@ export {
   type TypeMutationApi,
   updateMutationOptions,
   type UpdateMutationOpts,
+  type UpdateByIdVariables,
   type UpdateVariables,
   type WriteMutationOpts,
 } from './mutate'
-export { JsonApiMutationCache } from './mutation-cache'
+export {
+  JsonApiMutationCache,
+  type JsonApiMutationCacheConfig,
+  type OptimisticDefaults,
+} from './mutation-cache'
 export { type ScopeOption, withScope } from './scope'
 export {
   applyOptimisticPatch,
@@ -168,8 +181,11 @@ export {
 } from './read'
 export {
   ATOMIC_MUTATION_KEY,
+  type AttachTarget,
+  CUSTOM_MUTATION_KEY,
   JSON_API_PLAN,
   type JsonApiAtomicPlan,
+  type JsonApiCustomPlan,
   type JsonApiMutationKey,
   type JsonApiMutationMeta,
   type JsonApiMutationPlan,
@@ -177,5 +193,8 @@ export {
   type JsonApiResourcePlan,
   type JsonApiResourceVerb,
   mutationKeyFor,
+  type MutationDraft,
+  type OptimisticFn,
+  type OptimisticOption,
   type MutationKeyTarget,
 } from './upkeep'
