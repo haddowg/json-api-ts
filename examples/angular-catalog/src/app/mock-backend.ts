@@ -32,7 +32,7 @@ const artists: Artist[] = [
   { id: '5', name: 'Boards of Canada' },
 ]
 
-const albums: Album[] = [
+const seedAlbums: Album[] = [
   { id: '1', title: 'OK Computer', releasedAt: '1997-05-21T00:00:00+00:00', artistId: '1' },
   { id: '2', title: 'Dummy', releasedAt: '1994-08-22T00:00:00+00:00', artistId: '2' },
   { id: '3', title: 'Kid A', releasedAt: '2000-10-02T00:00:00+00:00', artistId: '1' },
@@ -65,12 +65,21 @@ const albums: Album[] = [
 ]
 
 // The caller's account, which the server serves at /me, a singleton with no id in its path.
-const account = { id: '1', email: 'ada@example.com', displayName: 'Ada' }
+const seedAccount = { id: '1', email: 'ada@example.com', displayName: 'Ada' }
+
+// The working copies the interceptor reads and writes. Each new interceptor starts from the seed.
+const albums: Album[] = []
+const account = { ...seedAccount }
 
 const LATENCY_MS = 400
 const MEDIA_TYPE = 'application/vnd.api+json'
 
-export function mockBackendInterceptor(basePath: string): HttpInterceptorFn {
+export function mockBackendInterceptor(
+  basePath: string,
+  latencyMs = LATENCY_MS,
+): HttpInterceptorFn {
+  albums.splice(0, albums.length, ...structuredClone(seedAlbums))
+  Object.assign(account, seedAccount)
   return (req, next) => {
     // The client sends relative URLs for its own reads and absolute ones for page links.
     const url = new URL(req.urlWithParams, location.origin)
@@ -85,7 +94,7 @@ export function mockBackendInterceptor(basePath: string): HttpInterceptorFn {
         ? of(new HttpResponse({ status, body, headers, url: req.url }))
         : throwError(() => new HttpErrorResponse({ status, error: body, headers, url: req.url }))
     // Delay errors as well as values, so every request takes the same time.
-    return response.pipe(materialize(), delay(LATENCY_MS), dematerialize())
+    return response.pipe(materialize(), delay(latencyMs), dematerialize())
   }
 }
 
@@ -124,7 +133,9 @@ function handle(
       )
     }
     if (title !== undefined) {
-      album.title = title
+      // The server normalises what it stores, so the title it answers with can differ from the
+      // one sent.
+      album.title = title.trim().replace(/\s+/g, ' ')
     }
     return ok({ data: resource(album, base) })
   }
