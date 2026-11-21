@@ -36,8 +36,9 @@ needed. Add `?live` to the URL to talk to a real server instead: the dev server 
   previous page stays on screen (`placeholderData: keepPreviousData`) until the new one arrives.
 - `nextPage`/`prevPage` driving a page signal, and a detail query that stays idle (`skipToken`)
   until an album is picked.
-- `injectMutation` over `injectJsonApiWrites()` renaming an album with `update({ optimistic: true })`.
-  The new title shows at once in the list and the detail, the row is marked while the write is
+- `injectMutation` over `injectJsonApiWrites()` renaming an album with `update({ optimistic: true })`,
+  the album's id passed with the new title in `mutate({ id, title })`. The new title shows at once
+  in the list and the detail, the row is marked through `album.$optimistic` while the write is
   pending, a refused write rolls it back, and the 422 for a blank title is shown through the
   `jsonApiError` pipe. On success the server's title patches both in place, with no refetch.
 - The caller's account in the header (`src/app/account.ts`), a singleton the server serves at
