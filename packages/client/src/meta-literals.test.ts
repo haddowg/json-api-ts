@@ -107,6 +107,29 @@ const descriptor = {
   jobs: { attributes: {}, relations: {}, paths: {}, paginator: 'none', clientId: 'forbidden' },
 } as const satisfies ApiDescriptor
 
+// A server whose meta members are lists of listed values.
+const lists = {
+  bookings: {
+    attributes: { title: 'string' },
+    relations: {},
+    paths: { create: '/bookings', fetchOne: '/bookings/{id}' },
+    paginator: 'none',
+    clientId: 'forbidden',
+    requestMeta: {
+      create: { fields: { lanes: 'array' }, required: [], values: { lanes: ['fast', 'slow'] } },
+    },
+    resourceMeta: {
+      read: {
+        fields: { states: 'array' },
+        required: [],
+        nullable: ['states'],
+        additional: { format: 'array', values: [1, 2] },
+        values: { states: ['held', 'paid'] },
+      },
+    },
+  },
+} as const satisfies ApiDescriptor
+
 // The same server described without `values`, as an older codegen wrote it.
 const older = {
   bookings: {
@@ -231,6 +254,34 @@ describe('meta members limited to listed values', () => {
     const created = await client.bookings.create({ title: 'W' }, { meta: { source: 'api' } })
     if (isAccepted(created)) {
       expectTypeOf(created.meta?.lane).toEqualTypeOf<'fast' | 'slow' | null | undefined>()
+    }
+  })
+
+  it('types a list member as a list of the values its items list', async () => {
+    const transport = async (): Promise<TransportResponse> => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify({ data: { ...booking, meta: { states: ['paid'], other: [1] } } }),
+    })
+    const client = createClient<typeof lists, Attributes, WriteAttributes>(lists, {
+      baseUrl: BASE,
+      transport,
+    })
+    const read = await client.bookings.get('bk-1')
+    expect(read.$meta?.states).toEqual(['paid'])
+    expectTypeOf(read.$meta?.states).toEqualTypeOf<
+      readonly ('held' | 'paid')[] | null | undefined
+    >()
+    expectTypeOf(read.$meta?.['other']).toEqualTypeOf<
+      readonly (1 | 2)[] | readonly ('held' | 'paid')[] | null | undefined
+    >()
+    // oxlint-disable-next-line no-constant-condition -- type-level probes only, never run
+    if (false as boolean) {
+      void client.bookings.create({ title: 'W' }, { meta: { lanes: ['fast', 'slow'] } })
+      // @ts-expect-error -- each lane is fast or slow.
+      void client.bookings.create({ title: 'W' }, { meta: { lanes: ['medium'] } })
+      // @ts-expect-error -- lanes is a list.
+      void client.bookings.create({ title: 'W' }, { meta: { lanes: 'fast' } })
     }
   })
 

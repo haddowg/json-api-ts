@@ -1036,11 +1036,16 @@ type PivotValue<P, K> = P extends { fields: infer Fl }
     : never
   : never
 
-/** The literals a `values` entry lists, or hint `H`'s type when the entry lists none. */
+/**
+ * The literals a `values` entry lists, or hint `H`'s type when the entry lists none. A list, hinted
+ * `array`, lists the values of its items, so it is a list of those literals.
+ */
 type ListedValue<L, H> = L extends readonly (infer M)[]
   ? [M] extends [never]
     ? FormatToTs<H>
-    : M
+    : H extends 'array'
+      ? readonly M[]
+      : M
   : FormatToTs<H>
 
 /** The fields of a {@link PivotDescriptor}. */
