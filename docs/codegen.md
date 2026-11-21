@@ -143,6 +143,14 @@ A few things the codegen reads from the document that affect the generated clien
   such entry records what its `additionalProperties` opens it to as `additional`, the hint
   of an undeclared member's value, `unknown` for any. An identifier meta records
   `additional: false` when it is closed, and its `pivot` is read as the relation's pivot.
+- **Listed meta values.** A member of any of these meta objects, a pivot or an identifier
+  meta that lists its values through `enum` or `const`, directly, through a `$ref` to an
+  enum component or in each branch of a nullable `anyOf`, records them under the entry's
+  `values`, keyed by member, beside its hint. The client types that member as one of the
+  literals, plus `null` when it is nullable, so `{ source: 'nope' }` fails to compile where
+  the server lists `web`, `import` and `api`. An open object's undeclared members record
+  theirs on `additional.values`. A descriptor without `values` types each member by its
+  hint.
   See [sending meta with a write](writes.md#sending-meta-with-a-write).
 - **Single keys in `fields`.** A `fields[<type>]` parameter's items are the member enum,
   or an `anyOf` of that enum and one `pattern` per attribute whose single keys a fieldset
