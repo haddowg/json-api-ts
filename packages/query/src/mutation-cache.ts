@@ -26,6 +26,7 @@ import {
   swapTempId,
   targetIdOf,
   tempIdOf,
+  warnIfPlacedNowhere,
 } from './upkeep'
 
 /**
@@ -243,7 +244,12 @@ export class JsonApiMutationCache extends MutationCache {
             })
             entry.draft = draft
             try {
-              draft.batch(() => applyOptimistic(plan, variables, draft, hooks, createdId))
+              const builtIn = draft.batch(() =>
+                applyOptimistic(plan, variables, draft, hooks, createdId),
+              )
+              if (plan.verb === 'create' && builtIn && createdId !== undefined) {
+                warnIfPlacedNowhere(plan, queryClient, descriptor, draft, hooks, createdId)
+              }
             } finally {
               for (const key of lifecycleOf(draft as never).reconcileKeys()) {
                 add(entry.keys, key)

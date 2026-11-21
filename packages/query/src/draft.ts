@@ -20,8 +20,14 @@
  *   and the parent reports it through `$pending(rel)`.
  * - **Rollback** replays inverse operations in reverse, each compare-and-swap, so a value written
  *   since, by a response or another draft, is never discarded.
+ * - **Creates.** {@link OptimisticDraft.insert} completes the new row before trying each list: the
+ *   values the caller supplies for the attributes only the server sets, `null` for each such
+ *   attribute the descriptor says may be `null`, and each included relation resolved from the cache
+ *   by the input's ref. A list the completed row still doesn't fit, where `into` placed it, takes it
+ *   as a **pending entry** (`list.$pending()`) instead of a member.
  * - **Markers.** Every resource a draft touched reports `$optimistic === 'pending'` until the draft
- *   commits or rolls back, and a parent's `$count(rel)` moves by the members added and removed.
+ *   commits or rolls back, a parent's `$count(rel)` moves by the members added and removed, and a
+ *   list's total by the creates placed in it, as members or pending entries.
  *
  * Publishing: an operation edits the cached objects as it runs, and each query it touched is
  * published (its data set once, under a new root) when the operation returns, or, inside
@@ -35,12 +41,14 @@ import {
   type FilterQuery,
   identifierViewOf,
   type MaterialisedOverlay,
+  type PendingCreate,
+  type PendingMember,
+  type PendingPlacement,
   type RelatedQueryParam,
   type RelatedReadRelatedQuery,
   type RelationFilterQuery,
   type RelationName,
   type RelationSortQuery,
-  type ResourceIdentifier,
   setMaterialisedOverlay,
   type SortQuery,
   type TypeName,
@@ -55,6 +63,7 @@ import {
   type FieldClaim,
   fieldKey,
   isInfiniteValue,
+  lineageOf,
   partsOf,
   publishData,
   queriesIn,
@@ -286,13 +295,27 @@ export interface DraftOptions<D extends ApiDescriptor = ApiDescriptor> {
   markers?: boolean | undefined
 }
 
-/** The members a draft deferred for one relation of one parent: placed nowhere they fit yet. */
+/**
+ * The members a draft deferred for one relation of one parent: placed nowhere they fit yet. Each
+ * carries the member the caller supplied, under `member`, when it supplied more than an identifier.
+ */
 export interface DeferredMembers {
   readonly type: string
   /** The parent's id, `undefined` for a singleton addressed by type alone. */
   readonly id: string | undefined
   readonly rel: string
-  readonly members: readonly ResourceIdentifier[]
+  readonly members: readonly PendingMember[]
+}
+
+/** How {@link OptimisticDraft.insert} completes a new resource. */
+export interface InsertOptions {
+  /**
+   * Values for the read attributes the create's input lacks (those only the server sets, and
+   * optional ones it left out), filling the keys the input doesn't hold before the row is tried
+   * against each list. Each attribute the descriptor lists
+   * as server-only and nullable that is still missing completes to `null` on its own.
+   */
+  complete?: Readonly<Record<string, unknown>> | undefined
 }
 
 /**
@@ -361,12 +384,18 @@ export interface OptimisticDraft<D extends ApiDescriptor = ApiDescriptor, W = un
   /**
    * Insert a new resource into the cached lists of `type` that `into` places it in (never
    * automatically: whether it belongs in a filtered, sorted or paged list only the server knows).
-   * A list whose fieldset or includes the resource doesn't fill is left alone.
+   *
+   * The row is completed first: `options.complete`'s values, then `null` for each attribute the
+   * descriptor lists as server-only and nullable that is still missing, and each relation a list
+   * includes resolved from the cache by the ref the resource gives. A list the completed row fits
+   * takes it as a member; one it still doesn't fit takes it as a pending entry, reported by the
+   * list's `$pending()`. Either way the list's total moves by one.
    */
   insert<T extends TypeName<D>>(
     type: T,
     resource: CreateInput<D, W, T> & { readonly id: string },
     into?: InsertInto<D, T>,
+    options?: InsertOptions,
   ): void
   /**
    * Remove `type:id` from every list, related read, relationship read, to-many slot and infinite
@@ -404,7 +433,7 @@ interface Mark {
   readonly type: string
   readonly id: string | undefined
   /** Deferred members per relation, keyed by `type:id`. */
-  readonly pending: Map<string, Map<string, ResourceIdentifier>>
+  readonly pending: Map<string, Map<string, PendingMember>>
   /** The count adjustment per relation. */
   readonly counts: Map<string, number>
 }
@@ -414,7 +443,33 @@ const resourceMarks = new WeakMap<object, Set<Mark>>()
 /** The marks on each to-many array, with the relation each counts. */
 const arrayMarks = new WeakMap<object, Map<Mark, string>>()
 
-const NONE: readonly ResourceIdentifier[] = Object.freeze([])
+/**
+ * What one draft records about one list (or one page of an infinite list) it placed a create in:
+ * the creates pending there, by `type:id`, and how far the list's total moves.
+ */
+interface ListMark {
+  readonly entries: Map<string, PendingCreate>
+  readonly delta: number
+}
+
+/** The list marks on each collection array (keyed by the array behind any root). */
+const listMarks = new WeakMap<object, Set<ListMark>>()
+
+/** The list marks on `targets` and every array each was derived from. */
+function listMarksOf(targets: readonly object[]): Set<ListMark> {
+  const out = new Set<ListMark>()
+  for (const target of targets) {
+    for (const value of lineageOf(target)) {
+      for (const mark of listMarks.get(value) ?? []) {
+        out.add(mark)
+      }
+    }
+  }
+  return out
+}
+
+const NONE: readonly PendingMember[] = Object.freeze([])
+const NO_CREATES: readonly PendingCreate[] = Object.freeze([])
 
 function marksOf(targets: readonly object[]): Set<Mark> {
   const out = new Set<Mark>()
@@ -428,8 +483,24 @@ function marksOf(targets: readonly object[]): Set<Mark> {
 
 const overlay: MaterialisedOverlay = {
   optimistic: (targets) => (marksOf(targets).size > 0 ? 'pending' : undefined),
+  creates: (targets) => {
+    const found = new Map<string, PendingCreate>()
+    for (const mark of listMarksOf(targets)) {
+      for (const [key, entry] of mark.entries) {
+        found.set(key, entry)
+      }
+    }
+    return found.size === 0 ? NO_CREATES : [...found.values()]
+  },
+  total: (targets, raw) => {
+    let delta = 0
+    for (const mark of listMarksOf(targets)) {
+      delta += mark.delta
+    }
+    return Math.max(0, raw + delta)
+  },
   pending: (targets, name) => {
-    const found = new Map<string, ResourceIdentifier>()
+    const found = new Map<string, PendingMember>()
     for (const mark of marksOf(targets)) {
       for (const [key, member] of mark.pending.get(name) ?? []) {
         found.set(key, member)
@@ -472,6 +543,24 @@ interface Ref {
   readonly pivot: Readonly<Record<string, unknown>> | undefined
   /** What the caller passed, tried first when the member must fill a slot of resources. */
   readonly source: unknown
+}
+
+/** A resource a draft inserted: the input the caller gave, and the row completed from it. */
+interface Created {
+  readonly input: Readonly<Record<string, unknown>>
+  readonly completed: Readonly<Record<string, unknown>>
+}
+
+/** The identity keys a ref carries besides any member data (and every `$` accessor). */
+const IDENTITY_KEYS: ReadonlySet<string> = new Set(['type', 'id', 'lid', 'meta'])
+
+/** What a caller's ref carries beyond its identifier, as a deferred member's `member`, if any. */
+function memberData(source: unknown): Readonly<Record<string, unknown>> | undefined {
+  if (!isRecord(source)) {
+    return undefined
+  }
+  const carries = Object.keys(source).some((key) => !IDENTITY_KEYS.has(key) && !key.startsWith('$'))
+  return carries ? source : undefined
 }
 
 /** Where a member list or a to-one value lives: a query's data (or one page), or a node's slot. */
@@ -537,6 +626,8 @@ interface Candidate {
 interface Staged {
   data: unknown
   readonly nodes: Set<object>
+  /** Parts (a list, or an infinite query's page) whose accessors changed, to publish anew. */
+  readonly parts: Set<object>
 }
 
 const keyOf = (type: string, id: string | undefined): string => `${type}:${id ?? ''}`
@@ -570,6 +661,12 @@ function toRef(value: unknown): Ref | undefined {
     pivot: isRecord(pivot) ? pivot : undefined,
     source: value,
   }
+}
+
+/** A create's input as a pending entry carries it: without the `id`, which the entry carries. */
+function withoutId(resource: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  const { id: _id, ...input } = resource
+  return input
 }
 
 const toRefs = (values: readonly unknown[]): Ref[] =>
@@ -617,6 +714,10 @@ class Draft {
   private readonly undo: Undo[] = []
   private readonly marks = new Map<string, Mark>()
   private readonly registered: { query: Query; value: object; mark: Mark; array: boolean }[] = []
+  /** The list marks the draft registered, with the array each is on. */
+  private readonly listed: { query: Query; value: object; mark: ListMark }[] = []
+  /** The resources the draft inserted, by `type:id`. */
+  private readonly created = new Map<string, Created>()
   private readonly keys = new Map<string, QueryKey>()
   /** The keys of the queries only an attribute prediction touched. */
   private readonly patchedKeys = new Map<string, QueryKey>()
@@ -691,8 +792,13 @@ class Draft {
   private flush(): void {
     const staged = [...this.staged]
     this.staged.clear()
-    for (const [query, { data, nodes }] of staged) {
+    for (const [query, { data, nodes, parts }] of staged) {
       const changed = new Set<object>()
+      for (const part of partsOf(data)) {
+        if (typeof part === 'object' && part !== null && parts.has(targetOf(part))) {
+          changed.add(targetOf(part))
+        }
+      }
       if (nodes.size > 0) {
         for (const part of partsOf(data)) {
           if (typeof part !== 'object' || part === null) {
@@ -720,7 +826,7 @@ class Draft {
   private stageQuiet(query: Query): Staged {
     let entry = this.staged.get(query)
     if (entry === undefined) {
-      entry = { data: query.state.data, nodes: new Set() }
+      entry = { data: query.state.data, nodes: new Set(), parts: new Set() }
       this.staged.set(query, entry)
     }
     return entry
@@ -859,9 +965,31 @@ class Draft {
 
   private defer(type: string, id: string | undefined, rel: string, ref: Ref): void {
     const mark = this.markFor(type, id)
-    const members = mark.pending.get(rel) ?? new Map<string, ResourceIdentifier>()
-    members.set(keyOf(ref.type, ref.id), { type: ref.type, id: ref.id })
+    const members = mark.pending.get(rel) ?? new Map<string, PendingMember>()
+    const created = this.created.get(keyOf(ref.type, ref.id))
+    const member = created === undefined ? memberData(ref.source) : memberData(created.input)
+    members.set(keyOf(ref.type, ref.id), {
+      type: ref.type,
+      id: ref.id,
+      ...(member === undefined ? {} : { member }),
+    })
     mark.pending.set(rel, members)
+  }
+
+  /**
+   * Record a list mark on `value`, a list (or page) of `query`, staging the query so the list's
+   * `$pending()` and total republish.
+   */
+  private registerList(query: Query, value: object, mark: ListMark): void {
+    if (!this.markers) {
+      return
+    }
+    const target = targetOf(value)
+    const set = listMarks.get(target) ?? new Set<ListMark>()
+    set.add(mark)
+    listMarks.set(target, set)
+    this.listed.push({ query, value: target, mark })
+    this.stageQuiet(query).parts.add(target)
   }
 
   private adjustCount(type: string, id: string | undefined, rel: string, delta: number): void {
@@ -892,6 +1020,15 @@ class Draft {
     }
     this.registered.length = 0
     this.marks.clear()
+    for (const { query, value, mark } of this.listed) {
+      const set = listMarks.get(value)
+      set?.delete(mark)
+      if (set?.size === 0) {
+        listMarks.delete(value)
+      }
+      this.stageQuiet(query).parts.add(value)
+    }
+    this.listed.length = 0
   }
 
   // ── Members ──
@@ -907,9 +1044,12 @@ class Draft {
     if (shape.kind === 'identifiers') {
       return identifierViewOf(edge)
     }
+    const created = this.created.get(keyOf(ref.type, ref.id))
+    const source =
+      created === undefined ? ref.source : this.hydrate(ref.type, created.completed, shape)
     const found = resolveMember(this.queryClient, ref.type, ref.id, shape, this.descriptor, {
       scope: this.scope,
-      candidates: [ref.source],
+      candidates: [source],
     })
     if (typeof found !== 'object' || found === null) {
       return undefined
@@ -925,12 +1065,80 @@ class Draft {
     return view
   }
 
+  /**
+   * A created row as a destination of `shape` would hold it: each relation the shape includes,
+   * resolved from the cache by the ref the row gives (B1a), as a view keeping what the slot below
+   * selects. A ref no cached copy fits is left as it is, so the row doesn't fit.
+   */
+  private hydrate(
+    type: string,
+    row: Readonly<Record<string, unknown>>,
+    shape: ViewShape,
+  ): Readonly<Record<string, unknown>> {
+    if (shape.kind === 'identifiers') {
+      return row
+    }
+    const out: Record<string, unknown> = { ...row }
+    const rendered = shape.rendered.get(type)
+    for (const [rel, below] of shape.relations) {
+      if (rendered?.has(rel) !== true) {
+        continue
+      }
+      const value = row[rel]
+      if (Array.isArray(value)) {
+        const members = value.map((member) => this.resolveFor(member, below))
+        if (members.every((member) => member !== undefined)) {
+          out[rel] = members
+        }
+      } else if (isRecord(value)) {
+        const member = this.resolveFor(value, below)
+        if (member !== undefined) {
+          out[rel] = member
+        }
+      }
+    }
+    return out
+  }
+
+  /** A view of the copy of `ref` that fits `shape`: the ref itself when it does, else the cache's. */
+  private resolveFor(ref: unknown, shape: ViewShape): object | undefined {
+    const identity = identityOf(ref)
+    if (identity === undefined) {
+      return undefined
+    }
+    const found = resolveMember(
+      this.queryClient,
+      identity.type,
+      identity.id,
+      shape,
+      this.descriptor,
+      { scope: this.scope, candidates: [ref] },
+    )
+    if (typeof found !== 'object' || found === null) {
+      return undefined
+    }
+    if (shape.kind === 'identifiers') {
+      return identifierViewOf(identity)
+    }
+    const attributes = shape.attributes.get(identity.type)
+    const relations = shape.rendered.get(identity.type)
+    const view = edgeViewOf(
+      found,
+      identity,
+      (key) => attributes?.has(key) === true || relations?.has(key) === true,
+    )
+    adoptRecord(view, found)
+    return view
+  }
+
   /** What {@link Into} sees of `ref` entering a destination of `shape`. */
   private preview(ref: Ref, shape: ViewShape): { member: DraftMember; value: object | undefined } {
     const value = this.memberFor(ref, shape)
+    const created = this.created.get(keyOf(ref.type, ref.id))
+    const source = created === undefined ? ref.source : { ...created.completed, type: ref.type }
     const member = (value ??
-      (isRecord(ref.source)
-        ? ref.source
+      (isRecord(source)
+        ? source
         : { type: ref.type, id: ref.id, $pivot: ref.pivot })) as DraftMember
     return { member, value }
   }
@@ -1056,17 +1264,22 @@ class Draft {
   }
 
   /** Insert `member` at `at` in `view`, recording its inverse. */
-  private insertAt(view: ManyView, at: { list: number; index: number }, member: object): void {
+  private insertAt(
+    view: ManyView,
+    at: { list: number; index: number },
+    member: object,
+  ): object | undefined {
     const loc = view.locs[at.list]!
     const list = this.read(loc)
     if (!Array.isArray(list)) {
-      return
+      return undefined
     }
     const members = [...list]
     members.splice(at.index, 0, member)
     const produced = withMembers(list, members)
     this.write(loc, produced)
     this.undo.push({ kind: 'added', loc, produced, member })
+    return produced
   }
 
   /** Remove every member of `view` addressing one of `refs`; returns how many it removed. */
@@ -1433,13 +1646,17 @@ class Draft {
     return count
   }
 
-  insert(type: string, resource: unknown, into?: Into): void {
+  insert(type: string, resource: unknown, into?: Into, options: InsertOptions = {}): void {
     this.op(() => {
       const ref = toRef(isRecord(resource) ? { ...resource, type } : undefined)
       const place = into ?? this.into
-      if (ref === undefined) {
+      if (ref === undefined || !isRecord(resource)) {
         return
       }
+      this.created.set(keyOf(type, ref.id), {
+        input: resource,
+        completed: this.completeRow(type, resource, options.complete),
+      })
       for (const candidate of this.candidates()) {
         const { query, description } = candidate
         if (description.operation !== 'fetchMany' || description.type !== type) {
@@ -1464,14 +1681,54 @@ class Draft {
           continue
         }
         const { member, value } = this.preview(ref, shape)
-        const position = this.position(view, place(description as DraftQuery, member))
-        if (position === undefined || value === undefined) {
+        const placement = place(description as DraftQuery, member)
+        const position = this.position(view, placement)
+        if (position === undefined) {
           continue
         }
-        this.insertAt(view, position, value)
-        this.register(query, value, this.markFor(type, ref.id))
+        const entries = new Map<string, PendingCreate>()
+        if (value === undefined) {
+          // The completed row still doesn't fit: a pending entry where `into` placed it.
+          const at: PendingPlacement =
+            placement === 'start' || placement === 'end' ? placement : position.index
+          entries.set(keyOf(type, ref.id), { type, id: ref.id, at, input: withoutId(resource) })
+        } else {
+          this.insertAt(view, position, value)
+          this.register(query, value, this.markFor(type, ref.id))
+        }
+        // Every page of the list reports the moved total; the entry rides the page it's placed on.
+        view.locs.forEach((loc, page) => {
+          const list = this.read(loc)
+          if (Array.isArray(list)) {
+            this.registerList(query, list, {
+              entries: page === position.list ? entries : new Map(),
+              delta: 1,
+            })
+          }
+        })
       }
     })
+  }
+
+  /**
+   * `resource` completed for the lists it may enter: the input, then `complete`'s values for the
+   * keys the input lacks (an input value always wins), then `null` for each attribute the
+   * descriptor lists as server-only and nullable that is still missing.
+   */
+  private completeRow(
+    type: string,
+    resource: Readonly<Record<string, unknown>>,
+    complete: Readonly<Record<string, unknown>> | undefined,
+  ): Readonly<Record<string, unknown>> {
+    const out: Record<string, unknown> = { ...complete, ...resource, type, id: resource['id'] }
+    const spec = this.descriptor[type]
+    const nullable = new Set(spec?.nullable ?? [])
+    for (const attribute of spec?.serverOnly ?? []) {
+      if (nullable.has(attribute) && !Object.hasOwn(out, attribute)) {
+        out[attribute] = null
+      }
+    }
+    return out
   }
 
   evict(type: string, id: string): void {
@@ -1704,20 +1961,72 @@ class Draft {
       }
     })
     for (const draft of openDrafts.get(this.queryClient) ?? []) {
-      draft.renamePending(type, from, to)
+      draft.publishing(() => draft.renamePending(type, from, to))
     }
-    this.renamePending(type, from, to)
+    this.publishing(() => this.renamePending(type, from, to))
   }
 
-  /** Rename a deferred member `type:from` to `type:to`, wherever this draft deferred it. */
+  /** Run `fn` and publish what it staged, whether or not the draft is still open. */
+  private publishing(fn: () => void): void {
+    this.depth += 1
+    try {
+      fn()
+    } finally {
+      this.depth -= 1
+      if (this.depth === 0) {
+        this.flush()
+      }
+    }
+  }
+
+  /**
+   * Rename a deferred member or pending create `type:from` to `type:to`, wherever this draft
+   * recorded it.
+   */
   private renamePending(type: string, from: string, to: string): void {
+    const before = keyOf(type, from)
+    const after = keyOf(type, to)
     for (const mark of this.marks.values()) {
       for (const members of mark.pending.values()) {
-        if (members.delete(keyOf(type, from))) {
-          members.set(keyOf(type, to), { type, id: to })
+        const found = members.get(before)
+        if (found !== undefined) {
+          members.delete(before)
+          const member =
+            found.member !== undefined && found.member['id'] === from
+              ? { ...found.member, id: to }
+              : found.member
+          members.set(after, { type, id: to, ...(member === undefined ? {} : { member }) })
         }
       }
     }
+    for (const { query, value, mark } of this.listed) {
+      const entry = mark.entries.get(before)
+      if (entry !== undefined) {
+        mark.entries.delete(before)
+        mark.entries.set(after, { ...entry, id: to })
+        this.stageQuiet(query).parts.add(value)
+      }
+    }
+    const created = this.created.get(before)
+    if (created !== undefined) {
+      this.created.delete(before)
+      this.created.set(after, created)
+    }
+  }
+
+  shows(type: string, id: string): boolean {
+    const key = keyOf(type, id)
+    if (this.marks.has(key)) {
+      return true
+    }
+    for (const mark of this.marks.values()) {
+      for (const members of mark.pending.values()) {
+        if (members.has(key)) {
+          return true
+        }
+      }
+    }
+    return this.listed.some(({ mark }) => mark.entries.has(key))
   }
 
   /** Replay one inverse operation, compare-and-swap. */
@@ -1867,9 +2176,11 @@ export interface DraftLifecycle {
   reapply(query: Query): void
   /**
    * Rename `type:from` to `type:to` on every cached copy and in every open draft's deferred members
-   * (a temporary id swapped for the server's).
+   * and pending creates (a temporary id swapped for the server's).
    */
   swapId(type: string, from: string, to: string): void
+  /** Whether the draft shows `type:id` anywhere: a member, a deferred member or a pending create. */
+  shows(type: string, id: string): boolean
 }
 
 /**

@@ -19,8 +19,10 @@ import {
   type AtomicRecorder,
   type AtomicResult,
   type Client,
+  type CreateAttributesOf,
   type CreateInput,
   type CreateMethod,
+  type DefaultAttributes,
   type DeleteArgs,
   type DeleteResult,
   type DocumentMetaOperation,
@@ -30,6 +32,7 @@ import {
   type MetaOption,
   type OperationMeta,
   type OptionsArg,
+  type ReadAttributesOf,
   type ReadResult,
   type RelationName,
   type RequestMetaOf,
@@ -342,9 +345,87 @@ export type AttachTo<D extends ApiDescriptor> = {
   }[RelationName<D, P>]
 }[TypeName<D>]
 
+/** The read attributes of type `T` its create input can't supply: those only the server sets. */
+type ServerOnlyName<A, W, T> = Exclude<
+  keyof ReadAttributesOf<A, T>,
+  keyof CreateAttributesOf<W, T>
+> &
+  string
+
+/**
+ * The read attributes of type `T` (from the read-types map `A`, the generated `Attributes`) that
+ * its create input (from the write-types map `W`, the generated `WriteAttributes`) can't supply,
+ * each typed as the read type says: what an optimistic create's `complete` returns so the new row
+ * can show in a list promising every attribute. One whose read value may be `null` is optional,
+ * since it completes to `null` on its own. A loose `A` or `W` (no generated types) leaves it an
+ * open record.
+ */
+export type ServerOnly<A, W, T> = string extends keyof ReadAttributesOf<A, T>
+  ? Readonly<Record<string, unknown>>
+  : string extends keyof CreateAttributesOf<W, T>
+    ? Readonly<Record<string, unknown>>
+    : {
+        readonly [K in ServerOnlyName<A, W, T> as null extends ReadAttributesOf<A, T>[K]
+          ? never
+          : K]: ReadAttributesOf<A, T>[K]
+      } & {
+        readonly [K in ServerOnlyName<A, W, T> as null extends ReadAttributesOf<A, T>[K]
+          ? K
+          : never]?: ReadAttributesOf<A, T>[K]
+      }
+
+/** The create attributes of type `T` its input may leave out: optional in `CreateAttributesOf`. */
+type OptionalCreateName<W, T> = {
+  [K in keyof CreateAttributesOf<W, T>]-?: {} extends Pick<CreateAttributesOf<W, T>, K> ? K : never
+}[keyof CreateAttributesOf<W, T>]
+
+/** The create attributes of type `T` its input always holds. */
+type RequiredCreateName<W, T> = Exclude<keyof CreateAttributesOf<W, T>, OptionalCreateName<W, T>>
+
+/**
+ * What an optimistic create's `complete` returns for type `T`: the {@link ServerOnly} attributes,
+ * plus each create attribute the input may leave out that a read renders (one the server defaults,
+ * such as a `public` flag), optional and typed as the read type says. A create attribute the input
+ * always holds is refused, since the input's value always wins. A loose `A` or `W` leaves it an
+ * open record.
+ */
+export type CreateCompletion<A, W, T> = string extends keyof ReadAttributesOf<A, T>
+  ? Readonly<Record<string, unknown>>
+  : string extends keyof CreateAttributesOf<W, T>
+    ? Readonly<Record<string, unknown>>
+    : ServerOnly<A, W, T> & {
+        readonly [K in OptionalCreateName<W, T> & keyof ReadAttributesOf<A, T>]?: ReadAttributesOf<
+          A,
+          T
+        >[K]
+      } & { readonly [K in RequiredCreateName<W, T>]?: never }
+
+/**
+ * How a create is optimistic: `true`, a function, or `{ into, complete }`: where the new row goes,
+ * and the values of the attributes its input lacks, so it can show as a member of a list that
+ * promises them (`complete(input)`, typed {@link CreateCompletion}). A list the row still can't
+ * fill takes it as a pending entry (`list.$pending()`).
+ */
+export type CreateOptimisticOption<D extends ApiDescriptor, A, W, T extends TypeName<D>> =
+  | boolean
+  | OptimisticFn<D, W, CreateInput<D, W, T>>
+  | {
+      /** Where the new row goes in each cached list of the type; with none, it goes in no list. */
+      readonly into?: InsertInto<D, T> | undefined
+      /**
+       * The attributes the row's read type promises that the create's input lacks, for the input:
+       * each attribute only the server sets, such as a placeholder slug derived from the title,
+       * and any optional create attribute the input left out, such as `input.public ?? false`. A
+       * server-only attribute whose read value may be `null` is optional here, and completes to
+       * `null` when left out; a value the input holds always wins over the one returned here.
+       */
+      readonly complete?: ((input: CreateInput<D, W, T>) => CreateCompletion<A, W, T>) | undefined
+    }
+
 /**
  * The options a create mutation takes: the write's own, plus how it is optimistic, the parent it
- * attaches to, and the id generator for a type that takes client ids.
+ * attaches to, and the id generator for a type that takes client ids. `A` is the read-types map,
+ * which types `optimistic.complete`.
  */
 export type CreateMutationOpts<
   D extends ApiDescriptor,
@@ -358,14 +439,17 @@ export type CreateMutationOpts<
     T,
     'create'
   >[],
+  A = DefaultAttributes<D>,
 > = WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt, CreateInput<D, W, T>> & {
   /**
    * Insert the new resource before the write: into no list unless `into` places it, and into
    * `attachTo`'s relation. It carries the id the client generated (a type taking client ids), sent
-   * with the create, or a temporary id swapped for the server's on success. `true`, a function, or
-   * `{ into }`; `false` overrides the mutation cache's default.
+   * with the create, or a temporary id swapped for the server's on success. The row is completed
+   * first (`complete`'s values, and `null` for each nullable attribute only the server sets); a list
+   * it still can't fill takes it as a pending entry. `true`, a function, or `{ into, complete }`;
+   * `false` overrides the mutation cache's default.
    */
-  optimistic?: OptimisticOption<D, W, CreateInput<D, W, T>, InsertInto<D, T>> | undefined
+  optimistic?: CreateOptimisticOption<D, A, W, T> | undefined
   attachTo?: AttachTo<D> | undefined
   /** The id an optimistic create generates for a type taking client ids. `crypto.randomUUID()` by default. */
   clientId?: (() => string) | undefined
@@ -415,7 +499,7 @@ export function createMutationOptions<
   type: T,
   ...[opts]: OptionsArg<
     RequiresRequestMeta<RequestMetaOf<D, T, 'create'>>,
-    CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt>
+    CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt, A>
   >
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
@@ -423,7 +507,7 @@ export function createMutationOptions<
   MutationError<C>
 > {
   const accessor = writesOf(client, type)
-  const options = (opts ?? {}) as CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt>
+  const options = (opts ?? {}) as CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt, A>
   return planned(
     resourcePlan(
       'create',
@@ -993,7 +1077,7 @@ export interface TypeMutationApi<
   >(
     ...opts: OptionsArg<
       RequiresRequestMeta<RequestMetaOf<D, T, 'create'>>,
-      CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt>
+      CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt, A>
     >
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,

@@ -48,7 +48,9 @@
  *
  * Every optimistic change goes through an optimistic draft (`openDraft`): a typed transaction over
  * the normalised cache that places members only where they fit, marks what it touched
- * (`$optimistic`, `$pending(rel)`, an adjusted `$count`), and rolls back compare-and-swap.
+ * (`$optimistic`, `$pending(rel)`, an adjusted `$count`), and rolls back compare-and-swap. An
+ * optimistic create is completed for the lists it targets, and kept as a pending entry
+ * (`list.$pending()`, merged in place by `withPending`) where it still can't fit.
  */
 export {
   type DeferredMembers,
@@ -58,6 +60,7 @@ export {
   type DraftQuery,
   type DraftRef,
   type InsertInto,
+  type InsertOptions,
   type Into,
   type ListDraftQuery,
   openDraft,
@@ -104,6 +107,8 @@ export {
   deleteMutationOptions,
   type AttachTo,
   type CreateMutationOpts,
+  type CreateCompletion,
+  type CreateOptimisticOption,
   type DeleteByIdVariables,
   type DeleteMutationArgs,
   type DeleteMutationOpts,
@@ -119,6 +124,7 @@ export {
   type RelationMutationApi,
   type RelationshipMutationOpts,
   removeRelationshipMutationOptions,
+  type ServerOnly,
   replaceRelationshipMutationOptions,
   setRelationshipMutationOptions,
   type SingletonMutationApi,
@@ -135,6 +141,7 @@ export {
   type OptimisticDefaults,
 } from './mutation-cache'
 export { type ScopeOption, withScope } from './scope'
+export { type PendingCreateOf, type PendingList, type PendingPages, withPending } from './pending'
 export {
   applyOptimisticPatch,
   type MembershipRef,
