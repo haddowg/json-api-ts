@@ -17,7 +17,17 @@
       "releaseInfo": {
         "label": "Parlophone",
         "catalogueNumber": "NODATA 01"
-      }
+      },
+      "credits": {
+        "producer": "Nigel Godrich"
+      },
+      "editions": [
+        {
+          "format": "CD",
+          "year": 1997,
+          "label": "Parlophone"
+        }
+      ]
     },
     "relationships": {
       "artist": {
