@@ -16,7 +16,7 @@
     "@haddowg/json-api-client": "workspace:^",
     "@haddowg/json-api-mcp": "workspace:^",
     "@haddowg/json-api-query": "workspace:^",
-    "@tanstack/query-core": "^5.0.0",
+    "@tanstack/query-core": "^5.108.2",
     "ajv": "^8.20.0",
     "rxjs": "^7.8.0"
   }

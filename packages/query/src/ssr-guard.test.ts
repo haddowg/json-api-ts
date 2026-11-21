@@ -181,7 +181,9 @@ describe('hydration check for a streamed pending read', () => {
       ...(JSON.parse(JSON.stringify(dehydrated)) as typeof dehydrated),
       queries: dehydrated.queries.map((q) => ({
         ...(JSON.parse(JSON.stringify(q)) as typeof q),
-        promise: q.promise?.then((data) => JSON.parse(JSON.stringify(data)) as unknown),
+        ...(q.promise === undefined
+          ? {}
+          : { promise: q.promise.then((data) => JSON.parse(JSON.stringify(data)) as unknown) }),
       })),
     }
 

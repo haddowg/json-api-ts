@@ -66,6 +66,7 @@
     "@angular/core": "^21.0.0",
     "@angular/platform-browser": "^21.0.0",
     "jsdom": "^25.0.0",
-    "rxjs": "^7.8.0"
+    "rxjs": "^7.8.0",
+    "@tanstack/angular-query": "^5.108.1"
   }
 }
