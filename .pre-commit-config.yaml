@@ -12,8 +12,8 @@ repos:
         types_or: [ts, tsx, javascript, jsx, json, yaml, markdown]
         # Mirror the committable entries of .oxfmtrc.json `ignorePatterns`: oxfmt
         # exits non-zero ("Expected at least one target file") if every path it is
-        # handed is ignored, which would fail any commit touching only the lockfile
-        # or the docs. Keep the two
+        # handed is ignored, which would fail any commit touching only the lockfile,
+        # the docs or a changelog. Keep the two
         # in sync. docs/ is excluded because MkDocs Material's admonition/collapsible
         # syntax (indented content under `!!!`/`???` markers) is not CommonMark, and
         # oxfmt de-indents it — corrupting the rendered site. mkdocs --strict guards
@@ -23,7 +23,8 @@ repos:
             docs/|
             pnpm-lock\.yaml$|
             .*\.gen\.ts$|
-            .*\.gen\.json$
+            .*\.gen\.json$|
+            (.*/)?CHANGELOG\.md$
           )
 
       - id: oxlint
