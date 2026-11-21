@@ -198,6 +198,32 @@ export function materialise(
   primaryType?: string,
   paginatorOverride?: ResolvedPaginator | PaginatorKind,
 ): unknown {
+  const value = materialiseDocument(doc, ctx, linkage, primaryType, paginatorOverride)
+  if (typeof value === 'object' && value !== null) {
+    MATERIALISED.add(value)
+  }
+  return value
+}
+
+const MATERIALISED = new WeakSet<object>()
+
+/**
+ * Whether `value` is a top-level result `materialise` built: a resource, a collection or a linkage
+ * value, including the pages `$next()` and `$prev()` re-materialise. A plain copy of one, such as
+ * data that went through `JSON.stringify` on a server and back, has lost its `$`-accessors and
+ * answers `false`, which is how a hydrated cache entry is told from a fresh read.
+ */
+export function isMaterialised(value: unknown): value is object {
+  return typeof value === 'object' && value !== null && MATERIALISED.has(value)
+}
+
+function materialiseDocument(
+  doc: Document,
+  ctx: MaterialiseContext,
+  linkage: boolean,
+  primaryType: string | undefined,
+  paginatorOverride: ResolvedPaginator | PaginatorKind | undefined,
+): unknown {
   // Always-on light structural guards: prove the envelope invariant the runtime relies on (a
   // JSON:API document; each data/included member carries type+id). Then, only when configured,
   // run the opt-in per-field validation over each wire resource by its type.

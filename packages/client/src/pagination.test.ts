@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createClient } from './client'
 import type { ApiDescriptor } from './descriptor'
 import { type PageParams, resolvePaginator, type TypedPage } from './pagination'
+import { isMaterialised } from './materialise'
 import type { Client, ListPageParams, RelationPageParams } from './result-types'
 import type { TransportRequest, TransportResponse } from './transport'
 
@@ -144,6 +145,12 @@ describe('paginated reads', () => {
     const next = await menus.$next()
     expect(next?.$page.kind).toBe('cursor')
     expect(next?.$page.arm).toBe('stream')
+  })
+
+  it('brands the page $next() re-materialises as materialised', async () => {
+    const pages = await client().pages.list()
+    expect(isMaterialised(pages)).toBe(true)
+    expect(isMaterialised(await pages.$next())).toBe(true)
   })
 
   it("resolves a related read's menu pick from the relation's paginator", async () => {
