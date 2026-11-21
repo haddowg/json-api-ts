@@ -16,6 +16,7 @@ import { isMaterialisedData, normalize, stampHydrated } from './normalize'
 import { jsonApiRetry } from './read'
 import type { ScopeOption } from './scope'
 import { planOf } from './upkeep'
+import { reapplyDrafts } from './draft'
 
 const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
   'fetchMany',
@@ -233,13 +234,17 @@ export function installNormalization(
 
   let normalizing = false
 
-  const run = (data: unknown): void => {
+  const run = (data: unknown, landed?: Query): void => {
     if (normalizing || data === undefined || data === null) {
       return
     }
     normalizing = true
     try {
       normalize(queryClient, data, descriptor, scope)
+      // A read replaced the query's data: what open drafts predict shows there too (A7 R2).
+      if (landed !== undefined) {
+        reapplyDrafts(queryClient, scope, landed)
+      }
     } finally {
       normalizing = false
     }
@@ -297,18 +302,19 @@ export function installNormalization(
         return
       }
       // Patch on a settled success — the query's data is the freshest copy of its resources.
-      run(query.state.data)
+      run(query.state.data, query)
     }
   })
 
   const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
-    // A write that returns a resource (create/update) carries the freshest attributes; index +
-    // patch them. A mutation that resolves nothing (a `204` delete) has no data — `run` no-ops.
-    // A JSON:API mutation is normalised by its scope's install; any other by the unscoped one.
+    // An app's own mutation that resolves materialised data carries the freshest attributes; index
+    // + patch them, from the unscoped install. A JSON:API mutation (one carrying a plan) is
+    // normalised by its mutation cache, which knows which of its values win.
     if (
+      scope === undefined &&
       event.type === 'updated' &&
       event.action.type === 'success' &&
-      planOf(event.mutation.options.meta)?.scope === scope
+      planOf(event.mutation.options.meta) === undefined
     ) {
       run(event.mutation.state.data)
     }

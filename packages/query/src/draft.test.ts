@@ -801,11 +801,12 @@ describe('rollback is compare-and-swap', () => {
       first.detach('albums', '1', 'tracks', [ref('t1')])
     })
 
-    // A read lands: the server renamed the album (it knows nothing of the pending write), and its
-    // year, still 1997, replaces the prediction too.
+    // A read lands: the server renamed the album (it knows nothing of the pending write). The
+    // predictions keep showing while the draft is open, and the server values are recorded.
     albums['1']!.title = 'Server'
     await queryClient.fetchQuery(getQueryOptions(client, 'albums', '1', { include: ['artist'] }))
-    expect((dataOf(queryClient, get) as Row)['year']).toBe(1997)
+    expect((dataOf(queryClient, get) as Row)['year']).toBe(1998)
+    expect((dataOf(queryClient, get) as Row)['title']).toBe('Predicted')
     // A second draft adds its own member and predicts its own year.
     const second = openDraft(queryClient, descriptor)
     second.batch(() => {
