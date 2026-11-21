@@ -65,6 +65,12 @@ importers:
       '@haddowg/json-api-client':
         specifier: workspace:^
         version: link:../../packages/client
+      '@haddowg/json-api-query':
+        specifier: workspace:^
+        version: link:../../packages/query
+      '@tanstack/angular-query':
+        specifier: ^5.108.1
+        version: 5.108.2(@angular-devkit/schematics@21.2.27(chokidar@5.0.0))(@angular/common@21.2.25(@angular/core@21.2.25(@angular/compiler@21.2.25)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.25(@angular/compiler@21.2.25)(rxjs@7.8.2))(@schematics/angular@21.2.27(chokidar@5.0.0))(typescript@5.9.3)
       rxjs:
         specifier: ^7.8.0
         version: 7.8.2
