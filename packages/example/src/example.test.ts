@@ -15,7 +15,8 @@
  *   3. write — create / update / delete, mutate a relationship;
  *   4. call a custom action;
  *   5. run an atomic batch with a cross-op `lid` reference;
- *   6. bind it to TanStack Query (option factories + write-through normalization);
+ *   6. bind it to TanStack Query (option factories + write-through normalization), and page a
+ *      list as an infinite query;
  *   7. opt into per-field validation with ajv.
  *
  * It also reads and updates the caller's account, a singleton served at `/me` with no id, and
@@ -32,7 +33,7 @@ import {
 } from '@haddowg/json-api-client'
 import { createAjvValidator } from '@haddowg/json-api-client/ajv'
 import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
-import { QueryClient } from '@tanstack/query-core'
+import { InfiniteQueryObserver, QueryClient } from '@tanstack/query-core'
 import Ajv2020 from 'ajv/dist/2020'
 import { describe, expect, it } from 'vitest'
 // The generated artifacts — exactly what `json-api-codegen --input … --output … --schemas …`
@@ -86,6 +87,13 @@ function mockTransport(routes: Record<string, string | object>): {
 // A small resource-body helper for write responses (create/update echo the resource back).
 const album = (id: string, attributes: Record<string, unknown>) => ({
   data: { type: 'albums', id, attributes },
+})
+
+// A released album's resource object, as a collection page carries it.
+const albumObject = (id: string, title: string) => ({
+  type: 'albums',
+  id,
+  attributes: { title, status: 'released' },
 })
 
 describe('reads', () => {
@@ -610,6 +618,58 @@ describe('TanStack Query bindings', () => {
     expect(cachedList[0]!.title).toBe('Fresh title')
     expect(cachedGet.title).toBe('Fresh title')
 
+    teardown()
+  })
+})
+
+describe('infinite queries', () => {
+  it('reads a list page by page from its links, and patches a cached page on update', async () => {
+    const { transport, requests } = mockTransport({
+      // The first page names the next one in its `next` link...
+      [`${BASE}/albums?page[size]=1`]: {
+        data: [albumObject('1', 'OK Computer')],
+        links: { next: `${BASE}/albums?page%5Bnumber%5D=2&page%5Bsize%5D=1` },
+      },
+      // ...and the last page has none.
+      [`${BASE}/albums?page[number]=2&page[size]=1`]: {
+        data: [albumObject('2', 'Kid A')],
+        links: { prev: `${BASE}/albums?page%5Bnumber%5D=1&page%5Bsize%5D=1` },
+      },
+      [`PATCH ${BASE}/albums/2`]: album('2', { title: 'Kid A Mnesia', status: 'released' }),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const teardown = installNormalization(qc, resourceMap)
+    const reads = createQueryApi(client)
+
+    // `reads.<type>.infinite(query)` returns options for `useInfiniteQuery` (or, here,
+    // `fetchInfiniteQuery`). The first page is the query's own `page`; the key is the list's key
+    // plus '$infinite'.
+    const options = reads.albums.infinite({ page: { size: 1 } })
+    expect(options.queryKey).toEqual(['albums', 'fetchMany', { page: { size: 1 } }, '$infinite'])
+    const first = await qc.fetchInfiniteQuery(options)
+    expect(first.pages[0]![0]!.title).toBe('OK Computer')
+
+    // The next page's params come from the page's `next` link, which `fetchNextPage` reads.
+    const observer = new InfiniteQueryObserver(qc, options)
+    expect(observer.getCurrentResult().hasNextPage).toBe(true)
+    const result = await observer.fetchNextPage()
+    expect(result.data?.pages.map((page) => page.map((a) => a.title))).toEqual([
+      ['OK Computer'],
+      ['Kid A'],
+    ])
+    expect(result.hasNextPage).toBe(false)
+    expect(requests[1]!.url).toBe(`${BASE}/albums?page[number]=2&page[size]=1`)
+
+    // An update patches the album on whichever cached page holds it, as for any other read.
+    const writes = createMutationApi(qc, client, resourceMap)
+    await qc
+      .getMutationCache()
+      .build(qc, writes.albums.id('2').update() as never)
+      .execute({ title: 'Kid A Mnesia' })
+    expect(qc.getQueryData(options.queryKey)?.pages[1]![0]!.title).toBe('Kid A Mnesia')
+
+    observer.destroy()
     teardown()
   })
 })
