@@ -1,0 +1,171 @@
+import {
+  type ApiDescriptor,
+  createClient,
+  isMaterialised,
+  type TransportRequest,
+  type TransportResponse,
+} from '@haddowg/json-api-client'
+import {
+  defaultShouldDehydrateQuery,
+  dehydrate,
+  hydrate,
+  QueryClient,
+  QueryObserver,
+} from '@tanstack/query-core'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { installNormalization, jsonApiShouldDehydrateQuery } from './install'
+import { listQueryOptions } from './read'
+
+const descriptor = {
+  albums: {
+    attributes: { title: 'string' },
+    relations: {},
+    paths: { fetchMany: '/albums', fetchOne: '/albums/{id}' },
+    paginator: 'page',
+    clientId: 'forbidden',
+  },
+} as const satisfies ApiDescriptor
+
+const album = (id: string, title: string) => ({ type: 'albums', id, attributes: { title } })
+
+function makeClient(title = 'A') {
+  const transport = async (req: TransportRequest): Promise<TransportResponse> => {
+    const path = new URL(req.url).pathname
+    if (req.method === 'GET' && path === '/albums') {
+      return { status: 200, headers: {}, body: JSON.stringify({ data: [album('1', title)] }) }
+    }
+    return { status: 404, headers: {}, body: JSON.stringify({ errors: [{ status: '404' }] }) }
+  }
+  return createClient(descriptor, { baseUrl: 'https://music.example', transport })
+}
+
+const previous = (q: { queryKey: readonly unknown[] }) => q.queryKey[0] !== 'hidden'
+
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+/** A server-side client that has fetched a binding read and a non-binding query. */
+async function serverWithData() {
+  const client = makeClient()
+  const server = new QueryClient()
+  installNormalization(server, descriptor)
+  await server.fetchQuery(listQueryOptions(client, 'albums'))
+  await server.fetchQuery({ queryKey: ['other'], queryFn: () => 'x' })
+  return { client, server }
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('server side', () => {
+  it('dehydrates non-binding queries only', async () => {
+    const { server } = await serverWithData()
+    expect(dehydrate(server).queries.map((q) => q.queryKey)).toEqual([['other']])
+  })
+
+  it('honours a previously configured default and restores it on teardown', async () => {
+    const client = makeClient()
+    const server = new QueryClient()
+    server.setDefaultOptions({
+      queries: { staleTime: 5 },
+      dehydrate: { shouldDehydrateQuery: previous, shouldRedactErrors: () => false },
+    })
+    const teardown = installNormalization(server, descriptor)
+    await server.fetchQuery(listQueryOptions(client, 'albums'))
+    await server.fetchQuery({ queryKey: ['other'], queryFn: () => 'x' })
+    await server.fetchQuery({ queryKey: ['hidden'], queryFn: () => 'y' })
+
+    expect(dehydrate(server).queries.map((q) => q.queryKey)).toEqual([['other']])
+    expect(server.getDefaultOptions().queries?.staleTime).toBe(5)
+    expect(server.getDefaultOptions().dehydrate?.shouldRedactErrors).toBeDefined()
+
+    teardown()
+    expect(server.getDefaultOptions().dehydrate?.shouldDehydrateQuery).toBe(previous)
+  })
+
+  it('removes its default on teardown when none was set', () => {
+    const qc = new QueryClient()
+    const teardown = installNormalization(qc, descriptor)
+    expect(qc.getDefaultOptions().dehydrate?.shouldDehydrateQuery).toBeDefined()
+    teardown()
+    expect(qc.getDefaultOptions().dehydrate?.shouldDehydrateQuery).toBeUndefined()
+  })
+})
+
+describe('jsonApiShouldDehydrateQuery', () => {
+  it('excludes binding queries and otherwise calls next', async () => {
+    const { server } = await serverWithData()
+    const next = vi.fn(() => true)
+    const predicate = jsonApiShouldDehydrateQuery(next)
+    const binding = server.getQueryCache().find({ queryKey: ['albums', 'fetchMany'] })
+    const other = server.getQueryCache().find({ queryKey: ['other'] })
+    expect(binding && predicate(binding)).toBe(false)
+    expect(next).not.toHaveBeenCalled()
+    expect(other && predicate(other)).toBe(true)
+    expect(next).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults next to defaultShouldDehydrateQuery', async () => {
+    const { server } = await serverWithData()
+    const pending = server.getQueryCache().build(server, { queryKey: ['p'] as readonly unknown[] })
+    expect(jsonApiShouldDehydrateQuery()(pending)).toBe(defaultShouldDehydrateQuery(pending))
+  })
+})
+
+describe('hydration check', () => {
+  it('refetches a hydrated binding query with one warning, and leaves others alone', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { server } = await serverWithData()
+    const wire = JSON.parse(
+      JSON.stringify(dehydrate(server, { shouldDehydrateQuery: () => true })),
+    ) as ReturnType<typeof dehydrate>
+
+    const browser = new QueryClient()
+    installNormalization(browser, descriptor)
+    const options = listQueryOptions(makeClient(), 'albums')
+    hydrate(browser, wire)
+
+    // Without the guard a hydrated entry with staleTime: Infinity would never refetch.
+    const observer = new QueryObserver(browser, { ...options, staleTime: Infinity })
+    const unsubscribe = observer.subscribe(() => {})
+    await flush()
+    await flush()
+
+    expect(isMaterialised(browser.getQueryData(options.queryKey))).toBe(true)
+    expect(observer.getCurrentResult().data?.$page.kind).toBe('page')
+    unsubscribe()
+
+    expect(browser.getQueryData(['other'])).toBe('x')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('albums')
+    expect(String(warn.mock.calls[0]?.[0])).toContain('not supported')
+  })
+
+  it('never resets a materialised read, including after a patch republishes it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const qc = new QueryClient()
+    installNormalization(qc, descriptor)
+    const options = listQueryOptions(makeClient(), 'albums')
+    await qc.fetchQuery(options)
+    const reset = vi.spyOn(qc, 'resetQueries')
+
+    // A second read of the same resource with a new title patches the first and republishes it.
+    await qc.fetchQuery(listQueryOptions(makeClient('B'), 'albums', { page: { number: 2 } }))
+    await flush()
+    const data = qc.getQueryData(options.queryKey)
+    expect((data as { title: string }[])[0]?.title).toBe('B')
+    expect(isMaterialised(data)).toBe(false)
+
+    // The republished root still reads as materialised when a query is added holding it.
+    const state = qc.getQueryCache().find({ queryKey: options.queryKey })?.state
+    qc.getQueryCache().build(
+      qc,
+      { queryKey: ['albums', 'fetchMany', { again: 'x' }] as readonly unknown[] },
+      state,
+    )
+    await flush()
+
+    expect(reset).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+  })
+})
