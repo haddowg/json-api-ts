@@ -4,8 +4,10 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { QueryClient } from '@tanstack/query-core'
+import { QueryClient, type QueryClientConfig } from '@tanstack/query-core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import { installNormalization } from './install'
+import { JsonApiMutationCache } from './mutation-cache'
 import { singletonRelationReadKeys } from './keys'
 import {
   createMutationApi,
@@ -73,15 +75,27 @@ function makeClient(respond: (req: TransportRequest) => unknown = () => ({ data:
   return { client, requests }
 }
 
-function runMutation<TData, TVars, TContext>(
+function runMutation<TData, TVars>(
   qc: QueryClient,
-  options: MutationOptions<TData, TVars, TContext>,
+  options: MutationOptions<TData, TVars>,
   variables: TVars,
 ): Promise<TData> {
   return qc
     .getMutationCache()
-    .build<TData, unknown, TVars, TContext>(qc, options as never)
+    .build<TData, unknown, TVars, unknown>(qc, options as never)
     .execute(variables)
+}
+
+/**
+ * A QueryClient as an app builds one for mutations: with the JsonApiMutationCache and the
+ * descriptor installed.
+ */
+function jsonApiQueryClient(
+  config: QueryClientConfig = { defaultOptions: { queries: { staleTime: Infinity } } },
+): QueryClient {
+  const qc = new QueryClient({ ...config, mutationCache: new JsonApiMutationCache() })
+  installNormalization(qc, descriptor)
+  return qc
 }
 
 describe('singleton query options', () => {
@@ -123,7 +137,7 @@ describe('singleton query options', () => {
         ? { data: { ...inbox, attributes: { seenUpTo: '2026-11-16T09:30:00+00:00', unread: 0 } } }
         : { data: inbox },
     )
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = jsonApiQueryClient()
     const get = getQueryOptions(client, 'inboxes', undefined)
     await qc.fetchQuery(get)
     const update = createMutationApi(qc, client, descriptor).inboxes.update()
@@ -151,7 +165,7 @@ describe('singleton query options', () => {
       baseUrl: BASE,
       transport,
     })
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = jsonApiQueryClient()
     const get = getQueryOptions(client, 'inboxes', undefined)
     await qc.fetchQuery(get)
     const options = updateMutationOptions(qc, client, descriptor, 'inboxes', undefined, {
@@ -172,7 +186,7 @@ describe('singleton query options', () => {
         ? { data: { type: 'people', id: 'per-2' } }
         : { data: inbox },
     )
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = jsonApiQueryClient()
     const get = getQueryOptions(client, 'inboxes', undefined)
     const related = relatedQueryOptions(client, 'inboxes', undefined, 'owner')
     await qc.fetchQuery(get)

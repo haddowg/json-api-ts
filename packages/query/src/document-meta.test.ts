@@ -4,9 +4,11 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { QueryClient } from '@tanstack/query-core'
+import { QueryClient, type QueryClientConfig } from '@tanstack/query-core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { createMutationApi } from './mutate'
+import { installNormalization } from './install'
+import { JsonApiMutationCache } from './mutation-cache'
+import { createMutationApi, type MutationOptions } from './mutate'
 import { createQueryApi } from './read'
 
 const BASE = 'https://api.example'
@@ -59,6 +61,18 @@ function makeClient(routes: Record<string, unknown>) {
   return { client: createClient(descriptor, { baseUrl: BASE, transport }), requests }
 }
 
+/**
+ * A QueryClient as an app builds one for mutations: with the JsonApiMutationCache and the
+ * descriptor installed.
+ */
+function jsonApiQueryClient(
+  config: QueryClientConfig = { defaultOptions: { queries: { staleTime: Infinity } } },
+): QueryClient {
+  const qc = new QueryClient({ ...config, mutationCache: new JsonApiMutationCache() })
+  installNormalization(qc, descriptor)
+  return qc
+}
+
 describe('typed document meta through the query bindings', () => {
   it('carries the declared meta beside the page on a collection and a related read', async () => {
     const { client } = makeClient({
@@ -86,12 +100,17 @@ describe('typed document meta through the query bindings', () => {
       'PATCH /notices/n-1': { data: notice, meta: { etag: 'W/"8"' } },
       'DELETE /notices/n-1': { meta: { archived: 1 } },
     })
-    const qc = new QueryClient()
+    const qc = jsonApiQueryClient()
     const mutations = createMutationApi(qc, client, descriptor)
-    const updated = await mutations.notices.id('n-1').update().mutationFn({ message: 'Bye' })
+    const run = <TData, TVars>(options: MutationOptions<TData, TVars>, variables: TVars) =>
+      qc
+        .getMutationCache()
+        .build<TData, unknown, TVars, unknown>(qc, options as never)
+        .execute(variables)
+    const updated = await run(mutations.notices.id('n-1').update(), { message: 'Bye' })
     expect(updated.$document.meta.etag).toBe('W/"8"')
     expectTypeOf(updated.$document.meta.etag).toEqualTypeOf<string>()
-    const deleted = await mutations.notices.id('n-1').delete().mutationFn()
+    const deleted = await run(mutations.notices.id('n-1').delete(), undefined)
     expect(deleted).toEqual({ archived: 1 })
     expectTypeOf(deleted.archived).toEqualTypeOf<number>()
   })

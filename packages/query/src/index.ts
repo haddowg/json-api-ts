@@ -23,10 +23,14 @@
  * give each typed client/server its own QueryClient.
  *
  * Shipped (Build 3): the mutation OPTION factories over the client write surface — create /
- * update / delete, the relationship mutations (add/remove/replace/set), each standalone
+ * update / delete, the relationship mutations (add/remove/replace/set) and atomic, each standalone
  * (`updateMutationOptions(queryClient, client, descriptor, type, id)`) or bound
- * (`createMutationApi(queryClient, client, descriptor).<type>.id(id).update()`). They wire the
- * PATCH-vs-INVALIDATE split: an update / relationship set/replace patches via
+ * (`createMutationApi(queryClient, client, descriptor).<type>.id(id).update()`). Each returns
+ * `{ mutationKey, mutationFn, meta }`: the key is `[type, verb, id?, rel?]` (`mutationKeyFor`), and
+ * `meta.jsonApi` holds a plain-data plan of the write's cache upkeep, which `JsonApiMutationCache`
+ * (the QueryClient's mutation cache) runs from its awaited hooks. The factories set no lifecycle
+ * callbacks, so an app's own `onMutate`/`onSuccess`/`onError`/`onSettled` never replace the upkeep.
+ * The upkeep follows the PATCH-vs-INVALIDATE split: an update / relationship set/replace patches via
  * `normalize` on success (no refetch); a create / delete invalidates the type's collection lists
  * (+ the deleted resource's reads); a relationship add/remove/set/replace invalidates only the
  * PARENT's relation reads for that `(id, rel)` — never the type's collection lists. Optimistic
@@ -42,8 +46,21 @@
  * id, rel)` (both `(parent, relation)` prefixes) lets an app target those caches without
  * reconstructing keys by hand.
  */
-export * from './install'
+export { installNormalization, jsonApiShouldDehydrateQuery, type Teardown } from './install'
 export * from './keys'
 export * from './mutate'
+export { JsonApiMutationCache } from './mutation-cache'
 export * from './normalize'
 export * from './read'
+export {
+  ATOMIC_MUTATION_KEY,
+  JSON_API_PLAN,
+  type JsonApiAtomicPlan,
+  type JsonApiMutationMeta,
+  type JsonApiMutationPlan,
+  type JsonApiMutationVerb,
+  type JsonApiResourcePlan,
+  type JsonApiResourceVerb,
+  mutationKeyFor,
+  type MutationKeyTarget,
+} from './upkeep'

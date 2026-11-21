@@ -8,20 +8,29 @@ The binding exposes **option factories, not pre-bound hooks**, over `@tanstack/q
 npm install @haddowg/json-api-query @tanstack/query-core
 ```
 
-`@tanstack/query-core` (5.62 or later) is a peer dependency (your framework adapter — `@tanstack/react-query` etc. — brings it in).
+`@tanstack/query-core` (5.89 or later) is a peer dependency (your framework adapter — `@tanstack/react-query` etc. — brings it in).
 
 ## Bind the client once
 
-Two bound APIs sit over the generated client, built once at bootstrap. `createQueryApi` gives you per-type read factories; `createMutationApi` gives you the write factories (it needs the `QueryClient` and the generated `resourceMap` descriptor for cache patching).
+Two bound APIs sit over the generated client, built once at bootstrap. `createQueryApi` gives you per-type read factories; `createMutationApi` gives you the write factories.
+
+The `QueryClient` is built with a `JsonApiMutationCache`, which runs every write's cache upkeep, and the generated `resourceMap` descriptor is installed on it with `installNormalization`:
 
 ```ts
-import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
+import {
+  createMutationApi,
+  createQueryApi,
+  installNormalization,
+  JsonApiMutationCache,
+} from '@haddowg/json-api-query'
 import { QueryClient } from '@tanstack/react-query'
 import { createClient, resourceMap } from '../generated/music-catalog.gen'
 
 export const client = createClient({ baseUrl: 'https://music.example' })
 
 export const queryClient = new QueryClient({
+  // Runs each mutation's normalisation, invalidation and optimistic rollback.
+  mutationCache: new JsonApiMutationCache(),
   defaultOptions: { queries: { staleTime: 30_000, retry: false } },
 })
 
@@ -229,7 +238,7 @@ expect(qc.getQueryData(options.queryKey)?.pages[1]![0]!.title).toBe('Kid A Mnesi
 
 ## A basic mutation
 
-Mutation factories return a `MutationOptions` — the `mutationFn` plus the lifecycle callbacks the binding wires for cache upkeep. Spread it into `useMutation`; the variables mirror the client (`create()` takes the flat create input, `update()` the patch, and so on).
+Mutation factories return a `MutationOptions`: a `mutationKey`, the `mutationFn`, and a `meta` describing the write's cache upkeep. Pass it to `useMutation` (or Angular's `injectMutation`); the variables mirror the client (`create()` takes the flat create input, `update()` the patch, and so on).
 
 ```ts
 import { useMutation } from '@tanstack/react-query'
@@ -252,7 +261,83 @@ const add = useMutation(writes.bookings.id(id).rel('rooms').add({ meta: (refs) =
 
 The resource object's `meta` rides the create or update input as `$meta`.
 
-You never write cache upkeep by hand: the binding invalidates and patches for you (next section). See [writes.md](writes.md) for the create/update/delete surface, and [relationship-mutation.md](relationship-mutation.md) for `add`/`remove`/`replace`/`set`.
+You never write cache upkeep by hand: the binding invalidates and patches for you ([the split](#the-patch-vs-invalidate-split) says what each verb does). See [writes.md](writes.md) for the create/update/delete surface, and [relationship-mutation.md](relationship-mutation.md) for `add`/`remove`/`replace`/`set`.
+
+### Your own callbacks
+
+The options carry no lifecycle callbacks, so spread them and add your own:
+
+```ts
+const rename = useMutation({
+  ...writes.playlists.id(id).update({ optimistic: true }),
+  onSuccess: () => toast('Renamed'),
+  onError: (error) => toast(`Rename failed: ${String(error)}`),
+  onSettled: () => closeDialog(),
+})
+```
+
+Your `onMutate`, `onSuccess`, `onError` and `onSettled` replace nothing: the upkeep still normalises, invalidates and rolls back. They run after it, against a cache that's already reconciled, and your `onMutate`'s result is the mutation's context, as TanStack always passes it.
+
+### How the upkeep runs
+
+Each factory describes its upkeep as plain data in `meta.jsonApi`: the verb, type, id, relation, and whether it's optimistic.
+
+```ts
+writes.albums.id('1').update({ optimistic: true }).meta
+// { jsonApi: { verb: 'update', type: 'albums', id: '1', optimistic: true } }
+```
+
+`JsonApiMutationCache` reads that plan from its own `onMutate`, `onError`, `onSuccess` and `onSettled` hooks, which TanStack awaits before the mutation's callbacks of the same name. `onMutate` applies the optimistic change, `onError` rolls it back, `onSuccess` normalises the result, and `onSettled` invalidates and returns the promise, so the mutation stays pending until the refetches it starts have finished. A mutation whose `meta` carries no plan, such as one of your own, is left alone.
+
+To add a `meta` of your own, merge it with the factory's rather than replacing it:
+
+```ts
+useMutation({ ...options, meta: { ...options.meta, analytics: 'rename' } })
+```
+
+`JsonApiMutationCache` takes TanStack's `MutationCache` config, and runs each hook you give it after the upkeep of the same name, for every mutation:
+
+```ts
+new QueryClient({
+  mutationCache: new JsonApiMutationCache({ onError: (error) => reportError(error) }),
+})
+```
+
+### When the upkeep can't run
+
+A JSON:API mutation refuses to run where its upkeep would be skipped, rather than leaving the cache stale. Before it sends anything, it throws an `Error` naming the fix when:
+
+- the `QueryClient`'s mutation cache isn't a `JsonApiMutationCache`;
+- no descriptor is installed on the `QueryClient` with `installNormalization`;
+- its `meta` was replaced, so the plan is gone.
+
+### Mutation keys
+
+Every mutation is keyed `[type, verb, id?, rel?]`, the id left out for a create and for a singleton, as a singleton's read keys leave it out. An atomic batch is keyed `['$atomic']` (`ATOMIC_MUTATION_KEY`). `mutationKeyFor` builds a key, and TanStack's mutation filters match by prefix, so a key can address every write on a type, every update of it, or one resource's:
+
+```ts
+import { useIsMutating, useMutationState } from '@tanstack/react-query'
+import { mutationKeyFor } from '@haddowg/json-api-query'
+
+useIsMutating({ mutationKey: ['albums'] }) // any write on albums
+useIsMutating({ mutationKey: mutationKeyFor({ type: 'albums', verb: 'update', id }) }) // this album's updates
+useMutationState({
+  filters: { mutationKey: mutationKeyFor({ type: 'playlists', verb: 'add', id, rel: 'orderedTracks' }), status: 'pending' },
+  select: (mutation) => mutation.state.variables,
+})
+```
+
+A key only ever grows by trailing segments, so a filter you write keeps matching.
+
+??? note "Migrating from callbacks on the options"
+    The factories used to carry the upkeep in their own `onSuccess`, `onSettled`, `onMutate` and `onError`, which a spread callback silently replaced. Now it runs in the mutation cache, so the one change is how the `QueryClient` is built:
+
+    ```ts
+    const queryClient = new QueryClient({ mutationCache: new JsonApiMutationCache() })
+    installNormalization(queryClient, resourceMap)
+    ```
+
+    A mutation on a `QueryClient` built without it throws. The factories' `queryClient` argument is no longer used, since the upkeep runs on the `QueryClient` the mutation runs on; it stays for now so existing calls compile. The options no longer carry callbacks, so code that called `options.onMutate` or `options.onSuccess` directly runs the mutation through a `QueryClient` instead.
 
 ## Deterministic query keys
 
@@ -310,19 +395,28 @@ Each query a patch touches is then published again under a new root reference, a
 
 ### The patch-vs-invalidate split
 
-Not every write is a node patch. The binding splits by what the write changes:
+Not every write is a node patch. A write whose response carries a resource or linkage **patches** it into the cache via `normalize` on success, with no refetch; a write that may change what a list or relation holds **invalidates** the reads it affects on settle, success or error, so they refetch (a patch can't insert or remove a member). Each verb does:
 
-- an **update** (or a relationship `set` / `replace`) only changes a node's attributes / linkage → on success it **patches** via `normalize`, no refetch;
-- a **create** / **delete** (or a relationship `add` / `remove`) changes collection membership → on settle it **invalidates** the relevant list / relationship subtrees so they refetch (a patch can't insert or remove a member).
+| Verb | On success | On settle |
+| --- | --- | --- |
+| `create()` | patches the new resource (not an `Accepted` job) | invalidates the type's lists |
+| `update()` | patches the resource (not an `Accepted` job) | nothing |
+| `delete()` | nothing | invalidates the type's lists and the resource's own reads |
+| relationship `set()` / `replace()` | patches the returned linkage | invalidates the parent's reads of the relation, and the parent itself |
+| relationship `add()` / `remove()` | nothing | invalidates the parent's reads of the relation, and the parent itself |
+| `atomic()` | patches every result | nothing |
 
-Concretely: `create()` invalidates the type's lists; `delete()` invalidates the type's lists plus that resource's own reads; a relationship mutation invalidates the parent's relation reads (never the type's collection lists — a relationship change never alters which resources a collection holds).
+A relationship write never invalidates the type's collection lists: it never alters which resources a collection holds. The parent itself is invalidated because a read that `include`s the relation embeds its now-stale members.
 
 ### Tested: reads via factories, write-through on update
 
 This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `TanStack Query bindings` group). It seeds a list and a single-get, then updates the album — both cached reads reflect the fresh title **without a refetch**, because the update patched them by `type:id`:
 
 ```ts
-const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+const qc = new QueryClient({
+  mutationCache: new JsonApiMutationCache(),
+  defaultOptions: { queries: { staleTime: Infinity } },
+})
 const teardown = installNormalization(qc, resourceMap)
 
 const reads = createQueryApi(client)
@@ -348,7 +442,7 @@ teardown()
 ```
 
 ??? note "Going deeper: explicit normalisation without install"
-    Prefer explicit control over the auto-subscription? Skip `installNormalization` and call `normalize(queryClient, result, resourceMap)` yourself from an option factory's `onSuccess` — the mutation factories already do this internally on the patch path. It runs the identical write-through patch. The install path is a convenience that subscribes once to the query and mutation caches (guarded against re-entrancy so a patch pass doesn't cascade into a loop).
+    For reads alone, you can skip `installNormalization` and call `normalize(queryClient, result, resourceMap)` yourself from a query's success path. It runs the identical write-through patch. The install path is a convenience that subscribes once to the query and mutation caches (guarded against re-entrancy so a patch pass doesn't cascade into a loop). The mutation factories need it: their upkeep reads the installed descriptor, and a mutation on a `QueryClient` without one throws.
 
 ## Optimistic updates
 
@@ -365,7 +459,7 @@ const remove = useMutation(relTracks.remove({ optimistic: true }))
 const reorder = useMutation(relTracks.replace({ optimistic: true }))
 ```
 
-Under the hood: `onMutate` pre-applies the expected change through the normalised patch (an update's attribute keys; a relationship verb's membership transform across every cached page of the `(parent, relation)` read, matched by key prefix) and snapshots the touched queries; `onError` restores the snapshot; `onSettled` invalidates so the server reconciles (a degraded optimistic member — a bare identifier — is replaced by the fully-hydrated one on the refetch). Because the forward patch preserves per-edge `$pivot` / `$edge`, an optimistic add of a hydrated member renders a rich row immediately.
+Under the hood, in `JsonApiMutationCache`: `onMutate` pre-applies the expected change through the normalised patch (an update's attribute keys; a relationship verb's membership transform across every cached page of the `(parent, relation)` read, matched by key prefix) and snapshots the touched queries; `onError` restores the snapshot, before your own `onError` runs; `onSettled` invalidates so the server reconciles (a degraded optimistic member — a bare identifier — is replaced by the fully-hydrated one on the refetch). Because the forward patch preserves per-edge `$pivot` / `$edge`, an optimistic add of a hydrated member renders a rich row immediately.
 
 The example app's playlist detail page wires all four of these — rename, add track, remove track, reorder — see [PlaylistDetailPage.tsx](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) and its optimistic helpers in [playlist-tracks.ts](../examples/spotify-clone/src/api/playlist-tracks.ts).
 
@@ -399,7 +493,7 @@ The cost is a refetch in the browser, so the first render can differ from the se
 
 The spotify-clone wires the whole binding end to end over a mock transport:
 
-- [client.ts](../examples/spotify-clone/src/api/client.ts) — `installNormalization` + `createQueryApi` / `createMutationApi` at bootstrap;
+- [client.ts](../examples/spotify-clone/src/api/client.ts) — the `QueryClient` with `JsonApiMutationCache`, `installNormalization`, and `createQueryApi` / `createMutationApi` at bootstrap;
 - [main.tsx](../examples/spotify-clone/src/main.tsx) — the `QueryClientProvider` around the app;
 - [AlbumDetailPage.tsx](../examples/spotify-clone/src/pages/AlbumDetailPage.tsx) — a read with `include`;
 - [PlaylistDetailPage.tsx](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) — optimistic update + relationship mutations.

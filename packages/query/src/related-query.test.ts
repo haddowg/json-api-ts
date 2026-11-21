@@ -4,8 +4,10 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { QueryClient } from '@tanstack/query-core'
+import { QueryClient, type QueryClientConfig } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
+import { installNormalization } from './install'
+import { JsonApiMutationCache } from './mutation-cache'
 import { keyFor } from './keys'
 import { createMutationOptions, type MutationOptions, updateMutationOptions } from './mutate'
 import { createQueryApi, relatedQueryOptions, relationshipQueryOptions } from './read'
@@ -63,15 +65,27 @@ function makeClient(body: unknown) {
   return { client: createClient(descriptor, { baseUrl: BASE, transport }), requests }
 }
 
-function runMutation<TData, TVars, TContext>(
+function runMutation<TData, TVars>(
   qc: QueryClient,
-  options: MutationOptions<TData, TVars, TContext>,
+  options: MutationOptions<TData, TVars>,
   variables: TVars,
 ): Promise<TData> {
   return qc
     .getMutationCache()
-    .build<TData, unknown, TVars, TContext>(qc, options as never)
+    .build<TData, unknown, TVars, unknown>(qc, options as never)
     .execute(variables)
+}
+
+/**
+ * A QueryClient as an app builds one for mutations: with the JsonApiMutationCache and the
+ * descriptor installed.
+ */
+function jsonApiQueryClient(
+  config: QueryClientConfig = { defaultOptions: { queries: { staleTime: Infinity } } },
+): QueryClient {
+  const qc = new QueryClient({ ...config, mutationCache: new JsonApiMutationCache() })
+  installNormalization(qc, descriptor)
+  return qc
 }
 
 describe('relatedQuery through the query options', () => {
@@ -104,7 +118,7 @@ describe('relatedQuery through the query options', () => {
 
   it('passes it through the create and update mutations', async () => {
     const { client, requests } = makeClient({ data: album })
-    const qc = new QueryClient()
+    const qc = jsonApiQueryClient()
     await runMutation(
       qc,
       createMutationOptions(qc, client, descriptor, 'albums', {

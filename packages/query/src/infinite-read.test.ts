@@ -13,10 +13,13 @@ import {
   type InfiniteQueryObserverOptions,
   matchQuery,
   QueryClient,
+  type QueryClientConfig,
   type SkipToken,
   skipToken,
 } from '@tanstack/query-core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import { installNormalization } from './install'
+import { JsonApiMutationCache } from './mutation-cache'
 import { INFINITE_SEGMENT, keyHasPrefix, operationKey, parentRelationReadKeys } from './keys'
 import {
   addRelationshipMutationOptions,
@@ -171,14 +174,14 @@ function inferred<TQueryFnData, TError, TQueryKey extends readonly unknown[], TP
   return options as never
 }
 
-function runMutation<TData, TVars, TContext>(
+function runMutation<TData, TVars>(
   qc: QueryClient,
-  options: MutationOptions<TData, TVars, TContext>,
+  options: MutationOptions<TData, TVars>,
   variables: TVars,
 ): Promise<TData> {
   return qc
     .getMutationCache()
-    .build<TData, unknown, TVars, TContext>(qc, options as never)
+    .build<TData, unknown, TVars, unknown>(qc, options as never)
     .execute(variables)
 }
 
@@ -194,6 +197,18 @@ async function settle(observer: {
       }
     })
   })
+}
+
+/**
+ * A QueryClient as an app builds one for mutations: with the JsonApiMutationCache and the
+ * descriptor installed.
+ */
+function jsonApiQueryClient(
+  config: QueryClientConfig = { defaultOptions: { queries: { staleTime: Infinity } } },
+): QueryClient {
+  const qc = new QueryClient({ ...config, mutationCache: new JsonApiMutationCache() })
+  installNormalization(qc, descriptor)
+  return qc
 }
 
 describe('infiniteListQueryOptions', () => {
@@ -400,7 +415,7 @@ describe('infinite keys and invalidation', () => {
 
   it('are invalidated by a create and a delete of the type', async () => {
     const { client } = makeClient()
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = jsonApiQueryClient()
     const options = infiniteListQueryOptions(client, 'albums')
     await qc.fetchInfiniteQuery(options)
 
@@ -417,7 +432,7 @@ describe('infinite keys and invalidation', () => {
 
   it("are invalidated by a write to the parent's relationship", async () => {
     const { client } = makeClient()
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = jsonApiQueryClient()
     const options = infiniteRelatedQueryOptions(client, 'albums', '1', 'tracks')
     await qc.fetchInfiniteQuery(options)
     await runMutation(qc, addRelationshipMutationOptions(qc, client, 'albums', '1', 'tracks'), [

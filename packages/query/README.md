@@ -21,7 +21,7 @@ to your framework's `useQuery` / `useMutation`.
 pnpm add @haddowg/json-api-query @tanstack/query-core
 ```
 
-`@tanstack/query-core` (5.62 or later) is a peer dependency.
+`@tanstack/query-core` (5.89 or later) is a peer dependency.
 
 ## Binding the client
 
@@ -126,14 +126,15 @@ root reference over the same value, so components observing it re-render. The re
 `structuralSharing: false`, since structural sharing would rebuild a refetched value as plain arrays
 and objects without its `$page`, `$next()` or `$self`; set it on any query you build yourself.
 
-`installNormalization` auto-runs the patch on every successful query/mutation:
+`installNormalization` auto-runs the patch on every successful query/mutation. Build the
+QueryClient with a `JsonApiMutationCache`, which runs each write's cache upkeep:
 
 ```ts
-import { installNormalization } from '@haddowg/json-api-query'
+import { installNormalization, JsonApiMutationCache } from '@haddowg/json-api-query'
 import { resourceMap } from './api/music.gen'
 import { QueryClient } from '@tanstack/query-core'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({ mutationCache: new JsonApiMutationCache() })
 const teardown = installNormalization(queryClient, resourceMap)
 // … later: teardown() removes the subscriptions.
 ```
@@ -142,19 +143,24 @@ const teardown = installNormalization(queryClient, resourceMap)
 > sharing a QueryClient would cross-contaminate attributes. Installing a _different_ descriptor on
 > the same QueryClient throws. Give each typed client/server its own QueryClient.
 
-Prefer explicit control? Skip the install and call `normalize(queryClient, result, resourceMap)`
-from an option factory's `onSuccess` — same write-through patch.
+For reads alone you can skip the install and call `normalize(queryClient, result, resourceMap)`
+yourself — the same write-through patch. The mutation factories need the descriptor installed.
 
 ## Writes — mutation option factories
 
-Each returns a `MutationOptions` (`mutationFn` + the lifecycle callbacks the binding wires for
-normalization / invalidation / optimism), structurally compatible with query-core. The
+Each returns a `MutationOptions` — `{ mutationKey, mutationFn, meta }` — structurally compatible
+with query-core. `meta.jsonApi` is a plain-data plan of the write's cache upkeep, which
+`JsonApiMutationCache` runs from its awaited hooks, before the mutation's own callbacks. The
+options carry no callbacks, so spread them and add your own `onMutate` / `onSuccess` / `onError` /
+`onSettled` freely: they run after the upkeep and never replace it. A mutation on a QueryClient
+without `JsonApiMutationCache`, or without an installed descriptor, throws before it writes. The
 **patch-vs-invalidate split**:
 
-- an **update** (or a relationship `set` / `replace`) only changes a node's attributes/linkage →
-  on success it patches via `normalize` (no refetch);
-- a **create** / **delete** changes collection membership → on settle it invalidates the relevant
-  list / relationship subtrees so they refetch.
+- an **update** patches the resource via `normalize` on success (no refetch);
+- a **create** patches the new resource on success and invalidates the type's lists on settle; a
+  **delete** invalidates the type's lists and the resource's own reads;
+- a relationship **set** / **replace** patches the returned linkage on success, and every
+  relationship write invalidates the parent's reads of the relation, and the parent, on settle.
 
 ```ts
 import { createMutationApi } from '@haddowg/json-api-query'
@@ -174,6 +180,16 @@ const deleteOpts = writes.albums.id('1').delete()
 // Relationship mutations — invalidate the parent's relation reads (never the type's lists).
 const addOpts = writes.albums.id('1').rel('tracks').add()
 const setOpts = writes.albums.id('1').rel('artist').set()
+```
+
+Every mutation is keyed `[type, verb, id?, rel?]` (`['$atomic']` for a batch), built by
+`mutationKeyFor`, so mutation filters find writes by prefix:
+
+```ts
+import { mutationKeyFor } from '@haddowg/json-api-query'
+
+queryClient.isMutating({ mutationKey: ['albums'] }) // any write on albums
+queryClient.isMutating({ mutationKey: mutationKeyFor({ type: 'albums', verb: 'update', id: '1' }) })
 ```
 
 The variables a mutation takes mirror the client: `create()` takes the flat create input,

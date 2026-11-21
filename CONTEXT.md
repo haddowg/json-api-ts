@@ -210,6 +210,15 @@ _Avoid_: normalised store, entity cache
 A function returning TanStack query or mutation options for one client operation, the binding's
 whole surface in place of hooks.
 
+**Mutation plan**:
+The plain-data description of a write's cache upkeep (verb, type, id, relation, whether it is
+optimistic) a mutation option factory puts in the options' `meta`.
+
+**Upkeep**:
+What a write does to the TanStack cache: the optimistic change and its rollback, normalisation on
+success, invalidation on settle. `JsonApiMutationCache` runs it from a mutation plan.
+_Avoid_: side effects, lifecycle callbacks
+
 ### MCP
 
 **MCP model**:

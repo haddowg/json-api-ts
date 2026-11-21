@@ -102,6 +102,16 @@ export type Teardown = () => void
 const installed = new WeakMap<QueryClient, ApiDescriptor>()
 
 /**
+ * The descriptor {@link installNormalization} installed on `queryClient`, if any. Internal: the
+ * mutation cache reads it to run a mutation's upkeep.
+ *
+ * @internal
+ */
+export function installedDescriptor(queryClient: QueryClient): ApiDescriptor | undefined {
+  return installed.get(queryClient)
+}
+
+/**
  * Subscribe the normalizer to a QueryClient's query + mutation caches: each time a query or
  * mutation settles successfully, the freshly-resolved data is indexed by `type:id` and patched
  * across every cached query in place (preserving edge-local `$pivot`/`$edge`).

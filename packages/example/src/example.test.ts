@@ -37,6 +37,8 @@ import {
   createMutationApi,
   createQueryApi,
   installNormalization,
+  JsonApiMutationCache,
+  mutationKeyFor,
   type ReadError,
 } from '@haddowg/json-api-query'
 import { InfiniteQueryObserver, QueryClient, QueryObserver, skipToken } from '@tanstack/query-core'
@@ -601,9 +603,13 @@ describe('TanStack Query bindings', () => {
     })
     const client = createClient({ baseUrl: BASE, transport })
 
-    // One QueryClient hosts one descriptor. `installNormalization` auto-runs the `type:id`
-    // write-through patch on every successful query/mutation — "edit once, updates everywhere".
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    // One QueryClient hosts one descriptor. `JsonApiMutationCache` runs each mutation's cache
+    // upkeep, and `installNormalization` auto-runs the `type:id` write-through patch on every
+    // successful query/mutation — "edit once, updates everywhere".
+    const qc = new QueryClient({
+      mutationCache: new JsonApiMutationCache(),
+      defaultOptions: { queries: { staleTime: Infinity } },
+    })
     const teardown = installNormalization(qc, resourceMap)
 
     // The bound read API: `api.<type>.list(query)` returns `{ queryKey, queryFn }` for `useQuery`
@@ -746,7 +752,10 @@ describe('infinite queries', () => {
       [`PATCH ${BASE}/albums/2`]: album('2', { title: 'Kid A Mnesia', status: 'released' }),
     })
     const client = createClient({ baseUrl: BASE, transport })
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = new QueryClient({
+      mutationCache: new JsonApiMutationCache(),
+      defaultOptions: { queries: { staleTime: Infinity } },
+    })
     const teardown = installNormalization(qc, resourceMap)
     const reads = createQueryApi(client)
 
@@ -779,6 +788,125 @@ describe('infinite queries', () => {
 
     observer.destroy()
     teardown()
+  })
+})
+
+/** A QueryClient built as an app builds one: the mutation cache, and the descriptor installed. */
+function jsonApiQueryClient(): QueryClient {
+  const qc = new QueryClient({
+    mutationCache: new JsonApiMutationCache(),
+    defaultOptions: { queries: { staleTime: Infinity } },
+  })
+  installNormalization(qc, resourceMap)
+  return qc
+}
+
+describe('mutation cache', () => {
+  it('keeps the upkeep when your own callbacks are spread alongside the options', async () => {
+    const original = {
+      type: 'albums',
+      id: '1',
+      attributes: { title: 'Old title', status: 'released' },
+    }
+    const { transport } = mockTransport({
+      [`${BASE}/albums`]: { data: [original] },
+      [`PATCH ${BASE}/albums/1`]: album('1', { title: 'Fresh title', status: 'released' }),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const listOpts = reads.albums.list()
+    await qc.fetchQuery(listOpts)
+    const title = () => (qc.getQueryData(listOpts.queryKey) as Array<{ title: string }>)[0]!.title
+
+    // The idiomatic spread: your onSuccess runs after the cache's normalisation, so it already
+    // sees the patched list.
+    const seen: string[] = []
+    await qc
+      .getMutationCache()
+      .build(qc, {
+        ...writes.albums.id('1').update(),
+        onSuccess: () => {
+          seen.push(`success:${title()}`)
+        },
+      } as never)
+      .execute({ title: 'Fresh title' })
+    expect(seen).toEqual(['success:Fresh title'])
+
+    // An optimistic update whose write fails: your onMutate sees the optimistic value, and your
+    // onError the rolled-back one. The rollback ran first, in the mutation cache.
+    const failing = createClient({
+      baseUrl: BASE,
+      transport: async () => ({ status: 500, headers: {}, body: '' }),
+    })
+    const failingWrites = createMutationApi(qc, failing, resourceMap)
+    await expect(
+      qc
+        .getMutationCache()
+        .build(qc, {
+          ...failingWrites.albums.id('1').update({ optimistic: true }),
+          onMutate: () => {
+            seen.push(`mutate:${title()}`)
+          },
+          onError: () => {
+            seen.push(`error:${title()}`)
+          },
+          onSettled: () => {
+            seen.push(`settled:${title()}`)
+          },
+        } as never)
+        .execute({ title: 'Optimistic title' }),
+    ).rejects.toBeDefined()
+    expect(seen).toEqual([
+      'success:Fresh title',
+      'mutate:Optimistic title',
+      'error:Fresh title',
+      'settled:Fresh title',
+    ])
+    expect(title()).toBe('Fresh title')
+  })
+
+  it('finds a pending mutation by its key', async () => {
+    let release: (() => void) | undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const client = createClient({
+      baseUrl: BASE,
+      transport: async () => {
+        await held
+        return {
+          status: 200,
+          headers: {},
+          body: JSON.stringify(album('1', { title: 'Fresh title', status: 'released' })),
+        }
+      },
+    })
+    const qc = jsonApiQueryClient()
+    const writes = createMutationApi(qc, client, resourceMap)
+    const update = writes.albums.id('1').update()
+    expect(update.mutationKey).toEqual(['albums', 'update', '1'])
+
+    const pending = qc
+      .getMutationCache()
+      .build(qc, update as never)
+      .execute({ title: 'Fresh title' })
+    // Mutation filters match by prefix: every write on albums, every update, this album's.
+    expect(qc.isMutating({ mutationKey: ['albums'] })).toBe(1)
+    expect(qc.isMutating({ mutationKey: mutationKeyFor({ type: 'albums', verb: 'update' }) })).toBe(
+      1,
+    )
+    expect(
+      qc.isMutating({ mutationKey: mutationKeyFor({ type: 'albums', verb: 'update', id: '1' }) }),
+    ).toBe(1)
+    expect(
+      qc.isMutating({ mutationKey: mutationKeyFor({ type: 'albums', verb: 'delete', id: '1' }) }),
+    ).toBe(0)
+
+    release?.()
+    await pending
+    expect(qc.isMutating({ mutationKey: ['albums'] })).toBe(0)
   })
 })
 
