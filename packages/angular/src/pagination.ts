@@ -1,4 +1,9 @@
-import type { Page, PageParamsOf, PaginatorRole } from '@haddowg/json-api-client'
+import {
+  nextPageParams,
+  prevPageParams,
+  type Page,
+  type PageParamsOf,
+} from '@haddowg/json-api-client'
 
 /**
  * The `page` query a link selects, typed by the `$page` it came from: the strategy's members under
@@ -20,41 +25,14 @@ export type PageParams<P extends Page = Page> = PageParamsOf<P>
 export function nextPage<P extends Page>(
   list: { readonly $page: P } | undefined,
 ): PageParams<P> | undefined {
-  return pageParams(list?.$page, list?.$page.links.next)
+  return nextPageParams(list)
 }
 
 /** The `page` params for the page before `list`, from its `prev` link. See {@link nextPage}. */
 export function prevPage<P extends Page>(
   list: { readonly $page: P } | undefined,
 ): PageParams<P> | undefined {
-  return pageParams(list?.$page, list?.$page.links.prev)
-}
-
-const CURSOR_ROLES: readonly string[] = ['after', 'before']
-
-function pageParams<P extends Page>(
-  page: P | undefined,
-  link: string | undefined,
-): PageParams<P> | undefined {
-  if (page === undefined || link === undefined) {
-    return undefined
-  }
-  const keys = Object.entries(page.keys) as [PaginatorRole, string][]
-  const query = link.includes('?') ? link.slice(link.indexOf('?') + 1).split('#')[0] : ''
-  const params: Record<string, string | number> = {}
-  for (const [name, value] of new URLSearchParams(query)) {
-    const member = /^page\[([^\]]+)\]$/.exec(name)?.[1]
-    if (member === undefined) {
-      continue
-    }
-    const role = keys.find(([, key]) => key === member)?.[0]
-    const count = Number(value)
-    params[member] =
-      role !== undefined && !CURSOR_ROLES.includes(role) && value !== '' && Number.isFinite(count)
-        ? count
-        : value
-  }
-  return params as PageParams<P>
+  return prevPageParams(list)
 }
 
 // The walk is the client's own, kept exported here so Angular code imports it from one place.
