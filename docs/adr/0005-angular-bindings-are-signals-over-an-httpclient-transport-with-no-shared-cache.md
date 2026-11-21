@@ -1,4 +1,10 @@
+---
+status: superseded by ADR-0030
+---
+
 # Angular bindings are signals over an HttpClient transport, with no shared cache
+
+Superseded by [ADR 0030](0030-angular-bindings-use-tanstack-query-over-the-normalised-cache.md).
 
 Angular apps route HTTP through `HttpClient` and depend on its interceptors for cookies, tenant hosts and progress, which the default `fetch` transport would skip, and TanStack has no stable Angular adapter. So `@haddowg/json-api-angular` sends through `HttpClient`, wraps reads in Angular's `resource()` and writes in a small signal handle, and leaves RxJS at the edges (`toObservable()`, `from()`). RxJS bindings and TanStack's experimental Angular adapter over the existing query factories were the alternatives.
 
