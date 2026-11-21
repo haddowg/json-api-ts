@@ -70,6 +70,13 @@ describe('writes and actions that declare a 202 Accepted', () => {
     expect(descriptor['article-jobs']).toBeUndefined()
   })
 
+  it('reads a job type served only at its item path', () => {
+    const descriptor = buildDescriptor(load('contract-witness.json'))
+    expect(descriptor['bookings']?.accepted?.create?.jobType).toBe('jobs')
+    expect(descriptor['jobs']?.paths).toEqual({ fetchOne: '/jobs/{id}' })
+    expect(descriptor['jobs']?.paginator).toBe('none')
+  })
+
   it('reads an action 202 and keeps its output from its other responses', () => {
     const doc = load('contract-witness.json')
     const accepted = doc.paths!['/articles/{id}']!.patch!.responses!['202']!

@@ -1588,7 +1588,8 @@ export class DescriptorBuilder {
    * actually exists. The collection path P is the one whose POST requestBody refs
    * `<Base>CreateRequest`, else the GET whose 200 response refs `<Base>Collection`, and the
    * item path is `P/{id}`. A singleton has no collection, and its item path is the one its
-   * resource names in `x-singleton`.
+   * resource names in `x-singleton`. Any other type without a collection is read at its own
+   * top-level item path, when it has one.
    */
   private operationPaths(base: string): Record<string, string> {
     const collection = this.collectionPath(base)
@@ -1641,7 +1642,27 @@ export class DescriptorBuilder {
       return singleton
     }
     const collection = this.collectionPath(base)
-    return collection === undefined ? undefined : `${collection}/{id}`
+    return collection === undefined ? this.itemOnlyPath(base) : `${collection}/{id}`
+  }
+
+  /**
+   * The item path of a type served without a collection, such as a job type read only at
+   * `/jobs/{id}`: a top-level `/<segment>/{id}` path whose GET answers `<Base>Document`, or whose
+   * PATCH takes `<Base>UpdateRequest`.
+   */
+  private itemOnlyPath(base: string): string | undefined {
+    for (const [path, item] of Object.entries(this.paths)) {
+      if (!/^\/[^/{}]+\/\{id\}$/.test(path)) {
+        continue
+      }
+      if (
+        refEndsWith(this.okResponseRef(item.get), `${base}Document`) ||
+        refEndsWith(this.requestBodyRef(item.patch), `${base}UpdateRequest`)
+      ) {
+        return path
+      }
+    }
+    return undefined
   }
 
   /**
