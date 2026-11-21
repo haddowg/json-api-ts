@@ -18,7 +18,9 @@
  *
  * The nodes are patched in place, but each touched query's data is then republished under a new
  * root reference that reads through to the same graph, so an observer comparing `data` by
- * reference, as React Query's tracked mode does, sees the change and re-renders.
+ * reference, as React Query's tracked mode does, sees the change and re-renders. An infinite
+ * query's `InfiniteData` is walked page by page, and republished as a new `{ pages, pageParams }`
+ * whose touched pages are republished roots and whose untouched pages keep their identity.
  *
  * This only covers UPDATES to existing resources (a node patch). Creates/deletes change
  * collection membership, which is not a node patch — those invalidate the relevant list/
@@ -36,23 +38,72 @@ const resourceKey = (type: string, id: string): ResourceKey => `${type}:${id}`
 /** The materialised value each republished root reads through to. */
 const roots = new WeakMap<object, object>()
 
+/** The materialised value behind `value`, seeing through a republished root. */
+const targetOf = (value: object): object => roots.get(value) ?? value
+
+/** TanStack's cached data for an infinite query: its pages and the params that read them. */
+interface InfiniteValue {
+  pages: unknown[]
+  pageParams: unknown[]
+}
+
+/**
+ * Whether `value` is an infinite query's `InfiniteData` (`{ pages, pageParams }`, both arrays)
+ * rather than a materialised read result, which a resource or an augmented array always is.
+ */
+function isInfiniteValue(value: unknown): value is InfiniteValue {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Array.isArray((value as { pages?: unknown }).pages) &&
+    Array.isArray((value as { pageParams?: unknown }).pageParams) &&
+    identity(value as MaterialisedResource) === undefined
+  )
+}
+
+/**
+ * The read results a query's data holds: an infinite query's pages, or the data itself. Each is
+ * walked, patched and republished on its own.
+ */
+function partsOf(data: unknown): readonly unknown[] {
+  return isInfiniteValue(data) ? data.pages : [data]
+}
+
+/** A new root reference for `value` that reads through to the same materialised value. */
+function reroot(value: object): object {
+  const target = targetOf(value)
+  const root = new Proxy(target, {})
+  roots.set(root, target)
+  return root
+}
+
 /**
  * Publish a query's patched data again under a new root reference. The root is a transparent
  * proxy of the materialised value, so its accessors, its array-ness and the graph below it are the
- * same objects, and a later patch or rollback of those objects shows through it. The state is set
- * directly rather than through `setQueryData`, whose structural sharing would hand the old root
- * back because nothing differs by value, and which would clear the query's `isInvalidated` and
- * re-run normalisation as a fresh success.
+ * same objects, and a later patch or rollback of those objects shows through it. An infinite
+ * query's data is rebuilt as a new `{ ...data, pages }` in which each page among `touched` is
+ * republished that way and every other page keeps its identity. The state is set directly rather
+ * than through `setQueryData`, whose structural sharing would hand the old root back because
+ * nothing differs by value, and which would clear the query's `isInvalidated` and re-run
+ * normalisation as a fresh success.
  */
-function republish(query: Query): void {
+function republish(query: Query, touched: readonly unknown[]): void {
   const data = query.state.data
   if (typeof data !== 'object' || data === null) {
     return
   }
-  const target = roots.get(data) ?? data
-  const root = new Proxy(target, {})
-  roots.set(root, target)
-  query.setState({ data: root })
+  if (!isInfiniteValue(data)) {
+    query.setState({ data: reroot(data) })
+    return
+  }
+  const changed = new Set(
+    touched.flatMap((part) => (typeof part === 'object' && part !== null ? [targetOf(part)] : [])),
+  )
+  const pages = data.pages.map((page) =>
+    typeof page === 'object' && page !== null && changed.has(targetOf(page)) ? reroot(page) : page,
+  )
+  query.setState({ data: { ...data, pages } })
 }
 
 /**
@@ -137,7 +188,8 @@ function attributesOf(node: MaterialisedResource): Record<string, unknown> | und
 
 /**
  * Walk a materialised value (a single resource, an augmented array, a to-one/to-many relation
- * value, or `null`/`undefined`) and visit every reachable resource exactly once. Recurses into
+ * value, an infinite query's `InfiniteData`, whose every page it walks, or `null`/`undefined`)
+ * and visit every reachable resource exactly once. Recurses into
  * each resource's own enumerable relation slots so a deeply-included graph is fully indexed.
  * `seen` guards relation cycles (a node memoised by reference) and keeps the walk linear.
  */
@@ -167,6 +219,12 @@ function walkResources(
   const node = value as unknown as MaterialisedResource
   const ident = identity(node)
   if (ident === undefined) {
+    // An infinite query's data: every page is a read result of its own.
+    if (isInfiniteValue(value)) {
+      for (const page of value.pages) {
+        walkResources(page, descriptor, visit, seen)
+      }
+    }
     return
   }
   visit(node)
@@ -413,11 +471,38 @@ export function normalize(
   result: unknown,
   descriptor: ApiDescriptor,
 ): void {
-  const fresh = collectAttributes(result, descriptor)
+  const fresh = collectAttributes(unnormalisedPages(result), descriptor)
   if (fresh.size === 0) {
     return
   }
   patchAll(queryClient, fresh, descriptor)
+}
+
+/** The pages of infinite queries' data {@link normalize} has already indexed. */
+const normalisedPages = new WeakSet<object>()
+
+/**
+ * `result`, or for an infinite query's `InfiniteData` only the pages {@link normalize} hasn't
+ * indexed yet. Fetching the next or previous page settles the whole `InfiniteData` again, and its
+ * earlier pages carry the attributes of their own, older responses (a page's `$raw` never changes
+ * when a patch updates its nodes), which would otherwise overwrite fresher copies elsewhere. A
+ * refetch reads every page again, as new objects, so they are all indexed then.
+ */
+function unnormalisedPages(result: unknown): unknown {
+  if (!isInfiniteValue(result)) {
+    return result
+  }
+  return result.pages.filter((page) => {
+    if (typeof page !== 'object' || page === null) {
+      return false
+    }
+    const target = targetOf(page)
+    if (normalisedPages.has(target)) {
+      return false
+    }
+    normalisedPages.add(target)
+    return true
+  })
 }
 
 /**
@@ -437,8 +522,9 @@ function patchAll(
     if (data === undefined || data === null) {
       continue
     }
-    if (patchCached(data, fresh, descriptor)) {
-      republish(query)
+    const touched = partsOf(data).filter((part) => patchCached(part, fresh, descriptor))
+    if (touched.length > 0) {
+      republish(query, touched)
     }
   }
 }
@@ -488,7 +574,7 @@ export function applyOptimisticPatch(
 ): Snapshot {
   const key = resourceKey(type, id)
   const edits: NodeEdit[] = []
-  const touchedQueries: Query[] = []
+  const touchedQueries: { query: Query; parts: readonly unknown[] }[] = []
 
   // Walk the cache explicitly (not `setQueriesData({}, ...)`) so we only write back queries that
   // actually hold this `type:id` — preserving untouched queries' identity and `isInvalidated`
@@ -498,30 +584,33 @@ export function applyOptimisticPatch(
     if (data === undefined || data === null) {
       continue
     }
-    let touched = false
-    walkResources(data, descriptor, (node) => {
-      const ident = identity(node)
-      if (ident === undefined || resourceKey(ident.type, ident.id) !== key) {
-        return
-      }
-      const target = node as unknown as Record<string, unknown>
-      // Capture prior values BEFORE overwriting, so the snapshot is precise.
-      const prior = new Map<string, unknown>()
-      const added = new Set<string>()
-      for (const k of Object.keys(attributes)) {
-        if (k in target) {
-          prior.set(k, target[k])
-        } else {
-          added.add(k)
+    const parts = partsOf(data).filter((part) => {
+      let touched = false
+      walkResources(part, descriptor, (node) => {
+        const ident = identity(node)
+        if (ident === undefined || resourceKey(ident.type, ident.id) !== key) {
+          return
         }
-      }
-      edits.push({ target, prior, added, wrote: { ...attributes } })
-      patchNode(target, attributes)
-      touched = true
+        const target = node as unknown as Record<string, unknown>
+        // Capture prior values BEFORE overwriting, so the snapshot is precise.
+        const prior = new Map<string, unknown>()
+        const added = new Set<string>()
+        for (const k of Object.keys(attributes)) {
+          if (k in target) {
+            prior.set(k, target[k])
+          } else {
+            added.add(k)
+          }
+        }
+        edits.push({ target, prior, added, wrote: { ...attributes } })
+        patchNode(target, attributes)
+        touched = true
+      })
+      return touched
     })
-    if (touched) {
-      republish(query)
-      touchedQueries.push(query)
+    if (parts.length > 0) {
+      republish(query, parts)
+      touchedQueries.push({ query, parts })
     }
   }
 
@@ -543,8 +632,8 @@ export function applyOptimisticPatch(
           }
         }
       }
-      for (const query of touchedQueries) {
-        republish(query)
+      for (const { query, parts } of touchedQueries) {
+        republish(query, parts)
       }
     },
   }
@@ -601,7 +690,8 @@ export function applyOptimisticMembership(
     }
     const data = query.state.data
     if (!Array.isArray(data)) {
-      // Only a to-many read caches an array; skip anything else (e.g. an in-flight/empty entry).
+      // Only a to-many read caches an array; skip anything else (e.g. an in-flight/empty entry, or
+      // an infinite read's pages, whose membership this doesn't edit).
       continue
     }
     edits.push({ query, previous: data })
@@ -671,8 +761,9 @@ export function applyOptimisticToOne(
       continue
     }
     const data = query.state.data
-    // A to-one read caches a single value or null (an array would be a to-many — skip it).
-    if (Array.isArray(data)) {
+    // A to-one read caches a single value or null: an array, or an infinite read's pages, would be
+    // a to-many, so skip it.
+    if (Array.isArray(data) || isInfiniteValue(data)) {
       continue
     }
     edits.push({ query, previous: data })
