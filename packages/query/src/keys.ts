@@ -141,8 +141,12 @@ export type SkippedSegment = { readonly $skip: true }
  */
 export const SKIPPED_SEGMENT: SkippedSegment = Object.freeze({ $skip: true })
 
-/** True when a key segment is {@link SKIPPED_SEGMENT}, compared by value. */
-function isSkippedSegment(part: unknown): boolean {
+/**
+ * True when a key segment is {@link SKIPPED_SEGMENT}, compared by value.
+ *
+ * @internal
+ */
+export function isSkippedSegment(part: unknown): part is SkippedSegment {
   return (
     typeof part === 'object' &&
     part !== null &&
