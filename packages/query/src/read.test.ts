@@ -450,3 +450,52 @@ describe('hierarchical keys drive targeted invalidation against a real cache', (
     expect(resourceMatches.map((q) => q.queryKey)).toContainEqual(one.queryKey)
   })
 })
+
+describe('the abort signal', () => {
+  it('passes TanStack’s signal to every read, without changing the key', async () => {
+    const { client, requests } = makeClient({
+      'GET /albums': { data: [resource('albums', '1')] },
+      'GET /albums/1': { data: resource('albums', '1') },
+      'GET /albums/1/relationships/tracks': { data: [] },
+      'GET /albums/1/tracks': { data: [] },
+    })
+    const qc = new QueryClient()
+    const list = listQueryOptions(client, 'albums', { sort: 'title' })
+    await qc.fetchQuery(list)
+    await qc.fetchQuery(getQueryOptions(client, 'albums', '1'))
+    await qc.fetchQuery(relationshipQueryOptions(client, 'albums', '1', 'tracks'))
+    await qc.fetchQuery(relatedQueryOptions(client, 'albums', '1', 'tracks'))
+    expect(requests).toHaveLength(4)
+    for (const request of requests) {
+      expect(request.signal).toBeInstanceOf(AbortSignal)
+    }
+    expect(list.queryKey).toEqual(
+      keyFor({ type: 'albums', operation: 'fetchMany' }, { sort: 'title' }),
+    )
+  })
+
+  it('cancels the request when the query is cancelled', async () => {
+    let seen: AbortSignal | undefined
+    const transport = (req: TransportRequest): Promise<TransportResponse> => {
+      seen = req.signal
+      return new Promise((_resolve, reject) => {
+        req.signal?.addEventListener('abort', () => reject(req.signal?.reason))
+      })
+    }
+    const client = createClient(descriptor, { baseUrl: BASE, transport })
+    const qc = new QueryClient()
+    const option = getQueryOptions(client, 'albums', '1')
+    const fetching = qc.fetchQuery(option).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await qc.cancelQueries({ queryKey: option.queryKey })
+    await fetching
+    expect(seen?.aborted).toBe(true)
+  })
+
+  it('still runs when the queryFn is called without a context', async () => {
+    const { client, requests } = makeClient({ 'GET /albums/1': { data: resource('albums', '1') } })
+    await getQueryOptions(client, 'albums', '1').queryFn()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]!.signal).toBeUndefined()
+  })
+})

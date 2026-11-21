@@ -95,7 +95,8 @@ type LinkageResult<
 
 /**
  * A TanStack-compatible query-options object: the deterministic {@link QueryKey} plus a
- * zero-arg `queryFn` resolving the materialised result `R`. Structurally assignable to
+ * `queryFn` resolving the materialised result `R`. The `queryFn` passes TanStack's abort `signal`
+ * to the read, so a query whose key changes, or whose last observer goes away, cancels its request. Structurally assignable to
  * `query-core`'s `QueryOptions`/`UseQueryOptions` (the user merges in `staleTime` etc.), so the
  * binding needn't import or re-export query-core's option type — it stays a peer.
  *
@@ -105,8 +106,21 @@ type LinkageResult<
  */
 export interface QueryOptions<R> {
   queryKey: QueryKey
-  queryFn: () => Promise<R>
+  queryFn: (context?: QueryFnContext) => Promise<R>
   structuralSharing: false
+}
+
+/** The part of TanStack's query-function context a read factory uses. */
+export interface QueryFnContext {
+  signal: AbortSignal
+}
+
+/**
+ * The read's query with TanStack's abort signal added, or the query unchanged when the `queryFn` is
+ * called without a context. The key is built from `query` alone, so the signal never reaches it.
+ */
+function withSignal<Q extends object>(query: Q | undefined, signal: AbortSignal | undefined): Q {
+  return (signal === undefined ? query : { ...query, signal }) as Q
 }
 
 /**
@@ -221,7 +235,7 @@ export function listQueryOptions<
   return {
     queryKey: keyFor({ type, operation: 'fetchMany' }, query),
     structuralSharing: false,
-    queryFn: () => accessor.list<Inc, F, Pg, Cnt>(query),
+    queryFn: (context) => accessor.list<Inc, F, Pg, Cnt>(withSignal(query, context?.signal)),
   }
 }
 
@@ -250,10 +264,10 @@ export function getQueryOptions<
   return {
     queryKey: keyFor(target(type, 'fetchOne', resource), query),
     structuralSharing: false,
-    queryFn: () =>
+    queryFn: (context) =>
       resource === undefined
-        ? accessor.get<Inc, F, Cnt>(query)
-        : accessor.get<Inc, F, Cnt>(resource, query),
+        ? accessor.get<Inc, F, Cnt>(withSignal(query, context?.signal))
+        : accessor.get<Inc, F, Cnt>(resource, withSignal(query, context?.signal)),
   }
 }
 
@@ -280,8 +294,10 @@ export function relationshipQueryOptions<
   return {
     queryKey: keyFor(target(type, 'fetchRelationship', id, rel), query),
     structuralSharing: false,
-    queryFn: () =>
-      relationReads(client, type, id, rel).get(query) as Promise<LinkageResult<D, A, T, R>>,
+    queryFn: (context) =>
+      relationReads(client, type, id, rel).get(withSignal(query, context?.signal)) as Promise<
+        LinkageResult<D, A, T, R>
+      >,
   }
 }
 
@@ -307,8 +323,10 @@ export function relatedQueryOptions<
   return {
     queryKey: keyFor(target(type, 'fetchRelated', id, rel), query),
     structuralSharing: false,
-    queryFn: () =>
-      relationReads(client, type, id, rel).related(query) as Promise<RelatedResult<D, A, T, R>>,
+    queryFn: (context) =>
+      relationReads(client, type, id, rel).related(withSignal(query, context?.signal)) as Promise<
+        RelatedResult<D, A, T, R>
+      >,
   }
 }
 
