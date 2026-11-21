@@ -190,3 +190,148 @@ describe('meta members limited to listed values', () => {
     expect(typecheck(`${source}\n${probes.join('\n')}\n`)).toEqual([])
   })
 })
+
+const LANES = { type: 'array', items: { type: 'string', enum: ['fast', 'slow'] } } as const
+
+/**
+ * The witness with a list member whose items list their values added to each kind of meta: the
+ * bookings' request, atomic request, resource, accepted, action, relationship request and
+ * meta-only answer meta, pivots and identifier meta, and the notices' document meta. The items
+ * list them through `enum`, `const`, a `$ref` to an enum component, an `anyOf` and a `oneOf` of
+ * literals, one list is nullable, and the resource meta's open members are such lists too.
+ */
+function withListedLists(): OpenApiDocument {
+  const doc = load('contract-witness.json')
+  const schemas = doc.components!.schemas!
+  const add = (node: SchemaObject, name: string, member: SchemaObject) => {
+    node.properties = { ...node.properties, [name]: member }
+  }
+  add(metaOf(schemas, 'BookingsCreateRequestDocument'), 'lanes', LANES)
+  add(schemas['BookingsAtomicAddOperation']!.properties!['meta'] as SchemaObject, 'lanes', LANES)
+  add(metaOf(schemas, 'BookingsDeleteRequestDocument'), 'by', {
+    type: 'array',
+    items: { type: 'string', const: 'guest' },
+  })
+  add(metaOf(schemas, 'BookingsConfirmActionPostRequestDocument'), 'statuses', {
+    type: 'array',
+    items: { $ref: '#/components/schemas/Status' },
+  })
+  add(metaOf(schemas, 'BookingsCreateAcceptedDocument'), 'lanes', {
+    anyOf: [LANES, { type: 'null' }],
+  })
+  add(metaOf(schemas, 'BookingsRoomsAddRelationshipRequestDocument'), 'shifts', {
+    type: 'array',
+    items: { anyOf: [{ const: 1 }, { const: 2 }] },
+  })
+  add(metaOf(schemas, 'BookingsRoomsAddRelationshipDocument'), 'outcomes', {
+    type: 'array',
+    items: {
+      oneOf: [
+        { type: 'string', const: 'moved' },
+        { type: 'string', const: 'kept' },
+      ],
+    },
+  })
+  add(schemas['BookingsResourceMeta']!, 'states', {
+    type: ['array', 'null'],
+    items: { type: 'string', enum: ['held', 'paid'] },
+  })
+  schemas['BookingsResourceMeta']!['additionalProperties'] = LANES
+  add(schemas['BookingsCreateResourceMeta']!, 'channels', {
+    type: 'array',
+    items: { type: 'string', enum: ['web', 'desk'] },
+  })
+  add(schemas['BookingsRoomsPivot']!, 'boards', LANES)
+  add(schemas['BookingsRoomsWritePivot']!, 'boards', LANES)
+  add(schemas['BookingsRoomsIdentifierMeta']!, 'sides', LANES)
+  add(metaOf(schemas, 'NoticesFetchCollectionDocument'), 'regions', {
+    type: 'array',
+    items: { type: 'string', enum: ['eu', 'us'] },
+  })
+  add(metaOf(schemas, 'NoticesFetchOneDocument'), 'loose', {
+    type: 'array',
+    items: { type: ['string', 'null'], enum: ['a', null] },
+  })
+  return doc
+}
+
+describe('list meta members whose items list their values', () => {
+  it("records each list's item values beside its array hint", () => {
+    const descriptor = buildDescriptor(withListedLists())
+    const bookings = descriptor['bookings']!
+    const lanes = ['fast', 'slow']
+    expect(bookings.requestMeta?.create).toMatchObject({
+      fields: { lanes: 'array' },
+      values: { lanes },
+    })
+    expect(bookings.atomicRequestMeta?.create?.values).toEqual({ lanes })
+    expect(bookings.requestMeta?.delete?.values).toEqual({ by: ['guest'] })
+    expect(bookings.actions?.['confirm']?.requestMeta?.values).toEqual({
+      statuses: ['draft', 'published', 'archived'],
+    })
+    expect(bookings.accepted?.create?.meta?.values).toEqual({ lanes })
+    expect(bookings.resourceMeta?.read).toMatchObject({
+      values: { states: ['held', 'paid'] },
+      nullable: expect.arrayContaining(['states']) as unknown,
+      additional: { format: 'array', values: lanes },
+    })
+    expect(bookings.resourceMeta?.create?.values).toEqual({ channels: ['web', 'desk'] })
+    const rooms = bookings.relations['rooms']!
+    expect(rooms.requestMeta?.add?.values).toEqual({ shifts: [1, 2] })
+    expect(rooms.mutationMeta?.add?.values).toEqual({ outcomes: ['moved', 'kept'] })
+    expect(rooms.readPivot?.values).toEqual({ boards: lanes })
+    expect(rooms.writePivot?.values).toEqual({ boards: lanes })
+    expect(rooms.identifierMeta?.values).toEqual({ sides: lanes })
+    const notices = descriptor['notices']!
+    expect(notices.documentMeta?.fetchMany?.values).toEqual({ regions: ['eu', 'us'] })
+    // Items that may be null aren't limited to literals.
+    expect(notices.documentMeta?.fetchOne?.values).toBeUndefined()
+  })
+
+  it('compiles to a client that types each list as a list of its item values', () => {
+    const doc = withListedLists()
+    const probes = [
+      "const api = createClient({ baseUrl: 'https://api.example' })",
+      'export async function probe(): Promise<void> {',
+      "  await api.bookings.create({ title: 'W' }, { meta: { idempotencyKey: 'k', lanes: ['fast'] } })",
+      '  // @ts-expect-error -- each lane is fast or slow.',
+      "  await api.bookings.create({ title: 'W' }, { meta: { idempotencyKey: 'k', lanes: ['medium'] } })",
+      '  // @ts-expect-error -- lanes is a list.',
+      "  await api.bookings.create({ title: 'W' }, { meta: { idempotencyKey: 'k', lanes: 'fast' } })",
+      '  await api.atomic((tx) => [',
+      '    // @ts-expect-error -- inside a batch too.',
+      "    tx.create({ type: 'bookings', title: 'W' }, { meta: { idempotencyKey: 'k', lanes: ['medium'] } }),",
+      '  ])',
+      "  const handle = api.bookings.id('bk-1')",
+      "  await handle.delete({ meta: { cancellationReason: 'ill', by: ['guest'] } })",
+      '  // @ts-expect-error -- by lists guest.',
+      "  await handle.delete({ meta: { cancellationReason: 'ill', by: ['host'] } })",
+      "  await handle.actions.confirm({ meta: { statuses: ['draft', 'archived'] } })",
+      '  // @ts-expect-error -- each status is one of the Status values.',
+      "  await handle.actions.confirm({ meta: { statuses: ['gone'] } })",
+      "  const booking = await api.bookings.get('bk-1')",
+      "  const states: readonly ('held' | 'paid')[] | null | undefined = booking.$meta?.states",
+      "  const created = await api.bookings.create({ title: 'W', $meta: { channels: ['desk'] } }, { meta: { idempotencyKey: 'k', lanes: [] } })",
+      "  const jobLanes: readonly ('fast' | 'slow')[] | null | undefined = 'meta' in created ? created.meta?.lanes : undefined",
+      '  // @ts-expect-error -- each channel is web or desk.',
+      "  await api.bookings.create({ title: 'W', $meta: { channels: ['post'] } }, { meta: { idempotencyKey: 'k', lanes: [] } })",
+      '  const rooms = await handle.rooms.get()',
+      "  const sides: readonly ('fast' | 'slow')[] | undefined = rooms[0]?.$edge?.meta?.sides",
+      "  const boards: readonly ('fast' | 'slow')[] | undefined = rooms[0]?.$edge?.meta?.pivot?.boards",
+      "  const moved = await handle.rooms.add([{ type: 'rooms', id: 'rm-1', $pivot: { boards: ['slow'] } }], { meta: { shifts: [1, 2] } })",
+      "  const outcomes: readonly ('moved' | 'kept')[] | undefined = moved.outcomes",
+      '  // @ts-expect-error -- each shift is 1 or 2.',
+      '  await handle.rooms.add([], { meta: { shifts: [3] } })',
+      '  // @ts-expect-error -- each board is fast or slow.',
+      "  await handle.rooms.add([{ type: 'rooms', id: 'rm-1', $pivot: { boards: ['none'] } }])",
+      '  const notices = await api.notices.list()',
+      "  const regions: readonly ('eu' | 'us')[] | undefined = notices.$meta.regions",
+      "  const notice = await api.notices.get('n-1')",
+      '  const loose: readonly unknown[] | undefined = notice.$document.meta.loose',
+      '  void [states, jobLanes, sides, boards, outcomes, regions, loose]',
+      '}',
+    ]
+    const source = emit(doc, buildDescriptor(doc))
+    expect(typecheck(`${source}\n${probes.join('\n')}\n`)).toEqual([])
+  })
+})
