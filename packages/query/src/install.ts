@@ -12,7 +12,7 @@
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
 import { type ReadOperation, scopeOf } from './keys'
-import { isMaterialisedData, normalize, stampHydrated } from './normalize'
+import { isMaterialisedData, normalizeRead, stampHydrated } from './normalize'
 import { jsonApiRetry } from './read'
 import type { ScopeOption } from './scope'
 import { planOf } from './upkeep'
@@ -240,7 +240,7 @@ export function installNormalization(
     }
     normalizing = true
     try {
-      normalize(queryClient, data, descriptor, scope)
+      normalizeRead(queryClient, data, descriptor, scope, landed)
       // A read replaced the query's data: what open drafts predict shows there too (A7 R2).
       if (landed !== undefined) {
         reapplyDrafts(queryClient, scope, landed)

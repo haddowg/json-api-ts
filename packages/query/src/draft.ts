@@ -67,6 +67,7 @@ import {
   partsOf,
   publishData,
   queriesIn,
+  recordSlot,
   removeClaim,
   serverValueOf,
   type Snapshot,
@@ -76,6 +77,15 @@ import {
   withMembers,
   writable,
 } from './normalize'
+import {
+  addSlotClaim,
+  invalidate,
+  linksOnly,
+  recordOnClaim,
+  removeSlotClaim,
+  type SlotClaim,
+  topSlotClaim,
+} from './relationships'
 import { resolveMember } from './resolve'
 import {
   describeQuery,
@@ -678,26 +688,6 @@ function firstPage(list: unknown): boolean {
   return typeof page?.links?.prev !== 'string'
 }
 
-/**
- * Whether a parent's relation slot is links-only: nothing is known of its membership. A to-one is
- * `undefined`; a to-many the response sent no linkage for still materialises as an empty array,
- * which its `$rel()` tells apart.
- */
-function linksOnly(node: Record<string, unknown>, rel: string, slot: unknown): boolean {
-  if (slot === undefined) {
-    return true
-  }
-  if (!Array.isArray(slot)) {
-    return false
-  }
-  const $rel = node['$rel']
-  if (typeof $rel !== 'function') {
-    return false
-  }
-  const view = ($rel as (name: string) => unknown).call(node, rel)
-  return isRecord(view) && !('data' in view)
-}
-
 // ── The draft ──────────────────────────────────────────────────────────────────────────────
 
 /** The drafts open on each QueryClient: neither committed, rolled back nor confirmed. */
@@ -723,6 +713,8 @@ class Draft {
   private readonly patchedKeys = new Map<string, QueryKey>()
   /** The attribute predictions the draft holds (design A7 R2). */
   private claims: FieldClaim[] = []
+  /** The relations the draft edited, whose slots a read leaves alone while it is open (A7 R2). */
+  private readonly owned = new Map<string, SlotClaim>()
   /** Every operation run so far, to run again on a query whose data a read replaces. */
   private log: (() => void)[] = []
   private opDepth = 0
@@ -1428,6 +1420,60 @@ class Draft {
     return claim
   }
 
+  /**
+   * Own relation `rel` of `type:id`: while the draft is open, a read's linkage for it is recorded
+   * for a rollback rather than shown (A7 R2).
+   */
+  private own(type: string, id: string | undefined, rel: string): void {
+    const key = `${keyOf(type, id)}:${rel}`
+    if (this.owned.has(key)) {
+      return
+    }
+    const claim: SlotClaim = {
+      owner: this,
+      scope: this.scope,
+      type,
+      id,
+      rel,
+      seq: 0,
+      server: new Map(),
+    }
+    this.owned.set(key, claim)
+    addSlotClaim(this.queryClient, claim)
+  }
+
+  /**
+   * Give up every relation the draft owns. With `restore`, each slot a read brought newer linkage
+   * for while the draft was open shows it (a slot it can't fill has its query invalidated), unless
+   * another open draft owns the relation, which then records it instead.
+   */
+  private releaseSlots(restore: boolean): void {
+    const claims = [...this.owned.values()]
+    this.owned.clear()
+    // The latest first, as a rollback undoes them.
+    for (let at = claims.length - 1; at >= 0; at--) {
+      const claim = claims[at]!
+      removeSlotClaim(this.queryClient, claim)
+      if (!restore) {
+        continue
+      }
+      const next = topSlotClaim(this.queryClient, this.scope, claim.type, claim.id, claim.rel)
+      for (const value of claim.server.values()) {
+        if (next !== undefined) {
+          recordOnClaim(next, value)
+        } else if (value.fits) {
+          this.write(
+            { kind: 'slot', query: value.query, node: value.node, rel: claim.rel },
+            value.value,
+          )
+          recordSlot(value.node, claim.rel, value.slot)
+        } else {
+          invalidate(this.queryClient, value.query)
+        }
+      }
+    }
+  }
+
   link(
     type: string,
     id: string | undefined,
@@ -1436,6 +1482,7 @@ class Draft {
     options: PlaceOptions = {},
   ): void {
     this.op(() => {
+      this.own(type, id, rel)
       const next = ref === null ? null : toRef(ref)
       if (next === undefined) {
         return
@@ -1481,6 +1528,7 @@ class Draft {
     at: 'start' | 'end' | PlaceOptions = {},
   ): void {
     this.op(() => {
+      this.own(type, id, rel)
       const options = typeof at === 'string' ? { at } : at
       const added = toRefs(refs)
       const { many } = this.gather(type, id, rel)
@@ -1524,6 +1572,7 @@ class Draft {
 
   detach(type: string, id: string | undefined, rel: string, refs: readonly DraftRef[]): void {
     this.op(() => {
+      this.own(type, id, rel)
       const removed = toRefs(refs)
       const { many } = this.gather(type, id, rel)
       const members =
@@ -1546,6 +1595,7 @@ class Draft {
     options: PlaceOptions = {},
   ): void {
     this.op(() => {
+      this.own(type, id, rel)
       const next = toRefs(refs)
       const { many } = this.gather(type, id, rel)
       const counted = this.countOf(type, id, rel)
@@ -1783,6 +1833,7 @@ class Draft {
           }
         })
         for (const { node, rel } of slots) {
+          this.own(node['type'] as string, node['id'] as string, rel)
           const loc: Loc = { kind: 'slot', query, node, rel }
           const slot = node[rel]
           if (Array.isArray(slot)) {
@@ -1837,6 +1888,7 @@ class Draft {
         this.revert(this.undo[step]!)
       }
       this.undo.length = 0
+      this.releaseSlots(true)
       for (let at = this.claims.length - 1; at >= 0; at--) {
         this.unclaim(this.claims[at]!)
       }
@@ -1886,6 +1938,7 @@ class Draft {
     this.run(() => {
       this.undo.length = 0
       this.dropClaims()
+      this.releaseSlots(false)
       this.clearMarks()
     })
     this.closed = true
@@ -1909,6 +1962,7 @@ class Draft {
     this.close()
     this.undo.length = 0
     this.dropClaims()
+    this.releaseSlots(false)
   }
 
   claimedFields(): ReadonlySet<string> {
