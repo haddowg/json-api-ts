@@ -430,6 +430,90 @@ serves a whole list, and its mutation key gains the id per call through the plan
 **Infinite lists:** `attach` and `insert` with `'end'` go to the last loaded page, and `'start'`
 to the first. `detach` and `evict` remove from whichever page holds the member (gap 9).
 
+### B2a. Optimistic creates (proposed, awaiting decision)
+
+**The problem.** A list read with no sparse fieldset promises every declared attribute of each
+row, and an included relation promises a hydrated resource. A create's input usually can't supply
+all of that:
+
+- **Server-only attributes:** fields declared `readOnlyOnCreate()` (a slug, an external id, a
+  `createdAt`) never appear in the create input.
+- **Included relations:** a list including `artist` needs the artist resolved from the cache.
+
+Under B1a's fit rule the created row fits no such view, so `insert` skips it. Today it does so
+silently. Built on the rule as it stands, an optimistic create shows nowhere in a typical list,
+and the only workaround is narrowing the list's fieldset, which an app shouldn't have to do for an
+optimistic UI.
+
+**What the server already says.** Core knows which attributes a create can't supply
+(`readOnlyOnCreate()`) and which may be `null` (`nullable()`). The OpenAPI document carries both,
+as the difference between a type's create and read schemas and as the read schema's nullability.
+The generated client's types already carry it too: `Attributes[T]` (read) against
+`WriteAttributes[T]['create']`. The runtime descriptor doesn't. It has no per-attribute nullability
+and no create/read split. No server or contract change is needed; at most a codegen change.
+
+**Three ways a created row can reach a view:**
+
+1. **It fits as created.** The input supplies everything the view's shape asks for, including when
+   the view's fieldset selects only creatable attributes. This works today.
+2. **It fits once completed.** The missing attributes are filled with values the app supplies, or
+   that are honest to the type, then the row goes in as a real member:
+   - **A `complete` option**, typed against the generated types:
+     `optimistic: { into, complete: (input) => ServerOnly<T> }`.
+     `ServerOnly<T>` is the read attributes the create input lacks, each typed as the read type
+     says. So a nullable server-only attribute may be completed with `null`, and a non-nullable one
+     needs a real value, such as a placeholder slug derived from the title. The type system makes
+     the app think about every server-only attribute once, per type, not per view.
+   - **Automatic completion:** with the descriptor extended by codegen to list each type's
+     server-only attributes and which of them are nullable, the nullable ones complete to `null` on
+     their own, and `complete` is only needed for the rest. This is an additive codegen and
+     descriptor change.
+   - **Included relations** in the view resolve from the cache as B1a already does, using the
+     relation refs in the input.
+3. **It can't fit.** There's no `complete`, or the view needs something completion can't give,
+   such as an uncached included resource. The row then becomes a **pending entry** on that list
+   rather than a member: `list.$pending()` returns the pending creates targeted at that list, each
+   typed as the create input plus its id (`PendingCreate<T>`) and carrying the placement `into`
+   chose. The list's member type stays honest, and the UI can still render the new row from the
+   data the user typed. This generalises B1a's deferred relation members (`$pending(rel)`), which
+   gain the same treatment: a deferred member carries the caller-supplied member data when there is
+   any, so a skeleton row can show a title.
+
+**Placement.** `into` is consulted for every candidate list, whether the row fits, fits once
+completed, or becomes a pending entry. So pending entries know where they belong (`'start'`,
+`'end'` or an index), and a UI can render them in place.
+
+**Reconciliation** is unchanged. On settle the candidates refetch, the real row replaces the member
+or the pending entry, and a temporary id swaps in place for members. Pending entries simply clear,
+since they were never members.
+
+**Never silent.** In development, a create whose `into` placed it in no view, as member or pending
+entry, warns once, naming the type and why.
+
+**Rejected:**
+
+- **Relaxing the fit rule for creates** (missing attributes left `undefined`): templates read
+  `undefined` where the type promises a value.
+- **Widening list item types to `Row | PendingRow`:** breaking for every list reader.
+- **Rendering pending creates only from `useMutationState` variables** (TanStack's own pattern):
+  that still works, but it gives up `into` placement and the shared cache.
+
+**Open questions for the maintainer:**
+
+1. **Pending entries:** is `list.$pending()` acceptable as the type-honest fallback? It means a UI
+   that wants unfit creates visible renders two sources, members then pending entries in their
+   positions. An alternative is a merged helper, such as
+   `withPending(list, (pending) => placeholderRow)`.
+2. **Automatic completion:** should codegen extend the descriptor with server-only and nullable
+   attributes, so nullable server-only attributes complete automatically? That's a codegen change in
+   json-api-ts only. The alternative is `complete` alone, with the app writing `null` for those
+   itself.
+3. **Typing `complete`:** should it be typed per type from the generated read and create attribute
+   types? The recommendation is yes, with `ServerOnly<T>` derived as above. Or should it be loose
+   (`Partial` of the read attributes)?
+4. **Scope:** do `$count`/`meta.total` on a list increment for a pending entry as well as for a
+   member? The recommendation is yes for both, since the server will count it.
+
 ### B3. Lifecycle, all inside `JsonApiMutationCache` and awaited
 
 1. **`onMutate`:** `await cancelQueries` on the keys the plan affects (gap 6), then open the
