@@ -27,6 +27,9 @@ const resourceOf = (type: string): SchemaObject => ({
   },
 })
 
+const text: SchemaObject = { type: 'string' }
+const built = (doc: OpenApiDocument) => buildDescriptor(doc)['widgets']!
+
 describe('emit — server-only and nullable attributes', () => {
   it('writes both into the generated descriptor', () => {
     const doc: OpenApiDocument = {
@@ -80,8 +83,6 @@ describe('buildDescriptor — server-only and nullable attributes', () => {
       },
     },
   })
-  const text: SchemaObject = { type: 'string' }
-  const built = (doc: OpenApiDocument) => buildDescriptor(doc)['widgets']!
 
   it('lists a read attribute the create attributes lack as server-only', () => {
     const widgets = built(docWith({ title: text, slug: text, code: text }, { title: text }))
