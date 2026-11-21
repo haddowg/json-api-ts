@@ -82,6 +82,11 @@ export interface EdgeMembers<
 > {
   readonly $edge: Edge<Meta> | undefined
   readonly $pivot: Pivot | undefined
+  /**
+   * `'pending'` while a cache layer (an optimistic draft in `@haddowg/json-api-query`) holds an
+   * unconfirmed change to this member, else `undefined`.
+   */
+  readonly $optimistic?: 'pending' | undefined
 }
 
 /**
@@ -106,6 +111,17 @@ export interface ResourceAccessors<
    */
   readonly $nestedFieldset: NestedFieldset
   $rel(name: string): RelationView | undefined
+  /**
+   * `'pending'` while a cache layer (an optimistic draft in `@haddowg/json-api-query`) holds an
+   * unconfirmed change to this resource: an attribute it predicted, or a change to one of its
+   * relations. `undefined` otherwise.
+   */
+  readonly $optimistic?: 'pending' | undefined
+  /**
+   * The members a cache layer predicted for relation `name` but couldn't show yet, because no
+   * cached copy of them fits the slot. Empty when there are none.
+   */
+  $pending(name: string): readonly ResourceIdentifier[]
 }
 
 /** Every wire type declared by the descriptor `D`. */

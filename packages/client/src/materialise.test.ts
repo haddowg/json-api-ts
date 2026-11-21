@@ -5,11 +5,14 @@ import type { ApiDescriptor, ResourceDescriptor } from './descriptor'
 import {
   type ArrayEnvelope,
   type EdgeEnvelope,
+  edgeViewOf,
+  identifierViewOf,
   isMaterialised,
   materialise,
   type MaterialiseContext,
   relatedPaginatorKind,
   type ResourceEnvelope,
+  setMaterialisedOverlay,
 } from './materialise'
 import type { Document } from './request'
 
@@ -558,5 +561,140 @@ describe('isMaterialised', () => {
     expect(isMaterialised(undefined)).toBe(false)
     expect(isMaterialised('x')).toBe(false)
     expect(isMaterialised(null)).toBe(false)
+  })
+})
+
+describe('the cache-layer overlay', () => {
+  const doc: Document = {
+    data: {
+      type: 'albums',
+      id: '1',
+      relationships: {
+        tracks: {
+          data: [{ type: 'tracks', id: 't1', meta: { pivot: { position: 1 } } }],
+          meta: { total: 4 },
+        },
+      },
+    },
+    included: [{ type: 'tracks', id: 't1', attributes: { title: 'One' } }],
+  }
+  type Album = Materialised & { tracks: AugArray<Related> & { $count: number | undefined } }
+
+  it('reads as nothing pending and the response count without a layer', () => {
+    const album = materialise(doc, context()) as Album
+    expect(album.$optimistic).toBeUndefined()
+    expect(album.$pending('tracks')).toEqual([])
+    expect(album.$count('tracks')).toBe(4)
+    expect(album.tracks.$count).toBe(4)
+    expect(album.tracks[0]!.$optimistic).toBeUndefined()
+    expect(Object.keys(album)).not.toContain('$optimistic')
+  })
+
+  it('asks the layer about the value and then what it reads through to', () => {
+    const album = materialise(doc, context()) as Album
+    const track = album.tracks[0]!
+    const marked = new Set<object>([album])
+    const asked: { targets: readonly object[]; name: string | undefined }[] = []
+    setMaterialisedOverlay({
+      optimistic: (targets) => (targets.some((t) => marked.has(t)) ? 'pending' : undefined),
+      pending: (targets, name) =>
+        targets.includes(album) && name === 'tracks' ? [{ type: 'tracks', id: 't9' }] : [],
+      count: (targets, name, raw) => {
+        asked.push({ targets, name })
+        return raw === undefined ? undefined : raw + 1
+      },
+    })
+    try {
+      expect(album.$optimistic).toBe('pending')
+      expect(album.$pending('tracks')).toEqual([{ type: 'tracks', id: 't9' }])
+      expect(album.$count('tracks')).toBe(5)
+      expect(album.tracks.$count).toBe(5)
+      // The to-many array asks about itself, under no relation name.
+      expect(asked.at(-1)).toEqual({ targets: [album.tracks], name: undefined })
+      // A per-edge view asks about itself, then the node it reads through to.
+      expect(track.$optimistic).toBeUndefined()
+      marked.add(track)
+      expect(track.$optimistic).toBe('pending')
+    } finally {
+      setMaterialisedOverlay(undefined)
+    }
+  })
+
+  it('a copied to-many array asks about the copy', () => {
+    const album = materialise(doc, context()) as Album
+    const copy: unknown[] = [...album.tracks]
+    Object.defineProperty(
+      copy,
+      '$count',
+      Object.getOwnPropertyDescriptor(album.tracks, '$count') as PropertyDescriptor,
+    )
+    const seen: object[] = []
+    setMaterialisedOverlay({
+      optimistic: () => undefined,
+      pending: () => [],
+      count: (targets, _name, raw) => {
+        seen.push(...targets)
+        return raw
+      },
+    })
+    try {
+      expect((copy as unknown as { $count: number }).$count).toBe(4)
+      expect(seen).toEqual([copy])
+    } finally {
+      setMaterialisedOverlay(undefined)
+    }
+  })
+})
+
+describe('edgeViewOf and identifierViewOf', () => {
+  it('builds a per-edge view reading through to a node, with its own pivot', () => {
+    const album = materialise(
+      {
+        data: {
+          type: 'albums',
+          id: '1',
+          relationships: { tracks: { data: [{ type: 'tracks', id: 't1' }] } },
+        },
+        included: [{ type: 'tracks', id: 't1', attributes: { title: 'One', extra: 1 } }],
+      },
+      context(),
+    ) as Materialised & { tracks: AugArray<Related> }
+    const node = album.tracks[0]!
+    const view = edgeViewOf(
+      node,
+      { type: 'tracks', id: 't1', meta: { pivot: { position: 2 } } },
+      (key) => key === 'title',
+    ) as Related
+    expect({ ...view }).toEqual({ type: 'tracks', id: 't1', title: 'One' })
+    expect(view.$pivot).toEqual({ position: 2 })
+    expect(view.$edge).toEqual({ meta: { pivot: { position: 2 } } })
+    expect(view.$raw).toBe(node.$raw)
+    expect(view.$rel('album')).toBeUndefined()
+    expect(view.$count('album')).toBeUndefined()
+    expect(view.$pending('album')).toEqual([])
+    expect(node.$pivot).toBeUndefined()
+  })
+
+  it('builds a view over a plain object, whose missing accessors read as undefined', () => {
+    const view = edgeViewOf(
+      { type: 'tracks', id: 't2', title: 'Two' },
+      { type: 'tracks', id: 't2' },
+    ) as Related
+    expect({ ...view }).toEqual({ type: 'tracks', id: 't2', title: 'Two' })
+    expect(view.$raw).toBeUndefined()
+    expect(view.$rel('album')).toBeUndefined()
+    expect(view.$count('album')).toBeUndefined()
+    expect(view.$pivot).toBeUndefined()
+  })
+
+  it('builds an identifier view with its pivot', () => {
+    const view = identifierViewOf({
+      type: 'tracks',
+      id: 't3',
+      meta: { pivot: { position: 3 } },
+    }) as Edged
+    expect({ ...view }).toEqual({ type: 'tracks', id: 't3', meta: { pivot: { position: 3 } } })
+    expect(view.$pivot).toEqual({ position: 3 })
+    expect(view.$optimistic).toBeUndefined()
   })
 })
