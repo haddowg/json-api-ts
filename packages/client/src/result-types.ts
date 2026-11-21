@@ -39,6 +39,8 @@ import type {
   DocumentEnvelope,
   Edge,
   NavigateOptions,
+  PendingCreate,
+  PendingMember,
   RelationArrayEnvelope,
   RelationView,
   ResourceLinks,
@@ -61,7 +63,17 @@ export type Collection<T, P = Page, M = Record<string, unknown> | undefined> = R
     readonly $meta: M
     $next(options?: NavigateOptions): Promise<Collection<T, P, M> | undefined>
     $prev(options?: NavigateOptions): Promise<Collection<T, P, M> | undefined>
+    /**
+     * The creates a cache layer (an optimistic draft in `@haddowg/json-api-query`) placed in this
+     * list but couldn't show as members yet, each with the input it was created from, its id, and
+     * where in the list it belongs. Empty when there are none. Declared optional so a hand-built
+     * collection needn't carry it; a materialised one always does.
+     */
+    $pending?(): readonly PendingCreate<Readonly<Record<string, unknown>>, MemberTypeOf<T>>[]
   }
+
+/** The `type` of a collection's members, or `string` where they don't say. */
+export type MemberTypeOf<T> = T extends { readonly type: infer X extends string } ? X : string
 
 /**
  * A to-many relationship value: a {@link Collection} that also carries `$count`, the
@@ -119,9 +131,10 @@ export interface ResourceAccessors<
   readonly $optimistic?: 'pending' | undefined
   /**
    * The members a cache layer predicted for relation `name` but couldn't show yet, because no
-   * cached copy of them fits the slot. Empty when there are none.
+   * cached copy of them fits the slot. Each is the member's identifier, carrying under `member`
+   * what the write supplied of it when that was more than an identifier. Empty when there are none.
    */
-  $pending(name: string): readonly ResourceIdentifier[]
+  $pending(name: string): readonly PendingMember[]
 }
 
 /** Every wire type declared by the descriptor `D`. */
@@ -146,6 +159,9 @@ export type ReadableRelationName<D extends ApiDescriptor, T extends TypeName<D>>
 
 /** The attribute object for type `T`, from the generated attributes map `A` (falls back to `{}`). */
 type AttributesOf<A, T> = T extends keyof A ? A[T] : Record<string, never>
+
+/** The read attributes of type `T` from the read-types map `A` (the generated `Attributes`). */
+export type ReadAttributesOf<A, T> = AttributesOf<A, T>
 
 /**
  * The read-types map a client threads to its results: the attribute map `A`, carrying the
@@ -1718,7 +1734,7 @@ type WritePair<W, T> = T extends keyof W
   : { create: Record<string, unknown>; update: Record<string, unknown> }
 
 /** The create attribute object for type `T` from the write map `W`. */
-type CreateAttributesOf<W, T> = WritePair<W, T> extends { create: infer C } ? C : object
+export type CreateAttributesOf<W, T> = WritePair<W, T> extends { create: infer C } ? C : object
 
 /** The update attribute object for type `T` from the write map `W`. */
 type UpdateAttributesOf<W, T> = WritePair<W, T> extends { update: infer U } ? U : object

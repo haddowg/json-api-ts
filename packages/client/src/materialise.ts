@@ -49,6 +49,41 @@ export interface Edge<Meta extends Record<string, unknown> = Record<string, unkn
   meta?: Meta
 }
 
+/**
+ * A member a cache layer (an optimistic draft in `@haddowg/json-api-query`) predicted for a
+ * relation but couldn't show yet, because no copy of it fits the slot: its identifier, and the
+ * member the write supplied when it supplied more than an identifier (a row the user picked, or a
+ * new resource's create input), so a placeholder can show what is known of it.
+ */
+export interface PendingMember<TType extends string = string> extends ResourceIdentifier<TType> {
+  /** The member the write supplied, when it carried more than its identifier. */
+  readonly member?: Readonly<Record<string, unknown>>
+}
+
+/**
+ * Where an optimistic create was placed in a list: first (`'start'`), last (`'end'`), or before
+ * the member at an index of the list (of the page, in an infinite query's pages).
+ */
+export type PendingPlacement = 'start' | 'end' | number
+
+/**
+ * A create a cache layer placed in a list but couldn't show as a member, because the row it can
+ * build from the create's input doesn't hold everything the list's members promise (an attribute
+ * only the server sets, or an included resource that isn't cached). `input` is what the write sent
+ * (`I` types it where the create input's type is known), `id` the id the row carries (the one sent,
+ * or a temporary id swapped for the server's once the write succeeds), and `at` where in the list
+ * it belongs.
+ */
+export interface PendingCreate<
+  I = Readonly<Record<string, unknown>>,
+  TType extends string = string,
+> {
+  readonly type: TType
+  readonly id: string
+  readonly at: PendingPlacement
+  readonly input: I
+}
+
 /** The uniform shape `$rel(name)` returns. */
 export interface RelationView {
   data?: unknown
@@ -82,9 +117,10 @@ export interface ResourceEnvelope {
   readonly $optimistic: 'pending' | undefined
   /**
    * The members a cache layer predicted for relation `name` but couldn't show yet, because no copy
-   * of them fits the slot. Empty when there are none.
+   * of them fits the slot, each carrying the member the write supplied when it supplied one. Empty
+   * when there are none.
    */
-  $pending(name: string): readonly ResourceIdentifier[]
+  $pending(name: string): readonly PendingMember[]
 }
 
 /** Edge-local accessors carried by a materialised related VALUE (per-edge view). */
@@ -187,7 +223,17 @@ export interface MaterialisedOverlay {
   /** `'pending'` when the layer holds an unconfirmed change to any of `targets`. */
   optimistic(targets: readonly object[]): 'pending' | undefined
   /** The members of relation `name` the layer predicted for `targets` but couldn't show. */
-  pending(targets: readonly object[], name: string): readonly ResourceIdentifier[]
+  pending(targets: readonly object[], name: string): readonly PendingMember[]
+  /**
+   * The creates the layer placed in the collection `targets` (an augmented array, then what it
+   * reads through to) but couldn't show as members. Absent: none.
+   */
+  creates?(targets: readonly object[]): readonly PendingCreate[]
+  /**
+   * The total the collection `targets` reports, given the `raw` total its response carried
+   * (`$page.meta.total`, and a top-level collection's `$meta.total`). Absent: the raw total.
+   */
+  total?(targets: readonly object[], raw: number): number
   /**
    * The count `targets` report for relation `name`, given the `raw` count the response carried.
    * `name` is `undefined` when the target is the to-many array itself (its own `$count`).
@@ -212,7 +258,9 @@ export function setMaterialisedOverlay(next: MaterialisedOverlay | undefined): v
   overlay = next
 }
 
-const NO_IDENTIFIERS: readonly ResourceIdentifier[] = Object.freeze([])
+const NO_IDENTIFIERS: readonly PendingMember[] = Object.freeze([])
+
+const NO_CREATES: readonly PendingCreate[] = Object.freeze([])
 
 /** The value each per-edge view reads through to. */
 const SOURCES = new WeakMap<object, object>()
@@ -248,7 +296,7 @@ function attachOverlayAccessors(target: object): void {
   define(
     target,
     '$pending',
-    (name: string): readonly ResourceIdentifier[] =>
+    (name: string): readonly PendingMember[] =>
       overlay?.pending(chainOf(target), name) ?? NO_IDENTIFIERS,
   )
   define(target, '$count', (name: string): number | undefined => {
@@ -689,7 +737,15 @@ function augmentArray(
   const arr = [...members]
   const links = doc.links
   defineGetter(arr, '$links', () => links)
-  defineGetter(arr, '$meta', () => doc.meta)
+  // Read through `this`, as `$page` and `$pending` are, so a copy of the array carrying these
+  // accessors (a cache layer's edited membership) asks the overlay about itself.
+  Object.defineProperty(arr, '$meta', {
+    get(this: object): Record<string, unknown> | undefined {
+      return withTotal(doc.meta, this)
+    },
+    enumerable: false,
+    configurable: true,
+  })
   const paginator =
     paginatorOverride === undefined
       ? resolvePaginator(primaryPaginator(doc, ctx, primaryType))
@@ -774,7 +830,18 @@ function attachPage(
   const page: Page = { kind: paginator.kind, keys: paginator.keys, links: pageLinks(links) }
   if (paginator.arm !== undefined) page.arm = paginator.arm
   if (meta !== undefined) page.meta = meta
-  defineGetter(arr, '$page', () => page)
+  // Through `this`, so a copy of the array (a cache layer's edited membership) reports its own
+  // total and pending creates.
+  Object.defineProperty(arr, '$page', {
+    get(this: object): Page {
+      return pageWithTotal(page, this)
+    },
+    enumerable: false,
+    configurable: true,
+  })
+  define(arr, '$pending', function (this: object): readonly PendingCreate[] {
+    return overlay?.creates?.([this]) ?? NO_CREATES
+  })
   const go = (link: string | undefined, signal: AbortSignal | undefined) =>
     navigateLink(link === undefined ? undefined : follow(link), ctx, linkage, paginator, signal)
   define(arr, '$next', (options?: NavigateOptions) => go(page.links.next, options?.signal))
@@ -811,6 +878,42 @@ const linkHref = (link: unknown): string | undefined => {
   if (typeof link === 'string') return link
   if (isObject(link) && typeof link['href'] === 'string') return link['href']
   return undefined
+}
+
+/** `meta` with its `total` moved as the overlay reports for `target`, when both say so. */
+function withTotal(
+  meta: Record<string, unknown> | undefined,
+  target: object,
+): Record<string, unknown> | undefined {
+  const raw = meta?.['total']
+  if (overlay?.total === undefined || typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return meta
+  }
+  const total = overlay.total([target], raw)
+  return total === raw ? meta : cachedCopy(meta!, total, () => ({ ...meta, total }))
+}
+
+/** `page` with its `meta.total` moved as the overlay reports for `target`. */
+function pageWithTotal(page: Page, target: object): Page {
+  const meta = page.meta === undefined ? undefined : withTotal(page.meta, target)
+  if (meta === undefined || meta === page.meta) {
+    return page
+  }
+  return cachedCopy(page, meta['total'] as number, () => ({ ...page, meta }))
+}
+
+/** The copies made of each value per total, so an unchanged total reads back the same object. */
+const COPIES = new WeakMap<object, Map<number, object>>()
+
+function cachedCopy<V extends object>(value: V, total: number, make: () => V): V {
+  const copies = COPIES.get(value) ?? new Map<number, object>()
+  COPIES.set(value, copies)
+  let copy = copies.get(total)
+  if (copy === undefined) {
+    copy = make()
+    copies.set(total, copy)
+  }
+  return copy as V
 }
 
 const pageMeta = (meta: Record<string, unknown> | undefined): Record<string, unknown> | undefined =>
