@@ -9,7 +9,7 @@ Pass a callback to `client.atomic`. It receives a recorder (`tx`) whose `create`
 ```ts
 const [artist, album] = await client.atomic((tx) => {
   const a = tx.create({ type: 'artists', name: 'Boards of Canada' })
-  const b = tx.create({ type: 'albums', title: 'Geogaddi' })
+  const b = tx.create({ type: 'albums', title: 'Geogaddi' }, { meta: { source: 'import' } })
   return [a, b] as const
 })
 
@@ -77,7 +77,11 @@ A `tx.create` handle doubles as a `{ type, lid }` relationship reference. Drop i
 const [artist, geogaddi] = await client.atomic((tx) => {
   const newArtist = tx.create({ type: 'artists', name: 'Boards of Canada' })
   // `newArtist` is a { type, lid } ref — the album's `artist` relation points at it.
-  const newAlbum = tx.create({ type: 'albums', title: 'Geogaddi', artist: newArtist })
+  // The example server requires an album created in a batch to say where it came from.
+  const newAlbum = tx.create(
+    { type: 'albums', title: 'Geogaddi', artist: newArtist },
+    { meta: { source: 'import' } },
+  )
   return [newArtist, newAlbum] as const
 })
 
@@ -91,7 +95,8 @@ On the wire the first operation carries a generated local id and the second refe
 { "atomic:operations": [
   { "op": "add", "data": { "type": "artists", "lid": "atomic-0", "attributes": { "name": "Boards of Canada" } } },
   { "op": "add", "data": { "type": "albums", "attributes": { "title": "Geogaddi" },
-    "relationships": { "artist": { "data": { "type": "artists", "lid": "atomic-0" } } } } }
+    "relationships": { "artist": { "data": { "type": "artists", "lid": "atomic-0" } } } },
+    "meta": { "source": "import" } }
 ] }
 ```
 
@@ -102,7 +107,7 @@ Each create's `lid` is deterministic — `atomic-<opIndex>` — so it is stable 
 
     ```ts
     await client.atomic((tx) => {
-      const draft = tx.create({ type: 'albums', title: 'Untitled' })
+      const draft = tx.create({ type: 'albums', title: 'Untitled' }, { meta: { source: 'import' } })
       tx.update({ type: 'albums', lid: draft.lid, title: 'Music Has the Right to Children' })
       // or discard it entirely: tx.delete(draft)
     })
@@ -116,7 +121,7 @@ An atomic batch is all-or-nothing: if one operation is rejected the whole batch 
 try {
   await client.atomic((tx) => {
     tx.create({ type: 'artists', name: 'Boards of Canada' })
-    tx.create({ type: 'albums', title: '' }) // fails validation
+    tx.create({ type: 'albums', title: '' }, { meta: { source: 'import' } }) // fails validation
   })
 } catch (error) {
   if (error instanceof JsonApiError) {
