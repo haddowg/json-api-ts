@@ -1,4 +1,6 @@
 import type { FormEvent } from 'react'
+import type { ResourceMap, WriteAttributes } from '../generated/music-catalog.gen'
+import { type PendingCreateOf, withPending } from '@haddowg/json-api-query'
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -6,24 +8,35 @@ import { reads, writes } from '../api/client'
 import { GradientArt } from '../components/GradientArt'
 import { QueryState } from '../components/QueryState'
 
+/** A create the list holds as a pending entry: its input, its id and where it belongs. */
+type PendingPlaylist = PendingCreateOf<ResourceMap, WriteAttributes, 'playlists'>
+
+/** A slug as a server might make one from a title, to show until the server's arrives. */
+const slugOf = (title: string): string =>
+  title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+
 /**
- * Playlists index + creation. The list is a typed `reads.playlists.list` read, served newest first;
- * the form drives `writes.playlists.create()` — a `useMutation` over the create option factory.
- * The create is optimistic: a create is never placed automatically (only the server knows where a
+ * Playlists index + creation. The list is a typed `reads.playlists.list` read of whole playlists,
+ * served newest first; the form drives `writes.playlists.create()`, a `useMutation` over the create
+ * option factory.
+ *
+ * The create is optimistic. A create is never placed automatically (only the server knows where a
  * new resource belongs in a filtered, sorted or paged list), so `into` puts it at the top of the
- * unfiltered lists, where a newest-first server would. The row appears only in a list whose
- * fieldset the create's input satisfies, which is why the list selects `title` and `public`. It
- * carries a temporary id
- * (`playlists` takes no client ids) and `$optimistic: 'pending'` until the write settles, when its
- * id is swapped for the server's and the type's lists refetch.
+ * unfiltered lists, where a newest-first server would. A list of whole playlists promises `slug`
+ * and `externalId`, which only the server sets, so `complete` gives the row a placeholder slug made
+ * from its title, and `externalId`, which may be `null`, completes to `null` on its own. The row
+ * then shows as a real card, with a temporary id (`playlists` takes no client ids) and
+ * `$optimistic: 'pending'`, until the write settles, when its id is swapped for the server's and the
+ * type's lists refetch.
+ *
+ * A create whose row can't fill the list's shape, such as one made elsewhere without `complete`,
+ * is kept by the list as a pending entry instead, which `withPending` merges in as a skeleton card.
  */
 export function PlaylistsPage() {
-  // The cards show a title and visibility, so the read selects just those: the create's own input
-  // then satisfies the list's shape, which a list of whole playlists (with server-made `slug`
-  // and the like) would refuse the optimistic row for.
-  const playlistsQuery = useQuery(
-    reads.playlists.list({ fields: { playlists: ['title', 'public'] } }),
-  )
+  const playlistsQuery = useQuery(reads.playlists.list())
   const playlists = playlistsQuery.data
 
   const [title, setTitle] = useState('')
@@ -31,7 +44,10 @@ export function PlaylistsPage() {
 
   const create = useMutation({
     ...writes.playlists.create({
-      optimistic: { into: (q) => (q.params.filter === undefined ? 'start' : false) },
+      optimistic: {
+        into: (q) => (q.params.filter === undefined ? 'start' : false),
+        complete: (input) => ({ slug: slugOf(input.title) }),
+      },
     }),
     onSuccess: () => {
       setTitle('')
@@ -45,6 +61,9 @@ export function PlaylistsPage() {
     if (trimmed === '' || create.isPending) return
     create.mutate({ title: trimmed, public: isPublic })
   }
+
+  // The members, with a skeleton for each create the list holds as a pending entry, in place.
+  const rows = playlists ? withPending(playlists, (pending: PendingPlaylist) => ({ pending })) : []
 
   return (
     <div>
@@ -80,11 +99,29 @@ export function PlaylistsPage() {
       <QueryState
         isPending={playlistsQuery.isPending}
         error={playlistsQuery.error}
-        isEmpty={playlists?.length === 0}
+        isEmpty={rows.length === 0}
         emptyLabel="No playlists yet — create one above."
       >
         <div className="grid">
-          {playlists?.map((playlist) => {
+          {rows.map((row) => {
+            if ('pending' in row) {
+              // A pending entry: what the user typed, until the refetch brings the server's row.
+              const { id, input } = row.pending
+              return (
+                <div
+                  key={id}
+                  className="card card--skeleton"
+                  aria-label={`Creating ${input.title}`}
+                >
+                  <div className="card__art">
+                    <span className="skeleton-bar skeleton-bar--art" />
+                  </div>
+                  <div className="card__title">{input.title}</div>
+                  <div className="card__subtitle">Creating…</div>
+                </div>
+              )
+            }
+            const playlist = row
             const card = (
               <>
                 <div className="card__art">

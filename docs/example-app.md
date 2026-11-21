@@ -117,21 +117,24 @@ The page only renders what the draft reports:
 - **Rename** is an attribute update; because normalisation does `type:id` write-through patching, the new title shows up in the Playlists list and Browse with no refetch, "edit once, updates everywhere".
 - The ref builders (position → `$pivot`) are all that remain in [`api/playlist-tracks.ts`](../examples/spotify-clone/src/api/playlist-tracks.ts); [`components/TrackPicker.tsx`](../examples/spotify-clone/src/components/TrackPicker.tsx) is the add-tracks surface.
 
-[`PlaylistsPage.tsx`](../examples/spotify-clone/src/pages/PlaylistsPage.tsx) creates playlists optimistically. A create is never placed automatically, so `into` puts the new playlist at the top of the newest-first list:
+[`PlaylistsPage.tsx`](../examples/spotify-clone/src/pages/PlaylistsPage.tsx) creates playlists optimistically. A create is never placed automatically, so `into` puts the new playlist at the top of the newest-first list. The list reads whole playlists, which promise the server-made `slug` and `externalId`, so `complete` gives the row a placeholder slug from its title, and `externalId`, which may be `null`, completes to `null` on its own:
 
 ```ts
 writes.playlists.create({
-  optimistic: { into: (q) => (q.params.filter === undefined ? 'start' : false) },
+  optimistic: {
+    into: (q) => (q.params.filter === undefined ? 'start' : false),
+    complete: (input) => ({ slug: slugOf(input.title) }),
+  },
 })
 ```
 
-Playlists take no client ids, so the new card carries a temporary id and `$optimistic: 'pending'`, renders as a plain card rather than a link (no route can open a temporary id), and gets the server's id when the write succeeds. The list reads only `title` and `public`, the fieldset the create's input satisfies: a list of whole playlists would refuse the row, which would need the server-made `slug` and `externalId`.
+Playlists take no client ids, so the new card carries a temporary id and `$optimistic: 'pending'`, renders as a plain card rather than a link (no route can open a temporary id), and gets the server's id when the write succeeds. A create whose row can't fill the list's shape, such as one made elsewhere without `complete`, is kept by the list as a pending entry instead, which the page merges in as a skeleton card with `withPending(playlists, …)`.
 
 !!! note "The optimism is the library's"
     `{ optimistic: true }` makes the mutation cache apply the change through a draft: the parent's related and relationship reads (every page variant) and its relation slot on every cached copy, placed where each member fits, rolled back step by step if the write fails, and refetched by the last overlapping write to settle. The app only shapes the refs and renders the markers. See [Optimistic updates](optimistic-updates.md).
 
 !!! info "Tested"
-    The render smoke test, [`App.test.tsx`](../examples/spotify-clone/src/App.test.tsx), drives an add from its skeleton row to the server's row, a rename and a refused removal through to their rollback, and a create from its pending card to the real one.
+    The render smoke test, [`App.test.tsx`](../examples/spotify-clone/src/App.test.tsx), drives an add from its skeleton row to the server's row, a rename and a refused removal through to their rollback, a create from its pending card to the real one, and a create made beside the page without `complete` from its skeleton card to the server's row.
 
 → [Relationship mutation](relationship-mutation.md) · [Writes](writes.md) · [TanStack Query bindings](tanstack-query.md)
 

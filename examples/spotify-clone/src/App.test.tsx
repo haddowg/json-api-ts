@@ -1,9 +1,23 @@
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, useMutation } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { mockStore, queryClient } from './api/client'
+import { mockStore, queryClient, writes } from './api/client'
 import { App } from './App'
+import { PlaylistsPage } from './pages/PlaylistsPage'
+
+/**
+ * A create made elsewhere in an app without `complete`: nothing supplies the playlist's server-only
+ * `slug`, which a list of whole playlists promises, so the list can only hold it as a pending entry.
+ */
+function QuickCreate({ title }: { title: string }) {
+  const create = useMutation(writes.playlists.create({ optimistic: { into: () => 'start' } }))
+  return (
+    <button type="button" onClick={() => create.mutate({ title, public: true })}>
+      Quick create
+    </button>
+  )
+}
 
 function renderAt(path: string) {
   return render(
@@ -208,6 +222,39 @@ describe('app smoke', () => {
     expect(document.querySelector('.grid .card')).toBe(
       screen.getByText('Brand New').closest('.card'),
     )
+  })
+
+  it('shows a create it cannot complete as a skeleton card in place, then as the server’s row', async () => {
+    // The playlists page beside a create of its own that gives no `complete`: the page's list keeps
+    // that create as a pending entry, which the page merges in with withPending.
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <QuickCreate title="Sketch" />
+          <PlaylistsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText('Late Night')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quick create' }))
+
+    // A skeleton card at the top, showing what was typed; no member row for it yet.
+    const skeleton = await screen.findByLabelText('Creating Sketch')
+    expect(skeleton).toHaveClass('card--skeleton')
+    expect(document.querySelector('.grid .card')).toBe(skeleton)
+    expect(document.querySelector('[data-optimistic]')).toBeNull()
+
+    // Once the write settles and the list refetches, the server's row replaces it.
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Creating Sketch')).not.toBeInTheDocument()
+    })
+    const created = mockStore?.playlists().find((p) => p.title === 'Sketch')
+    expect(screen.getByText('Sketch').closest('a')).toHaveAttribute(
+      'href',
+      `/playlists/${created?.id}`,
+    )
+    expect(document.querySelector('.grid .card')).toBe(screen.getByText('Sketch').closest('.card'))
   })
 
   it('shows the caller from the /me singleton and renames them with the id it read', async () => {

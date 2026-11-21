@@ -243,6 +243,16 @@ button {
   color: var(--text-muted);
 }
 
+/* A create a list holds as a pending entry (`list.$pending()`, merged by `withPending`). */
+.card--skeleton {
+  color: var(--text-muted);
+}
+
+.skeleton-bar--art {
+  width: 148px;
+  height: 148px;
+}
+
 .skeleton-bar {
   display: block;
   height: 12px;
