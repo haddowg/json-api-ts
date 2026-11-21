@@ -1020,14 +1020,28 @@ type RequiredPivotField<P> = P extends { fields: infer Fl }
     : keyof Fl
   : never
 
-/** One pivot field's TS type: its format hint's type, plus `null` when the field is nullable. */
+/**
+ * One pivot field's TS type: one of the literals its `values` lists, else its format hint's type,
+ * plus `null` when the field is nullable.
+ */
 type PivotValue<P, K> = P extends { fields: infer Fl }
   ? K extends keyof Fl
     ?
-        | FormatToTs<Fl[K]>
+        | (P extends { values: infer V }
+            ? K extends keyof V
+              ? ListedValue<V[K], Fl[K]>
+              : FormatToTs<Fl[K]>
+            : FormatToTs<Fl[K]>)
         | (K extends ListMember<P extends { nullable: infer N } ? N : never> ? null : never)
     : never
   : never
+
+/** The literals a `values` entry lists, or hint `H`'s type when the entry lists none. */
+type ListedValue<L, H> = L extends readonly (infer M)[]
+  ? [M] extends [never]
+    ? FormatToTs<H>
+    : M
+  : FormatToTs<H>
 
 /** The fields of a {@link PivotDescriptor}. */
 type PivotFieldNames<P> = P extends { fields: infer Fl } ? keyof Fl : never
@@ -1048,7 +1062,9 @@ type PivotObject<P> = {
 /** The value an open {@link PivotDescriptor} takes for each member beside its fields. */
 type AdditionalValue<P> = P extends { additional: infer X }
   ? X extends { format: infer H }
-    ? FormatToTs<H> | (X extends { nullable: true } ? null : never)
+    ?
+        | (X extends { values: infer L } ? ListedValue<L, H> : FormatToTs<H>)
+        | (X extends { nullable: true } ? null : never)
     : never
   : never
 

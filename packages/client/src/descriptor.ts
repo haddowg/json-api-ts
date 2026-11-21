@@ -48,12 +48,26 @@ export interface PivotDescriptor {
    * open, as a server that doesn't say leaves it.
    */
   additional?: AdditionalMembersDescriptor | false
+  /**
+   * The values a field may take when the server lists them, from its `enum` or `const`: the field
+   * is typed as one of these literals, plus `null` when it is nullable, instead of by its hint.
+   * Absent for a field that takes any value of its hint, and absent altogether in a descriptor
+   * generated without it.
+   */
+  values?: Readonly<Record<string, readonly MetaLiteral[]>>
 }
 
-/** The undeclared members an open meta object takes: their wire-format hint, and whether `null`. */
+/** A literal a meta member may take: one of the values its `enum` or `const` lists. */
+export type MetaLiteral = string | number | boolean
+
+/**
+ * The undeclared members an open meta object takes: their wire-format hint, the values they are
+ * limited to when the server lists them, and whether `null`.
+ */
 export interface AdditionalMembersDescriptor {
   format: string
   nullable?: boolean
+  values?: readonly MetaLiteral[]
 }
 
 /**
