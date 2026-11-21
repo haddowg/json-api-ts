@@ -157,7 +157,7 @@ The remapping applies uniformly across write surfaces: resource [writes](writes.
     try {
       await client.atomic((tx) => {
         const artist = tx.create({ type: 'artists', name: 'Boards of Canada' })
-        const album = tx.create({ type: 'albums', title: '', artist })
+        const album = tx.create({ type: 'albums', title: '', artist }, { meta: { source: 'import' } })
         return [artist, album] as const
       })
     } catch (error) {
