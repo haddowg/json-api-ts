@@ -11,7 +11,8 @@
  *
  * Surface, exposed two equivalent ways:
  *  - standalone factories — `listQueryOptions(client, type, query)`, `getQueryOptions(...)`,
- *    `relationshipQueryOptions(...)`, `relatedQueryOptions(...)`;
+ *    `relationshipQueryOptions(...)`, `relatedQueryOptions(...)`, and the infinite reads
+ *    `infiniteListQueryOptions(...)` and `infiniteRelatedQueryOptions(...)`;
  *  - a bound API — `createQueryApi(client).<type>.list(query)` etc. — sugar over the same
  *    factories with `client`/`type` pre-applied (the cleanest per-type call shape).
  */
@@ -25,9 +26,13 @@ import {
   type IncludePath,
   JsonApiError,
   type ListPageParams,
+  nextPageParams,
+  type Page,
   type PageOf,
+  prevPageParams,
   type ReadResult,
   type RelationName,
+  type RelationPageParams,
   type RelationReadQuery,
   type RelationshipAccessor,
   type ResourceCountToken,
@@ -40,8 +45,15 @@ import {
   type OperationMeta,
   type WithDocumentMeta,
 } from '@haddowg/json-api-client'
-import { type DataTag, type SkipToken, skipToken } from '@tanstack/query-core'
-import { type KeyTarget, keyFor, type QueryKey, type ReadOperation } from './keys'
+import { type DataTag, type InfiniteData, type SkipToken, skipToken } from '@tanstack/query-core'
+import {
+  INFINITE_SEGMENT,
+  infiniteKeyFor,
+  type KeyTarget,
+  keyFor,
+  type QueryKey,
+  type ReadOperation,
+} from './keys'
 
 /**
  * What a collection read resolves to: the client's `Collection`, its `$page` typed by the strategy
@@ -155,6 +167,78 @@ export interface SkippableQueryOptions<R, E = ReadError> extends Omit<
 export type ReadOptions<R, E, I> = SkipToken extends I
   ? SkippableQueryOptions<R, E>
   : QueryOptions<R, E>
+
+/**
+ * The relations of type `T` that are to-many: the relations an infinite related read pages
+ * through. A to-one related read has no pages. Every relation of a descriptor that doesn't type its
+ * cardinalities counts.
+ */
+export type ToManyRelationName<D extends ApiDescriptor, T extends TypeName<D>> = {
+  [R in RelationName<D, T>]: 'many' extends D[T]['relations'][R]['cardinality'] ? R : never
+}[RelationName<D, T>]
+
+/**
+ * The page param an infinite read of type `T`'s collection passes between pages: the read's typed
+ * `page` argument, or `undefined` for the server's first page.
+ */
+export type ListPageParam<D extends ApiDescriptor, T extends TypeName<D>> =
+  | ListPageParams<D, T>
+  | undefined
+
+/** The page param an infinite read of relation `R`'s related collection passes between pages. */
+export type RelatedPageParam<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = RelationPageParams<D, T, R> | undefined
+
+/** The part of TanStack's query-function context an infinite read uses: the page to read. */
+export interface InfiniteQueryFnContext<P> {
+  pageParam: P
+  signal: AbortSignal
+}
+
+/** An infinite read's query function: it reads the page `pageParam` names. */
+export type InfiniteQueryFn<R, P> = (context: InfiniteQueryFnContext<P>) => Promise<R>
+
+/**
+ * TanStack-compatible infinite query options: each page is the read's materialised result `R`, and
+ * `P` is the `page` argument that reads one. `initialPageParam` is the query's own `page`, and
+ * `getNextPageParam`/`getPreviousPageParam` read the params of the page after or before from its
+ * `next`/`prev` link (through the client's `nextPageParams`/`prevPageParams`), `undefined` when
+ * there is none. Each page param replaces the query's whole `page`, since the server's link carries
+ * every page member. The key is the plain read's key plus `'$infinite'`, `DataTag`ged with the
+ * cached `InfiniteData<R, P>` and the error `E`, which the declared-but-unset `retry` carries into
+ * `error` as {@link QueryOptions} does. Structurally assignable to `query-core`'s
+ * `InfiniteQueryObserverOptions` and `FetchInfiniteQueryOptions`, so `useInfiniteQuery`,
+ * `injectInfiniteQuery` and `QueryClient.fetchInfiniteQuery` take it; `maxPages` and the rest are
+ * TanStack's own options, merged in by the caller.
+ */
+export interface InfiniteQueryOptions<R, P, E = ReadError> {
+  queryKey: DataTag<QueryKey, InfiniteData<R, P>, E>
+  queryFn: InfiniteQueryFn<R, P>
+  initialPageParam: P
+  getNextPageParam: (lastPage: R) => P | undefined
+  getPreviousPageParam: (firstPage: R) => P | undefined
+  retry?: ReadRetry<E>
+  structuralSharing: false
+}
+
+/** {@link InfiniteQueryOptions} of a read that may be skipped: its `queryFn` may be `skipToken`. */
+export interface SkippableInfiniteQueryOptions<R, P, E = ReadError> extends Omit<
+  InfiniteQueryOptions<R, P, E>,
+  'queryFn'
+> {
+  queryFn: InfiniteQueryFn<R, P> | SkipToken
+}
+
+/**
+ * {@link InfiniteQueryOptions}, or {@link SkippableInfiniteQueryOptions} when the address `I` may be
+ * `skipToken`.
+ */
+export type InfiniteReadOptions<R, P, E, I> = SkipToken extends I
+  ? SkippableInfiniteQueryOptions<R, P, E>
+  : InfiniteQueryOptions<R, P, E>
 
 /** The part of TanStack's query-function context a read factory uses. */
 export interface QueryFnContext {
@@ -383,6 +467,101 @@ function relationOptions<D extends ApiDescriptor, A>(
   }
 }
 
+// ── Infinite reads ────────────────────────────────────────────────────────────────────────
+
+type LooseInfiniteOptions = SkippableInfiniteQueryOptions<unknown, unknown, unknown>
+
+/** A page an infinite read resolved, when it is a paginated collection carrying `$page`. */
+function paged(result: unknown): { readonly $page: Page } | undefined {
+  if (typeof result !== 'object' || result === null) {
+    return undefined
+  }
+  return (result as { $page?: Page }).$page === undefined ? undefined : (result as { $page: Page })
+}
+
+const nextPageParam = (lastPage: unknown): unknown => nextPageParams(paged(lastPage))
+const previousPageParam = (firstPage: unknown): unknown => prevPageParams(paged(firstPage))
+
+/** The `page` the query starts at: its own, or `undefined` for the server's first page. */
+function initialPage(query: object | undefined): unknown {
+  return (query as { page?: unknown } | undefined)?.page
+}
+
+/**
+ * The query reading the page `page` names, with TanStack's abort signal: `page` replaces the
+ * query's whole `page`, and `undefined` leaves it out, so the server answers with its first page.
+ */
+function atPage<Q extends object>(
+  query: Q | undefined,
+  page: unknown,
+  signal: AbortSignal | undefined,
+): Q {
+  const { page: _replaced, ...rest } = (query ?? {}) as { page?: unknown }
+  return {
+    ...rest,
+    ...(page === undefined ? {} : { page }),
+    ...(signal === undefined ? {} : { signal }),
+  } as Q
+}
+
+/** Infinite options whose `queryFn` is TanStack's `skipToken`, under the skipped read's key. */
+function skippedInfinite(
+  type: string,
+  operation: ReadOperation,
+  rel?: string,
+): LooseInfiniteOptions {
+  // Annotated: an unannotated `skipToken` in an object literal widens to `symbol`.
+  const queryFn: SkipToken = skipToken
+  return {
+    queryKey: tag([...skippedKey(type, operation, rel), INFINITE_SEGMENT]),
+    queryFn,
+    initialPageParam: undefined,
+    getNextPageParam: nextPageParam,
+    getPreviousPageParam: previousPageParam,
+    structuralSharing: false,
+  }
+}
+
+function infiniteListOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  query: object | SkipToken | undefined,
+): LooseInfiniteOptions {
+  if (query === skipToken) {
+    return skippedInfinite(type, 'fetchMany')
+  }
+  const accessor = readsOf(client, type)
+  return {
+    queryKey: tag(infiniteKeyFor({ type, operation: 'fetchMany' }, query)),
+    structuralSharing: false,
+    initialPageParam: initialPage(query),
+    getNextPageParam: nextPageParam,
+    getPreviousPageParam: previousPageParam,
+    queryFn: ({ pageParam, signal }) => accessor.list(atPage(query, pageParam, signal) as never),
+  }
+}
+
+function infiniteRelatedOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  id: string | undefined | SkipToken,
+  rel: RelationName<D, TypeName<D>>,
+  query: RelationReadQuery | undefined,
+): LooseInfiniteOptions {
+  if (id === skipToken) {
+    return skippedInfinite(type, 'fetchRelated', rel)
+  }
+  return {
+    queryKey: tag(infiniteKeyFor(target(type, 'fetchRelated', id, rel), query)),
+    structuralSharing: false,
+    initialPageParam: initialPage(query),
+    getNextPageParam: nextPageParam,
+    getPreviousPageParam: previousPageParam,
+    queryFn: ({ pageParam, signal }) =>
+      relationReads(client, type, id, rel).related(atPage(query, pageParam, signal)),
+  }
+}
+
 // ── Standalone factories ──────────────────────────────────────────────────────────────────
 
 /**
@@ -523,6 +702,88 @@ export function relatedQueryOptions<
   ) as ReadOptions<RelatedResult<D, A, T, R>, ReadError<C>, I>
 }
 
+/**
+ * The infinite collection-list read (`GET /{type}`, page after page): {@link InfiniteQueryOptions}
+ * whose every page is the typed `Collection` `client.<type>.list(query)` resolves. The first page
+ * is the query's own `page` (the server's first page when it has none), and each next or previous
+ * page is read with the `page` params of the `next`/`prev` link. Key: `[type, 'fetchMany',
+ * <params>, '$infinite']`, under the same `[type, 'fetchMany']` prefix a create or delete
+ * invalidates. Passing `skipToken` for the query skips the read (key `[type, 'fetchMany', '$skip',
+ * '$infinite']`).
+ */
+export function infiniteListQueryOptions<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  const Inc extends readonly IncludePath<D, T>[] = [],
+  const F extends FieldsMap<D> = {},
+  const Pg extends ListPageParams<D, T> | undefined = undefined,
+  const Cnt extends readonly CountToken<D, T>[] = [],
+  C extends string = string,
+>(
+  client: TypedClient<D, A, C>,
+  type: T,
+  query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+): InfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, ReadError<C>>
+export function infiniteListQueryOptions<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  const Inc extends readonly IncludePath<D, T>[] = [],
+  const F extends FieldsMap<D> = {},
+  const Pg extends ListPageParams<D, T> | undefined = undefined,
+  const Cnt extends readonly CountToken<D, T>[] = [],
+  C extends string = string,
+>(
+  client: TypedClient<D, A, C>,
+  type: T,
+  query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
+): SkippableInfiniteQueryOptions<
+  ListResult<D, A, T, Inc, F, Pg, Cnt>,
+  ListPageParam<D, T>,
+  ReadError<C>
+>
+export function infiniteListQueryOptions<D extends ApiDescriptor, A>(
+  client: TypedClient<D, A>,
+  type: TypeName<D>,
+  query?: object | SkipToken,
+): unknown {
+  return infiniteListOptions(client, type, query)
+}
+
+/**
+ * The infinite related-collection read (`GET /{type}/{id}/{rel}`, page after page) of a to-many
+ * relation: {@link InfiniteQueryOptions} whose every page is what
+ * `client.<type>.id(id).rel(rel).related(query)` resolves, paged as
+ * {@link infiniteListQueryOptions} pages. Key: `[type, 'fetchRelated', id, rel, <params>,
+ * '$infinite']`, under the `(parent, relation)` prefix a relationship write invalidates. A
+ * singleton takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>,
+ * '$infinite']`. Passing `skipToken` for the id skips the read (key `[type, 'fetchRelated',
+ * '$skip', rel, '$infinite']`).
+ */
+export function infiniteRelatedQueryOptions<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  R extends ToManyRelationName<D, T>,
+  C extends string = string,
+  I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
+>(
+  client: TypedClient<D, A, C>,
+  type: T,
+  id: I,
+  rel: R,
+  query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
+): InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, ReadError<C>, I> {
+  return infiniteRelatedOptions(
+    client,
+    type,
+    id as string | undefined | SkipToken,
+    rel,
+    query as RelationReadQuery | undefined,
+  ) as InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, ReadError<C>, I>
+}
+
 // ── Bound per-type API (sugar over the standalone factories) ──────────────────────────────
 
 /**
@@ -565,6 +826,29 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>,
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R>,
   ): ReadOptions<RelatedResult<D, A, T, R>, E, I>
+  /** The infinite list read; see {@link infiniteListQueryOptions}. */
+  infinite<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Pg extends ListPageParams<D, T> | undefined = undefined,
+    const Cnt extends readonly CountToken<D, T>[] = [],
+  >(
+    query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
+  ): InfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, E>
+  infinite<
+    const Inc extends readonly IncludePath<D, T>[] = [],
+    const F extends FieldsMap<D> = {},
+    const Pg extends ListPageParams<D, T> | undefined = undefined,
+    const Cnt extends readonly CountToken<D, T>[] = [],
+  >(
+    query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
+  ): SkippableInfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, E>
+  /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
+  relatedInfinite<R extends ToManyRelationName<D, T>, I extends string | SkipToken = string>(
+    id: I,
+    rel: R,
+    query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
+  ): InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E, I>
 }
 
 /**
@@ -607,6 +891,15 @@ export interface SingletonQueryApi<
     rel: R,
     query: TypedRelatedReadQuery<D, T, R> | SkipToken,
   ): SkippableQueryOptions<RelatedResult<D, A, T, R>, E>
+  /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
+  relatedInfinite<R extends ToManyRelationName<D, T>>(
+    rel: R,
+    query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
+  ): InfiniteQueryOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E>
+  relatedInfinite<R extends ToManyRelationName<D, T>>(
+    rel: R,
+    query: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>> | SkipToken,
+  ): SkippableInfiniteQueryOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E>
 }
 
 /**
@@ -657,6 +950,8 @@ interface LooseTypeQueryApi {
   get(id: string | SkipToken, query?: unknown): LooseOptions
   relationship(id: string | SkipToken, rel: string, query?: unknown): LooseOptions
   related(id: string | SkipToken, rel: string, query?: unknown): LooseOptions
+  infinite(query?: unknown): LooseInfiniteOptions
+  relatedInfinite(id: string | SkipToken, rel: string, query?: unknown): LooseInfiniteOptions
 }
 
 /** A singleton's bound factories as built at runtime. */
@@ -664,6 +959,7 @@ interface LooseSingletonQueryApi {
   get(query?: unknown): LooseOptions
   relationship(rel: string, query?: unknown): LooseOptions
   related(rel: string, query?: unknown): LooseOptions
+  relatedInfinite(rel: string, query?: unknown): LooseInfiniteOptions
 }
 
 /** Build one type's bound read-option factories (shares the standalone factories' builders). */
@@ -686,6 +982,9 @@ function typeQueryApi<D extends ApiDescriptor, A>(
       ),
     related: (id, rel, query) =>
       relationOptions(client, type, 'fetchRelated', id, rel as Rel, query as RelationReadQuery),
+    infinite: (query) => infiniteListOptions(client, type, query as object | SkipToken),
+    relatedInfinite: (id, rel, query) =>
+      infiniteRelatedOptions(client, type, id, rel as Rel, query as RelationReadQuery),
   }
 }
 
@@ -728,5 +1027,7 @@ function singletonQueryApi<D extends ApiDescriptor, A>(
         rel as Rel,
         singletonParams(query),
       ),
+    relatedInfinite: (rel, query) =>
+      infiniteRelatedOptions(client, type, singletonAt(query), rel as Rel, singletonParams(query)),
   }
 }

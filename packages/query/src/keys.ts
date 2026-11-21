@@ -6,8 +6,10 @@
  * The hierarchy is the contract the normalization layer + targeted invalidation lean on: a
  * prefix of a key matches every key beneath it (TanStack's `queryKey` matching is prefix-based),
  * so `[type]` invalidates a whole type's subtree, `[type, operation]` an operation's subtree, and
- * `[type, operation, id]` a single resource's reads. Params ride the LAST segment as a normalised
- * object so two semantically-equal queries (keys reordered, equal values) share one key.
+ * `[type, operation, id]` a single resource's reads. Params ride the last segment as a normalised
+ * object so two semantically-equal queries (keys reordered, equal values) share one key. An
+ * infinite read's key is its plain read's key plus a trailing {@link INFINITE_SEGMENT}, so it
+ * sits under every prefix its plain read does.
  */
 
 /** The read operations a key can address (mirrors the client's per-operation path templates). */
@@ -103,6 +105,20 @@ export function keyFor(target: KeyTarget, params?: unknown): QueryKey {
     }
   }
   return parts
+}
+
+/**
+ * The segment an infinite read's key ends with, after its params: `[type, 'fetchMany', <params>?,
+ * '$infinite']`. It keeps the infinite read's cached `InfiniteData` apart from the plain read of
+ * the same query, and as a trailing segment it leaves every prefix of the plain read's key a
+ * prefix of the infinite one's too. JSON:API member names can't contain `$`, so it never
+ * collides with a relation name.
+ */
+export const INFINITE_SEGMENT = '$infinite'
+
+/** {@link keyFor}'s key with {@link INFINITE_SEGMENT} appended: an infinite read's key. */
+export function infiniteKeyFor(target: KeyTarget, params?: unknown): QueryKey {
+  return [...keyFor(target, params), INFINITE_SEGMENT]
 }
 
 /** True when a normalised params value carries no information (an empty object or array, or null). */
