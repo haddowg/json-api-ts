@@ -49,14 +49,20 @@ import type { Query, QueryClient } from '@tanstack/query-core'
 import type { QueryKey } from './keys'
 import type { UpdateVariables } from './mutate'
 import {
+  addClaim,
   adoptRecord,
   descends,
+  type FieldClaim,
+  fieldKey,
   isInfiniteValue,
   partsOf,
   publishData,
   queriesIn,
+  removeClaim,
+  serverValueOf,
   type Snapshot,
   targetOf,
+  topClaim,
   walkResources,
   withMembers,
   writable,
@@ -481,15 +487,6 @@ type Loc =
 /** One inverse operation, replayed by a rollback. */
 type Undo =
   | {
-      readonly kind: 'attribute'
-      readonly query: Query
-      readonly node: Record<string, unknown>
-      readonly key: string
-      readonly had: boolean
-      readonly prior: unknown
-      readonly wrote: unknown
-    }
-  | {
       readonly kind: 'added'
       readonly loc: Loc
       readonly produced: object
@@ -606,6 +603,9 @@ function linksOnly(node: Record<string, unknown>, rel: string, slot: unknown): b
 
 // ── The draft ──────────────────────────────────────────────────────────────────────────────
 
+/** The drafts open on each QueryClient: neither committed, rolled back nor confirmed. */
+const openDrafts = new WeakMap<QueryClient, Set<Draft>>()
+
 class Draft {
   readonly scope: string | undefined
   private readonly autoPlace: boolean
@@ -618,6 +618,17 @@ class Draft {
   private readonly marks = new Map<string, Mark>()
   private readonly registered: { query: Query; value: object; mark: Mark; array: boolean }[] = []
   private readonly keys = new Map<string, QueryKey>()
+  /** The keys of the queries only an attribute prediction touched. */
+  private readonly patchedKeys = new Map<string, QueryKey>()
+  /** The attribute predictions the draft holds (design A7 R2). */
+  private claims: FieldClaim[] = []
+  /** Every operation run so far, to run again on a query whose data a read replaces. */
+  private log: (() => void)[] = []
+  private opDepth = 0
+  private replaying = false
+  /** While replaying, the one query the draft edits. */
+  private only: Query | undefined
+  private confirmed = false
 
   constructor(
     private readonly queryClient: QueryClient,
@@ -628,6 +639,29 @@ class Draft {
     this.autoPlace = options.autoPlace !== false
     this.into = options.into
     this.markers = options.markers !== false
+    const open = openDrafts.get(queryClient) ?? new Set<Draft>()
+    open.add(this)
+    openDrafts.set(queryClient, open)
+  }
+
+  /** Run a public operation, recording it (when it isn't nested in another, or a replay) for replay. */
+  private op(entry: () => void): void {
+    const top = this.opDepth === 0 && !this.replaying
+    this.opDepth += 1
+    try {
+      this.run(entry)
+    } finally {
+      this.opDepth -= 1
+    }
+    if (top) {
+      this.log.push(entry)
+    }
+  }
+
+  /** Stop replaying and leave the registry of open drafts. */
+  private close(): void {
+    this.log = []
+    openDrafts.get(this.queryClient)?.delete(this)
   }
 
   // ── Transactions ──
@@ -678,12 +712,17 @@ class Draft {
   }
 
   private stage(query: Query): Staged {
+    this.keys.set(query.queryHash, query.queryKey as QueryKey)
+    return this.stageQuiet(query)
+  }
+
+  /** Stage `query` for publishing without counting it among the queries a write reconciles. */
+  private stageQuiet(query: Query): Staged {
     let entry = this.staged.get(query)
     if (entry === undefined) {
       entry = { data: query.state.data, nodes: new Set() }
       this.staged.set(query, entry)
     }
-    this.keys.set(query.queryHash, query.queryKey as QueryKey)
     return entry
   }
 
@@ -731,6 +770,9 @@ class Draft {
   private candidates(): Candidate[] {
     const out: Candidate[] = []
     for (const query of queriesIn(this.queryClient, this.scope)) {
+      if (this.only !== undefined && query !== this.only) {
+        continue
+      }
       const description = describeQuery(query, this.descriptor)
       // A to-one read may hold `null`; a query that holds nothing yet has nothing to edit.
       if (description !== undefined && !description.skipped && this.current(query) !== undefined) {
@@ -823,7 +865,7 @@ class Draft {
   }
 
   private adjustCount(type: string, id: string | undefined, rel: string, delta: number): void {
-    if (delta === 0) {
+    if (delta === 0 || this.replaying) {
       return
     }
     const mark = this.markFor(type, id)
@@ -845,7 +887,7 @@ class Draft {
         if (set?.size === 0) {
           resourceMarks.delete(value)
         }
-        this.stage(query).nodes.add(value)
+        this.stageQuiet(query).nodes.add(value)
       }
     }
     this.registered.length = 0
@@ -1092,61 +1134,85 @@ class Draft {
   // ── Operations ──
 
   patch(type: string, id: string | undefined, change: unknown): void {
-    this.run(() => {
-      const resource = this.descriptor[type]
-      if (resource === undefined || !isRecord(change)) {
-        return
-      }
-      const attributes = Object.entries(change).filter(([key]) => key in resource.attributes)
-      if (attributes.length > 0) {
-        const mark = this.markFor(type, id)
-        for (const candidate of this.candidates()) {
-          this.walk(candidate, (node, shape) => {
-            if (node['type'] !== type || !this.matchesId(id, node['id'] as string | undefined)) {
-              return
+    this.op(() => this.patchNow(type, id, change))
+  }
+
+  private patchNow(type: string, id: string | undefined, change: unknown): void {
+    const resource = this.descriptor[type]
+    if (resource === undefined || !isRecord(change)) {
+      return
+    }
+    const attributes = Object.entries(change).filter(([key]) => key in resource.attributes)
+    // A replay leaves attributes to the claims, which a normalisation already showed.
+    if (attributes.length > 0 && !this.replaying) {
+      const mark = this.markFor(type, id)
+      const claims = new Map(
+        attributes.map(([key, value]) => [key, this.claim(type, id, key, value)] as const),
+      )
+      for (const candidate of this.candidates()) {
+        this.walk(candidate, (node, shape) => {
+          if (node['type'] !== type || !this.matchesId(id, node['id'] as string | undefined)) {
+            return
+          }
+          let touched = false
+          for (const [key, value] of attributes) {
+            if (!writable(node, key, shape)) {
+              continue
             }
-            let touched = false
-            for (const [key, value] of attributes) {
-              if (!writable(node, key, shape)) {
-                continue
-              }
-              touched = true
-              const had = Object.hasOwn(node, key)
-              const prior = node[key]
-              if (had && prior === value) {
-                continue
-              }
+            touched = true
+            const claim = claims.get(key)!
+            const target = targetOf(node)
+            const had = Object.hasOwn(node, key)
+            if (!claim.nodes.has(target)) {
+              claim.nodes.set(target, { node, query: candidate.query, had, prior: node[key] })
+            }
+            if (!(had && node[key] === value)) {
               node[key] = value
-              this.undo.push({
-                kind: 'attribute',
-                query: candidate.query,
-                node,
-                key,
-                had,
-                prior,
-                wrote: value,
-              })
             }
-            if (touched) {
-              this.consider(candidate.query)
-              this.stage(candidate.query).nodes.add(targetOf(node))
-              this.register(candidate.query, node, mark)
-            }
-          })
-        }
+          }
+          if (touched) {
+            this.patchedKeys.set(candidate.query.queryHash, candidate.query.queryKey as QueryKey)
+            this.stageQuiet(candidate.query).nodes.add(targetOf(node))
+            this.register(candidate.query, node, mark)
+          }
+        })
       }
-      for (const [rel, value] of Object.entries(change)) {
-        const relation = resource.relations[rel]
-        if (relation === undefined) {
-          continue
-        }
-        if (relation.cardinality === 'many' && Array.isArray(value)) {
-          this.replaceMembers(type, id, rel, value)
-        } else if (relation.cardinality === 'one' && (value === null || isRecord(value))) {
-          this.link(type, id, rel, value as DraftRef | null)
-        }
+    }
+    for (const [rel, value] of Object.entries(change)) {
+      const relation = resource.relations[rel]
+      if (relation === undefined) {
+        continue
       }
-    })
+      if (relation.cardinality === 'many' && Array.isArray(value)) {
+        this.replaceMembers(type, id, rel, value)
+      } else if (relation.cardinality === 'one' && (value === null || isRecord(value))) {
+        this.link(type, id, rel, value as DraftRef | null)
+      }
+    }
+  }
+
+  /** This draft's claim on attribute `key` of `type:id`, made the field's latest prediction. */
+  private claim(type: string, id: string | undefined, key: string, value: unknown): FieldClaim {
+    let claim = this.claims.find((mine) => mine.type === type && mine.id === id && mine.key === key)
+    if (claim === undefined) {
+      claim = {
+        owner: this,
+        scope: this.scope,
+        type,
+        id,
+        key,
+        value,
+        seq: 0,
+        nodes: new Map(),
+        adopt: (node, query) => {
+          this.register(query, node, this.markFor(type, id))
+        },
+      }
+      this.claims.push(claim)
+    }
+    claim.value = value
+    addClaim(this.queryClient, claim)
+    return claim
   }
 
   link(
@@ -1156,7 +1222,7 @@ class Draft {
     ref: DraftRef | null,
     options: PlaceOptions = {},
   ): void {
-    this.run(() => {
+    this.op(() => {
       const next = ref === null ? null : toRef(ref)
       if (next === undefined) {
         return
@@ -1201,7 +1267,7 @@ class Draft {
     refs: readonly DraftRef[],
     at: 'start' | 'end' | PlaceOptions = {},
   ): void {
-    this.run(() => {
+    this.op(() => {
       const options = typeof at === 'string' ? { at } : at
       const added = toRefs(refs)
       const { many } = this.gather(type, id, rel)
@@ -1244,7 +1310,7 @@ class Draft {
   }
 
   detach(type: string, id: string | undefined, rel: string, refs: readonly DraftRef[]): void {
-    this.run(() => {
+    this.op(() => {
       const removed = toRefs(refs)
       const { many } = this.gather(type, id, rel)
       const members =
@@ -1266,7 +1332,7 @@ class Draft {
     refs: readonly DraftRef[],
     options: PlaceOptions = {},
   ): void {
-    this.run(() => {
+    this.op(() => {
       const next = toRefs(refs)
       const { many } = this.gather(type, id, rel)
       const counted = this.countOf(type, id, rel)
@@ -1368,7 +1434,7 @@ class Draft {
   }
 
   insert(type: string, resource: unknown, into?: Into): void {
-    this.run(() => {
+    this.op(() => {
       const ref = toRef(isRecord(resource) ? { ...resource, type } : undefined)
       const place = into ?? this.into
       if (ref === undefined) {
@@ -1409,7 +1475,7 @@ class Draft {
   }
 
   evict(type: string, id: string): void {
-    this.run(() => {
+    this.op(() => {
       const evicted = { type, id }
       const parents = new Map<string, { type: string; id: string | undefined; rel: string }>()
       for (const candidate of this.candidates()) {
@@ -1508,42 +1574,155 @@ class Draft {
     if (this.closed) {
       return
     }
+    this.close()
     this.run(() => {
       for (let step = this.undo.length - 1; step >= 0; step--) {
         this.revert(this.undo[step]!)
       }
       this.undo.length = 0
+      for (let at = this.claims.length - 1; at >= 0; at--) {
+        this.unclaim(this.claims[at]!)
+      }
+      this.claims = []
       this.clearMarks()
     })
     this.closed = true
+  }
+
+  /**
+   * Withdraw one attribute prediction: each node still showing it shows the field's next latest
+   * prediction, else the newest server value it records, else what it showed before.
+   */
+  private unclaim(claim: FieldClaim): void {
+    removeClaim(this.queryClient, claim)
+    const { key } = claim
+    for (const [target, { node, query, had, prior }] of claim.nodes) {
+      if (!Object.hasOwn(node, key) || node[key] !== claim.value) {
+        continue
+      }
+      const id = typeof node['id'] === 'string' ? node['id'] : claim.id
+      const next = topClaim(this.queryClient, this.scope, claim.type, id, key)
+      if (next !== undefined) {
+        node[key] = next.value
+        if (!next.nodes.has(target)) {
+          next.nodes.set(target, { node, query, had, prior })
+        }
+      } else {
+        const server = serverValueOf(node, key)
+        if (server !== undefined) {
+          node[key] = server.value
+        } else if (had) {
+          node[key] = prior
+        } else {
+          delete node[key]
+        }
+      }
+      this.stageQuiet(query).nodes.add(target)
+    }
   }
 
   commit(): void {
     if (this.closed) {
       return
     }
+    this.close()
     this.run(() => {
       this.undo.length = 0
+      this.dropClaims()
       this.clearMarks()
     })
     this.closed = true
   }
 
+  /** Withdraw every attribute prediction without changing what any node shows. */
+  private dropClaims(): void {
+    for (const claim of this.claims) {
+      removeClaim(this.queryClient, claim, true)
+    }
+    this.claims = []
+  }
+
+  // ── The lifecycle's own steps (see DraftLifecycle) ──
+
+  confirm(): void {
+    if (this.closed || this.confirmed) {
+      return
+    }
+    this.confirmed = true
+    this.close()
+    this.undo.length = 0
+    this.dropClaims()
+  }
+
+  claimedFields(): ReadonlySet<string> {
+    const out = new Set<string>()
+    for (const claim of this.claims) {
+      for (const { node } of claim.nodes.values()) {
+        if (typeof node['id'] === 'string') {
+          out.add(fieldKey(claim.type, node['id'], claim.key))
+        }
+      }
+      if (claim.id !== undefined) {
+        out.add(fieldKey(claim.type, claim.id, claim.key))
+      }
+    }
+    return out
+  }
+
+  reconcileKeys(): readonly QueryKey[] {
+    return [...this.keys.values()]
+  }
+
+  reapply(query: Query): void {
+    if (this.closed || this.confirmed || this.log.length === 0) {
+      return
+    }
+    const log = [...this.log]
+    this.only = query
+    this.replaying = true
+    try {
+      this.run(() => {
+        for (const entry of log) {
+          entry()
+        }
+      })
+    } finally {
+      this.only = undefined
+      this.replaying = false
+    }
+  }
+
+  swapId(type: string, from: string, to: string): void {
+    this.run(() => {
+      for (const candidate of this.candidates()) {
+        this.walk(candidate, (node) => {
+          if (node['type'] === type && node['id'] === from) {
+            node['id'] = to
+            this.stageQuiet(candidate.query).nodes.add(targetOf(node))
+          }
+        })
+      }
+    })
+    for (const draft of openDrafts.get(this.queryClient) ?? []) {
+      draft.renamePending(type, from, to)
+    }
+    this.renamePending(type, from, to)
+  }
+
+  /** Rename a deferred member `type:from` to `type:to`, wherever this draft deferred it. */
+  private renamePending(type: string, from: string, to: string): void {
+    for (const mark of this.marks.values()) {
+      for (const members of mark.pending.values()) {
+        if (members.delete(keyOf(type, from))) {
+          members.set(keyOf(type, to), { type, id: to })
+        }
+      }
+    }
+  }
+
   /** Replay one inverse operation, compare-and-swap. */
   private revert(step: Undo): void {
     switch (step.kind) {
-      case 'attribute': {
-        if (step.node[step.key] !== step.wrote) {
-          return
-        }
-        if (step.had) {
-          step.node[step.key] = step.prior
-        } else {
-          delete step.node[step.key]
-        }
-        this.stage(step.query).nodes.add(targetOf(step.node))
-        return
-      }
       case 'linked': {
         const current = this.read(step.loc)
         const same =
@@ -1615,7 +1794,11 @@ class Draft {
   }
 
   touchedKeys(): readonly QueryKey[] {
-    return [...this.keys.values()]
+    const all = new Map(this.patchedKeys)
+    for (const [hash, key] of this.keys) {
+      all.set(hash, key)
+    }
+    return [...all.values()]
   }
 
   deferred(): readonly DeferredMembers[] {
@@ -1661,6 +1844,56 @@ export function openDraft<D extends ApiDescriptor, W = unknown>(
     descriptor,
     options as unknown as DraftOptions,
   ) as unknown as OptimisticDraft<D, W>
+}
+
+/**
+ * The steps of an {@link OptimisticDraft} only the mutation lifecycle takes.
+ * @internal
+ */
+export interface DraftLifecycle {
+  /**
+   * The write succeeded: drop the undo state and the attribute predictions (nothing will roll back),
+   * keeping every change and marker until {@link OptimisticDraft.commit}. Stops replaying.
+   */
+  confirm(): void
+  /** The fields (each a `fieldKey`) the draft predicts, whose value the write's response decides. */
+  claimedFields(): ReadonlySet<string>
+  /**
+   * The queries a settle reconciles: those whose membership or relations the draft edited or
+   * considered. An attribute prediction alone doesn't count, as the write's response patches it.
+   */
+  reconcileKeys(): readonly QueryKey[]
+  /** Run every operation again on `query`, whose data a read just replaced. */
+  reapply(query: Query): void
+  /**
+   * Rename `type:from` to `type:to` on every cached copy and in every open draft's deferred members
+   * (a temporary id swapped for the server's).
+   */
+  swapId(type: string, from: string, to: string): void
+}
+
+/**
+ * `draft`'s lifecycle steps.
+ * @internal
+ */
+export const lifecycleOf = (draft: OptimisticDraft<never, never>): DraftLifecycle =>
+  draft as unknown as DraftLifecycle
+
+/**
+ * Run every open draft's operations again on `query`, whose data a read just replaced, so what the
+ * drafts predict keeps showing there while their writes are pending (design A7 R2).
+ * @internal
+ */
+export function reapplyDrafts(
+  queryClient: QueryClient,
+  scope: string | undefined,
+  query: Query,
+): void {
+  for (const draft of openDrafts.get(queryClient) ?? []) {
+    if (draft.scope === scope) {
+      draft.reapply(query)
+    }
+  }
 }
 
 /**

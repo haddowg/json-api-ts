@@ -497,11 +497,11 @@ describe('applyOptimisticPatch — concurrent rollback (regression: no stale-sna
     snapA.restore()
     expect(cached()).toBe('B')
 
-    // B then fails — B owns `title` now, so its restore reverts to the value B snapshotted before
-    // it wrote (which was A's optimistic value, since B layered on top of A). Both snapshots have
-    // been consumed and the cache is no longer wedged at B.
+    // B then fails — with A already withdrawn no prediction stands, so its restore shows the newest
+    // server value rather than A's withdrawn prediction. Both snapshots have been consumed and the
+    // cache is no longer wedged at B.
     snapB.restore()
-    expect(cached()).toBe('A')
+    expect(cached()).toBe('Original')
   })
 
   it('a single optimistic patch still rolls back exactly to the prior value', async () => {

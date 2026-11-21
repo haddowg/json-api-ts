@@ -593,7 +593,12 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
  * Raise each attribute in `fresh` to the newest server value any cached copy of its resource holds,
  * so a response arriving after a newer one takes the newer values rather than spreading its own.
  */
-function raiseToNewest(queries: readonly Query[], fresh: Fresh, descriptor: ApiDescriptor): void {
+function raiseToNewest(
+  queries: readonly Query[],
+  fresh: Fresh,
+  descriptor: ApiDescriptor,
+  wins: ReadonlySet<string> | undefined,
+): void {
   for (const query of queries) {
     walkResources(query.state.data, descriptor, (node) => {
       const ident = identity(node)
@@ -606,9 +611,19 @@ function raiseToNewest(queries: readonly Query[], fresh: Fresh, descriptor: ApiD
         return
       }
       for (const [k, value] of serverValues(node)) {
-        if (attributes.has(k)) {
-          consider(fresh, key, k, { ...value, incoming: false }, false)
+        const current = attributes.get(k)
+        if (current === undefined) {
+          continue
         }
+        if (wins?.has(fieldKey(ident.type, ident.id, k)) === true) {
+          // A write's own response wins over every value cached meanwhile: it keeps its value and
+          // takes the newest stamp, so no older read landing later replaces it.
+          if (current.incoming && value.stamp > current.stamp) {
+            current.stamp = value.stamp
+          }
+          continue
+        }
+        consider(fresh, key, k, { ...value, incoming: false }, false)
       }
     })
   }
@@ -680,9 +695,10 @@ function patchCached(
   fresh: Fresh,
   descriptor: ApiDescriptor,
   shape: ViewShape | undefined,
+  at: PatchContext,
 ): boolean {
   let changed = false
-  walkShaped(cached, shape, descriptor, (visited, at) => {
+  walkShaped(cached, shape, descriptor, (visited, slot) => {
     const node = visited as unknown as MaterialisedResource
     const ident = identity(node)
     if (ident === undefined) {
@@ -694,10 +710,21 @@ function patchCached(
     }
     for (const [k, value] of attributes) {
       const held = heldStamp(node, k)
-      if (held !== undefined && (held > value.stamp || (held === value.stamp && !value.incoming))) {
+      const stale =
+        held !== undefined && (held > value.stamp || (held === value.stamp && !value.incoming))
+      const claim = topClaim(at.queryClient, at.scope, ident.type, ident.id, k)
+      if (claim !== undefined) {
+        // An open draft owns the field (R2): the server value is recorded, for a rollback to
+        // restore, and the node keeps showing the prediction.
+        if (!stale) {
+          recordServerValue(node, k, value)
+        }
+        if (writable(node, k, slot) && showClaim(visited, k, claim, at.query)) {
+          changed = true
+        }
         continue
       }
-      if (!writable(node, k, at)) {
+      if (stale || !writable(node, k, slot)) {
         continue
       }
       if (writeServerValue(node, k, value)) {
@@ -706,6 +733,13 @@ function patchCached(
     }
   })
   return changed
+}
+
+/** Where a patch runs: the QueryClient, the scope and the query being patched. */
+interface PatchContext {
+  readonly queryClient: QueryClient
+  readonly scope: string | undefined
+  readonly query: Query
 }
 
 /**
@@ -744,6 +778,21 @@ export function normalize(
   descriptor: ApiDescriptor,
   scope?: string,
 ): void {
+  normalizeWith(queryClient, result, descriptor, scope, undefined)
+}
+
+/**
+ * {@link normalize}, with the fields (each a {@link fieldKey}) whose value in `result` wins over every
+ * cached value whatever its stamp: a write's response, for the fields its draft predicted.
+ * @internal
+ */
+export function normalizeWith(
+  queryClient: QueryClient,
+  result: unknown,
+  descriptor: ApiDescriptor,
+  scope: string | undefined,
+  wins: ReadonlySet<string> | undefined,
+): void {
   // An infinite query's earlier pages are indexed again each time a page is added. Their nodes'
   // records carry any newer value written since, so indexing them again never spreads stale data.
   const fresh = collectIncoming(result, descriptor)
@@ -751,8 +800,8 @@ export function normalize(
     return
   }
   const queries = queriesIn(queryClient, scope)
-  raiseToNewest(queries, fresh, descriptor)
-  patchAll(queries, fresh, descriptor)
+  raiseToNewest(queries, fresh, descriptor, wins)
+  patchAll(queryClient, scope, queries, fresh, descriptor)
 }
 
 /**
@@ -785,18 +834,191 @@ export function queriesIn(queryClient: QueryClient, scope: string | undefined): 
  * their observers notify. Untouched queries keep their data reference, and every query keeps its
  * `isInvalidated` flag, so a patch never undoes the invalidation a create or delete made.
  */
-function patchAll(queries: readonly Query[], fresh: Fresh, descriptor: ApiDescriptor): void {
+function patchAll(
+  queryClient: QueryClient,
+  scope: string | undefined,
+  queries: readonly Query[],
+  fresh: Fresh,
+  descriptor: ApiDescriptor,
+): void {
   for (const query of queries) {
     const data = query.state.data
     if (data === undefined || data === null) {
       continue
     }
     const shape = shapeOfQuery(query, descriptor)
-    const touched = partsOf(data).filter((part) => patchCached(part, fresh, descriptor, shape))
+    const at: PatchContext = { queryClient, scope, query }
+    const touched = partsOf(data).filter((part) => patchCached(part, fresh, descriptor, shape, at))
     if (touched.length > 0) {
       republish(query, touched)
     }
   }
+}
+
+// ── Claims: the fields an open optimistic draft predicts (design A7 R2) ────────────────────
+
+/** A node showing a claim's prediction, and what it showed before the claim reached it. */
+export interface ClaimedNode {
+  readonly node: Record<string, unknown>
+  readonly query: Query
+  readonly had: boolean
+  readonly prior: unknown
+}
+
+/**
+ * One attribute of one resource an open optimistic draft predicts. While it stands, a
+ * normalisation landing on the attribute records the server value it brings, for a rollback to
+ * restore, and leaves the prediction showing on every copy it reaches, a copy just read included.
+ * @internal
+ */
+export interface FieldClaim {
+  readonly owner: object
+  readonly scope: string | undefined
+  readonly type: string
+  /** `undefined` for a singleton addressed by type alone. */
+  readonly id: string | undefined
+  readonly key: string
+  value: unknown
+  /** The order claims were made in, the latest highest. */
+  seq: number
+  /** Every node showing the prediction, by its materialised value. */
+  readonly nodes: Map<object, ClaimedNode>
+  /** Told when a normalisation shows the prediction on a node the draft hadn't written. */
+  readonly adopt: (node: object, query: Query) => void
+}
+
+/** The claims of each QueryClient, by scope, resource and attribute, each list oldest first. */
+const claimRegistry = new WeakMap<QueryClient, Map<string, FieldClaim[]>>()
+
+let claimSeq = 0
+
+const claimSlot = (
+  scope: string | undefined,
+  type: string,
+  id: string | undefined,
+  key: string,
+): string => JSON.stringify([scope ?? null, type, id ?? null, key])
+
+/**
+ * The key a field is named by in {@link normalizeWith}'s `wins`.
+ * @internal
+ */
+export const fieldKey = (type: string, id: string, attribute: string): string =>
+  JSON.stringify([type, id, attribute])
+
+/**
+ * Add `claim` as the latest prediction of its field.
+ * @internal
+ */
+export function addClaim(queryClient: QueryClient, claim: FieldClaim): void {
+  const slots = claimRegistry.get(queryClient) ?? new Map<string, FieldClaim[]>()
+  claimRegistry.set(queryClient, slots)
+  const slot = claimSlot(claim.scope, claim.type, claim.id, claim.key)
+  const list = (slots.get(slot) ?? []).filter((other) => other !== claim)
+  claimSeq += 1
+  claim.seq = claimSeq
+  list.push(claim)
+  slots.set(slot, list)
+}
+
+/**
+ * Remove `claim`, and with `below` every older claim of the same field: a write its server confirmed
+ * supersedes the predictions made before it.
+ * @internal
+ */
+export function removeClaim(queryClient: QueryClient, claim: FieldClaim, below = false): void {
+  const slots = claimRegistry.get(queryClient)
+  const slot = claimSlot(claim.scope, claim.type, claim.id, claim.key)
+  const list = slots?.get(slot)
+  if (slots === undefined || list === undefined) {
+    return
+  }
+  const kept = list.filter((other) => other !== claim && !(below && other.seq < claim.seq))
+  if (kept.length === 0) {
+    slots.delete(slot)
+  } else {
+    slots.set(slot, kept)
+  }
+}
+
+/**
+ * The latest claim on attribute `key` of `type:id` in `scope`: one naming the id, or one a singleton
+ * made by type alone.
+ * @internal
+ */
+export function topClaim(
+  queryClient: QueryClient,
+  scope: string | undefined,
+  type: string,
+  id: string | undefined,
+  key: string,
+): FieldClaim | undefined {
+  const slots = claimRegistry.get(queryClient)
+  if (slots === undefined || slots.size === 0) {
+    return undefined
+  }
+  let top: FieldClaim | undefined
+  for (const slot of new Set([
+    claimSlot(scope, type, id, key),
+    claimSlot(scope, type, undefined, key),
+  ])) {
+    const last = slots.get(slot)?.at(-1)
+    if (last !== undefined && (top === undefined || last.seq > top.seq)) {
+      top = last
+    }
+  }
+  return top
+}
+
+/** Show `claim`'s prediction on `node`, recording the node; returns whether its value changed. */
+function showClaim(
+  node: Record<string, unknown>,
+  k: string,
+  claim: FieldClaim,
+  query: Query,
+): boolean {
+  const target = targetOf(node)
+  const had = Object.hasOwn(node, k)
+  if (!claim.nodes.has(target)) {
+    claim.nodes.set(target, { node, query, had, prior: node[k] })
+    claim.adopt(node, query)
+  }
+  if (had && node[k] === claim.value) {
+    return false
+  }
+  node[k] = claim.value
+  return true
+}
+
+/**
+ * Record a server value of attribute `k` for `node` without showing it, merging a value its read
+ * narrowed into the server value the node already records.
+ */
+function recordServerValue(node: MaterialisedResource, k: string, fresh: ServerValue): void {
+  let value = fresh.value
+  if (fresh.paths !== undefined && value !== null) {
+    const base = serverValueOf(node, k)
+    if (base === undefined) {
+      return
+    }
+    value = mergedSelection(base.value, value, fresh.paths)
+  }
+  recordOf(node).written.set(k, { value, stamp: fresh.stamp, paths: fresh.paths })
+}
+
+/**
+ * The newest server value `node` records for attribute `k`, whatever it shows: what a normalisation
+ * last wrote or recorded, else what it was materialised with. `undefined` when it holds none.
+ * @internal
+ */
+export function serverValueOf(node: object, k: string): { value: unknown } | undefined {
+  const record = records.get(targetOf(node))
+  const written = record?.written.get(k)
+  if (written !== undefined) {
+    return { value: written.value }
+  }
+  const raw = attributesOf(node as MaterialisedResource)
+  return raw !== undefined && Object.hasOwn(raw, k) ? { value: raw[k] } : undefined
 }
 
 // ── Optimistic patching (write-through, with rollback) ────────────────────────────────────────
