@@ -1,6 +1,7 @@
 # Angular on TanStack Query: design
 
-Status: proposed. Decisions D1–D12 are accepted; nothing is built yet.
+Status: accepted (ADR 0030 records the Angular decision). Decisions D1–D12 are accepted; where the
+build of Part C deviated, [As built](#as-built) says so.
 
 **Goal.** Angular single-page apps get TanStack Query's feature set over the generated client:
 
@@ -562,8 +563,8 @@ each factory can still say `false` (D5).
 
 ## Part C: `@haddowg/json-api-angular/query`
 
-The root entry is unchanged. The new subpath has `@tanstack/angular-query` as an optional peer and
-`@haddowg/json-api-query` as a dependency (D4).
+The root entry is unchanged. The new subpath has `@tanstack/angular-query` and
+`@haddowg/json-api-query` as optional peers (D4, as built).
 
 ```ts
 export const appConfig: ApplicationConfig = {
@@ -644,7 +645,7 @@ export class PlaylistPage {
 | D1  | Where upkeep runs                   | Plans in `meta`, run by `JsonApiMutationCache`'s awaited hooks (A5)                                                                                                                                              | Keep per-mutation callbacks and compose user callbacks passed in as options. No setup line, but the idiomatic spread still breaks upkeep. Cost of the recommendation: every app builds its QueryClient with our mutation cache, including React apps (a migration step). |
 | D2  | Several servers                     | Scoped keys on one QueryClient (A6)                                                                                                                                                                              | One QueryClient per server in separate injector scopes. Angular can't put two in one component.                                                                                                                                                                          |
 | D3  | Typing `error()`                    | A typed `retry` that defers to the app's configured `retry`, else never retries a 4xx                                                                                                                            | `Register { defaultError }`: app-wide and single-server. Behaviour change in the recommendation: 4xx reads stop retrying three times when the app set no `retry`.                                                                                                        |
-| D4  | Packaging                           | `@haddowg/json-api-angular/query` subpath (Angular >= 20.1, TypeScript >= 5.8 there)                                                                                                                             | A separate package: own versioning, but a split `Register`/token story.                                                                                                                                                                                                  |
+| D4  | Packaging                           | `@haddowg/json-api-angular/query` subpath (Angular >= 20.1, TypeScript >= 5.8 there), `json-api-query` an optional peer (see As built)                                                                           | A separate package: own versioning, but a split `Register`/token story.                                                                                                                                                                                                  |
 | D5  | Optimism default                    | Opt-in per write, with a client-wide default on `JsonApiMutationCache`                                                                                                                                           | On by default: snappier out of the box, but a surprising flicker-back on validation errors for apps that didn't ask.                                                                                                                                                     |
 | D6  | Ids for optimistic creates          | `optional`/`required` client-id types get a generated id (`crypto.randomUUID()`, overridable), sent with the create, so there's no swap; `forbidden` types get a marked temporary id swapped in place on success | Offer optimistic create only where client ids are allowed. Simpler, but no optimism for most servers' types.                                                                                                                                                             |
 | D7  | Rollback mechanism                  | Inverse operations, compare-and-swap (B1)                                                                                                                                                                        | Snapshot each touched query's data and compare-and-swap whole values. Simpler, but a concurrent change makes the rollback skip entirely rather than undo just its own edit.                                                                                              |
@@ -731,6 +732,29 @@ Changelog-kept behaviour changes:
 - infinite queries are normalised;
 - under SSR, binding queries are no longer dehydrated and refetch in the browser, with a dev-mode
   warning (A8).
+
+## As built
+
+Where Part C's build differs from the design above:
+
+- **D4: `@haddowg/json-api-query` is an optional peer**, not a dependency. The app's
+  `JsonApiMutationCache` and the bindings' must be one class for `provideJsonApiQuery`'s check, and
+  the scope registry one module, so there is one copy; as a peer it also keeps `query-core` out of
+  apps on the lightweight path.
+- **One `@tanstack/query-core`.** `@tanstack/angular-query` pins an exact version, so the docs tell
+  apps to keep `json-api-query`'s peer on it, and the workspace aligns on it. Read factories treat
+  any symbol as the caller's `skipToken`, since `skipToken` is a `Symbol()` per copy.
+- **No mutation-cache options on `provideJsonApiQuery`.** The app builds its `QueryClient`, so a
+  client-wide optimistic default is `new JsonApiMutationCache({ optimistic: true })` there.
+- **The pipe ships as a partial declaration** (`ɵɵngDeclarePipe`, as ng-packagr emits), written by
+  hand since tsdown builds the package, so each app's linker compiles it for its Angular version.
+- **Writes take the id in their variables** (`writes.albums.update()` → `mutate({ id, title })`), and
+  templates mark pending rows with `$optimistic` rather than a per-component helper.
+- **Tested examples.** The catalog's render test drives a numbered list, cancellation, an
+  optimistic write and its rollback, and a singleton write; the infinite read and prefetching in a
+  resolver are tested in `packages/angular/src/query/provide.test.ts`, which `angular.md` cites.
+- **The CommonJS build of `/query` requires the ESM-only `@tanstack/angular-query`**, so it needs a
+  Node.js that can `require()` ES modules; Angular builds load the ESM entry.
 
 ## Open risks to verify during build
 

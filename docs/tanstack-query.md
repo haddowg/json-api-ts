@@ -2,7 +2,7 @@
 
 `@haddowg/json-api-query` layers TanStack Query over the typed client: **option factories** you spread into `useQuery` / `useMutation`, a deterministic query-key factory, and bespoke `type:id` write-through cache normalisation — "edit once, updates everywhere".
 
-The binding exposes **option factories, not pre-bound hooks**, over `@tanstack/query-core`. One package therefore covers React / Vue / Svelte / Solid — you pass the returned `{ queryKey, queryFn }` / `MutationOptions` to your framework's own `useQuery` / `useMutation`. Reads keep the client's full static narrowing (`include` widens, sparse `fields` narrows) end to end.
+The binding exposes **option factories, not pre-bound hooks**, over `@tanstack/query-core`. One package therefore covers React / Vue / Svelte / Solid / Angular — you pass the returned `{ queryKey, queryFn }` / `MutationOptions` to your framework's own `useQuery` / `useMutation` (or `injectQuery` / `injectMutation`). On Angular, `@haddowg/json-api-angular/query` provides the client, the `QueryClient` setup and the factories through dependency injection: see [Angular](angular.md#tanstack-query). Reads keep the client's full static narrowing (`include` widens, sparse `fields` narrows) end to end.
 
 ```bash
 npm install @haddowg/json-api-query @tanstack/query-core
