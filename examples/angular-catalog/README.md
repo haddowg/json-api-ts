@@ -62,5 +62,17 @@ readonly renaming = jsonApiMutation((client, input: { id: string; title: string 
 )
 ```
 
+## Tests
+
+`src/app/app.spec.ts` is a Vitest project (jsdom and TestBed, `vitest.config.ts`) that mounts the
+real components against the mock server: the list and its paging, the detail, a filter cancelling
+the read it supersedes, an optimistic rename settling on the server's title with no refetch, a
+refused rename rolling back, and the account rename.
+
+```bash
+pnpm generate                # the tests import the generated client
+npx vitest run --project angular-catalog
+```
+
 `pnpm --filter @haddowg/json-api-angular-catalog typecheck` runs `ngc` over the app, which checks
 the templates as well as the TypeScript.

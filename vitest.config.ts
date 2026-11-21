@@ -30,9 +30,9 @@ export default defineConfig({
       include: ['packages/*/src/**'],
       exclude: ['**/*.test.ts', '**/index.ts'],
     },
-    // Three projects under one run: the library/packages suite (node), the Angular bindings
-    // (jsdom + TestBed), and the example app's render smoke (jsdom). The Angular package and the
-    // example carry their own configs, so they are referenced by path; the packages project
+    // Four projects under one run: the library/packages suite (node), the Angular bindings
+    // (jsdom + TestBed), and the two example apps' render smokes (jsdom). The Angular package and the
+    // examples carry their own configs, so they are referenced by path; the packages project
     // inlines its node config here.
     projects: [
       {
@@ -45,6 +45,7 @@ export default defineConfig({
         },
       },
       './packages/angular/vitest.config.ts',
+      './examples/angular-catalog/vitest.config.ts',
       './examples/spotify-clone/vite.config.ts',
     ],
   },
