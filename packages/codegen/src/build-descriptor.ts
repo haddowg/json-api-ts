@@ -1,6 +1,7 @@
 import type {
   AcceptedDescriptor,
   AcceptedOperation,
+  AdditionalMembersDescriptor,
   ActionDescriptor,
   ApiDescriptor,
   AtomicDescriptor,
@@ -12,6 +13,7 @@ import type {
   FilterFamilyDescriptor,
   InputMediaKind,
   MenuDescriptor,
+  MetaLiteral,
   PaginatorDescriptor,
   PaginatorKind,
   PaginatorRole,
@@ -424,12 +426,17 @@ export class DescriptorBuilder {
     keepEmpty = false,
   ): PivotDescriptor | undefined {
     const fields: Record<string, string> = {}
+    const values: Record<string, MetaLiteral[]> = {}
     const nullable: string[] = []
     for (const [name, prop] of Object.entries(meta.properties ?? {})) {
       if (!isSchema(prop) || skip.includes(name)) {
         continue
       }
       fields[name] = formatHint(prop, this.schemas)
+      const listed = literalValues(prop, this.schemas)
+      if (listed !== undefined) {
+        values[name] = listed
+      }
       if (isNullable(prop)) {
         nullable.push(name)
       }
@@ -452,6 +459,9 @@ export class DescriptorBuilder {
     if (additional !== undefined) {
       out.additional = additional
     }
+    if (Object.keys(values).length > 0) {
+      out.values = sortRecord(values)
+    }
     return out
   }
 
@@ -467,8 +477,15 @@ export class DescriptorBuilder {
     if (!isSchema(additional)) {
       return undefined
     }
-    const format = formatHint(additional, this.schemas)
-    return isNullable(additional) ? { format, nullable: true } : { format }
+    const out: AdditionalMembersDescriptor = { format: formatHint(additional, this.schemas) }
+    if (isNullable(additional)) {
+      out.nullable = true
+    }
+    const values = literalValues(additional, this.schemas)
+    if (values !== undefined) {
+      out.values = values
+    }
+    return out
   }
 
   /**
@@ -1496,6 +1513,7 @@ export class DescriptorBuilder {
     const shared = typeof node.$ref !== 'string'
     const schema = shared ? node : this.schemas[refName(node.$ref as string) ?? '']
     const fields: Record<string, string> = {}
+    const values: Record<string, MetaLiteral[]> = {}
     const nullable: string[] = []
     for (const [name, prop] of Object.entries(schema?.properties ?? {})) {
       if (
@@ -1506,6 +1524,10 @@ export class DescriptorBuilder {
         continue
       }
       fields[name] = formatHint(prop, this.schemas)
+      const listed = literalValues(prop, this.schemas)
+      if (listed !== undefined) {
+        values[name] = listed
+      }
       if (isNullable(prop)) {
         nullable.push(name)
       }
@@ -1530,6 +1552,9 @@ export class DescriptorBuilder {
       out.additional = additional
     } else if (kind === 'identifierMeta' && schema?.['additionalProperties'] === false) {
       out.additional = false
+    }
+    if (Object.keys(values).length > 0) {
+      out.values = sortRecord(values)
     }
     return out
   }
@@ -2107,6 +2132,56 @@ function isNullable(schema: SchemaObject): boolean {
     return true
   }
   return [...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].some((branch) => branch.type === 'null')
+}
+
+/**
+ * The literals a schema limits its value to, from its `enum` or `const`, following a `$ref` to an
+ * enum component and the non-null branches of an `anyOf` or `oneOf` when each lists its own.
+ * `null` is left out, since nullability is recorded on its own. `undefined` when the value isn't
+ * limited to literals.
+ */
+function literalValues(
+  schema: SchemaObject,
+  schemas: Record<string, SchemaObject>,
+  seen: ReadonlySet<string> = new Set(),
+): MetaLiteral[] | undefined {
+  const isLiteral = (value: unknown): value is MetaLiteral =>
+    typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+  const listed = (candidates: readonly unknown[]): MetaLiteral[] | undefined => {
+    const present = candidates.filter((value) => value !== null)
+    return present.length > 0 && present.every(isLiteral) ? present : undefined
+  }
+  if (Array.isArray(schema.enum)) {
+    return listed(schema.enum)
+  }
+  if ('const' in schema) {
+    return listed([schema['const']])
+  }
+  if (typeof schema.$ref === 'string') {
+    const target = refName(schema.$ref)
+    const resolved = target === undefined || seen.has(target) ? undefined : schemas[target]
+    return resolved === undefined
+      ? undefined
+      : literalValues(resolved, schemas, new Set([...seen, target!]))
+  }
+  if (schema.allOf?.length === 1) {
+    return literalValues(schema.allOf[0]!, schemas, seen)
+  }
+  const branches = (schema.anyOf ?? schema.oneOf ?? []).filter(
+    (branch) => !(branch.type === 'null' || (branch.const === null && branch.enum === undefined)),
+  )
+  if (branches.length === 0) {
+    return undefined
+  }
+  const values: MetaLiteral[] = []
+  for (const branch of branches) {
+    const own = literalValues(branch, schemas, seen)
+    if (own === undefined) {
+      return undefined
+    }
+    values.push(...own.filter((value) => !values.includes(value)))
+  }
+  return values
 }
 
 /**
