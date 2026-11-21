@@ -42,10 +42,11 @@ import {
   mutationKeyFor,
   type ReadError,
   resourceKey,
+  withPending,
 } from '@haddowg/json-api-query'
 import { InfiniteQueryObserver, QueryClient, QueryObserver, skipToken } from '@tanstack/query-core'
 import Ajv2020 from 'ajv/dist/2020'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 // The generated artifacts — exactly what `json-api-codegen --input … --output … --schemas …`
 // writes. `createClient` is the descriptor-bound factory; `resourceMap` is the runtime
 // descriptor TanStack normalization needs; `schemas` is the per-type JSON Schema map for ajv;
@@ -103,6 +104,16 @@ function mockTransport(routes: Record<string, string | object>): {
 const album = (id: string, attributes: Record<string, unknown>) => ({
   data: { type: 'albums', id, attributes },
 })
+
+// A playlist's resource object, every attribute present, as a collection page carries it.
+const playlistObject = (id: string, title: string) => ({
+  type: 'playlists',
+  id,
+  attributes: { title, slug: slugOf(title), public: true, externalId: null },
+})
+
+// A slug as a server might make one from a title.
+const slugOf = (title: string): string => title.toLowerCase().replace(/ /g, '-')
 
 // A released album's resource object, as a collection page carries it.
 const albumObject = (id: string, title: string) => ({
@@ -1097,6 +1108,87 @@ describe('optimistic updates', () => {
     release()
     await pending
     expect(qc.getQueryData(list.queryKey)![0]!.id).toBe('10')
+  })
+
+  it('completes a create’s server-only attributes so it shows in a list of whole playlists', async () => {
+    const { transport, hold } = heldTransport({
+      [`GET ${BASE}/playlists`]: {
+        data: [playlistObject(PLAYLIST, 'Late Night')],
+        meta: { page: { currentPage: 1, perPage: 15, total: 1 } },
+      },
+      [`POST ${BASE}/playlists`]: { data: playlistObject('p-new', 'Road Trip') },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const list = reads.playlists.list()
+    await qc.fetchQuery(list)
+
+    // The list promises every attribute, `slug` and `externalId` included, which only the server
+    // sets: `complete` supplies them for the row, typed by what the create input lacks.
+    const create = writes.playlists.create({
+      optimistic: {
+        into: () => 'start',
+        complete: (input) => ({ slug: slugOf(input.title), externalId: 'pending' }),
+      },
+    })
+    const release = hold(`POST ${BASE}/playlists`)
+    const pending = qc
+      .getMutationCache()
+      .build(qc, create as never)
+      .execute({ title: 'Road Trip', public: true })
+    const row = qc.getQueryData(list.queryKey)![0]!
+    expect(row.title).toBe('Road Trip')
+    expect(row.slug).toBe('road-trip')
+    expect(row.$optimistic).toBe('pending')
+
+    release()
+    await pending
+  })
+
+  it('keeps a create it can’t complete as a pending entry, merged in place by withPending', async () => {
+    const { transport, hold } = heldTransport({
+      [`GET ${BASE}/playlists`]: {
+        data: [playlistObject(PLAYLIST, 'Late Night')],
+        meta: { page: { currentPage: 1, perPage: 15, total: 1 } },
+      },
+      [`POST ${BASE}/playlists`]: { data: playlistObject('p-new', 'Sketch') },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const list = reads.playlists.list()
+    await qc.fetchQuery(list)
+    const warn = vi.spyOn(console, 'warn')
+
+    // No `complete`: the row can't promise a `slug`, so the list keeps it as a pending entry.
+    const create = writes.playlists.create({ optimistic: { into: () => 'start' } })
+    const release = hold(`POST ${BASE}/playlists`)
+    const pending = qc
+      .getMutationCache()
+      .build(qc, create as never)
+      .execute({ title: 'Sketch', public: false })
+    const playlists = qc.getQueryData(list.queryKey)!
+    expect(playlists.map((p) => p.title)).toEqual(['Late Night'])
+    expect(playlists.$pending?.()).toEqual([
+      expect.objectContaining({
+        type: 'playlists',
+        at: 'start',
+        input: { title: 'Sketch', public: false },
+      }),
+    ])
+    // The list's total counts it, and withPending puts a placeholder where `into` placed it.
+    expect(playlists.$page.meta?.total).toBe(2)
+    const rows = withPending(playlists, (entry) => ({ skeleton: entry.input['title'] }))
+    expect(rows).toEqual([{ skeleton: 'Sketch' }, playlists[0]])
+    // It was placed, as a pending entry, so nothing warns.
+    expect(warn).not.toHaveBeenCalled()
+
+    release()
+    await pending
+    warn.mockRestore()
   })
 
   it('keeps the prediction when a read lands while the write is pending, and rolls back to that read', async () => {
