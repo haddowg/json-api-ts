@@ -5,6 +5,7 @@ import type { ApiDescriptor, ResourceDescriptor } from './descriptor'
 import {
   type ArrayEnvelope,
   type EdgeEnvelope,
+  isMaterialised,
   materialise,
   type MaterialiseContext,
   relatedPaginatorKind,
@@ -535,5 +536,27 @@ describe('materialise — per-relation paginator divergence (D6a)', () => {
     // (no member to sniff a type from) still reports the relation's real kind.
     const empty = asArray<unknown>(materialise({ data: [] }, ctx(), false, undefined, 'cursor'))
     expect(empty.$page.kind).toBe('cursor')
+  })
+})
+
+describe('isMaterialised', () => {
+  it('is true for each top-level object materialise returns', () => {
+    const album = materialise(loadFixture('album-compound.json'), context())
+    const list = materialise(loadFixture('album-tracks-related.json'), context())
+    const linkage = materialise(loadFixture('album-tracks-relationship.json'), context(), true)
+    const identifier = materialise({ data: { type: 'tracks', id: '1' } }, context(), true)
+    for (const value of [album, list, linkage, identifier]) {
+      expect(isMaterialised(value)).toBe(true)
+    }
+  })
+
+  it('is false for plain JSON copies, primitives and absent data', () => {
+    const list = materialise(loadFixture('album-tracks-related.json'), context())
+    expect(isMaterialised(JSON.parse(JSON.stringify(list)))).toBe(false)
+    expect(isMaterialised([...(list as unknown[])])).toBe(false)
+    expect(isMaterialised(materialise({ data: null }, context()))).toBe(false)
+    expect(isMaterialised(undefined)).toBe(false)
+    expect(isMaterialised('x')).toBe(false)
+    expect(isMaterialised(null)).toBe(false)
   })
 })
