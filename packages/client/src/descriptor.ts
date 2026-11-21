@@ -535,6 +535,14 @@ export interface ResourceDescriptor {
   paginator: PaginatorDescriptor
   clientId: ClientIdPolicy
   /**
+   * The attributes a read renders that a create can't supply (the server sets them: read-only on
+   * create, or absent from the create document). Absent when every read attribute is creatable, or
+   * for a type with no create.
+   */
+  serverOnly?: readonly string[]
+  /** The attributes whose read value may be `null`. Absent when none may be. */
+  nullable?: readonly string[]
+  /**
    * `true` for a singleton type, which serves each caller one resource at a path with no `{id}`
    * (`/inbox`). Its {@link paths} are those of the single read, the update, and the related and
    * relationship reads, with no collection, create or delete. Absent for any other type.
