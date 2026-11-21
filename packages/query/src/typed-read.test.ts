@@ -11,6 +11,8 @@ import {
 import {
   type DataTag,
   hashKey,
+  type InfiniteData,
+  type InfiniteQueryObserverResult,
   QueryClient,
   QueryObserver,
   type QueryObserverOptions,
@@ -28,6 +30,8 @@ import {
   listQueryOptions,
   type QueryOptions,
   type ReadError,
+  type ReadFailure,
+  type ReadGuardError,
   relatedQueryOptions,
   relationshipQueryOptions,
   type SkippableQueryOptions,
@@ -147,7 +151,7 @@ describe('typed read errors', () => {
     expectTypeOf<(typeof list.data)[number]['title']>().toEqualTypeOf<string>()
 
     const one = inferred(getQueryOptions(client, 'albums', '1'))
-    expectTypeOf(one.error).toEqualTypeOf<JsonApiError<ErrorCode> | StructuralGuardError | Error>()
+    expectTypeOf(one.error).toEqualTypeOf<JsonApiError<ErrorCode> | ReadGuardError | ReadFailure>()
     expectTypeOf(inferred(api.inboxes.get()).error).toEqualTypeOf<ReadError<ErrorCode>>()
     expectTypeOf(
       inferred(relatedQueryOptions(client, 'albums', '1', 'artist')).error,
@@ -158,6 +162,35 @@ describe('typed read errors', () => {
     const { client } = makeClient()
     const observer = new QueryObserver(new QueryClient(), getQueryOptions(client, 'albums', '1'))
     expectTypeOf(observer.getCurrentResult().error).toEqualTypeOf<ReadError<ErrorCode> | null>()
+  })
+
+  it('keeps every member where a union of error types is reduced by subtype', () => {
+    // An indexed access on a union of results unions `error` across them, reducing by subtype as
+    // TanStack's Angular signals do over the infinite result's per-status union. Were one member a
+    // supertype of another, only it would survive and the codes would be lost.
+    type Signals<T> = { [K in keyof T as K extends 'error' ? K : never]: () => T[K] }
+    type Result = InfiniteQueryObserverResult<InfiniteData<unknown>, ReadError<ErrorCode>>
+    const signals = { error: () => null } as unknown as Signals<Result>
+    const error = signals.error()
+    expectTypeOf(error).toEqualTypeOf<ReadError<ErrorCode> | null>()
+    if (error instanceof JsonApiError) {
+      expectTypeOf(error).toEqualTypeOf<JsonApiError<ErrorCode>>()
+    } else if (error instanceof StructuralGuardError) {
+      expectTypeOf(error).toEqualTypeOf<ReadGuardError>()
+    } else if (error !== null) {
+      expectTypeOf(error).toEqualTypeOf<ReadFailure>()
+    }
+    if (error !== null && error.status !== undefined) {
+      expectTypeOf(error).toEqualTypeOf<JsonApiError<ErrorCode>>()
+    }
+    expectTypeOf(error?.status).toEqualTypeOf<number | undefined>()
+  })
+
+  it('accepts any Error as a read error', () => {
+    expectTypeOf(new JsonApiError<ErrorCode>(404, [])).toExtend<ReadError<ErrorCode>>()
+    expectTypeOf(new StructuralGuardError('not a document')).toExtend<ReadError<ErrorCode>>()
+    expectTypeOf(new Error('offline')).toExtend<ReadError<ErrorCode>>()
+    expectTypeOf(jsonApiRetry).toExtend<(count: number, error: ReadError<ErrorCode>) => boolean>()
   })
 
   it('falls back to string codes for a client that carries none', () => {

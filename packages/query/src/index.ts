@@ -143,6 +143,8 @@ export {
   type QueryFnContext,
   type QueryOptions,
   type ReadError,
+  type ReadFailure,
+  type ReadGuardError,
   type ReadOptions,
   type ReadQueryFn,
   type ReadRetry,

@@ -115,12 +115,42 @@ type LinkageResult<
   ? V
   : unknown
 
+/** Type-only brands keeping {@link ReadError}'s members apart; no value carries them. */
+declare const guardFailure: unique symbol
+declare const otherFailure: unique symbol
+
+/**
+ * A {@link StructuralGuardError} as a read's error type carries it. The brand is optional and never
+ * present at runtime: it only stops TypeScript treating this member and {@link ReadFailure} as one
+ * type. `status` is absent, so `error.status` reads `undefined` on it.
+ */
+export type ReadGuardError = StructuralGuardError & {
+  readonly status?: undefined
+  readonly [guardFailure]?: true
+}
+
+/**
+ * Any other failure a read rejects with (a network failure, an abort, an error thrown by a
+ * transport): an `Error` with no `status`, branded as {@link ReadGuardError} is.
+ */
+export type ReadFailure = Error & {
+  readonly status?: undefined
+  readonly [otherFailure]?: true
+}
+
 /**
  * What a read rejects with: a {@link JsonApiError} carrying the server's error-code union `C` (a
  * generated client's `ErrorCode`), a {@link StructuralGuardError} when the response isn't a
- * JSON:API document, or any other `Error` (a network failure, an abort).
+ * JSON:API document ({@link ReadGuardError}), or any other `Error` ({@link ReadFailure}).
+ *
+ * No member is a subtype of another. Both error classes extend `Error`, so a plain
+ * `JsonApiError<C> | StructuralGuardError | Error` collapses to a single member wherever TypeScript
+ * reduces a union by subtype (TanStack's infinite result types do, when they union `error` across
+ * statuses), losing `C`. Each member here has an optional property the others lack, which keeps all
+ * three. Narrow with `instanceof JsonApiError` or `instanceof StructuralGuardError`, or on
+ * `error.status`, which is a `number` on a {@link JsonApiError} only. Any `Error` is assignable to it.
  */
-export type ReadError<C extends string = string> = JsonApiError<C> | StructuralGuardError | Error
+export type ReadError<C extends string = string> = JsonApiError<C> | ReadGuardError | ReadFailure
 
 /**
  * A typed TanStack `retry` callback. The read options declare it, optional and never set, so TanStack

@@ -119,7 +119,7 @@ queryClient.setQueryData(albumOptions.queryKey, (old) => old)
 
 ### Typed errors and retries
 
-TanStack types a query's `error` from a typed callback in its options, so each factory's options type declares an optional `retry` typed with what a read rejects with: `ReadError<ErrorCode>`, which is `JsonApiError<ErrorCode> | StructuralGuardError | Error`, `ErrorCode` being the generated client's error-code union. The options never set `retry`, so the `retry` your QueryClient is configured with still applies.
+TanStack types a query's `error` from a typed callback in its options, so each factory's options type declares an optional `retry` typed with what a read rejects with: `ReadError<ErrorCode>`, `ErrorCode` being the generated client's error-code union. It is a `JsonApiError<ErrorCode>`, a `StructuralGuardError` (`ReadGuardError`), or any other `Error` (`ReadFailure`), and it keeps all three wherever TypeScript reduces a union, as in an infinite query's `error`. Narrow it with `instanceof JsonApiError` or `instanceof StructuralGuardError`, or on `error.status`, a `number` on a `JsonApiError` only. The options never set `retry`, so the `retry` your QueryClient is configured with still applies.
 
 This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `TanStack Query bindings` group). It reads an album the server answers with a `404`, through a `QueryObserver` standing in for `useQuery`:
 
