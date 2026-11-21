@@ -7,6 +7,7 @@ import {
   createMutationApi,
   createQueryApi,
   type InfiniteQueryOptions,
+  type MutationError,
   type MutationOptions,
   type ReadError,
 } from '@haddowg/json-api-query'
@@ -97,9 +98,7 @@ function infiniteQuery(): void {
     expectTypeOf(page[0]!.title).toEqualTypeOf<string>()
     expectTypeOf(page.$page.kind).toEqualTypeOf<'page'>()
   }
-  // TanStack infers the read's error, but its infinite result type unions it per status, and
-  // that union reduces `ReadError` (each member is an `Error`) to one `Error` subclass.
-  expectTypeOf(albums.error()).toExtend<Error | null>()
+  expectTypeOf(albums.error()).toEqualTypeOf<ReadError | null>()
 }
 
 function spreadMutation(): void {
@@ -118,7 +117,15 @@ function spreadMutation(): void {
   expectTypeOf<Variables['title']>().toEqualTypeOf<string | undefined>()
   expectTypeOf<Variables['steps']>().toEqualTypeOf<Step[] | undefined>()
   expectTypeOf(rename.data()?.title).toEqualTypeOf<string | undefined>()
-  expectTypeOf(rename.error()).toEqualTypeOf<Error | null>()
+  expectTypeOf(rename.error()).toEqualTypeOf<MutationError | null>()
+
+  // Another server's client carries its own codes into a write's error() too.
+  const adminWrites = injectJsonApiWrites(ADMIN)
+  const adminRename = injectMutation(() => adminWrites.albums.id(id()).update())
+  expectTypeOf(adminRename.error()).toEqualTypeOf<MutationError<AdminErrorCode> | null>()
+  expectTypeOf(asJsonApiError(adminRename.error())).toEqualTypeOf<
+    JsonApiError<AdminErrorCode> | undefined
+  >()
 }
 
 describe('typing', () => {
