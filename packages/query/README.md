@@ -76,6 +76,12 @@ configure none, `installNormalization` installs `jsonApiRetry`, which doesn't re
 JSON:API error or a response that isn't a JSON:API document. An id (or a list's query) accepts
 `skipToken`.
 
+Infinite reads page a list, or a to-many relation's related collection, through its `next`/`prev`
+links: `reads.albums.infinite(query)` and `reads.albums.relatedInfinite('1', 'tracks', query)`
+(standalone, `infiniteListQueryOptions` and `infiniteRelatedQueryOptions`) return options for
+`useInfiniteQuery` or `fetchInfiniteQuery`. Their key is the plain read's key plus `'$infinite'`,
+and normalisation patches every cached page.
+
 ## The query-key factory
 
 Keys are stable, hierarchical readonly tuples — `[type, operation, id?, rel?, params?]`. The
@@ -95,7 +101,7 @@ resourceKey('albums', '1') // ['albums', 'fetchOne', '1']
 queryClient.invalidateQueries({ queryKey: typeKey('albums') }) // every albums read
 ```
 
-Also exported: `relationKey`, `normalizeParams`.
+Also exported: `infiniteKeyFor`, `relationKey`, `normalizeParams`.
 
 A singleton type's keys leave out the id (`['inboxes', 'fetchOne']`). Its factories take
 `undefined` for the id, which the types allow only for a singleton, and the bound API drops the
