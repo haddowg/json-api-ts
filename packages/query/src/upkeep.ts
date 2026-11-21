@@ -10,14 +10,14 @@
  *    relationship holds -> on settle the relevant query subtrees are invalidated by key PREFIX.
  *
  * OPTIMISTIC updates (update and the relationship verbs): before the write, the expected change is
- * applied through the same normalized patch and the touched queries are snapshotted; an error
- * restores the snapshot. The change is derived from the plan and the mutation's variables alone, so
- * it is deterministic.
+ * applied through an optimistic draft (./draft.ts); an error rolls the draft back, and the settle
+ * commits it. The change is derived from the plan and the mutation's variables alone, so it is
+ * deterministic.
  *
  * Every function here is a pure function of (plan, variables, result or error, QueryClient,
  * descriptor): the plan holds no closures, so it survives JSON.
  */
-import { type ApiDescriptor, isAccepted, type LinkageRef } from '@haddowg/json-api-client'
+import { type ApiDescriptor, isAccepted } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
 import {
   operationKey,
@@ -26,15 +26,8 @@ import {
   scopedKey,
   type ScopeSegment,
 } from './keys'
-import {
-  applyOptimisticMembership,
-  applyOptimisticPatch,
-  applyOptimisticToOne,
-  type MembershipRef,
-  normalize,
-  sameRef,
-  type Snapshot,
-} from './normalize'
+import { type DraftRef, openDraft, type OptimisticDraft } from './draft'
+import { normalize } from './normalize'
 
 /** The `meta` key a JSON:API mutation's {@link JsonApiMutationPlan} rides under. */
 export const JSON_API_PLAN = 'jsonApi'
@@ -146,79 +139,61 @@ export function planKey(plan: JsonApiMutationPlan): JsonApiMutationKey {
 // ── Optimistic (before the write) ──────────────────────────────────────────────────────────
 
 /**
- * Apply the plan's optimistic change for `variables` and return the snapshot that undoes it, or
- * `undefined` when the plan isn't optimistic.
+ * Apply the plan's optimistic change for `variables` through a new draft, and return the draft (to
+ * roll back on error and commit once settled), or `undefined` when the plan isn't optimistic.
+ *
+ * - `update`: the draft's `patch`, attributes and relations alike;
+ * - `set`: `link` (or clear) the to-one;
+ * - `add`, `remove`, `replace`: `attach`, `detach`, `replaceMembers` the to-many.
+ *
+ * The whole change is one transaction, so each query it touches is published once.
  */
 export function applyOptimistic(
   plan: JsonApiMutationPlan,
   variables: unknown,
   queryClient: QueryClient,
   descriptor: ApiDescriptor,
-): Snapshot | undefined {
+): OptimisticDraft | undefined {
   if (plan.verb === 'atomic' || !plan.optimistic) {
     return undefined
   }
   const { type, id, rel, scope } = plan
+  const draft = openDraft(queryClient, descriptor, { scope })
   switch (plan.verb) {
     case 'update': {
       const input = (variables ?? {}) as Record<string, unknown>
       // A singleton's input names the resource the patch lands on.
       const target = id ?? input['id']
-      return typeof target === 'string'
-        ? applyOptimisticPatch(
-            queryClient,
-            type,
-            target,
-            attributesFromPatch(descriptor, type, input),
-            descriptor,
-            scope,
-          )
-        : undefined
+      if (typeof target !== 'string') {
+        return undefined
+      }
+      draft.patch(type, target, input as never)
+      return draft
     }
-    case 'set': {
+    case 'set':
       if (rel === undefined) {
         return undefined
       }
-      const ref = variables as LinkageRef<string> | null
-      return applyOptimisticToOne(
-        queryClient,
-        type,
-        id,
-        rel,
-        ref === null ? null : toMembershipRef(ref),
-        scope,
-      )
-    }
-    case 'replace':
+      draft.link(type, id, rel, variables as DraftRef | null)
+      return draft
     case 'add':
-    case 'remove': {
+    case 'remove':
+    case 'replace': {
       if (rel === undefined) {
         return undefined
       }
-      const refs = membershipRefs(variables as readonly LinkageRef<string>[])
-      const verb = plan.verb
-      return applyOptimisticMembership(
-        queryClient,
-        type,
-        id,
-        rel,
-        (current) => {
-          if (verb === 'replace') {
-            // The optimistic set IS the new refs (order preserved), regardless of the current members.
-            return refs
-          }
-          if (verb === 'add') {
-            // Append the added refs, skipping any already present (an add is idempotent on membership).
-            const kept = current.filter((m) => !refs.some((a) => sameRef(a, m)))
-            return [...kept, ...refs]
-          }
-          return current.filter((m) => !refs.some((r) => sameRef(r, m)))
-        },
-        scope,
-      )
+      const refs = (Array.isArray(variables) ? variables : []) as readonly DraftRef[]
+      if (plan.verb === 'add') {
+        draft.attach(type, id, rel, refs)
+      } else if (plan.verb === 'remove') {
+        draft.detach(type, id, rel, refs)
+      } else {
+        draft.replaceMembers(type, id, rel, refs)
+      }
+      return draft
     }
     default:
-      // create and delete change membership, which no node patch can predict.
+      // create and delete are not yet applied optimistically.
       return undefined
   }
 }
@@ -345,46 +320,4 @@ function invalidateParentRelations(
     ),
     queryClient.invalidateQueries({ queryKey: parent }),
   ]).then(() => undefined)
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────────────────
-
-/**
- * Coerce a linkage ref (`{type,id}` / `{type,lid}` / a resource view, optionally `$pivot`) to a
- * membership ref for the optimistic patch. The whole ref is preserved (so a hydrated member
- * carrying attributes yields a rich optimistic row), requiring only a string `type`+`id`. A ref
- * addressed only by `lid` (an atomic handle) has no cache identity, so it is dropped from the
- * optimistic view (it still writes on the wire).
- */
-function toMembershipRef(ref: LinkageRef<string>): MembershipRef | undefined {
-  const r = ref as { type?: unknown; id?: unknown }
-  if (typeof r.type !== 'string' || typeof r.id !== 'string') {
-    return undefined
-  }
-  return { ...(ref as Record<string, unknown>), type: r.type, id: r.id }
-}
-
-/** The membership refs (cache-addressable) of a to-many mutation's variables. */
-const membershipRefs = (refs: readonly LinkageRef<string>[]): MembershipRef[] =>
-  refs.map(toMembershipRef).filter((r): r is MembershipRef => r !== undefined)
-
-/**
- * Split an update patch into just its ATTRIBUTE keys (for an optimistic node patch): a key is an
- * attribute iff the descriptor declares it under `attributes` for the type. Relation slots and
- * any unknown key are dropped — an optimistic patch only touches a node's shared attributes (the
- * same split {@link normalize}'s real patch honours), never linkage.
- */
-function attributesFromPatch(
-  descriptor: ApiDescriptor,
-  type: string,
-  patch: Record<string, unknown>,
-): Record<string, unknown> {
-  const attributes = descriptor[type]?.attributes ?? {}
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(patch)) {
-    if (key in attributes) {
-      out[key] = value
-    }
-  }
-  return out
 }

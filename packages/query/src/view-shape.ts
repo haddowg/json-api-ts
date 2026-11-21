@@ -398,6 +398,57 @@ export function slotShape(shape: ViewShape, type: string, rel: string): ViewShap
   return shape.relations.get(rel) ?? IDENTIFIERS
 }
 
+/**
+ * Walk a cached value as {@link walkResources} does, visiting every reachable resource once, with
+ * the shape of the slot it was reached in: `shape` at the top (every page of an infinite query
+ * shares it), and below each resource the {@link slotShape} of the relation it sits in. A slot
+ * whose shape the view doesn't describe (a relation its fieldset leaves out, held anyway) is
+ * walked with an `undefined` shape, as is everything when `shape` is `undefined`.
+ *
+ * A resource reached twice is visited only the first time, with the shape it was first reached in.
+ *
+ * @internal
+ */
+export function walkShaped(
+  value: unknown,
+  shape: ViewShape | undefined,
+  descriptor: ApiDescriptor,
+  visit: (node: Record<string, unknown>, shape: ViewShape | undefined) => void,
+  seen: Set<object> = new Set(),
+): void {
+  if (value === null || value === undefined || typeof value !== 'object') {
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const member of value) {
+      walkShaped(member, shape, descriptor, visit, seen)
+    }
+    return
+  }
+  if (seen.has(value)) {
+    return
+  }
+  seen.add(value)
+  const node = value as Record<string, unknown>
+  const { type, id } = node
+  if (typeof type !== 'string' || typeof id !== 'string') {
+    if (isInfiniteValue(value)) {
+      for (const page of value.pages) {
+        walkShaped(page, shape, descriptor, visit, seen)
+      }
+    }
+    return
+  }
+  visit(node, shape)
+  for (const rel of Object.keys(descriptor[type]?.relations ?? {})) {
+    const slot = node[rel]
+    if (slot !== undefined) {
+      const below = shape === undefined ? undefined : slotShape(shape, type, rel)
+      walkShaped(slot, below, descriptor, visit, seen)
+    }
+  }
+}
+
 // ── Fit ────────────────────────────────────────────────────────────────────────────────────
 
 /** The `{ type, id }` a member carries, when both are strings. */

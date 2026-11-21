@@ -290,15 +290,15 @@ export function createMutationOptions<
  * The update mutation (`PATCH /{type}/{id}`), keyed `[type, 'update', id]`: `mutationFn` runs
  * `client.<type>.id(id).update(patch, opts)`. An update only changes a node's attributes/linkage,
  * so its upkeep PATCHES the result across the cache via `normalize` on success (no refetch). When
- * optimistic, the patch's attributes (those keys that are declared attributes of the type —
- * relation slots are skipped) are applied through the normalized patch before the write and
- * restored on error. An update that declares a `202` may resolve to an `Accepted` job, which is not
+ * optimistic, the patch is applied through an optimistic draft before the write and rolled back
+ * on error: its attributes on every cached copy that holds them, and its relations as a relationship
+ * `set` or `replace` would apply them. An update that declares a `202` may resolve to an `Accepted` job, which is not
  * normalized, unless `wait` polls it.
  *
  * A singleton (`PATCH /inbox`) takes `undefined` for the id, is keyed `[type, 'update']`, and runs
  * `client.<type>.update(input)`, whose input carries the resource's `id` for the body.
  *
- * `optimistic` applies the patch's attributes immediately (rolled back on error). Default off.
+ * `optimistic` applies the patch immediately (rolled back on error). Default off.
  *
  * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
  * on. Kept so existing calls compile; it will be removed in a future major.
@@ -382,11 +382,14 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
 /** Options for a relationship mutation: opt into an optimistic membership/linkage patch (default off). */
 export interface RelationshipMutationOpts<V = never> {
   /**
-   * Apply the membership change to the parent's cached related/relationship reads immediately
-   * (by key prefix — every page variant), snapshotting for automatic rollback on error. The
-   * relation subtree is still invalidated on settle so the server reconciles. Default off (a plain
-   * invalidate-on-settle). An optimistic `add` appends bare identifier members (`{type,id}` + any
-   * `$pivot` on the ref) — the settle refetch replaces them with the fully-hydrated resources.
+   * Apply the membership change immediately through an optimistic draft, rolled back on error: to
+   * the parent's cached related and relationship reads (every page variant, infinite pages too)
+   * and to the relation's slot on every cached copy of the parent. A member removed leaves every
+   * view. A member added goes, at the end, into each view that is unfiltered, unsorted and
+   * complete, as an identifier where the view holds identifiers and as the richest cached copy
+   * (or the ref itself, when it carries the attributes) where it holds resources; where no copy
+   * fits, the parent reports it through `$pending(rel)` instead. The relation is still invalidated
+   * on settle so the server reconciles. Default off (a plain invalidate-on-settle).
    */
   optimistic?: boolean
   /**
@@ -405,8 +408,8 @@ const isOptimistic = <V>(opts?: RelationshipMutationOpts<V>): boolean => opts?.o
  * changes which resource the to-one points at — linkage, not collection membership and not a node
  * attribute — so its upkeep normalizes the response (linkage) on success and invalidates the
  * PARENT's reads of the relation, and the parent itself, on settle. When optimistic, the parent's
- * cached relationship/related reads swap to the new single value (or `null`) before the write and
- * roll back on error.
+ * cached relationship/related reads and its relation slot on every cached copy swap to the new
+ * value (or `null`) before the write, where it fits, and roll back on error.
  *
  * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
  * on. Kept so existing calls compile; it will be removed in a future major.
@@ -468,7 +471,8 @@ export function replaceRelationshipMutationOptions<
  * `mutationFn` runs `client.<type>.id(id).rel(rel).add(refs)`. Adding changes the relation's
  * membership, so its upkeep invalidates the parent's reads of the relation on settle (a patch can't
  * insert linkage members). When optimistic, the added refs are appended to the cached membership
- * (deduplicated by `type:id`) and rolled back on error.
+ * where they fit (see {@link RelationshipMutationOpts.optimistic}, deduplicated by `type:id`) and
+ * rolled back on error.
  *
  * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
  * on. Kept so existing calls compile; it will be removed in a future major.
