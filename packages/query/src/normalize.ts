@@ -85,6 +85,20 @@ export function descends(value: unknown, ancestor: object): boolean {
 }
 
 /**
+ * `value` behind any root, then every array it was derived from by membership edits, nearest first.
+ * @internal
+ */
+export function lineageOf(value: object): object[] {
+  const out: object[] = []
+  for (let at: object | undefined = targetOf(value); at !== undefined && !out.includes(at); ) {
+    out.push(at)
+    const source: object | undefined = derived.get(at)
+    at = source === undefined ? undefined : targetOf(source)
+  }
+  return out
+}
+
+/**
  * `members` as an array carrying `source`'s envelope (its `$page`, `$links`, `$next()` and other
  * non-index properties), recorded as derived from `source`, and carrying `source`'s freshness stamp
  * when it has one. The array a membership edit publishes in place of `source`.

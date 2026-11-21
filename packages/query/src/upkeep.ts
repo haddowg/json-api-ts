@@ -221,6 +221,8 @@ export interface JsonApiMutationHooks {
   readonly attachInto?: Into | undefined
   readonly invalidates?: ((variables: never) => readonly QueryKey[]) | undefined
   readonly clientId?: (() => string) | undefined
+  /** A create's completion of the attributes only the server sets, from its input. */
+  readonly complete?: ((input: never) => unknown) | undefined
 }
 
 /** The closures `options` carry, or none. @internal */
@@ -239,15 +241,21 @@ export function optimismOf(
   return option === undefined ? undefined : option !== false
 }
 
-/** The closures an `optimistic` option contributes. */
+/** The closures an `optimistic` option contributes: a create's `complete` too. */
 export function optimisticHooks(
   option: OptimisticOption<never, never, never, never> | undefined,
-): Pick<JsonApiMutationHooks, 'optimistic' | 'into'> {
+): Pick<JsonApiMutationHooks, 'optimistic' | 'into' | 'complete'> {
   if (typeof option === 'function') {
     return { optimistic: option }
   }
-  if (typeof option === 'object' && option !== null && option.into !== undefined) {
-    return { into: option.into as Into }
+  if (typeof option === 'object' && option !== null) {
+    const { into, complete } = option as { into?: unknown; complete?: unknown }
+    return {
+      ...(into === undefined ? {} : { into: into as Into }),
+      ...(typeof complete === 'function'
+        ? { complete: complete as JsonApiMutationHooks['complete'] }
+        : {}),
+    }
   }
   return {}
 }
@@ -328,7 +336,8 @@ export function targetIdOf(plan: JsonApiResourcePlan, variables: unknown): strin
 /**
  * Apply the write's optimistic change to `draft`: the app's function when the options carry one
  * (whose `draft.applyDefault()` applies the built-in change), else the built-in change. Run inside
- * one `draft.batch`, so each query it touches is published once.
+ * one `draft.batch`, so each query it touches is published once. Returns whether the built-in
+ * change ran.
  */
 export function applyOptimistic(
   plan: JsonApiMutationPlan,
@@ -336,12 +345,12 @@ export function applyOptimistic(
   draft: OptimisticDraft,
   hooks: JsonApiMutationHooks,
   createdId: string | undefined,
-): void {
+): boolean {
   const builtIn = () => applyPolicy(plan, variables, draft, hooks, createdId)
   const custom = hooks.optimistic as OptimisticFn | undefined
   if (custom === undefined) {
     builtIn()
-    return
+    return true
   }
   let applied = false
   const applyDefault = () => {
@@ -351,6 +360,7 @@ export function applyOptimistic(
     }
   }
   custom(mutationDraft(draft, applyDefault), variables)
+  return applied
 }
 
 /** `draft` with `applyDefault`, its methods bound to it. */
@@ -381,7 +391,8 @@ function mutationDraft(draft: OptimisticDraft, applyDefault: () => void): Mutati
  * - `delete`: `evict`;
  * - `set`: `link` (or clear) the to-one; `add`, `remove`, `replace`: `attach`, `detach`,
  *   `replaceMembers` the to-many;
- * - `create`: `insert` the new resource, placed only by `into`, and `attach` it to `attachTo`.
+ * - `create`: `insert` the new resource, placed only by `into` and completed by `complete`, and
+ *   `attach` it to `attachTo`.
  */
 function applyPolicy(
   plan: JsonApiMutationPlan,
@@ -413,8 +424,12 @@ function applyPolicy(
       if (createdId === undefined || !isRecord(variables)) {
         return
       }
-      const resource = { ...withoutTempId(variables), id: createdId }
-      draft.insert(type, resource as never, hooks.into)
+      const input = withoutTempId(variables)
+      const resource = { ...input, id: createdId }
+      const completion = (hooks.complete as ((input: unknown) => unknown) | undefined)?.(input)
+      draft.insert(type, resource as never, hooks.into, {
+        complete: isRecord(completion) ? completion : undefined,
+      })
       if (plan.attachTo !== undefined) {
         const { type: parent, id: parentId, rel: relation } = plan.attachTo
         draft.attach(parent, parentId, relation, [{ ...resource, type }], {
@@ -442,6 +457,47 @@ function applyPolicy(
       }
     }
   }
+}
+
+/**
+ * In development, warn when an optimistic create shows in no cached view: no list took it as a
+ * member or a pending entry, and `attachTo`'s relation neither placed nor deferred it. Names the
+ * type and why. Silent under `NODE_ENV=production`.
+ */
+export function warnIfPlacedNowhere(
+  plan: JsonApiResourcePlan,
+  queryClient: QueryClient,
+  descriptor: ApiDescriptor,
+  draft: OptimisticDraft,
+  hooks: JsonApiMutationHooks,
+  createdId: string,
+): void {
+  if (
+    globalThis.process?.env?.NODE_ENV === 'production' ||
+    lifecycleOf(draft as never).shows(plan.type, createdId)
+  ) {
+    return
+  }
+  const lists = queriesIn(queryClient, plan.scope).filter((query) => {
+    const description = describeQuery(query, descriptor)
+    return (
+      description?.operation === 'fetchMany' &&
+      description.type === plan.type &&
+      !description.skipped &&
+      query.state.data !== undefined
+    )
+  }).length
+  const why =
+    hooks.into === undefined
+      ? 'no `into` was given, so it goes in no list' +
+        (plan.attachTo === undefined ? '' : ", and `attachTo`'s relation has no cached view")
+      : lists === 0
+        ? `no list of ${plan.type} is cached`
+        : `\`into\` placed it in none of the ${lists} cached list${lists === 1 ? '' : 's'} of ${plan.type}`
+  console.warn(
+    `@haddowg/json-api-query: an optimistic create of ${plan.type} shows in no cached view: ` +
+      `${why}. It appears once the write settles and the lists refetch.`,
+  )
 }
 
 // ── What a write reconciles ──────────────────────────────────────────────────────────────
