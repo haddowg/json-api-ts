@@ -280,14 +280,14 @@ Your `onMutate`, `onSuccess`, `onError` and `onSettled` replace nothing: the upk
 
 ### How the upkeep runs
 
-Each factory describes its upkeep as plain data in `meta.jsonApi`: the verb, type, id, relation, and whether it's optimistic.
+Each factory describes its upkeep as plain data in `meta.jsonApi`: the verb, type, id, relation, and whether it's optimistic (absent when the factory leaves it to the mutation cache's default). Closures, such as an `optimistic` function or an `into`, ride on the options beside `mutationFn`, never in `meta`.
 
 ```ts
 writes.albums.id('1').update({ optimistic: true }).meta
 // { jsonApi: { verb: 'update', type: 'albums', id: '1', optimistic: true } }
 ```
 
-`JsonApiMutationCache` reads that plan from its own `onMutate`, `onError`, `onSuccess` and `onSettled` hooks, which TanStack awaits before the mutation's callbacks of the same name. `onMutate` applies the optimistic change, `onError` rolls it back, `onSuccess` normalises the result, and `onSettled` invalidates and returns the promise, so the mutation stays pending until the refetches it starts have finished. A mutation whose `meta` carries no plan, such as one of your own, is left alone.
+`JsonApiMutationCache` reads that plan from its own `onMutate`, `onError`, `onSuccess` and `onSettled` hooks, which TanStack awaits before the mutation's callbacks of the same name. `onMutate` cancels the reads in flight that the optimistic change could be overwritten by and applies it, `onError` rolls it back, `onSuccess` normalises the result (and removes a deleted resource's own queries), and `onSettled` invalidates what the write may have changed, unless an overlapping write is still pending, and returns the promise, so the mutation stays pending until the refetches it starts have finished. See [Optimistic updates](optimistic-updates.md#reconciliation). A mutation whose `meta` carries no plan, such as one of your own, is left alone.
 
 To add a `meta` of your own, merge it with the factory's rather than replacing it:
 
@@ -400,14 +400,14 @@ Not every write is a node patch. A write whose response carries a resource or li
 
 | Verb | On success | On settle |
 | --- | --- | --- |
-| `create()` | patches the new resource (not an `Accepted` job) | invalidates the type's lists |
-| `update()` | patches the resource (not an `Accepted` job) | nothing |
-| `delete()` | nothing | invalidates the type's lists and the resource's own reads |
+| `create()` | patches the new resource (not an `Accepted` job) | invalidates the type's lists, and `attachTo`'s relation |
+| `update()` | patches the resource (not an `Accepted` job) | invalidates the reads of each relation the patch changes |
+| `delete()` | removes the resource's own reads | invalidates the type's lists and every other query that held it |
 | relationship `set()` / `replace()` | patches the returned linkage | invalidates the parent's reads of the relation, and the parent itself |
 | relationship `add()` / `remove()` | nothing | invalidates the parent's reads of the relation, and the parent itself |
 | `atomic()` | patches every result | nothing |
 
-A relationship write never invalidates the type's collection lists: it never alters which resources a collection holds. The parent itself is invalidated because a read that `include`s the relation embeds its now-stale members.
+A relationship write never invalidates the type's collection lists: it never alters which resources a collection holds. The parent itself is invalidated because a read that `include`s the relation embeds its now-stale members. A deleted resource's own reads are removed rather than refetched into a `404`. While another write touching the same queries is pending, the invalidation waits for the last of them to settle (see [Optimistic updates](optimistic-updates.md#reconciliation)); an optimistic write also invalidates every query whose members or relations its change touched.
 
 ### Tested: reads via factories, write-through on update
 
@@ -447,22 +447,14 @@ teardown()
 
 ## Optimistic updates
 
-Optimism flows through the **same** write-through patch, with a captured snapshot for rollback. Opt in per-mutation with `{ optimistic: true }` — available on the verbs that touch a node or a relation's membership (`update`, and relationship `set` / `replace` / `add` / `remove`; a `create`'s insert into the right sorted list is list-specific, so there is no default optimistic insert).
+Every write factory takes `{ optimistic: true }`, and `new JsonApiMutationCache({ optimistic: true })` turns it on for every write. The change shows before the server answers, on every cached copy, and rolls back if the write fails:
 
 ```ts
-// Rename a playlist optimistically — the new name shows instantly, rolls back on error.
 const rename = useMutation(writes.playlists.id(id).update({ optimistic: true }))
-
-// Relationship membership, optimistic and reconciled on settle.
-const relTracks = writes.playlists.id(id).rel('orderedTracks')
-const add = useMutation(relTracks.add({ optimistic: true }))
-const remove = useMutation(relTracks.remove({ optimistic: true }))
-const reorder = useMutation(relTracks.replace({ optimistic: true }))
+const add = useMutation(writes.playlists.id(id).rel('orderedTracks').add({ optimistic: true }))
 ```
 
-Under the hood, in `JsonApiMutationCache`: `onMutate` pre-applies the expected change through the normalised patch (an update's attribute keys; a relationship verb's membership transform across every cached page of the `(parent, relation)` read, matched by key prefix) and snapshots the touched queries; `onError` restores the snapshot, before your own `onError` runs; `onSettled` invalidates so the server reconciles (a degraded optimistic member — a bare identifier — is replaced by the fully-hydrated one on the refetch). Because the forward patch preserves per-edge `$pivot` / `$edge`, an optimistic add of a hydrated member renders a rich row immediately.
-
-The example app's playlist detail page wires all four of these — rename, add track, remove track, reorder — see [PlaylistDetailPage.tsx](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) and its optimistic helpers in [playlist-tracks.ts](../examples/spotify-clone/src/api/playlist-tracks.ts).
+Creates, deletes, relation changes, explicit placement with `into`, pending markers, custom actions through `jsonApiMutationOptions`, and how the cache reconciles with the server are covered in [Optimistic updates](optimistic-updates.md).
 
 ## Several servers
 

@@ -38,8 +38,10 @@ import {
   createQueryApi,
   installNormalization,
   JsonApiMutationCache,
+  jsonApiMutationOptions,
   mutationKeyFor,
   type ReadError,
+  resourceKey,
 } from '@haddowg/json-api-query'
 import { InfiniteQueryObserver, QueryClient, QueryObserver, skipToken } from '@tanstack/query-core'
 import Ajv2020 from 'ajv/dist/2020'
@@ -907,6 +909,252 @@ describe('mutation cache', () => {
     release?.()
     await pending
     expect(qc.isMutating({ mutationKey: ['albums'] })).toBe(0)
+  })
+})
+
+/**
+ * A transport whose answers can be held open, so a test can look at the cache while a write is
+ * still pending, as a component would.
+ */
+function heldTransport(routes: Record<string, object | 'fail'>) {
+  const gates = new Map<string, Promise<void>>()
+  const requests: string[] = []
+  return {
+    requests,
+    /** Hold the next `METHOD url` open until the returned function is called. */
+    hold(key: string): () => void {
+      let release!: () => void
+      gates.set(
+        key,
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+      )
+      return release
+    },
+    transport: async (req: TransportRequest): Promise<TransportResponse> => {
+      const key = `${req.method} ${req.url}`
+      requests.push(key)
+      const route = routes[key]
+      const gate = gates.get(key)
+      gates.delete(key)
+      await gate
+      if (route === undefined || route === 'fail') {
+        return {
+          status: 422,
+          headers: {},
+          body: JSON.stringify({ errors: [{ status: '422', detail: 'rejected' }] }),
+        }
+      }
+      const status = req.method === 'POST' && !req.url.includes('relationships') ? 201 : 200
+      return { status, headers: {}, body: JSON.stringify(route) }
+    },
+  }
+}
+
+describe('optimistic updates', () => {
+  it('shows an update before the server answers, and rolls it back when the write fails', async () => {
+    const { transport, hold } = heldTransport({
+      [`GET ${BASE}/albums`]: { data: [albumObject('1', 'OK Computer')] },
+      [`PATCH ${BASE}/albums/1`]: 'fail',
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const list = reads.albums.list()
+    await qc.fetchQuery(list)
+    const first = () => qc.getQueryData(list.queryKey)![0]!
+
+    // `{ optimistic: true }` predicts the write: the title changes everywhere the album is cached,
+    // and the row is marked pending until the write settles.
+    const release = hold(`PATCH ${BASE}/albums/1`)
+    const rename = qc
+      .getMutationCache()
+      .build(qc, writes.albums.id('1').update({ optimistic: true }) as never)
+      .execute({ title: 'OK Computer OKNOTOK' })
+    expect(first().title).toBe('OK Computer OKNOTOK')
+    expect(first().$optimistic).toBe('pending')
+
+    // The server rejects it: the prediction is rolled back.
+    release()
+    await expect(rename).rejects.toBeDefined()
+    expect(first().title).toBe('OK Computer')
+    expect(first().$optimistic).toBeUndefined()
+  })
+
+  it('turns optimism on for every write with the mutation cache, and off for one with false', async () => {
+    const { transport, hold } = heldTransport({
+      [`GET ${BASE}/albums`]: { data: [albumObject('1', 'OK Computer')] },
+      [`PATCH ${BASE}/albums/1`]: album('1', { title: 'Kid A', status: 'released' }),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = new QueryClient({
+      mutationCache: new JsonApiMutationCache({ optimistic: true }),
+      defaultOptions: { queries: { staleTime: Infinity } },
+    })
+    const teardown = installNormalization(qc, resourceMap)
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const list = reads.albums.list()
+    await qc.fetchQuery(list)
+
+    const release = hold(`PATCH ${BASE}/albums/1`)
+    const rename = qc
+      .getMutationCache()
+      .build(qc, writes.albums.id('1').update() as never)
+      .execute({ title: 'Kid A' })
+    expect(qc.getQueryData(list.queryKey)![0]!.title).toBe('Kid A')
+    release()
+    await rename
+
+    // `optimistic: false` waits for the server.
+    expect(writes.albums.id('1').update({ optimistic: false }).meta).toEqual({
+      jsonApi: { verb: 'update', type: 'albums', id: '1', optimistic: false },
+    })
+    teardown()
+  })
+
+  it('adds a member where it fits, and reports one it cannot show yet through $pending', async () => {
+    const { transport, hold } = heldTransport({
+      [`GET ${BASE}/albums/1/relationships/tracks`]: {
+        data: [{ type: 'tracks', id: '1' }],
+      },
+      [`GET ${BASE}/albums/1?include=tracks`]: {
+        data: {
+          type: 'albums',
+          id: '1',
+          attributes: { title: 'OK Computer', status: 'released' },
+          relationships: { tracks: { data: [{ type: 'tracks', id: '1' }] } },
+        },
+        included: [{ type: 'tracks', id: '1', attributes: { title: 'Airbag' } }],
+      },
+      [`POST ${BASE}/albums/1/relationships/tracks`]: {
+        data: [
+          { type: 'tracks', id: '1' },
+          { type: 'tracks', id: '4' },
+        ],
+      },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const linkage = reads.albums.relationship('1', 'tracks')
+    const withTracks = reads.albums.get('1', { include: ['tracks'] })
+    await qc.fetchQuery(linkage)
+    await qc.fetchQuery(withTracks)
+
+    const release = hold(`POST ${BASE}/albums/1/relationships/tracks`)
+    const add = qc
+      .getMutationCache()
+      .build(qc, writes.albums.id('1').rel('tracks').add({ optimistic: true }) as never)
+      .execute([{ type: 'tracks', id: '4' }])
+    // The relationship read holds identifiers, so track 4 goes straight in.
+    expect((qc.getQueryData(linkage.queryKey) as Array<{ id: string }>).map((t) => t.id)).toEqual([
+      '1',
+      '4',
+    ])
+    // The included slot promises tracks with their attributes, and track 4 isn't cached: it is
+    // left out of the slot and reported as pending instead.
+    const cached = qc.getQueryData(withTracks.queryKey)!
+    expect(cached.tracks.map((t) => t.id)).toEqual(['1'])
+    expect(cached.$pending('tracks')).toEqual([{ type: 'tracks', id: '4' }])
+
+    release()
+    await add
+  })
+
+  it('creates a row with a temporary id, placed by into, swapped for the server’s id', async () => {
+    const { transport, hold } = heldTransport({
+      [`GET ${BASE}/albums?fields[albums]=title,status`]: {
+        data: [albumObject('1', 'OK Computer')],
+      },
+      [`POST ${BASE}/albums`]: album('10', { title: 'Kid A', status: 'released' }),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const list = reads.albums.list({ fields: { albums: ['title', 'status'] } })
+    await qc.fetchQuery(list)
+
+    // A create is placed only where `into` says: here, first in every list of albums.
+    const create = writes.albums.create({
+      optimistic: { into: (q) => (q.operation === 'fetchMany' ? 'start' : false) },
+    })
+    const variables = { title: 'Kid A', status: 'released' as const }
+    const release = hold(`POST ${BASE}/albums`)
+    const pending = qc
+      .getMutationCache()
+      .build(qc, create as never)
+      .execute(variables)
+    // Albums take no client id, so the row carries a temporary one, kept in the variables.
+    const temp = (variables as { $tempId?: string }).$tempId
+    expect(temp).toMatch(/^\$tmp:/)
+    expect(qc.getQueryData(list.queryKey)![0]!.id).toBe(temp)
+
+    release()
+    await pending
+    expect(qc.getQueryData(list.queryKey)![0]!.id).toBe('10')
+  })
+
+  it('keeps the prediction when a read lands while the write is pending, and rolls back to that read', async () => {
+    let title = 'OK Computer'
+    const { transport, hold } = heldTransport({ [`PATCH ${BASE}/albums/1`]: 'fail' })
+    const reading: typeof transport = async (req) =>
+      req.method === 'GET'
+        ? {
+            status: 200,
+            headers: {},
+            body: JSON.stringify({ data: albumObject('1', title) }),
+          }
+        : transport(req)
+    const client = createClient({ baseUrl: BASE, transport: reading })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const get = reads.albums.get('1')
+    await qc.fetchQuery(get)
+
+    const release = hold(`PATCH ${BASE}/albums/1`)
+    const rename = qc
+      .getMutationCache()
+      .build(qc, writes.albums.id('1').update({ optimistic: true }) as never)
+      .execute({ title: 'Predicted' })
+    // Someone else renames the album, and a refetch lands before the write answers.
+    title = 'Renamed elsewhere'
+    await qc.fetchQuery({ ...get, staleTime: 0 })
+    expect(qc.getQueryData(get.queryKey)!.title).toBe('Predicted')
+
+    release()
+    await expect(rename).rejects.toBeDefined()
+    expect(qc.getQueryData(get.queryKey)!.title).toBe('Renamed elsewhere')
+  })
+
+  it('gives a custom action the same lifecycle with jsonApiMutationOptions', async () => {
+    const { transport } = heldTransport({
+      [`GET ${BASE}/albums/1`]: { data: albumObject('1', 'OK Computer') },
+      [`POST ${BASE}/albums/1/-actions/reissue`]: album('1', {
+        title: 'OK Computer',
+        status: 'released',
+      }),
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const get = reads.albums.get('1')
+    await qc.fetchQuery(get)
+
+    const reissue = jsonApiMutationOptions({
+      descriptor: resourceMap,
+      mutationFn: (albumId: string) =>
+        client.albums.id(albumId).actions.reissue({ releasedAt: '2001-10-01T00:00:00+00:00' }),
+      optimistic: (draft, albumId) => draft.patch('albums', albumId, { status: 'released' }),
+      invalidates: (albumId) => [resourceKey('albums', albumId)],
+    })
+    await qc.getMutationCache().build(qc, reissue).execute('1')
+    expect(qc.getQueryState(get.queryKey)?.isInvalidated).toBe(true)
   })
 })
 

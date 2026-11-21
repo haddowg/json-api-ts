@@ -112,7 +112,7 @@ const rename = useMutation(writes.playlists.id(id).update({ optimistic: true }))
 - The ref builders (position → `$pivot`) live in [`api/playlist-tracks.ts`](../examples/spotify-clone/src/api/playlist-tracks.ts); [`components/TrackPicker.tsx`](../examples/spotify-clone/src/components/TrackPicker.tsx) is the add-tracks surface.
 
 !!! note "The optimism is the library's"
-    `{ optimistic: true }` makes the factory patch the parent's cached related/relationship reads (every page variant), snapshot, and roll back on error — the app only shapes the refs. See [relationship mutation](relationship-mutation.md).
+    `{ optimistic: true }` makes the mutation cache apply the change through a draft: the parent's related and relationship reads (every page variant) and its relation slot on every cached copy, placed where each member fits, rolled back step by step if the write fails, and refetched by the last overlapping write to settle. The app only shapes the refs. See [Optimistic updates](optimistic-updates.md).
 
 → [Relationship mutation](relationship-mutation.md) · [Writes](writes.md) · [TanStack Query bindings](tanstack-query.md)
 

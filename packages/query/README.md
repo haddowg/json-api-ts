@@ -162,7 +162,8 @@ without `JsonApiMutationCache`, or without an installed descriptor, throws befor
 
 - an **update** patches the resource via `normalize` on success (no refetch);
 - a **create** patches the new resource on success and invalidates the type's lists on settle; a
-  **delete** invalidates the type's lists and the resource's own reads;
+  **delete** removes the resource's own reads on success and invalidates the type's lists, and
+  every other query that held it, on settle;
 - a relationship **set** / **replace** patches the returned linkage on success, and every
   relationship write invalidates the parent's reads of the relation, and the parent, on settle.
 
@@ -174,11 +175,11 @@ const writes = createMutationApi(queryClient, client, resourceMap)
 // Create — invalidates the type's lists on settle; normalizes the new resource on success.
 const createOpts = writes.albums.create()
 
-// Update — patches across the cache on success. `{ optimistic: true }` pre-applies the patch's
-// attributes through the normalized patch and rolls back on error.
+// Update — patches across the cache on success. `{ optimistic: true }` applies the patch (its
+// attributes and relations) before the write and rolls it back on error.
 const updateOpts = writes.albums.id('1').update({ optimistic: true })
 
-// Delete — invalidates the type's lists + the resource's own reads.
+// Delete — removes the resource's own reads, and invalidates the type's lists.
 const deleteOpts = writes.albums.id('1').delete()
 
 // Relationship mutations — invalidate the parent's relation reads (never the type's lists).
