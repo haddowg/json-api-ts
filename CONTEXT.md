@@ -224,6 +224,17 @@ What a write does to the TanStack cache: the optimistic change and its rollback,
 success, invalidation on settle. `JsonApiMutationCache` runs it from a mutation plan.
 _Avoid_: side effects, lifecycle callbacks
 
+### Angular bindings
+
+**Registered client**:
+The default client's type, declared once through the `Register` interface, which types
+`injectJsonApiClient()`, `injectJsonApiReads()` and `injectJsonApiWrites()` without a token.
+
+**Lightweight path**:
+The Angular root entry's reads and writes, `jsonApiResource` over `resource()` and
+`jsonApiMutation`, with no shared cache; the `/query` entry is the TanStack Query path.
+_Avoid_: signal bindings, legacy API
+
 ### MCP
 
 **MCP model**:
