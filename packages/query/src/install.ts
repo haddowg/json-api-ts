@@ -10,8 +10,66 @@
  * no runtime dependency (it uses only the QueryClient's own cache-subscription seam).
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
-import type { QueryClient } from '@tanstack/query-core'
-import { normalize } from './normalize'
+import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
+import type { ReadOperation } from './keys'
+import { isMaterialisedData, normalize } from './normalize'
+
+const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
+  'fetchMany',
+  'fetchOne',
+  'fetchRelated',
+  'fetchRelationship',
+])
+
+/** The key's first two segments, when it has the binding's shape: `[type, readOperation, …]`. */
+const isBindingKey = (queryKey: readonly unknown[]): boolean =>
+  typeof queryKey[0] === 'string' && READ_OPERATIONS.has(queryKey[1])
+
+type ShouldDehydrate = (query: Query) => boolean
+
+/**
+ * A `shouldDehydrateQuery` predicate that leaves out the binding's read queries and otherwise
+ * defers to `next` (TanStack's `defaultShouldDehydrateQuery` when omitted). A materialised result
+ * loses its `$`-accessors through `dehydrate` and JSON, so those queries are fetched in the
+ * browser instead. {@link installNormalization} installs this as the client's default; use it
+ * directly when passing explicit options to `dehydrate()`, which override the defaults:
+ *
+ * ```ts
+ * dehydrate(queryClient, {
+ *   shouldDehydrateQuery: jsonApiShouldDehydrateQuery(
+ *     (q) => defaultShouldDehydrateQuery(q) || q.state.status === 'pending',
+ *   ),
+ * })
+ * ```
+ *
+ * It needs no descriptor, so it recognises a binding query by its key shape alone: a string first
+ * segment (the type) and a read operation (`fetchMany`, `fetchOne`, `fetchRelated`,
+ * `fetchRelationship`) second. A query of your own keyed that way is excluded too.
+ */
+export function jsonApiShouldDehydrateQuery(next: ShouldDehydrate = defaultShouldDehydrateQuery) {
+  return (query: Query): boolean => !isBindingKey(query.queryKey) && next(query)
+}
+
+/** Hashes of queries already warned about, per client, so each warns once. */
+const warned = new WeakMap<QueryClient, Set<string>>()
+
+function warnOnce(queryClient: QueryClient, query: Query): void {
+  const seen = warned.get(queryClient) ?? new Set<string>()
+  warned.set(queryClient, seen)
+  if (seen.has(query.queryHash)) {
+    return
+  }
+  seen.add(query.queryHash)
+  if (globalThis.process?.env?.NODE_ENV === 'production') {
+    return
+  }
+  console.warn(
+    `@haddowg/json-api-query: the query ${query.queryHash} arrived without its accessors ` +
+      '(its data was dehydrated and hydrated, which strips them). Server-side rendering is not ' +
+      'supported, so the query was refetched. See the "Server-side rendering" section of the ' +
+      'TanStack Query docs.',
+  )
+}
 
 /** Tear down an installed normalization subscription. Idempotent. */
 export type Teardown = () => void
@@ -57,6 +115,21 @@ export function installNormalization(
   }
   installed.set(queryClient, descriptor)
 
+  // Dehydrate default: the binding's queries are fetched in the browser instead.
+  const previousDehydrate = queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery
+  const shouldDehydrateQuery = jsonApiShouldDehydrateQuery(
+    previousDehydrate ?? defaultShouldDehydrateQuery,
+  )
+  const withDehydrate = (fn: ShouldDehydrate | undefined) => {
+    const current = queryClient.getDefaultOptions()
+    const { shouldDehydrateQuery: _replaced, ...rest } = current.dehydrate ?? {}
+    queryClient.setDefaultOptions({
+      ...current,
+      dehydrate: fn === undefined ? rest : { ...rest, shouldDehydrateQuery: fn },
+    })
+  }
+  withDehydrate(shouldDehydrateQuery)
+
   let normalizing = false
 
   const run = (data: unknown): void => {
@@ -72,6 +145,22 @@ export function installNormalization(
   }
 
   const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
+    // Hydration check: a binding query added with data that isn't a materialised value lost its
+    // accessors on the way through JSON, so refetch it (deferred, so not inside `hydrate`'s loop).
+    if (event.type === 'added') {
+      const { query } = event
+      if (
+        isBindingKey(query.queryKey) &&
+        query.state.data !== undefined &&
+        !isMaterialisedData(query.state.data)
+      ) {
+        warnOnce(queryClient, query)
+        queueMicrotask(() => {
+          void queryClient.resetQueries({ queryKey: query.queryKey, exact: true })
+        })
+      }
+      return
+    }
     // Patch on a settled success — the query's data is the freshest copy of its resources.
     if (event.type === 'updated' && event.action.type === 'success') {
       run(event.query.state.data)
@@ -94,6 +183,9 @@ export function installNormalization(
     torn = true
     unsubscribeQueries()
     unsubscribeMutations()
+    if (queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery === shouldDehydrateQuery) {
+      withDehydrate(previousDehydrate)
+    }
     // Release the install record so a different descriptor can be installed afterwards (only when
     // ours is still the active record — a same-descriptor re-install left it pointing at the same
     // descriptor, so clearing it is correct either way).

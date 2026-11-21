@@ -229,6 +229,30 @@ Under the hood: `onMutate` pre-applies the expected change through the normalise
 
 The example app's playlist detail page wires all four of these — rename, add track, remove track, reorder — see [PlaylistDetailPage.tsx](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) and its optimistic helpers in [playlist-tracks.ts](../examples/spotify-clone/src/api/playlist-tracks.ts).
 
+## Server-side rendering
+
+Server-side rendering is not supported yet. TanStack's `dehydrate`, JSON and `hydrate` round trip strips the non-enumerable `$`-accessors from a materialised result, so a hydrated read would render without its `$page`, `$next()` and the rest.
+
+`installNormalization` guards against that for every framework binding:
+
+- Queries with the binding's key shape (a type, then `fetchMany`, `fetchOne`, `fetchRelated` or `fetchRelationship`) are left out of `dehydrate()` through a `shouldDehydrateQuery` default, composed with any default you set before installing, so they fetch in the browser.
+- A query of that shape that still arrives hydrated without its accessors is reset, so it refetches, and a development warning names its key.
+
+A `dehydrate()` call with explicit options overrides the defaults. Wrap your own predicate in `jsonApiShouldDehydrateQuery` to keep the exclusion. It recognises binding queries by key shape alone, so it needs no descriptor:
+
+```ts
+import { defaultShouldDehydrateQuery } from '@tanstack/query-core'
+import { jsonApiShouldDehydrateQuery } from '@haddowg/json-api-query'
+
+dehydrate(queryClient, {
+  shouldDehydrateQuery: jsonApiShouldDehydrateQuery(
+    (query) => defaultShouldDehydrateQuery(query) || query.state.status === 'pending',
+  ),
+})
+```
+
+The cost is a refetch in the browser, so the first render can differ from the server HTML.
+
 ## See it in the example app
 
 The spotify-clone wires the whole binding end to end over a mock transport:

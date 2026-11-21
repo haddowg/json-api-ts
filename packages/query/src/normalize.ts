@@ -24,7 +24,7 @@
  * collection membership, which is not a node patch — those invalidate the relevant list/
  * relationship queries instead (see ./mutate.ts).
  */
-import type { ApiDescriptor, NestedFieldset } from '@haddowg/json-api-client'
+import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { keyHasPrefix, parentRelationReadKeys, type QueryKey } from './keys'
 
@@ -53,6 +53,29 @@ function republish(query: Query): void {
   const root = new Proxy(target, {})
   roots.set(root, target)
   query.setState({ data: root })
+}
+
+/**
+ * Whether cached query data is a materialised client result, seeing through a republished root.
+ * Infinite-query data (`{ pages, pageParams }`) is materialised when every page is.
+ * @internal
+ */
+export function isMaterialisedData(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null) {
+    return false
+  }
+  if (isMaterialised(roots.get(data) ?? data)) {
+    return true
+  }
+  const pages = (data as { pages?: unknown }).pages
+  return (
+    Array.isArray(pages) &&
+    Array.isArray((data as { pageParams?: unknown }).pageParams) &&
+    pages.length > 0 &&
+    pages.every((page) =>
+      isMaterialised(typeof page === 'object' && page !== null ? (roots.get(page) ?? page) : page),
+    )
+  )
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
