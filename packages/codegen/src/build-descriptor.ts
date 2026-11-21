@@ -233,6 +233,14 @@ export class DescriptorBuilder {
         paginator: this.paginator(base),
         clientId: this.clientId(base),
       }
+      const serverOnly = this.serverOnlyAttributes(base, collection)
+      if (serverOnly.length > 0) {
+        descriptor.serverOnly = serverOnly
+      }
+      const nullable = this.nullableAttributes(base)
+      if (nullable.length > 0) {
+        descriptor.nullable = nullable
+      }
       if (this.singletonPath(base) !== undefined) {
         descriptor.singleton = true
       }
@@ -727,6 +735,36 @@ export class DescriptorBuilder {
       }
     }
     return sortRecord(out)
+  }
+
+  /**
+   * The read attributes (`<Base>Attributes`) a create can't supply: those the create request's
+   * attributes (`<Base>CreateAttributes`) don't declare. Empty for a type with no create
+   * operation. A create that documents no attributes component supplies none.
+   */
+  private serverOnlyAttributes(base: string, collection: string | undefined): string[] {
+    if (collection === undefined || this.operation(collection, 'post') === undefined) {
+      return []
+    }
+    const read = this.schemas[`${base}Attributes`]?.properties ?? {}
+    const creatable = this.schemas[`${base}CreateAttributes`]?.properties ?? {}
+    return Object.keys(read)
+      .filter((name) => isSchema(read[name]) && !(name in creatable))
+      // `filter` returns a fresh array, so sorting it in place mutates nothing shared, and
+      // `Array#toSorted` is ES2023, outside the ES2022 lib this package targets.
+      // oxlint-disable-next-line no-array-sort
+      .sort()
+  }
+
+  /** The read attributes (`<Base>Attributes`) whose schema admits `null`. */
+  private nullableAttributes(base: string): string[] {
+    const read = this.schemas[`${base}Attributes`]?.properties ?? {}
+    return Object.entries(read)
+      .filter(([, prop]) => isSchema(prop) && isNullable(prop))
+      .map(([name]) => name)
+      // A fresh array from `map`; see serverOnlyAttributes.
+      // oxlint-disable-next-line no-array-sort
+      .sort()
   }
 
   /**
