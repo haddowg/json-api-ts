@@ -50,8 +50,9 @@ interface InfiniteValue {
 /**
  * Whether `value` is an infinite query's `InfiniteData` (`{ pages, pageParams }`, both arrays)
  * rather than a materialised read result, which a resource or an augmented array always is.
+ * @internal
  */
-function isInfiniteValue(value: unknown): value is InfiniteValue {
+export function isInfiniteValue(value: unknown): value is InfiniteValue {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -192,8 +193,9 @@ function attributesOf(node: MaterialisedResource): Record<string, unknown> | und
  * and visit every reachable resource exactly once. Recurses into
  * each resource's own enumerable relation slots so a deeply-included graph is fully indexed.
  * `seen` guards relation cycles (a node memoised by reference) and keeps the walk linear.
+ * @internal
  */
-function walkResources(
+export function walkResources(
   value: unknown,
   descriptor: ApiDescriptor,
   visit: (node: MaterialisedResource) => void,
