@@ -143,6 +143,63 @@ const artistQuery = useQuery(reads.albums.related(albumId ?? skipToken, 'artist'
 
 A singleton takes `skipToken` in place of its query (`reads.inboxes.get(skipToken)`). A skipped read's key carries the segment `'$skip'` where the id would go, `[type, operation, '$skip', rel?]`, with no params, so it is deterministic and never matches a list's or singleton's real reads. `useSuspenseQuery` doesn't accept `skipToken`, as TanStack documents.
 
+## Infinite queries
+
+`reads.<type>.infinite(query)` returns options for TanStack's infinite queries. Spread them into `useInfiniteQuery`, and each page is the typed `Collection` that `list(query)` resolves:
+
+```ts
+import { useInfiniteQuery } from '@tanstack/react-query'
+
+const albums = useInfiniteQuery(reads.albums.infinite({ include: ['artist'], page: { size: 20 } }))
+
+albums.data?.pages.flatMap((page) => page.map((album) => album.title))
+if (albums.hasNextPage) {
+  await albums.fetchNextPage()
+}
+```
+
+The first page is the query's own `page`, or the server's first page when the query has none. Each later or earlier page is read with the `page` params of the current page's `next` or `prev` link, through the client's `nextPageParams` and `prevPageParams` (see [turning the page](pagination.md#turning-the-page)). That works the same for every strategy, cursors included, and `hasNextPage` is `false` on a page with no `next` link. A page param replaces the query's whole `page`, since the server's link carries every page member. `fetchPreviousPage`, `hasPreviousPage` and `maxPages` are TanStack's own.
+
+`reads.<type>.relatedInfinite(id, rel, query)` pages a to-many relation's related collection the same way. A to-one relation is a compile error there, having no pages, and a singleton drops the id, as its other reads do. The standalone forms are `infiniteListQueryOptions(client, type, query)` and `infiniteRelatedQueryOptions(client, type, id, rel, query)`.
+
+The key is the plain read's key plus a trailing `'$infinite'`: `[type, 'fetchMany', params?, '$infinite']` and `[type, 'fetchRelated', id, rel, params?, '$infinite']`. That keeps the cached pages apart from the plain read of the same query, and under the same prefixes, so a create or delete invalidates a type's infinite lists with its other lists, and a relationship write invalidates the parent's infinite related reads. The key is tagged with TanStack's `InfiniteData` of the read's pages and page params, so `getQueryData(options.queryKey)` is typed, and `error` is typed as for a plain read.
+
+`skipToken` in place of the query, or of a related read's id, skips the read, and the key ends `'$skip', rel?, '$infinite'`:
+
+```ts
+const albums = useInfiniteQuery(reads.albums.infinite(ready ? { page: { size: 20 } } : skipToken))
+const tracks = useInfiniteQuery(reads.albums.relatedInfinite(albumId ?? skipToken, 'tracks'))
+```
+
+[Normalisation](#normalisation-typeid-write-through-patching) reaches every page. A read or write patches a resource on whichever cached page holds it, and the query is published again as a new `{ pages, pageParams }` in which only the touched pages are new roots, so a page nothing changed keeps its reference and each page keeps its `$page` and `$next()`. Fetching another page indexes only that page's resources, so an earlier page's older response never overwrites a fresher copy elsewhere. An optimistic `update` patches infinite pages too, while an optimistic relationship `add`, `remove`, `replace` or `set` leaves them to the refetch its settle invalidation starts.
+
+This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `infinite queries` group). It reads the first page with `fetchInfiniteQuery`, the second through the next link as `fetchNextPage` does, then updates an album on the second page:
+
+```ts
+const options = reads.albums.infinite({ page: { size: 1 } })
+expect(options.queryKey).toEqual(['albums', 'fetchMany', { page: { size: 1 } }, '$infinite'])
+const first = await qc.fetchInfiniteQuery(options)
+expect(first.pages[0]![0]!.title).toBe('OK Computer')
+
+// The next page's params come from the page's `next` link, which `fetchNextPage` reads.
+const observer = new InfiniteQueryObserver(qc, options)
+expect(observer.getCurrentResult().hasNextPage).toBe(true)
+const result = await observer.fetchNextPage()
+expect(result.data?.pages.map((page) => page.map((a) => a.title))).toEqual([
+  ['OK Computer'],
+  ['Kid A'],
+])
+expect(result.hasNextPage).toBe(false)
+
+// An update patches the album on whichever cached page holds it, as for any other read.
+const writes = createMutationApi(qc, client, resourceMap)
+await qc
+  .getMutationCache()
+  .build(qc, writes.albums.id('2').update() as never)
+  .execute({ title: 'Kid A Mnesia' })
+expect(qc.getQueryData(options.queryKey)?.pages[1]![0]!.title).toBe('Kid A Mnesia')
+```
+
 ## A basic mutation
 
 Mutation factories return a `MutationOptions` — the `mutationFn` plus the lifecycle callbacks the binding wires for cache upkeep. Spread it into `useMutation`; the variables mirror the client (`create()` takes the flat create input, `update()` the patch, and so on).
@@ -200,9 +257,9 @@ The update's variables carry the resource's `id`, as the client's singleton upda
 optimistic update patches the resource that id names. `singletonRelationReadKeys(type, rel)` gives
 a singleton relation's two read prefixes.
 
-A [skipped read](#skipping-a-read-with-skiptoken)'s key is `[type, operation, '$skip', rel?]`.
+A [skipped read](#skipping-a-read-with-skiptoken)'s key is `[type, operation, '$skip', rel?]`, and an [infinite read](#infinite-queries)'s is its plain read's key plus `'$infinite'`.
 
-You rarely build a key yourself — the factories embed the right key, and normalisation drives invalidation from mutations. The helpers (`keyFor`, `typeKey`, `operationKey`, `resourceKey`, `relationKey`, `relationReadKeys`, `normalizeParams`) are exported for the cases where you need a targeted invalidation of your own.
+You rarely build a key yourself — the factories embed the right key, and normalisation drives invalidation from mutations. The helpers (`keyFor`, `infiniteKeyFor`, `typeKey`, `operationKey`, `resourceKey`, `relationKey`, `relationReadKeys`, `normalizeParams`) are exported for the cases where you need a targeted invalidation of your own.
 
 ## Normalisation: `type:id` write-through patching
 
@@ -291,7 +348,7 @@ Server-side rendering is not supported yet. TanStack's `dehydrate`, JSON and `hy
 
 `installNormalization` guards against that for every framework binding:
 
-- Queries with the binding's key shape (a type, then `fetchMany`, `fetchOne`, `fetchRelated` or `fetchRelationship`) are left out of `dehydrate()` through a `shouldDehydrateQuery` default, composed with any default you set before installing, so they fetch in the browser.
+- Queries with the binding's key shape (a type, then `fetchMany`, `fetchOne`, `fetchRelated` or `fetchRelationship`), infinite reads included, are left out of `dehydrate()` through a `shouldDehydrateQuery` default, composed with any default you set before installing, so they fetch in the browser.
 - A query of that shape that still arrives hydrated without its accessors is reset, so it refetches, and a development warning names its key.
 
 A `dehydrate()` call with explicit options overrides the defaults. Wrap your own predicate in `jsonApiShouldDehydrateQuery` to keep the exclusion. It recognises binding queries by key shape alone, so it needs no descriptor:
@@ -318,6 +375,6 @@ The spotify-clone wires the whole binding end to end over a mock transport:
 - [AlbumDetailPage.tsx](../examples/spotify-clone/src/pages/AlbumDetailPage.tsx) — a read with `include`;
 - [PlaylistDetailPage.tsx](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) — optimistic update + relationship mutations.
 
-And the tested reference: the `TanStack Query bindings` group in [example.test.ts](../packages/example/src/example.test.ts), plus the package's own [README](../packages/query/README.md).
+And the tested reference: the `TanStack Query bindings` and `infinite queries` groups in [example.test.ts](../packages/example/src/example.test.ts), plus the package's own [README](../packages/query/README.md).
 
 **Next:** [reads.md](reads.md) · [writes.md](writes.md) · [relationship-mutation.md](relationship-mutation.md)

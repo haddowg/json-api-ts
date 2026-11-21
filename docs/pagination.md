@@ -71,6 +71,8 @@ while (page) {
 !!! tip "No total required"
     `$next()` / `$prev()` are wired from `links.next` / `links.prev` alone. A server using a count-free paginator (no `meta.page.total`) still navigates correctly — that is the point of driving navigation off links rather than arithmetic over a total.
 
+When you need the next page's `page` argument rather than the page itself, `nextPageParams(collection)` and `prevPageParams(collection)` read it from the same links, typed for the collection's strategy, and return `undefined` when there is no link. With TanStack Query, the [infinite queries](tanstack-query.md#infinite-queries) of `@haddowg/json-api-query` page a list or a related collection this way, page after page, inside `useInfiniteQuery`.
+
 ### Links on another origin
 
 The client only follows a link that stays on the origin of `baseUrl`. A relative `baseUrl` such as `/api` uses the page's origin in a browser, and elsewhere accepts only a link with no host. A link to any other host, or one that isn't `http(s)`, makes `$next()` / `$prev()` reject before any request goes out, so your `headers` (an `Authorization` token, say) never reach another server.
