@@ -631,8 +631,5 @@ Constraints adopted now, so the later work adds rather than changes:
 
 ## Appendix: SSR and persistence, deferred
 
-Needs a client `dematerialise(value)`, which rebuilds a document from the current graph with
-current attributes, raw relationships, edge meta and `$page`, and `client.rematerialise()` to
-reverse it. It also needs `serializeData`/`deserializeData` dehydrate defaults, and
-`installNormalization` indexing on the query cache's `added` event. Without it, SSR apps get
-values missing their `$`-accessors. Persisted caches break the same way.
+Designed and estimated separately, for React and Angular together, in
+[SSR and persistence](ssr-and-persistence.md).
