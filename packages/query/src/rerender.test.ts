@@ -81,9 +81,10 @@ describe('an observed read after a write-through patch', () => {
 
     const state = queryClient.getQueryState(get.queryKey)
     expect(state?.isInvalidated).toBe(true)
-    const data = state?.data as { title: string; $self: unknown; $raw: unknown }
-    expect(data.title).toBe('Kid A')
-    expect(data.$raw).toBeDefined()
+    // The tagged key types the cached state, so no cast is needed to read it.
+    const data = state?.data
+    expect(data?.title).toBe('Kid A')
+    expect(data?.$raw).toBeDefined()
   })
 
   it('notifies its observer for an optimistic patch and again for its rollback', async () => {

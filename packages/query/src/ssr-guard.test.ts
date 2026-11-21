@@ -153,7 +153,7 @@ describe('hydration check', () => {
     await qc.fetchQuery(listQueryOptions(makeClient('B'), 'albums', { page: { number: 2 } }))
     await flush()
     const data = qc.getQueryData(options.queryKey)
-    expect((data as { title: string }[])[0]?.title).toBe('B')
+    expect(data?.[0]?.title).toBe('B')
     expect(isMaterialised(data)).toBe(false)
 
     // The republished root still reads as materialised when a query is added holding it.

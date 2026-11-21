@@ -58,9 +58,9 @@
     "@haddowg/json-api-client": "workspace:^"
   },
   "peerDependencies": {
-    "@tanstack/query-core": "^5.0.0"
+    "@tanstack/query-core": "^5.62.0"
   },
   "devDependencies": {
-    "@tanstack/query-core": "^5.0.0"
+    "@tanstack/query-core": "^5.62.0"
   }
 }
