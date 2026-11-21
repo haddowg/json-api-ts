@@ -390,6 +390,8 @@ A read whose `fields` [selected single keys](includes-and-sparse-fieldsets.md#ne
 
 Each query a patch touches is then published again under a new root reference, a transparent proxy over the same materialised value, so its `$page`, `$next()` and the objects inside it are unchanged. React Query's default tracked mode re-renders a component only when a value it read changes reference, so without a new `data` reference a patched read would hold the new title and still show the old one. The new root is set on the query's state directly, which keeps a query you invalidated invalidated and doesn't count as a fresh fetch. An optimistic patch and its rollback publish the same way. An optimistic relationship `add`, `remove` or `replace` swaps the cached to-many for the new members, keeping the array's `$page`, `$links` and `$next()` from the page the server sent until the settle refetch replaces it.
 
+When two responses for the same resource race, the one requested later wins, whatever order they arrive in. Each read and write remembers when its request started, and each cached copy of an attribute remembers which request it came from, so an older response that arrives last only fills in attributes the newer one didn't carry, and its own query shows the newer values too. Data hydrated or restored into the cache counts as older than any request the page makes.
+
 The patch matches by `type:id` alone, so one QueryClient holds one descriptor per scope: installing a *different* descriptor in a scope that already has one throws. To share a QueryClient between servers, give each its own scope, as [Several servers](#several-servers) shows.
 
 ### The patch-vs-invalidate split

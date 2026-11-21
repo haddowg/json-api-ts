@@ -56,6 +56,7 @@ import {
   type ReadOperation,
   SKIPPED_SEGMENT,
 } from './keys'
+import { stamped } from './freshness'
 import { scopeApi, type ScopeOption } from './scope'
 
 /**
@@ -127,7 +128,11 @@ export type ReadError<C extends string = string> = JsonApiError<C> | StructuralG
  */
 export type ReadRetry<E = ReadError> = (failureCount: number, error: E) => boolean
 
-/** A read's query function: it passes TanStack's abort `signal` to the client call. */
+/**
+ * A read's query function: it passes TanStack's abort `signal` to the client call, and stamps the
+ * result with the moment the request started, so normalisation can tell a newer response from an
+ * older one that arrives after it.
+ */
 export type ReadQueryFn<R> = (context?: QueryFnContext) => Promise<R>
 
 /**
@@ -441,7 +446,7 @@ function listOptions<D extends ApiDescriptor, A>(
   return {
     queryKey: tag(keyFor({ type, operation: 'fetchMany' }, query)),
     structuralSharing: false,
-    queryFn: (context) => accessor.list(withSignal(query, context?.signal) as never),
+    queryFn: (context) => stamped(() => accessor.list(withSignal(query, context?.signal) as never)),
   }
 }
 
@@ -459,9 +464,11 @@ function getOptions<D extends ApiDescriptor, A>(
     queryKey: tag(keyFor(target(type, 'fetchOne', id), query)),
     structuralSharing: false,
     queryFn: (context) =>
-      id === undefined
-        ? accessor.get(withSignal(query, context?.signal) as never)
-        : accessor.get(id, withSignal(query, context?.signal) as never),
+      stamped(() =>
+        id === undefined
+          ? accessor.get(withSignal(query, context?.signal) as never)
+          : accessor.get(id, withSignal(query, context?.signal) as never),
+      ),
   }
 }
 
@@ -479,11 +486,12 @@ function relationOptions<D extends ApiDescriptor, A>(
   return {
     queryKey: tag(keyFor(target(type, operation, id, rel), query)),
     structuralSharing: false,
-    queryFn: (context) => {
-      const reads = relationReads(client, type, id, rel)
-      const params = withSignal(query, context?.signal)
-      return operation === 'fetchRelated' ? reads.related(params) : reads.get(params)
-    },
+    queryFn: (context) =>
+      stamped(() => {
+        const reads = relationReads(client, type, id, rel)
+        const params = withSignal(query, context?.signal)
+        return operation === 'fetchRelated' ? reads.related(params) : reads.get(params)
+      }),
   }
 }
 
@@ -557,7 +565,8 @@ function infiniteListOptions<D extends ApiDescriptor, A>(
     initialPageParam: initialPage(query),
     getNextPageParam: nextPageParam,
     getPreviousPageParam: previousPageParam,
-    queryFn: ({ pageParam, signal }) => accessor.list(atPage(query, pageParam, signal) as never),
+    queryFn: ({ pageParam, signal }) =>
+      stamped(() => accessor.list(atPage(query, pageParam, signal) as never)),
   }
 }
 
@@ -578,7 +587,7 @@ function infiniteRelatedOptions<D extends ApiDescriptor, A>(
     getNextPageParam: nextPageParam,
     getPreviousPageParam: previousPageParam,
     queryFn: ({ pageParam, signal }) =>
-      relationReads(client, type, id, rel).related(atPage(query, pageParam, signal)),
+      stamped(() => relationReads(client, type, id, rel).related(atPage(query, pageParam, signal))),
   }
 }
 
