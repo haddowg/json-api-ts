@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http'
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing'
-import { effect, type EnvironmentProviders, Injector, signal } from '@angular/core'
+import { effect, type EnvironmentProviders, inject, Injector, signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
 import { JsonApiMutationCache } from '@haddowg/json-api-query'
 import {
@@ -27,6 +27,11 @@ import { injectJsonApiReads, injectJsonApiWrites, provideJsonApiQuery } from './
 
 const ADMIN = createJsonApiClientToken<ReturnType<typeof createAdminClient>>('AdminApi')
 const ADMIN_BASE = 'https://admin.example'
+
+// A route resolver's body: a resolver runs in an injection context, so it can inject the
+// QueryClient and the reads.
+const prefetchAlbum = (id: string) =>
+  inject(QueryClient).ensureQueryData(injectJsonApiReads().albums.get(id))
 
 const jsonApiQueryClient = (): QueryClient =>
   new QueryClient({ mutationCache: new JsonApiMutationCache() })
@@ -157,6 +162,31 @@ describe('provideJsonApiQuery', () => {
       ['Kid A'],
     ])
     expect(query.hasNextPage()).toBe(false)
+    backend.verify()
+  })
+
+  it('prefetches in a route resolver, and the component reads the cached result', async () => {
+    // A stale time keeps the prefetched read fresh when the component mounts.
+    const { backend } = configure(
+      [provideJsonApiQuery(descriptor)],
+      () =>
+        new QueryClient({
+          mutationCache: new JsonApiMutationCache(),
+          defaultOptions: { queries: { staleTime: 30_000 } },
+        }),
+    )
+    const resolved = TestBed.runInInjectionContext(() => prefetchAlbum('1'))
+    await flush()
+    backend.expectOne(`${BASE}/albums/1`).flush(albumDocument('1', 'OK Computer'))
+    expect((await resolved).title).toBe('OK Computer')
+
+    const query = TestBed.runInInjectionContext(() => {
+      const reads = injectJsonApiReads()
+      return injectQuery(() => reads.albums.get('1'))
+    })
+    await flush()
+    expect(query.data()?.title).toBe('OK Computer')
+    // Fresh in the cache: no second request.
     backend.verify()
   })
 
