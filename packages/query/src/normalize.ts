@@ -28,7 +28,7 @@
  */
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
-import { keyHasPrefix, parentRelationReadKeys, type QueryKey } from './keys'
+import { keyHasPrefix, parentRelationReadKeys, type QueryKey, scopeOf } from './keys'
 
 /** A `type:id` cache key for a resource. */
 type ResourceKey = string
@@ -460,22 +460,31 @@ function patchCached(
  * entry for the query that produced it — we mutate it too (idempotently), which is harmless and
  * keeps every surface holding that resource consistent.
  *
- * CONTRACT: a single QueryClient must hold caches for ONE descriptor only. The patch matches a
- * cached node purely by `type:id` and rewrites it with `descriptor`'s attribute split, so two
- * descriptors that share a QueryClient and a `type:id` (e.g. a `default` + an `admin` server whose
- * `users` differ) would cross-contaminate. `installNormalization` enforces this for the auto path;
- * when calling `normalize` standalone, give each typed client/server its own QueryClient.
+ * CONTRACT: one descriptor per scope of a QueryClient. The patch matches a cached node purely by
+ * `type:id` and rewrites it with `descriptor`'s attribute split, so it patches only the queries
+ * whose key carries `scope` (an unscoped call, only unscoped keys): two servers whose `users` differ
+ * share a QueryClient in two scopes without cross-contaminating. `installNormalization` enforces
+ * one descriptor per scope for the auto path.
  */
 export function normalize(
   queryClient: QueryClient,
   result: unknown,
   descriptor: ApiDescriptor,
+  scope?: string,
 ): void {
   const fresh = collectAttributes(unnormalisedPages(result), descriptor)
   if (fresh.size === 0) {
     return
   }
-  patchAll(queryClient, fresh, descriptor)
+  patchAll(queryClient, fresh, descriptor, scope)
+}
+
+/** The cached queries in `scope`: those whose key carries it, or every unscoped one. */
+function queriesIn(queryClient: QueryClient, scope: string | undefined): Query[] {
+  return queryClient
+    .getQueryCache()
+    .getAll()
+    .filter((query) => scopeOf(query.queryKey) === scope)
 }
 
 /** The pages of infinite queries' data {@link normalize} has already indexed. */
@@ -516,8 +525,9 @@ function patchAll(
   queryClient: QueryClient,
   fresh: Map<ResourceKey, FreshAttributes>,
   descriptor: ApiDescriptor,
+  scope: string | undefined,
 ): void {
-  for (const query of queryClient.getQueryCache().getAll()) {
+  for (const query of queriesIn(queryClient, scope)) {
     const data = query.state.data
     if (data === undefined || data === null) {
       continue
@@ -571,6 +581,7 @@ export function applyOptimisticPatch(
   id: string,
   attributes: Record<string, unknown>,
   descriptor: ApiDescriptor,
+  scope?: string,
 ): Snapshot {
   const key = resourceKey(type, id)
   const edits: NodeEdit[] = []
@@ -579,7 +590,7 @@ export function applyOptimisticPatch(
   // Walk the cache explicitly (not `setQueriesData({}, ...)`) so we only write back queries that
   // actually hold this `type:id` — preserving untouched queries' identity and `isInvalidated`
   // flags, exactly as the success path ({@link patchAll}) does.
-  for (const query of queryClient.getQueryCache().getAll()) {
+  for (const query of queriesIn(queryClient, scope)) {
     const data = query.state.data
     if (data === undefined || data === null) {
       continue
@@ -679,8 +690,9 @@ export function applyOptimisticMembership(
   id: string | undefined,
   rel: string,
   transform: MembershipTransform,
+  scope?: string,
 ): Snapshot {
-  const prefixes = parentRelationReadKeys(type, id, rel)
+  const prefixes = parentRelationReadKeys(type, id, rel, scope)
   const edits: { query: Query; previous: unknown }[] = []
 
   for (const query of queryClient.getQueryCache().getAll()) {
@@ -748,8 +760,9 @@ export function applyOptimisticToOne(
   id: string | undefined,
   rel: string,
   next: MembershipRef | null | undefined,
+  scope?: string,
 ): Snapshot {
-  const prefixes = parentRelationReadKeys(type, id, rel)
+  const prefixes = parentRelationReadKeys(type, id, rel, scope)
   const edits: { query: Query; previous: unknown }[] = []
   if (next === undefined) {
     return { restore() {} }

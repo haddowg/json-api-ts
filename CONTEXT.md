@@ -214,6 +214,11 @@ whole surface in place of hooks.
 The plain-data description of a write's cache upkeep (verb, type, id, relation, whether it is
 optimistic) a mutation option factory puts in the options' `meta`.
 
+**Scope**:
+The name under which one server's queries and mutations share a QueryClient with another's: a
+`{ $scope }` segment leading every key, with one descriptor installed per scope.
+_Avoid_: namespace, tenant
+
 **Upkeep**:
 What a write does to the TanStack cache: the optimistic change and its rollback, normalisation on
 success, invalidation on settle. `JsonApiMutationCache` runs it from a mutation plan.

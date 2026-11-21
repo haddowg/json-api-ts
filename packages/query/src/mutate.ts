@@ -44,9 +44,11 @@ import {
 } from '@haddowg/json-api-client'
 import type { MutationFunctionContext, QueryClient } from '@tanstack/query-core'
 import { assertUpkeepRuns } from './mutation-cache'
+import { scopeApi, type ScopeOption } from './scope'
 import type { ResourceId } from './read'
 import {
   JSON_API_PLAN,
+  type JsonApiMutationKey,
   type JsonApiMutationMeta,
   type JsonApiMutationPlan,
   type JsonApiResourceVerb,
@@ -66,8 +68,11 @@ import {
  * `TData` is the resolved result and `TVars` the input the caller passes to `mutate(vars)`.
  */
 export interface MutationOptions<TData, TVars> {
-  /** `[type, verb, id?, rel?]`, as {@link mutationKeyFor} builds it (`['$atomic']` for a batch). */
-  mutationKey: readonly string[]
+  /**
+   * `[type, verb, id?, rel?]`, as {@link mutationKeyFor} builds it (`['$atomic']` for a batch), led
+   * by a `{ $scope }` segment in a scope.
+   */
+  mutationKey: JsonApiMutationKey
   mutationFn: (variables: TVars, context: MutationFunctionContext) => Promise<TData>
   meta: JsonApiMutationMeta
 }
@@ -669,10 +674,24 @@ export type MutationApi<D extends ApiDescriptor, A, W> = {
  * common arguments pre-applied. A Proxy (descriptor-keyed type validity is enforced by the static
  * `MutationApi` shape) — no per-type allocation until first access.
  *
+ * `options.scope` scopes every mutation, for a server sharing the QueryClient with another: its
+ * key is led by `{ $scope }`, and its plan carries the scope, so the upkeep runs against the
+ * descriptor installed for that scope and invalidates and patches only that scope's queries.
+ *
  * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
  * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function createMutationApi<D extends ApiDescriptor, A, W>(
+  queryClient: QueryClient,
+  client: WriteClient<D, A, W>,
+  descriptor: D,
+  options: ScopeOption = {},
+): MutationApi<D, A, W> {
+  return scopeApi(unscopedMutationApi(queryClient, client, descriptor), options.scope)
+}
+
+/** The bound mutation API, unscoped. */
+function unscopedMutationApi<D extends ApiDescriptor, A, W>(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,

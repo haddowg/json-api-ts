@@ -139,9 +139,13 @@ const teardown = installNormalization(queryClient, resourceMap)
 // … later: teardown() removes the subscriptions.
 ```
 
-> **One descriptor per QueryClient.** The patch matches by `type:id` alone, so two descriptors
-> sharing a QueryClient would cross-contaminate attributes. Installing a _different_ descriptor on
-> the same QueryClient throws. Give each typed client/server its own QueryClient.
+> **One descriptor per scope.** The patch matches by `type:id` alone, so installing a _different_
+> descriptor in a scope that already has one throws. Several servers share a QueryClient in their
+> own scopes: `installNormalization(queryClient, adminMap, { scope: 'admin' })`,
+> `createQueryApi(adminClient, { scope: 'admin' })` and
+> `createMutationApi(queryClient, adminClient, adminMap, { scope: 'admin' })` lead every key with
+> `{ $scope: 'admin' }`, and each scope is normalised, patched and invalidated apart from the
+> others. `withScope(scope, options)` scopes a standalone factory's options.
 
 For reads alone you can skip the install and call `normalize(queryClient, result, resourceMap)`
 yourself — the same write-through patch. The mutation factories need the descriptor installed.

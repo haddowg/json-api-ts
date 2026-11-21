@@ -18,9 +18,9 @@
  * every overlapping cached query IN PLACE (preserving edge-local $pivot/$edge), writing back ONLY
  * the queries that actually changed (so untouched queries keep their `isInvalidated` flags), plus
  * `installNormalization(queryClient, descriptor)` to auto-run it on every query/mutation success.
- * A QueryClient holds ONE descriptor (enforced by `installNormalization`): the patch matches by
- * `type:id` alone, so two descriptors sharing a QueryClient would cross-contaminate attributes —
- * give each typed client/server its own QueryClient.
+ * A QueryClient holds ONE descriptor per scope (enforced by `installNormalization`): the patch
+ * matches by `type:id` alone, so several servers share a QueryClient by giving each a scope, which
+ * leads every key it builds with `{ $scope }` and confines its normalisation and upkeep to them.
  *
  * Shipped (Build 3): the mutation OPTION factories over the client write surface — create /
  * update / delete, the relationship mutations (add/remove/replace/set) and atomic, each standalone
@@ -50,12 +50,14 @@ export { installNormalization, jsonApiShouldDehydrateQuery, type Teardown } from
 export * from './keys'
 export * from './mutate'
 export { JsonApiMutationCache } from './mutation-cache'
+export { type ScopeOption, withScope } from './scope'
 export * from './normalize'
 export * from './read'
 export {
   ATOMIC_MUTATION_KEY,
   JSON_API_PLAN,
   type JsonApiAtomicPlan,
+  type JsonApiMutationKey,
   type JsonApiMutationMeta,
   type JsonApiMutationPlan,
   type JsonApiMutationVerb,

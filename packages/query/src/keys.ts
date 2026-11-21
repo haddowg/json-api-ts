@@ -7,7 +7,8 @@
  * prefix of a key matches every key beneath it (TanStack's `queryKey` matching is prefix-based),
  * so `[type]` invalidates a whole type's subtree, `[type, operation]` an operation's subtree, and
  * `[type, operation, id]` a single resource's reads. Params ride the last segment as a normalised
- * object so two semantically-equal queries (keys reordered, equal values) share one key. An
+ * object so two semantically-equal queries (keys reordered, equal values) share one key. A scoped
+ * key (several servers sharing one QueryClient) is led by a `{ $scope }` segment. An
  * infinite read's key is its plain read's key plus a trailing {@link INFINITE_SEGMENT}, so it
  * sits under every prefix its plain read does.
  */
@@ -79,17 +80,23 @@ export interface KeyTarget {
   id?: string
   /** Present for relation ops (`fetchRelated`/`fetchRelationship`). */
   rel?: string
+  /** The scope the read is in, when several servers share the QueryClient (see {@link scopeSegment}). */
+  scope?: string | undefined
 }
 
 /**
- * Build a deterministic, hierarchical query key from `(type, operation, id?, rel?, params?)`.
+ * Build a deterministic, hierarchical query key from `(type, operation, id?, rel?, params?)`,
+ * led by the target's {@link ScopeSegment} when it names a scope.
  * The fixed-position prefix (`type`, `operation`, then `id`, then `rel`) makes any ancestor a
  * valid invalidation target; params (when present and non-empty) ride a single trailing
  * normalised object so reorderings collapse to one key. An absent/empty params object adds no
  * trailing segment, so a bare `list()` and `list({})` share a key.
  */
 export function keyFor(target: KeyTarget, params?: unknown): QueryKey {
-  const parts: QueryKeyPart[] = [target.type, target.operation]
+  const parts: QueryKeyPart[] =
+    target.scope === undefined
+      ? [target.type, target.operation]
+      : [scopeSegment(target.scope), target.type, target.operation]
   if (target.id !== undefined) {
     parts.push(target.id)
   }
@@ -159,16 +166,63 @@ function isEmptyNormalized(value: NormalizedParams): boolean {
   return false
 }
 
+// ── Scopes (several servers on one QueryClient) ────────────────────────────────────────────
+
+/**
+ * The segment a scoped key starts with: `{ $scope: 'admin' }`. An object, so it can never collide
+ * with a type name, and placed first so every prefix inside a scope stays a prefix of that scope's
+ * keys alone. An unscoped key has none.
+ */
+export type ScopeSegment = { readonly $scope: string }
+
+/** The {@link ScopeSegment} of `scope`. */
+export function scopeSegment(scope: string): ScopeSegment {
+  return { $scope: scope }
+}
+
+/** True when a key segment is a {@link ScopeSegment}. */
+export function isScopeSegment(segment: unknown): segment is ScopeSegment {
+  return (
+    typeof segment === 'object' &&
+    segment !== null &&
+    !Array.isArray(segment) &&
+    typeof (segment as { $scope?: unknown }).$scope === 'string'
+  )
+}
+
+/** The scope a key (a query's or a mutation's) is in, or `undefined` for an unscoped key. */
+export function scopeOf(key: readonly unknown[]): string | undefined {
+  const first = key[0]
+  return isScopeSegment(first) ? first.$scope : undefined
+}
+
+/** `key` in `scope`: prefixed with its {@link ScopeSegment}, replacing any it had; unchanged unscoped. */
+export function scopedKey<K extends readonly unknown[]>(key: K, scope: string | undefined): K {
+  const bare = isScopeSegment(key[0]) ? key.slice(1) : key
+  return (scope === undefined ? bare : [scopeSegment(scope), ...bare]) as unknown as K
+}
+
 // ── Hierarchical prefixes (targeted invalidation) ─────────────────────────────────────────
 
-/** The whole-type subtree prefix (`[type]`) — invalidates every operation/read of a type. */
-export function typeKey(type: string): readonly [string] {
-  return [type]
+/**
+ * The whole-type subtree prefix (`[type]`) — invalidates every operation/read of a type. Pass a
+ * `scope` for the type's reads within that scope.
+ */
+export function typeKey(type: string): readonly [string]
+export function typeKey(type: string, scope: string | undefined): QueryKey
+export function typeKey(type: string, scope?: string): QueryKey {
+  return scopedKey([type], scope)
 }
 
 /** An operation subtree prefix (`[type, operation]`) — e.g. every `fetchMany` (list) of a type. */
-export function operationKey(type: string, operation: ReadOperation): readonly [string, string] {
-  return [type, operation]
+export function operationKey(type: string, operation: ReadOperation): readonly [string, string]
+export function operationKey(
+  type: string,
+  operation: ReadOperation,
+  scope: string | undefined,
+): QueryKey
+export function operationKey(type: string, operation: ReadOperation, scope?: string): QueryKey {
+  return scopedKey([type, operation], scope)
 }
 
 /**
@@ -176,8 +230,10 @@ export function operationKey(type: string, operation: ReadOperation): readonly [
  * Pairs with {@link keyFor} (which places `id` at the same position), so it is a true prefix of
  * every `fetchOne` key for the id regardless of its query params.
  */
-export function resourceKey(type: string, id: string): readonly [string, string, string] {
-  return [type, 'fetchOne', id]
+export function resourceKey(type: string, id: string): readonly [string, string, string]
+export function resourceKey(type: string, id: string, scope: string | undefined): QueryKey
+export function resourceKey(type: string, id: string, scope?: string): QueryKey {
+  return scopedKey([type, 'fetchOne', id], scope)
 }
 
 /**
@@ -192,8 +248,22 @@ export function relationKey(
   operation: 'fetchRelated' | 'fetchRelationship',
   id: string,
   rel: string,
-): readonly [string, string, string, string] {
-  return [type, operation, id, rel]
+): readonly [string, string, string, string]
+export function relationKey(
+  type: string,
+  operation: 'fetchRelated' | 'fetchRelationship',
+  id: string,
+  rel: string,
+  scope: string | undefined,
+): QueryKey
+export function relationKey(
+  type: string,
+  operation: 'fetchRelated' | 'fetchRelationship',
+  id: string,
+  rel: string,
+  scope?: string,
+): QueryKey {
+  return scopedKey([type, operation, id, rel], scope)
 }
 
 /**
@@ -209,10 +279,22 @@ export function relationReadKeys(
   type: string,
   id: string,
   rel: string,
-): readonly [readonly [string, string, string, string], readonly [string, string, string, string]] {
+): readonly [readonly [string, string, string, string], readonly [string, string, string, string]]
+export function relationReadKeys(
+  type: string,
+  id: string,
+  rel: string,
+  scope: string | undefined,
+): readonly [QueryKey, QueryKey]
+export function relationReadKeys(
+  type: string,
+  id: string,
+  rel: string,
+  scope?: string,
+): readonly [QueryKey, QueryKey] {
   return [
-    relationKey(type, 'fetchRelated', id, rel),
-    relationKey(type, 'fetchRelationship', id, rel),
+    relationKey(type, 'fetchRelated', id, rel, scope),
+    relationKey(type, 'fetchRelationship', id, rel, scope),
   ]
 }
 
@@ -223,10 +305,20 @@ export function relationReadKeys(
 export function singletonRelationReadKeys(
   type: string,
   rel: string,
-): readonly [readonly [string, string, string], readonly [string, string, string]] {
+): readonly [readonly [string, string, string], readonly [string, string, string]]
+export function singletonRelationReadKeys(
+  type: string,
+  rel: string,
+  scope: string | undefined,
+): readonly [QueryKey, QueryKey]
+export function singletonRelationReadKeys(
+  type: string,
+  rel: string,
+  scope?: string,
+): readonly [QueryKey, QueryKey] {
   return [
-    [type, 'fetchRelated', rel],
-    [type, 'fetchRelationship', rel],
+    scopedKey([type, 'fetchRelated', rel], scope),
+    scopedKey([type, 'fetchRelationship', rel], scope),
   ]
 }
 
@@ -238,23 +330,33 @@ export function parentRelationReadKeys(
   type: string,
   id: string | undefined,
   rel: string,
+  scope?: string,
 ): readonly QueryKey[] {
-  return id === undefined ? singletonRelationReadKeys(type, rel) : relationReadKeys(type, id, rel)
+  return id === undefined
+    ? singletonRelationReadKeys(type, rel, scope)
+    : relationReadKeys(type, id, rel, scope)
 }
 
 /**
  * True when `key` is prefixed by `prefix` (segment-by-segment equality over the prefix's length,
- * comparing a {@link SKIPPED_SEGMENT} by value and any other segment by identity). The
- * cache-walking optimistic/invalidation paths use it to find every page variant of a
- * `(parent, relation)` read (whose params ride the key's trailing segment). Mirrors TanStack's own
- * prefix-based `queryKey` matching so a targeted patch and TanStack's `invalidateQueries` agree.
+ * comparing a scope segment by its scope, a {@link SKIPPED_SEGMENT} by value and any other
+ * segment by identity). The cache-walking optimistic/invalidation paths use it to find every page
+ * variant of a `(parent, relation)` read (whose params ride the key's trailing segment). Mirrors
+ * TanStack's own prefix-based `queryKey` matching so a targeted patch and TanStack's
+ * `invalidateQueries` agree.
  */
 export function keyHasPrefix(key: QueryKey, prefix: QueryKey): boolean {
   if (key.length < prefix.length) {
     return false
   }
   for (let i = 0; i < prefix.length; i++) {
-    if (key[i] !== prefix[i] && !(isSkippedSegment(key[i]) && isSkippedSegment(prefix[i]))) {
+    const a = key[i]
+    const b = prefix[i]
+    if (
+      a !== b &&
+      !(isScopeSegment(a) && isScopeSegment(b) && a.$scope === b.$scope) &&
+      !(isSkippedSegment(a) && isSkippedSegment(b))
+    ) {
       return false
     }
   }

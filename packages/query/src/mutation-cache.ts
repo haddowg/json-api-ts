@@ -32,13 +32,21 @@ const planOfMutation = (mutation: Mutation<unknown, unknown, unknown>) =>
 
 /** The descriptor installed on `queryClient`, or a loud error naming the fix. */
 function descriptorOf(queryClient: QueryClient, plan: JsonApiMutationPlan): ApiDescriptor {
-  const descriptor = installedDescriptor(queryClient)
+  const descriptor = installedDescriptor(queryClient, plan.scope)
   if (descriptor === undefined) {
     const what = plan.verb === 'atomic' ? 'an atomic batch' : `a ${plan.verb} of ${plan.type}`
+    const where =
+      plan.scope === undefined
+        ? 'with no descriptor installed'
+        : `with no descriptor installed in scope "${plan.scope}"`
+    const install =
+      plan.scope === undefined
+        ? 'installNormalization(queryClient, descriptor)'
+        : `installNormalization(queryClient, descriptor, { scope: '${plan.scope}' })`
     throw new Error(
-      `@haddowg/json-api-query: ${what} ran on a QueryClient with no descriptor installed, so ` +
-        'its cache upkeep cannot run. Call installNormalization(queryClient, descriptor) on the ' +
-        'QueryClient built with new QueryClient({ mutationCache: new JsonApiMutationCache() }).',
+      `@haddowg/json-api-query: ${what} ran on a QueryClient ${where}, so its cache upkeep ` +
+        `cannot run. Call ${install} on the QueryClient built with ` +
+        'new QueryClient({ mutationCache: new JsonApiMutationCache() }).',
     )
   }
   return descriptor

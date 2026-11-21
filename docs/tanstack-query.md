@@ -390,8 +390,7 @@ A read whose `fields` [selected single keys](includes-and-sparse-fieldsets.md#ne
 
 Each query a patch touches is then published again under a new root reference, a transparent proxy over the same materialised value, so its `$page`, `$next()` and the objects inside it are unchanged. React Query's default tracked mode re-renders a component only when a value it read changes reference, so without a new `data` reference a patched read would hold the new title and still show the old one. The new root is set on the query's state directly, which keeps a query you invalidated invalidated and doesn't count as a fresh fetch. An optimistic patch and its rollback publish the same way. An optimistic relationship `add`, `remove` or `replace` swaps the cached to-many for the new members, keeping the array's `$page`, `$links` and `$next()` from the page the server sent until the settle refetch replaces it.
 
-!!! warning "One descriptor per QueryClient"
-    The patch matches by `type:id` alone, so two descriptors sharing a QueryClient would cross-contaminate attributes (e.g. a `default` and an `admin` server whose `users` differ). Installing a *different* descriptor on the same QueryClient throws. Give each typed client/server its own QueryClient.
+The patch matches by `type:id` alone, so one QueryClient holds one descriptor per scope: installing a *different* descriptor in a scope that already has one throws. To share a QueryClient between servers, give each its own scope, as [Several servers](#several-servers) shows.
 
 ### The patch-vs-invalidate split
 
@@ -462,6 +461,58 @@ const reorder = useMutation(relTracks.replace({ optimistic: true }))
 Under the hood, in `JsonApiMutationCache`: `onMutate` pre-applies the expected change through the normalised patch (an update's attribute keys; a relationship verb's membership transform across every cached page of the `(parent, relation)` read, matched by key prefix) and snapshots the touched queries; `onError` restores the snapshot, before your own `onError` runs; `onSettled` invalidates so the server reconciles (a degraded optimistic member — a bare identifier — is replaced by the fully-hydrated one on the refetch). Because the forward patch preserves per-edge `$pivot` / `$edge`, an optimistic add of a hydrated member renders a rich row immediately.
 
 The example app's playlist detail page wires all four of these — rename, add track, remove track, reorder — see [PlaylistDetailPage.tsx](../examples/spotify-clone/src/pages/PlaylistDetailPage.tsx) and its optimistic helpers in [playlist-tracks.ts](../examples/spotify-clone/src/api/playlist-tracks.ts).
+
+## Several servers
+
+Two servers can share one QueryClient, each in its own **scope**, even where both name a type `users` with different attributes. A scope leads every key the server's reads and writes carry with a `{ $scope }` segment, an object so it can never collide with a type name:
+
+```ts
+import {
+  createMutationApi,
+  createQueryApi,
+  installNormalization,
+  JsonApiMutationCache,
+} from '@haddowg/json-api-query'
+
+const queryClient = new QueryClient({ mutationCache: new JsonApiMutationCache() })
+
+// The main server, unscoped: its keys are as they always are.
+installNormalization(queryClient, mainMap)
+export const reads = createQueryApi(mainClient)
+export const writes = createMutationApi(queryClient, mainClient, mainMap)
+
+// The admin server, in scope `admin`.
+installNormalization(queryClient, adminMap, { scope: 'admin' })
+export const adminReads = createQueryApi(adminClient, { scope: 'admin' })
+export const adminWrites = createMutationApi(queryClient, adminClient, adminMap, { scope: 'admin' })
+
+adminReads.users.list().queryKey // [{ $scope: 'admin' }, 'users', 'fetchMany']
+adminWrites.users.id(id).update().mutationKey // [{ $scope: 'admin' }, 'users', 'update', id]
+```
+
+Each scope is kept apart:
+
+- an install normalises only the queries keyed in its own scope, and an unscoped install only unscoped ones, so a read of the admin `users:1` never overwrites the main server's cached copy;
+- a scoped mutation's plan carries its scope, so the upkeep runs against the descriptor installed for that scope, patches and optimistically edits only that scope's queries, and invalidates only within it;
+- one descriptor per scope: installing a different descriptor in a scope that has one throws, and the scope is released once its last install is torn down.
+
+The client-wide defaults `installNormalization` sets, the dehydrate predicate and `jsonApiRetry`, are installed by the first install on a QueryClient, of any scope, and removed with the last teardown. The [SSR guard](#server-side-rendering) judges a scoped read by its data like any other, and its browser-side check recognises a key led by `{ $scope }` as a binding read's, each scope's install checking only that scope's queries.
+
+The standalone factories take no scope argument; scope their options with `withScope`, which leads the `queryKey` or `mutationKey` with the scope segment and, for a mutation, puts the scope in its plan:
+
+```ts
+import { listQueryOptions, updateMutationOptions, withScope } from '@haddowg/json-api-query'
+
+useQuery(withScope('admin', listQueryOptions(adminClient, 'users')))
+useMutation(withScope('admin', updateMutationOptions(queryClient, adminClient, adminMap, 'users', id)))
+```
+
+Every key helper takes the scope as its last argument, so you can target one server's queries: `typeKey('users', 'admin')`, `operationKey('users', 'fetchMany', 'admin')`, `resourceKey('users', id, 'admin')`, `relationKey(…, 'admin')`, `relationReadKeys(…, 'admin')`, and `scope` on `keyFor`, `infiniteKeyFor` and `mutationKeyFor`'s targets. TanStack matches by prefix, so an unscoped prefix such as `['users']` never reaches into a scope, and `[{ $scope: 'admin' }]` matches every query or mutation in it:
+
+```ts
+queryClient.invalidateQueries({ queryKey: typeKey('users', 'admin') }) // the admin server's users
+useIsMutating({ mutationKey: [{ $scope: 'admin' }] }) // any admin write
+```
 
 ## Server-side rendering
 

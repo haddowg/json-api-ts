@@ -56,6 +56,7 @@ import {
   type ReadOperation,
   SKIPPED_SEGMENT,
 } from './keys'
+import { scopeApi, type ScopeOption } from './scope'
 
 /**
  * What a collection read resolves to: the client's `Collection`, its `$page` typed by the strategy
@@ -963,8 +964,20 @@ export type QueryApi<D extends ApiDescriptor, A, C extends string = string> = {
  * returns the same options as `listQueryOptions(client, 'albums', query)`, with `client`/`type`
  * pre-applied. A Proxy (descriptor-free — type validity is enforced by the static `QueryApi` shape) so
  * no per-type allocation until first access.
+ *
+ * `options.scope` scopes every read, for a server sharing the QueryClient with another: each key is
+ * led by `{ $scope }`, so the server's queries are normalised only by the descriptor installed for
+ * that scope. The standalone factories take {@link withScope} instead.
  */
 export function createQueryApi<D extends ApiDescriptor, A, C extends string = string>(
+  client: TypedClient<D, A, C>,
+  options: ScopeOption = {},
+): QueryApi<D, A, C> {
+  return scopeApi(unscopedQueryApi(client), options.scope)
+}
+
+/** The bound read API, unscoped. */
+function unscopedQueryApi<D extends ApiDescriptor, A, C extends string = string>(
   client: TypedClient<D, A, C>,
 ): QueryApi<D, A, C> {
   const cache = new Map<string, LooseTypeQueryApi | LooseSingletonQueryApi>()

@@ -19,7 +19,13 @@
  */
 import { type ApiDescriptor, isAccepted, type LinkageRef } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
-import { operationKey, parentRelationReadKeys, resourceKey } from './keys'
+import {
+  operationKey,
+  parentRelationReadKeys,
+  resourceKey,
+  scopedKey,
+  type ScopeSegment,
+} from './keys'
 import {
   applyOptimisticMembership,
   applyOptimisticPatch,
@@ -48,8 +54,8 @@ export type JsonApiMutationVerb = JsonApiResourceVerb | 'atomic'
 
 /**
  * A write on one type: its verb, its type, the resource's `id` (absent for a create and for a
- * singleton, whose paths carry none), the relation for a relationship verb, and whether the change
- * is applied optimistically.
+ * singleton, whose paths carry none), the relation for a relationship verb, whether the change
+ * is applied optimistically, and the scope its server's reads are cached in (absent unscoped).
  */
 export type JsonApiResourcePlan = {
   readonly verb: JsonApiResourceVerb
@@ -57,11 +63,13 @@ export type JsonApiResourcePlan = {
   readonly id?: string
   readonly rel?: string
   readonly optimistic: boolean
+  readonly scope?: string
 }
 
 /** An atomic batch: its results are normalized, and nothing is invalidated. */
 export type JsonApiAtomicPlan = {
   readonly verb: 'atomic'
+  readonly scope?: string
 }
 
 /**
@@ -83,7 +91,13 @@ export type JsonApiMutationMeta = {
 /** The key an atomic batch's mutations carry. `$` can't begin a type name, so it can't collide. */
 export const ATOMIC_MUTATION_KEY: readonly ['$atomic'] = ['$atomic']
 
-/** What a mutation key names: a write's type and verb, its resource's id, and its relation. */
+/** A JSON:API mutation's key: `[scope?, type, verb, id?, rel?]`, or `[scope?, '$atomic']`. */
+export type JsonApiMutationKey = readonly (string | ScopeSegment)[]
+
+/**
+ * What a mutation key names: a write's type and verb, its resource's id, its relation, and the
+ * scope it is in.
+ */
 export interface MutationKeyTarget {
   type: string
   verb: JsonApiResourceVerb
@@ -91,16 +105,18 @@ export interface MutationKeyTarget {
   id?: string | undefined
   /** The relation a relationship verb writes. */
   rel?: string | undefined
+  /** The scope the write is in, which leads the key as `{ $scope }`. */
+  scope?: string | undefined
 }
 
 /**
  * The key of a JSON:API mutation: `[type, verb, id?, rel?]`, the id left out for a create and for a
- * singleton, as a singleton's read keys leave it out. Mutation filters match by prefix, so
- * `['albums']` finds every write on albums, `mutationKeyFor({ type: 'albums', verb: 'update' })`
- * every update of one, and the full key one resource's (or one relation's) writes. A key only
- * ever grows by trailing segments.
+ * singleton, as a singleton's read keys leave it out, and led by a `{ $scope }` segment in a scope.
+ * Mutation filters match by prefix, so `['albums']` finds every unscoped write on albums,
+ * `mutationKeyFor({ type: 'albums', verb: 'update' })` every update of one, and the full key one
+ * resource's (or one relation's) writes. A key only ever grows by trailing segments.
  */
-export function mutationKeyFor(target: MutationKeyTarget): readonly string[] {
+export function mutationKeyFor(target: MutationKeyTarget): JsonApiMutationKey {
   const key = [target.type, target.verb]
   if (target.id !== undefined) {
     key.push(target.id)
@@ -108,7 +124,7 @@ export function mutationKeyFor(target: MutationKeyTarget): readonly string[] {
   if (target.rel !== undefined) {
     key.push(target.rel)
   }
-  return key
+  return scopedKey(key, target.scope)
 }
 
 /** The plan a mutation's `meta` carries, when it is a JSON:API mutation's. */
@@ -123,8 +139,8 @@ export function planOf(meta: unknown): JsonApiMutationPlan | undefined {
 }
 
 /** The key a plan's mutation carries. */
-export function planKey(plan: JsonApiMutationPlan): readonly string[] {
-  return plan.verb === 'atomic' ? ATOMIC_MUTATION_KEY : mutationKeyFor(plan)
+export function planKey(plan: JsonApiMutationPlan): JsonApiMutationKey {
+  return plan.verb === 'atomic' ? scopedKey(ATOMIC_MUTATION_KEY, plan.scope) : mutationKeyFor(plan)
 }
 
 // ── Optimistic (before the write) ──────────────────────────────────────────────────────────
@@ -142,7 +158,7 @@ export function applyOptimistic(
   if (plan.verb === 'atomic' || !plan.optimistic) {
     return undefined
   }
-  const { type, id, rel } = plan
+  const { type, id, rel, scope } = plan
   switch (plan.verb) {
     case 'update': {
       const input = (variables ?? {}) as Record<string, unknown>
@@ -155,6 +171,7 @@ export function applyOptimistic(
             target,
             attributesFromPatch(descriptor, type, input),
             descriptor,
+            scope,
           )
         : undefined
     }
@@ -169,6 +186,7 @@ export function applyOptimistic(
         id,
         rel,
         ref === null ? null : toMembershipRef(ref),
+        scope,
       )
     }
     case 'replace':
@@ -179,18 +197,25 @@ export function applyOptimistic(
       }
       const refs = membershipRefs(variables as readonly LinkageRef<string>[])
       const verb = plan.verb
-      return applyOptimisticMembership(queryClient, type, id, rel, (current) => {
-        if (verb === 'replace') {
-          // The optimistic set IS the new refs (order preserved), regardless of the current members.
-          return refs
-        }
-        if (verb === 'add') {
-          // Append the added refs, skipping any already present (an add is idempotent on membership).
-          const kept = current.filter((m) => !refs.some((a) => sameRef(a, m)))
-          return [...kept, ...refs]
-        }
-        return current.filter((m) => !refs.some((r) => sameRef(r, m)))
-      })
+      return applyOptimisticMembership(
+        queryClient,
+        type,
+        id,
+        rel,
+        (current) => {
+          if (verb === 'replace') {
+            // The optimistic set IS the new refs (order preserved), regardless of the current members.
+            return refs
+          }
+          if (verb === 'add') {
+            // Append the added refs, skipping any already present (an add is idempotent on membership).
+            const kept = current.filter((m) => !refs.some((a) => sameRef(a, m)))
+            return [...kept, ...refs]
+          }
+          return current.filter((m) => !refs.some((r) => sameRef(r, m)))
+        },
+        scope,
+      )
     }
     default:
       // create and delete change membership, which no node patch can predict.
@@ -215,13 +240,13 @@ export function normalizeResult(
     case 'create':
     case 'update':
       if (!isAccepted(data)) {
-        normalize(queryClient, data, descriptor)
+        normalize(queryClient, data, descriptor, plan.scope)
       }
       return
     case 'set':
     case 'replace':
     case 'atomic':
-      normalize(queryClient, data, descriptor)
+      normalize(queryClient, data, descriptor, plan.scope)
       return
     default:
       return
@@ -239,12 +264,12 @@ export function normalizeResult(
 export function invalidateFor(plan: JsonApiMutationPlan, queryClient: QueryClient): Promise<void> {
   switch (plan.verb) {
     case 'create':
-      return invalidateLists(queryClient, plan.type)
+      return invalidateLists(queryClient, plan.type, plan.scope)
     case 'delete':
       return plan.id === undefined
-        ? invalidateLists(queryClient, plan.type)
-        : invalidateLists(queryClient, plan.type).then(() =>
-            invalidateResource(queryClient, plan.type, plan.id as string),
+        ? invalidateLists(queryClient, plan.type, plan.scope)
+        : invalidateLists(queryClient, plan.type, plan.scope).then(() =>
+            invalidateResource(queryClient, plan.type, plan.id as string, plan.scope),
           )
     case 'add':
     case 'remove':
@@ -252,7 +277,7 @@ export function invalidateFor(plan: JsonApiMutationPlan, queryClient: QueryClien
     case 'set':
       return plan.rel === undefined
         ? Promise.resolve()
-        : invalidateParentRelations(queryClient, plan.type, plan.id, plan.rel)
+        : invalidateParentRelations(queryClient, plan.type, plan.id, plan.rel, plan.scope)
     default:
       return Promise.resolve()
   }
@@ -263,8 +288,12 @@ export function invalidateFor(plan: JsonApiMutationPlan, queryClient: QueryClien
  * create/delete changes which resources the collection holds. A prefix match, so every cached
  * list of the type (any filter/sort/page) is marked stale at once.
  */
-function invalidateLists(queryClient: QueryClient, type: string): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: operationKey(type, 'fetchMany') })
+function invalidateLists(
+  queryClient: QueryClient,
+  type: string,
+  scope: string | undefined,
+): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: operationKey(type, 'fetchMany', scope) })
 }
 
 /**
@@ -276,11 +305,16 @@ function invalidateLists(queryClient: QueryClient, type: string): Promise<void> 
  * binding can't know which parents hold it without a cache scan — invalidate those explicitly, or
  * model the parent's own relationship mutation which DOES target it).
  */
-function invalidateResource(queryClient: QueryClient, type: string, id: string): Promise<void> {
+function invalidateResource(
+  queryClient: QueryClient,
+  type: string,
+  id: string,
+  scope: string | undefined,
+): Promise<void> {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: resourceKey(type, id) }),
-    queryClient.invalidateQueries({ queryKey: [type, 'fetchRelated', id] }),
-    queryClient.invalidateQueries({ queryKey: [type, 'fetchRelationship', id] }),
+    queryClient.invalidateQueries({ queryKey: resourceKey(type, id, scope) }),
+    queryClient.invalidateQueries({ queryKey: scopedKey([type, 'fetchRelated', id], scope) }),
+    queryClient.invalidateQueries({ queryKey: scopedKey([type, 'fetchRelationship', id], scope) }),
   ]).then(() => undefined)
 }
 
@@ -300,11 +334,13 @@ function invalidateParentRelations(
   type: string,
   id: string | undefined,
   rel: string,
+  scope: string | undefined,
 ): Promise<void> {
   // A singleton's keys carry no id, so its single reads sit under `[type, 'fetchOne']`.
-  const parent = id === undefined ? operationKey(type, 'fetchOne') : resourceKey(type, id)
+  const parent =
+    id === undefined ? operationKey(type, 'fetchOne', scope) : resourceKey(type, id, scope)
   return Promise.all([
-    ...parentRelationReadKeys(type, id, rel).map((queryKey) =>
+    ...parentRelationReadKeys(type, id, rel, scope).map((queryKey) =>
       queryClient.invalidateQueries({ queryKey }),
     ),
     queryClient.invalidateQueries({ queryKey: parent }),
