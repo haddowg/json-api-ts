@@ -46,7 +46,7 @@ import {
   type OperationMeta,
   type WithDocumentMeta,
 } from '@haddowg/json-api-client'
-import { type DataTag, type InfiniteData, type SkipToken, skipToken } from '@tanstack/query-core'
+import type { DataTag, InfiniteData, SkipToken } from '@tanstack/query-core'
 import {
   INFINITE_SEGMENT,
   infiniteKeyFor,
@@ -419,17 +419,26 @@ function target(
 
 // ── Implementations (shared by the standalone factories and the bound API) ─────────────────
 
-/** Options whose `queryFn` is TanStack's `skipToken`, under the skipped read's key. */
+/**
+ * Whether an address (an id, or a list's query) is a skip token. TanStack's `skipToken` is a
+ * `Symbol()` unique to each copy of `@tanstack/query-core`, and an app can hold two, so any symbol
+ * is the caller's token rather than a comparison against this module's own import; no id or query
+ * is ever a symbol.
+ */
+function isSkip(value: unknown): value is SkipToken {
+  return typeof value === 'symbol'
+}
+
+/** Options whose `queryFn` is the caller's skip token, under the skipped read's key. */
 function skipped(
+  token: SkipToken,
   type: string,
   operation: ReadOperation,
   rel?: string,
 ): SkippableQueryOptions<unknown, unknown> {
-  // Annotated: an unannotated `skipToken` in an object literal widens to `symbol`.
-  const queryFn: SkipToken = skipToken
   return {
     queryKey: tag(skippedKey(type, operation, rel)),
-    queryFn,
+    queryFn: token,
     structuralSharing: false,
   }
 }
@@ -439,8 +448,8 @@ function listOptions<D extends ApiDescriptor, A>(
   type: TypeName<D>,
   query: object | SkipToken | undefined,
 ): SkippableQueryOptions<unknown, unknown> {
-  if (query === skipToken) {
-    return skipped(type, 'fetchMany')
+  if (isSkip(query)) {
+    return skipped(query, type, 'fetchMany')
   }
   const accessor = readsOf(client, type)
   return {
@@ -456,8 +465,8 @@ function getOptions<D extends ApiDescriptor, A>(
   id: string | undefined | SkipToken,
   query: object | undefined,
 ): SkippableQueryOptions<unknown, unknown> {
-  if (id === skipToken) {
-    return skipped(type, 'fetchOne')
+  if (isSkip(id)) {
+    return skipped(id, type, 'fetchOne')
   }
   const accessor = readsOf(client, type)
   return {
@@ -480,8 +489,8 @@ function relationOptions<D extends ApiDescriptor, A>(
   rel: RelationName<D, TypeName<D>>,
   query: RelationReadQuery | undefined,
 ): SkippableQueryOptions<unknown, unknown> {
-  if (id === skipToken) {
-    return skipped(type, operation, rel)
+  if (isSkip(id)) {
+    return skipped(id, type, operation, rel)
   }
   return {
     queryKey: tag(keyFor(target(type, operation, id, rel), query)),
@@ -532,17 +541,16 @@ function atPage<Q extends object>(
   } as Q
 }
 
-/** Infinite options whose `queryFn` is TanStack's `skipToken`, under the skipped read's key. */
+/** Infinite options whose `queryFn` is the caller's skip token, under the skipped read's key. */
 function skippedInfinite(
+  token: SkipToken,
   type: string,
   operation: ReadOperation,
   rel?: string,
 ): LooseInfiniteOptions {
-  // Annotated: an unannotated `skipToken` in an object literal widens to `symbol`.
-  const queryFn: SkipToken = skipToken
   return {
     queryKey: tag([...skippedKey(type, operation, rel), INFINITE_SEGMENT]),
-    queryFn,
+    queryFn: token,
     initialPageParam: undefined,
     getNextPageParam: nextPageParam,
     getPreviousPageParam: previousPageParam,
@@ -555,8 +563,8 @@ function infiniteListOptions<D extends ApiDescriptor, A>(
   type: TypeName<D>,
   query: object | SkipToken | undefined,
 ): LooseInfiniteOptions {
-  if (query === skipToken) {
-    return skippedInfinite(type, 'fetchMany')
+  if (isSkip(query)) {
+    return skippedInfinite(query, type, 'fetchMany')
   }
   const accessor = readsOf(client, type)
   return {
@@ -577,8 +585,8 @@ function infiniteRelatedOptions<D extends ApiDescriptor, A>(
   rel: RelationName<D, TypeName<D>>,
   query: RelationReadQuery | undefined,
 ): LooseInfiniteOptions {
-  if (id === skipToken) {
-    return skippedInfinite(type, 'fetchRelated', rel)
+  if (isSkip(id)) {
+    return skippedInfinite(id, type, 'fetchRelated', rel)
   }
   return {
     queryKey: tag(infiniteKeyFor(target(type, 'fetchRelated', id, rel), query)),
@@ -1058,12 +1066,12 @@ function typeQueryApi<D extends ApiDescriptor, A>(
 
 /** A singleton read's address: `skipToken` (where a resource's id would go) when it is skipped. */
 function singletonAt(query: unknown): undefined | SkipToken {
-  return query === skipToken ? skipToken : undefined
+  return isSkip(query) ? query : undefined
 }
 
 /** A singleton read's query, or none when it is skipped. */
 function singletonParams(query: unknown): RelationReadQuery | undefined {
-  return query === skipToken ? undefined : (query as RelationReadQuery | undefined)
+  return isSkip(query) ? undefined : (query as RelationReadQuery | undefined)
 }
 
 /**
