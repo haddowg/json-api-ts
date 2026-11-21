@@ -430,7 +430,7 @@ serves a whole list, and its mutation key gains the id per call through the plan
 **Infinite lists:** `attach` and `insert` with `'end'` go to the last loaded page, and `'start'`
 to the first. `detach` and `evict` remove from whichever page holds the member (gap 9).
 
-### B2a. Optimistic creates (proposed, awaiting decision)
+### B2a. Optimistic creates
 
 **The problem.** A list read with no sparse fieldset promises every declared attribute of each
 row, and an included relation promises a hydrated resource. A create's input usually can't supply
@@ -498,21 +498,17 @@ entry, warns once, naming the type and why.
 - **Rendering pending creates only from `useMutationState` variables** (TanStack's own pattern):
   that still works, but it gives up `into` placement and the shared cache.
 
-**Open questions for the maintainer:**
+**Decisions (accepted):**
 
-1. **Pending entries:** is `list.$pending()` acceptable as the type-honest fallback? It means a UI
-   that wants unfit creates visible renders two sources, members then pending entries in their
-   positions. An alternative is a merged helper, such as
-   `withPending(list, (pending) => placeholderRow)`.
-2. **Automatic completion:** should codegen extend the descriptor with server-only and nullable
-   attributes, so nullable server-only attributes complete automatically? That's a codegen change in
-   json-api-ts only. The alternative is `complete` alone, with the app writing `null` for those
-   itself.
-3. **Typing `complete`:** should it be typed per type from the generated read and create attribute
-   types? The recommendation is yes, with `ServerOnly<T>` derived as above. Or should it be loose
-   (`Partial` of the read attributes)?
-4. **Scope:** do `$count`/`meta.total` on a list increment for a pending entry as well as for a
-   member? The recommendation is yes for both, since the server will count it.
+1. **Pending entries:** `list.$pending()` is the type-honest fallback, plus an optional merged
+   helper, `withPending(list, (pending) => placeholderRow)`, which returns members and placeholder
+   rows in their placed order for UIs that want one sequence.
+2. **Automatic completion:** codegen extends each type's descriptor with `serverOnly` (the read
+   attributes a create can't supply) and `nullable` (the attributes whose read value may be
+   `null`), so nullable server-only attributes complete to `null` without `complete`.
+3. **`complete` is strictly typed:** it returns exactly `ServerOnly<T>`, typed as the read type
+   says, with the nullable ones optional when automatic completion covers them.
+4. **Counts:** `$count` and `meta.total` on a list go up for a pending entry as well as for a member.
 
 ### B3. Lifecycle, all inside `JsonApiMutationCache` and awaited
 
