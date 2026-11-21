@@ -591,9 +591,46 @@ export class PlaylistPage {
    - cancel and revert;
    - temporary-id swap;
    - infinite pages.
+
+   Tested examples for React land in the same phase (see "Tested examples" below).
+
 5. `feat(angular)`: the `/query` entry, docs (`angular.md` in two paths, `tanstack-query.md`
    naming Angular, an optimistic-updates page), an ADR superseding 0005, and
-   `examples/angular-catalog` moved to TanStack with devtools and optimistic writes.
+   `examples/angular-catalog` moved to TanStack with devtools and optimistic writes, with the
+   Angular tested examples below.
+
+### Tested examples (a requirement of phases 2, 4 and 5)
+
+Every new snippet in the docs is drawn from code that runs in CI, as the client's already are
+(`packages/example/src/example.test.ts`, whose `describe` groups the docs cite by name). Today
+`angular.md` is the exception: `examples/angular-catalog` is typechecked but has no tests, and its
+inline snippets aren't drawn from tested code.
+
+**React and `json-api-query`:**
+
+- `example.test.ts` gains tested blocks, each cited by the docs page it backs:
+  - `infinite queries` (phase 2): an infinite list read, `fetchNextPage`, and normalisation reaching
+    its pages;
+  - `optimistic updates` (phase 4): a draft with the built-in policies, explicit placement with
+    `into`, a deferred member and `$pending`, rollback on failure, and a read landing during a
+    pending write;
+  - `mutation cache` (phase 3): spreading user callbacks over a factory without losing upkeep, and
+    finding pending mutations by mutation key (`useMutationState` and
+    `injectMutationState` both filter this way).
+- `examples/spotify-clone`'s playlist page, already the optimistic showcase, moves onto the draft,
+  explicit placement and `$pending` rows, and its render smoke test (`App.test.tsx`) drives one
+  optimistic add through to settle.
+
+**Angular:**
+
+- `examples/angular-catalog` becomes a root Vitest project (jsdom and TestBed, as
+  `packages/angular` already runs), with a render smoke test that drives a read, an infinite page,
+  an optimistic write and its rollback through the real components.
+- The snippets in the new `angular.md` are drawn from that app or from a tested
+  `angular-catalog/src/app/*.spec.ts`, and the page cites them the way the client docs cite
+  `example.test.ts` blocks.
+
+A docs snippet with no tested source fails review.
 
 Multi-package PRs are rebase-merged, one Conventional Commit per package (client, query, angular).
 
