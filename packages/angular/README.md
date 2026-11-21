@@ -100,6 +100,77 @@ save(title: string) {
 `isPending()`, `error()`, `jsonApiError()`, `value()` and `reset()` track the latest call. Nothing
 is cached between resources, so reload the reads a write affects.
 
+## TanStack Query
+
+For a shared cache, the `@haddowg/json-api-angular/query` entry point runs the client on
+[TanStack Query](https://tanstack.com/query/latest/docs/framework/angular/overview) with the
+`type:id` normalised cache from [`@haddowg/json-api-query`](../query): a write updates every cached
+read of the resources it returns, with no refetch. It needs Angular 20.1 or later (TanStack's own
+floor; the root entry above still works on 20.0) and two more packages, which are optional peer
+dependencies of this one:
+
+```bash
+npm install @tanstack/angular-query @haddowg/json-api-query
+```
+
+Build the `QueryClient` with a `JsonApiMutationCache`, which runs every write's cache upkeep, and
+install the generated `resourceMap` with `provideJsonApiQuery`:
+
+```ts
+import { JsonApiMutationCache } from '@haddowg/json-api-query'
+import { provideJsonApiQuery } from '@haddowg/json-api-angular/query'
+import { provideTanStackQuery, QueryClient } from '@tanstack/angular-query'
+import { createClient, resourceMap } from './api/music.gen'
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideHttpClient(withInterceptors([authInterceptor])),
+    provideJsonApiClient(createClient, { baseUrl: '/api/v5' }),
+    provideTanStackQuery(() => new QueryClient({ mutationCache: new JsonApiMutationCache() })),
+    provideJsonApiQuery(resourceMap),
+  ],
+}
+```
+
+Then pass the client's bound factories to TanStack's own `injectQuery`, `injectInfiniteQuery` and
+`injectMutation`. They are typed by the `Register` above, and the `jsonApiError` pipe narrows an
+`error()` to its `JsonApiError`:
+
+```ts
+import {
+  injectJsonApiReads,
+  injectJsonApiWrites,
+  JsonApiErrorPipe,
+} from '@haddowg/json-api-angular/query'
+import { injectMutation, injectQuery } from '@tanstack/angular-query'
+
+@Component({
+  imports: [JsonApiErrorPipe],
+  template: `
+    <h1>{{ album.data()?.title }}</h1>
+    @if (rename.error() | jsonApiError; as error) {
+      <p>{{ error.byPath()['title']?.[0]?.detail }}</p>
+    }
+  `,
+})
+export class AlbumPage {
+  private readonly reads = injectJsonApiReads()
+  private readonly writes = injectJsonApiWrites()
+  readonly id = input.required<string>()
+
+  readonly album = injectQuery(() => this.reads.albums.get(this.id(), { include: ['artist'] }))
+  readonly rename = injectMutation(() => ({
+    ...this.writes.albums.id(this.id()).update({ optimistic: true }),
+    onSuccess: () => this.toast.show('Saved'), // the cache upkeep runs regardless
+  }))
+}
+```
+
+A second server shares the `QueryClient` in a scope of its own:
+`provideJsonApiQuery(adminMap, { client: ADMIN_API, scope: 'admin' })`, then
+`injectJsonApiReads(ADMIN_API)`. `provideJsonApiQuery` fails at startup if `provideTanStackQuery`
+is missing or its `QueryClient` has no `JsonApiMutationCache`.
+
 See the [Angular guide](https://haddowg.github.io/json-api-ts/angular/) for the details.
 
 ## License

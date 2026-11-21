@@ -8,7 +8,7 @@ import {
 
 export const BASE = 'https://music.example'
 
-const descriptor = {
+export const descriptor = {
   albums: {
     attributes: { title: 'string', steps: 'array', credits: 'object' },
     relations: { artist: { cardinality: 'one', types: ['artists'], pivot: false } },

@@ -1,7 +1,7 @@
 {
   "name": "@haddowg/json-api-angular",
   "version": "1.2.26",
-  "description": "Signal-based Angular bindings for the JSON:API client: an HttpClient transport, DI providers, and resource/mutation helpers.",
+  "description": "Signal-based Angular bindings for the JSON:API client: an HttpClient transport, DI providers, resource/mutation helpers, and a TanStack Query entry point.",
   "license": "MIT",
   "author": "Gregory Haddow (https://github.com/haddowg)",
   "homepage": "https://haddowg.github.io/json-api-ts/",
@@ -32,11 +32,28 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./query": {
+      "import": {
+        "types": "./dist/query/index.d.mts",
+        "default": "./dist/query/index.mjs"
+      },
+      "require": {
+        "types": "./dist/query/index.d.cts",
+        "default": "./dist/query/index.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
+  "typesVersions": {
+    "*": {
+      "query": [
+        "./dist/query/index.d.cts"
+      ]
+    }
+  },
   "files": [
     "dist"
   ],
@@ -58,13 +75,24 @@
   },
   "peerDependencies": {
     "@angular/common": "^20.0.0 || ^21.0.0 || ^22.0.0",
-    "@angular/core": "^20.0.0 || ^21.0.0 || ^22.0.0"
+    "@angular/core": "^20.0.0 || ^21.0.0 || ^22.0.0",
+    "@haddowg/json-api-query": "workspace:^",
+    "@tanstack/angular-query": "^5.108.1"
+  },
+  "peerDependenciesMeta": {
+    "@haddowg/json-api-query": {
+      "optional": true
+    },
+    "@tanstack/angular-query": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@angular/common": "^21.0.0",
     "@angular/compiler": "^21.0.0",
     "@angular/core": "^21.0.0",
     "@angular/platform-browser": "^21.0.0",
+    "@haddowg/json-api-query": "workspace:^",
     "jsdom": "^25.0.0",
     "rxjs": "^7.8.0",
     "@tanstack/angular-query": "^5.108.1"
