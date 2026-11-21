@@ -137,11 +137,13 @@ describe("a monomorphic relation's own sorts and filters (music catalog)", () =>
       '-title',
       'trackNumber',
       '-trackNumber',
+      'albumTitle',
+      '-albumTitle',
       'duration',
       '-duration',
     ])
     expect(relationBlock(source, 'albums', 'tracks')).toContain(
-      "         * What each sort orders by, in either direction:\n         * - `duration`: The track's length in seconds.\n         */\n        sortable: [",
+      "         * What each sort orders by, in either direction:\n         * - `albumTitle`: By the title of the track's album.\n         * - `duration`: The track's length in seconds.\n         */\n        sortable: [",
     )
   })
 

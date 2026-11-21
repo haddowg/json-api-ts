@@ -11,8 +11,8 @@ const witness = JSON.parse(
 
 /**
  * The witness with its declared identifier meta taken back out of the response linkage: alone on
- * the `author` to-one and the polymorphic `attachments`, and over an `allOf` beside the pivot on
- * `tags`.
+ * the `author` to-one and the polymorphic `attachments`, and beside the pivot in the closed meta
+ * object of `tags`, which keeps only its pivot.
  */
 function withoutIdentifierMeta(): OpenApiDocument {
   const doc = structuredClone(witness)
@@ -23,7 +23,8 @@ function withoutIdentifierMeta(): OpenApiDocument {
 
   const tags = schemas['ArticlesTagsRelationship']!.properties!['data'] as SchemaObject
   const narrowing = tags.items!.allOf![1]!
-  narrowing.properties!['meta'] = (narrowing.properties!['meta'] as SchemaObject).allOf![1]!
+  const pivot = schemas['ArticlesTagsIdentifierMeta']!.properties!['pivot']!
+  narrowing.properties!['meta'] = { type: 'object', properties: { pivot } }
 
   const attachments = schemas['ArticlesAttachmentsRelationship']!.properties![
     'data'
@@ -48,14 +49,22 @@ describe('generator contract 28 (declared identifier meta)', () => {
   it('types a to-one linkage member meta', () => {
     expect(relations['author']).toEqual({
       ...plain['author'],
-      identifierMeta: { fields: { primary: 'boolean', role: 'string' }, nullable: ['primary'] },
+      identifierMeta: {
+        fields: { primary: 'boolean', role: 'string' },
+        nullable: ['primary'],
+        additional: false,
+      },
     })
   })
 
   it('types the declared meta beside the pivot', () => {
     expect(relations['tags']).toEqual({
       ...plain['tags'],
-      identifierMeta: { fields: { addedVia: 'string' }, nullable: ['addedVia'] },
+      identifierMeta: {
+        fields: { addedVia: 'string' },
+        nullable: ['addedVia'],
+        additional: false,
+      },
     })
     expect(relations['tags']!.readPivot).toEqual(plain['tags']!.readPivot)
     expect(relations['tags']!.writePivot).toEqual(plain['tags']!.writePivot)
@@ -64,7 +73,7 @@ describe('generator contract 28 (declared identifier meta)', () => {
   it('keeps a polymorphic relation narrowed as a whole union', () => {
     expect(relations['attachments']).toEqual({
       ...plain['attachments'],
-      identifierMeta: { fields: { order: 'integer' }, nullable: ['order'] },
+      identifierMeta: { fields: { order: 'integer' }, nullable: ['order'], additional: false },
     })
     expect(relations['attachments']!.polymorphic).toBe(true)
   })
