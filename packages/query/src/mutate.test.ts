@@ -254,8 +254,8 @@ describe('write mutations with withCount', () => {
   })
 })
 
-describe('deleteMutationOptions — invalidate list + resource', () => {
-  it('invalidates the list subtree and the resource reads on settle', async () => {
+describe('deleteMutationOptions — invalidate list, remove resource', () => {
+  it('invalidates the list subtree and removes the resource reads on success', async () => {
     const { client } = makeClient({
       'GET /albums': { data: [resource('albums', '1')] },
       'GET /albums/1': { data: resource('albums', '1') },
@@ -271,9 +271,10 @@ describe('deleteMutationOptions — invalidate list + resource', () => {
 
     await runMutation(qc, deleteMutationOptions(qc, client, 'albums', '1'), undefined)
 
-    // List subtree + the resource's reads are invalidated.
+    // The list subtree is invalidated; the resource's own reads are removed, rather than
+    // refetched into a 404 (D8).
     expect(qc.getQueryState(listOpts.queryKey)?.isInvalidated).toBe(true)
-    expect(qc.getQueryState(getOpts.queryKey)?.isInvalidated).toBe(true)
+    expect(qc.getQueryState(getOpts.queryKey)).toBeUndefined()
     // Sanity: the resource-prefix matches the get key.
     expect(resourceKey('albums', '1')).toEqual(['albums', 'fetchOne', '1'])
   })
@@ -318,7 +319,7 @@ describe('updateMutationOptions — optimistic apply + rollback', () => {
     const opts = updateMutationOptions(qc, client, descriptor, 'albums', '1')
     expect(new Set(Object.keys(opts))).toEqual(new Set(['meta', 'mutationFn', 'mutationKey']))
     expect(opts.meta).toEqual({
-      jsonApi: { verb: 'update', type: 'albums', id: '1', optimistic: false },
+      jsonApi: { verb: 'update', type: 'albums', id: '1' },
     })
     // The plan survives JSON, as a dehydrated mutation's meta must.
     expect(JSON.parse(JSON.stringify(opts.meta))).toEqual(opts.meta)
@@ -327,7 +328,7 @@ describe('updateMutationOptions — optimistic apply + rollback', () => {
     ).toEqual({ jsonApi: { verb: 'update', type: 'albums', id: '1', optimistic: true } })
   })
 
-  it('optimistic patch touches only declared attributes (a relation key in the patch is ignored)', async () => {
+  it('optimistic patch links a relation in the patch only where its member fits (an uncached artist is deferred)', async () => {
     const { client } = makeClient({
       'GET /albums/1': {
         data: {
@@ -348,16 +349,19 @@ describe('updateMutationOptions — optimistic apply + rollback', () => {
     const options = updateMutationOptions(qc, client, descriptor, 'albums', '1', {
       optimistic: true,
     })
-    // Patch carries a relation slot (`artist`) alongside an attribute — only `title` is optimistic.
+    // The patch carries a relation (`artist`) alongside an attribute. Artist X isn't cached, so it
+    // can't fill the included slot: the slot keeps its member and X is deferred.
     const pending = runMutation(qc, options, {
       title: 'Optimistic',
       artist: { type: 'artists', id: 'X' },
     } as never)
 
     expect(album['title']).toBe('Optimistic')
-    // The relation slot is untouched (same object) — optimism is attributes-only.
     expect(album.artist).toBe(artistBefore)
     expect(album.artist?.['name']).toBe('Nina')
+    expect((album as unknown as { $pending(rel: string): unknown }).$pending('artist')).toEqual([
+      { type: 'artists', id: 'X' },
+    ])
 
     // The write rejects, and the rollback restores the attribute.
     await expect(pending).rejects.toBeDefined()
@@ -613,7 +617,7 @@ describe('relationship mutations — optimistic membership (D35b)', () => {
     const opts = addRelationshipMutationOptions(qc, c, 'albums', '1', 'tracks')
     expect(new Set(Object.keys(opts))).toEqual(new Set(['meta', 'mutationFn', 'mutationKey']))
     expect(opts.meta).toEqual({
-      jsonApi: { verb: 'add', type: 'albums', id: '1', rel: 'tracks', optimistic: false },
+      jsonApi: { verb: 'add', type: 'albums', id: '1', rel: 'tracks' },
     })
   })
 
