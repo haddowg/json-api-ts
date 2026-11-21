@@ -16,6 +16,14 @@ const {
   loadAll,
   provideJsonApiClient,
 } = require('@haddowg/json-api-angular')
+// The /query entry requires the ESM-only @tanstack/angular-query, through Node's require(esm).
+const {
+  asJsonApiError,
+  injectJsonApiReads,
+  injectJsonApiWrites,
+  JsonApiErrorPipe,
+  provideJsonApiQuery,
+} = require('@haddowg/json-api-angular/query')
 
 for (const [name, fn] of [
   ['createClient', createClient],
@@ -30,6 +38,11 @@ for (const [name, fn] of [
   ['jsonApiResource', jsonApiResource],
   ['jsonApiMutation', jsonApiMutation],
   ['loadAll', loadAll],
+  ['provideJsonApiQuery', provideJsonApiQuery],
+  ['injectJsonApiReads', injectJsonApiReads],
+  ['injectJsonApiWrites', injectJsonApiWrites],
+  ['asJsonApiError', asJsonApiError],
+  ['JsonApiErrorPipe', JsonApiErrorPipe],
   ['createJsonApiMcp', createJsonApiMcp],
   ['readActionSafety', readActionSafety],
 ]) {
@@ -56,7 +69,7 @@ const mcp = createJsonApiMcp({
   const result = await session.callTool('albums_get', { id: '1' })
   assert.deepEqual(result.structuredContent, { data: { id: '1', type: 'albums', title: 'Help!' } })
   console.log(
-    '[cjs] @haddowg/json-api-client, /ajv, -query, -angular and -mcp resolved from dist OK, and the mcp runtime served a generated model',
+    '[cjs] @haddowg/json-api-client, /ajv, -query, -angular, -angular/query and -mcp resolved from dist OK, and the mcp runtime served a generated model',
   )
 })().catch((error) => {
   console.error(error)
