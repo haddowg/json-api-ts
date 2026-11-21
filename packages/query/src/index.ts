@@ -54,13 +54,20 @@ export {
   type DeferredMembers,
   type DraftMember,
   type DraftOptions,
+  type DraftParams,
   type DraftQuery,
   type DraftRef,
+  type InsertInto,
   type Into,
+  type ListDraftQuery,
   openDraft,
   type OptimisticDraft,
   type Placement,
   type PlaceOptions,
+  type RelatedTypeName,
+  type RelationDraftQuery,
+  type RelationInto,
+  type ResourceDraftQuery,
 } from './draft'
 export { installNormalization, jsonApiShouldDehydrateQuery, type Teardown } from './install'
 export {

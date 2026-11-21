@@ -32,11 +32,17 @@ import {
   type ApiDescriptor,
   type CreateInput,
   edgeViewOf,
+  type FilterQuery,
   identifierViewOf,
   type MaterialisedOverlay,
+  type RelatedQueryParam,
+  type RelatedReadRelatedQuery,
+  type RelationFilterQuery,
   type RelationName,
+  type RelationSortQuery,
   type ResourceIdentifier,
   setMaterialisedOverlay,
+  type SortQuery,
   type TypeName,
 } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
@@ -61,6 +67,7 @@ import {
   isComplete,
   isUnfilteredUnsorted,
   type QueryDescription,
+  type QueryParams,
   slotShape,
   viewShape,
   type ViewShape,
@@ -85,23 +92,118 @@ export type DraftRef = {
 
 /**
  * A member as {@link Into} sees it: the value that would enter the view (a per-edge view of the
- * resolved copy, or an identifier view), or, when no copy fits, the ref the caller passed.
+ * resolved copy, or an identifier view), or, when no copy fits, the ref the caller passed. `TType`
+ * is the type it can be: the inserted type, or a relation's related types.
  */
-export interface DraftMember {
-  readonly type: string
+export interface DraftMember<TType extends string = string> {
+  readonly type: TType
   readonly id: string
   readonly $pivot?: Readonly<Record<string, unknown>> | undefined
   readonly [key: string]: unknown
 }
 
 /**
- * The decoded description of a candidate query, as {@link Into} receives it: its operation, its
- * type, id and relation, and the params it was read with. Its `params` are loosely typed (a
- * filter's keys and a sort's tokens aren't narrowed to the type's read queries).
+ * The params a candidate view was read with, as {@link DraftQuery} carries them: `filter`, `sort`
+ * and `relatedQuery` typed as the read's query types them (`never` where the read takes none), the
+ * rest as the key records them.
  */
-export type DraftQuery<D extends ApiDescriptor = ApiDescriptor> = QueryDescription & {
-  readonly type: TypeName<D>
+export type DraftParams<Filter, Sort, Related> = Omit<
+  QueryParams,
+  'filter' | 'sort' | 'relatedQuery'
+> & {
+  readonly filter?: Readonly<Filter>
+  readonly sort?: Sort
+  readonly relatedQuery?: Related
 }
+
+/** What every {@link DraftQuery} carries beside its read, address and params. */
+type DescribedView = Omit<QueryDescription, 'type' | 'operation' | 'id' | 'rel' | 'params'>
+
+/**
+ * A candidate view that is a collection read of type `T` (`fetchMany`), its `filter` keys, `sort`
+ * tokens and `relatedQuery` typed by `T`'s collection read query.
+ */
+export type ListDraftQuery<D extends ApiDescriptor, T extends TypeName<D>> = DescribedView & {
+  readonly operation: 'fetchMany'
+  readonly type: T
+  readonly id?: never
+  readonly rel?: never
+  readonly params: DraftParams<
+    FilterQuery<D, T>,
+    SortQuery<D, T>,
+    RelatedQueryParam<D, T, 'fetchMany'>
+  >
+}
+
+/**
+ * A candidate view that is a single-resource read of type `T` (`fetchOne`, a singleton's without an
+ * id), which takes no `filter` or `sort`: its included relations' are under `relatedQuery`.
+ */
+export type ResourceDraftQuery<D extends ApiDescriptor, T extends TypeName<D>> = DescribedView & {
+  readonly operation: 'fetchOne'
+  readonly type: T
+  readonly id?: string
+  readonly rel?: never
+  readonly params: DraftParams<never, never, RelatedQueryParam<D, T, 'fetchOne'>>
+}
+
+/**
+ * A candidate view that is relation `R` of type `T`'s related or relationship read, its `filter`
+ * and `sort` typed as the relation's reads take them.
+ */
+export type RelationDraftQuery<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> =
+  | (DescribedView & {
+      readonly operation: 'fetchRelated'
+      readonly type: T
+      readonly id?: string
+      readonly rel: R
+      readonly params: DraftParams<
+        RelationFilterQuery<D, T, R>,
+        RelationSortQuery<D, T, R>,
+        RelatedReadRelatedQuery<D, T, R>
+      >
+    })
+  | (DescribedView & {
+      readonly operation: 'fetchRelationship'
+      readonly type: T
+      readonly id?: string
+      readonly rel: R
+      readonly params: DraftParams<RelationFilterQuery<D, T, R>, RelationSortQuery<D, T, R>, never>
+    })
+
+/** Every read of type `T` a view can be: its collection, a resource, and each relation's reads. */
+type TypeDraftQuery<D extends ApiDescriptor, T extends TypeName<D>> =
+  | ListDraftQuery<D, T>
+  | ResourceDraftQuery<D, T>
+  | { [R in RelationName<D, T>]: RelationDraftQuery<D, T, R> }[RelationName<D, T>]
+
+/**
+ * The decoded description of a candidate query, as {@link Into} receives it: its operation, its
+ * type, id and relation, and the params it was read with. Over a typed descriptor it is a union
+ * discriminated by `type`, `operation` and `rel`, each member's `params.filter` keys, `params.sort`
+ * tokens and `params.relatedQuery` typed by that read's query types, so narrowing on `q.type` (and
+ * `q.rel`) types its params. Over the base `ApiDescriptor` it is the loose description.
+ *
+ * A relationship verb's candidates include the relation's slot on every cached copy of the parent,
+ * which any read can hold, so its `into` receives this whole union; an insert's receives only its
+ * type's collection reads ({@link ListDraftQuery}).
+ */
+export type DraftQuery<D extends ApiDescriptor = ApiDescriptor> =
+  string extends TypeName<D>
+    ? QueryDescription
+    : { [T in TypeName<D>]: TypeDraftQuery<D, T> }[TypeName<D>]
+
+/** The types relation `R` of type `T` relates, or `string` where the descriptor doesn't say. */
+export type RelatedTypeName<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> =
+  string extends TypeName<D> ? string : Extract<D[T]['relations'][R]['types'][number], TypeName<D>>
 
 /**
  * Where {@link Into} places a member in a view:
@@ -114,28 +216,50 @@ export type DraftQuery<D extends ApiDescriptor = ApiDescriptor> = QueryDescripti
  *   `findIndex` finding nothing) places after the last loaded member;
  * - `false`: leave the view alone.
  */
-export type Placement =
+export type Placement<M = DraftMember> =
   | 'start'
   | 'end'
   | number
-  | ((members: readonly DraftMember[]) => number)
+  // A method's parameters are bivariant, so a typed placement fits where a loose one is held.
+  | { place(members: readonly M[]): number }['place']
   | false
 
 /**
  * Explicit placement (design B1b): consulted for every candidate view the automatic placement
- * didn't cover, with the view's decoded query and the member that would enter it.
+ * didn't cover, with the view's decoded query `Q` and the member `M` that would enter it. An
+ * operation types both: `insert('albums', …)` passes an albums collection read and an albums
+ * member, and a relationship verb any {@link DraftQuery} and a member of the relation's types.
  */
-export type Into<D extends ApiDescriptor = ApiDescriptor> = (
-  query: DraftQuery<D>,
-  member: DraftMember,
-) => Placement
+export type Into<
+  D extends ApiDescriptor = ApiDescriptor,
+  Q = DraftQuery<D>,
+  M = DraftMember<TypeName<D>>,
+> = {
+  // Declared as a method so its parameters are bivariant: a typed `into` can be held where any
+  // descriptor's is (an option or a plan typed loosely), while an inline one is typed in context.
+  into(query: Q, member: M): Placement<M>
+}['into']
 
-/** How an adding operation places its members. */
-export interface PlaceOptions<D extends ApiDescriptor = ApiDescriptor> {
+/** The {@link Into} an operation on relation `R` of type `T` takes. */
+export type RelationInto<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = Into<D, DraftQuery<D>, DraftMember<RelatedTypeName<D, T, R>>>
+
+/** The {@link Into} an insert of type `T` takes. */
+export type InsertInto<D extends ApiDescriptor, T extends TypeName<D>> = Into<
+  D,
+  string extends TypeName<D> ? QueryDescription : ListDraftQuery<D, T>,
+  DraftMember<T>
+>
+
+/** How an adding operation places its members; `I` is the {@link Into} it takes. */
+export interface PlaceOptions<D extends ApiDescriptor = ApiDescriptor, I = Into<D>> {
   /** Where automatic placement puts a member: `'end'` (the default) or `'start'`. */
   at?: 'start' | 'end'
   /** Explicit placement for the views automatic placement didn't cover; the draft's by default. */
-  into?: Into<D> | undefined
+  into?: I | undefined
 }
 
 /** How {@link openDraft} opens a draft. */
@@ -191,24 +315,24 @@ export interface OptimisticDraft<D extends ApiDescriptor = ApiDescriptor, W = un
    * on every cached copy of the parent. Clearing applies everywhere; linking follows the placement
    * and fit rules (a slot of resources the member doesn't fit keeps its value, the member deferred).
    */
-  link<T extends TypeName<D>>(
+  link<T extends TypeName<D>, R extends RelationName<D, T>>(
     type: T,
     id: string | undefined,
-    rel: RelationName<D, T>,
+    rel: R,
     ref: DraftRef | null,
-    options?: PlaceOptions<D>,
+    options?: PlaceOptions<D, RelationInto<D, T, R>>,
   ): void
   /**
    * Add members to a to-many relation: its reads (infinite pages included) and its slot on every
    * cached copy of the parent, where placement and fit allow. A member already present is left.
    * `at` is where automatic placement puts them.
    */
-  attach<T extends TypeName<D>>(
+  attach<T extends TypeName<D>, R extends RelationName<D, T>>(
     type: T,
     id: string | undefined,
-    rel: RelationName<D, T>,
+    rel: R,
     refs: readonly DraftRef[],
-    at?: 'start' | 'end' | PlaceOptions<D>,
+    at?: 'start' | 'end' | PlaceOptions<D, RelationInto<D, T, R>>,
   ): void
   /** Remove members from a to-many relation, from every view of it. */
   detach<T extends TypeName<D>>(
@@ -221,12 +345,12 @@ export interface OptimisticDraft<D extends ApiDescriptor = ApiDescriptor, W = un
    * Make `refs` a to-many relation's members: every other member leaves every view, and the new
    * ones are placed as {@link attach} places them. A view placed automatically takes `refs`' order.
    */
-  replaceMembers<T extends TypeName<D>>(
+  replaceMembers<T extends TypeName<D>, R extends RelationName<D, T>>(
     type: T,
     id: string | undefined,
-    rel: RelationName<D, T>,
+    rel: R,
     refs: readonly DraftRef[],
-    options?: PlaceOptions<D>,
+    options?: PlaceOptions<D, RelationInto<D, T, R>>,
   ): void
   /**
    * Insert a new resource into the cached lists of `type` that `into` places it in (never
@@ -236,7 +360,7 @@ export interface OptimisticDraft<D extends ApiDescriptor = ApiDescriptor, W = un
   insert<T extends TypeName<D>>(
     type: T,
     resource: CreateInput<D, W, T> & { readonly id: string },
-    into?: Into<D>,
+    into?: InsertInto<D, T>,
   ): void
   /**
    * Remove `type:id` from every list, related read, relationship read, to-many slot and infinite
@@ -1532,10 +1656,11 @@ export function openDraft<D extends ApiDescriptor, W = unknown>(
     setMaterialisedOverlay(overlay)
     overlayInstalled = true
   }
-  return new Draft(queryClient, descriptor, options as DraftOptions) as unknown as OptimisticDraft<
-    D,
-    W
-  >
+  return new Draft(
+    queryClient,
+    descriptor,
+    options as unknown as DraftOptions,
+  ) as unknown as OptimisticDraft<D, W>
 }
 
 /**
