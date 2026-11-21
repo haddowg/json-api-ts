@@ -9,16 +9,12 @@ import { checkContract, MAXIMUM_CONTRACT } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
-import { withNestedFieldsets } from '../test/nested-fieldsets'
-import { baselineWithClosedPivots, withTypedRequestMeta } from '../test/typed-request-meta'
 
 const load = (
   name: 'contract-witness.json' | 'contract-witness-baseline.json' | 'music-catalog.openapi.json',
 ) => JSON.parse(readFileSync(documentPath(name), 'utf8')) as OpenApiDocument
-const witness = load('contract-witness.json')
-const typed = withTypedRequestMeta(witness)
+const typed = load('contract-witness.json')
 const baseline = load('contract-witness-baseline.json')
-const closedBaseline = baselineWithClosedPivots(baseline)
 
 const scratch = mkdtempSync(join(tmpdir(), 'json-api-typed-request-meta-'))
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
@@ -68,7 +64,7 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
     expect(MAXIMUM_CONTRACT).toBe(43)
     expect(typed.info?.['x-generator']?.contract).toBe(43)
     expect(checkContract(typed)).toBeUndefined()
-    expect(checkContract(closedBaseline)).toBeUndefined()
+    expect(checkContract(baseline)).toBeUndefined()
     const newer = { ...typed, info: { ...typed.info!, 'x-generator': { contract: 44 } } }
     expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 43')
   })
@@ -146,7 +142,9 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
     expect(rooms.mutationMeta).toEqual({ add: { fields: { moved: 'integer' } } })
     const guest = buildDescriptor(typed)['bookings']!.relations['guest']!
     expect(guest.requestMeta).toBeUndefined()
-    expect(guest.mutationMeta).toBeUndefined()
+    expect(guest.mutationMeta).toEqual({
+      set: { fields: { swappedBy: 'string' }, required: [], nullable: ['swappedBy'] },
+    })
   })
 
   it("records each relation's meta inside an atomic batch, from the type's own kinds", () => {
@@ -193,47 +191,34 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
     expect(bookings.actions?.['confirmPatch']?.accepted).toEqual(accepted)
   })
 
-  it('leaves every type the graft does not add as it was, but for the closed identifier meta', () => {
-    const before = buildDescriptor(withNestedFieldsets(witness))
-    const after = buildDescriptor(typed)
-    for (const [type, descriptor] of Object.entries(before)) {
-      const relations = Object.fromEntries(
-        Object.entries(after[type]!.relations).map(([name, relation]) => {
-          const { identifierMeta, ...rest } = relation
-          if (identifierMeta === undefined) {
-            return [name, relation]
-          }
-          const { additional, ...open } = identifierMeta
-          expect(additional).toBe(false)
-          return [name, { ...rest, identifierMeta: open }]
-        }),
-      )
-      expect({ ...after[type], relations }).toEqual(descriptor)
+  it('reads the baseline with its pivots closed as it reads them open', () => {
+    expect(baseline.info?.['x-generator']?.contract).toBe(43)
+    const open = structuredClone(baseline)
+    const schemas = open.components!.schemas!
+    for (const name of ['ArticlesTagsPivot', 'ArticlesTagsWritePivot']) {
+      expect(schemas[name]!.additionalProperties).toBe(false)
+      delete schemas[name]!.additionalProperties
     }
-    expect(Object.keys(after).filter((type) => !(type in before))).toEqual([
-      'bookings',
-      'jobs',
-      'rooms',
-    ])
-  })
-
-  it('reads the baseline with its pivots closed as it read it before', () => {
-    expect(closedBaseline.info?.['x-generator']?.contract).toBe(43)
-    expect(buildDescriptor(closedBaseline)).toEqual(buildDescriptor(baseline))
+    expect(buildDescriptor(baseline)).toEqual(buildDescriptor(open))
   })
 
   it('records no request or resource meta where no document declares any', () => {
-    for (const doc of [witness, baseline, load('music-catalog.openapi.json')]) {
-      for (const descriptor of Object.values(buildDescriptor(doc))) {
-        expect(descriptor.requestMeta).toBeUndefined()
-        expect(descriptor.atomicRequestMeta).toBeUndefined()
-        expect(descriptor.resourceMeta).toBeUndefined()
-        for (const relation of Object.values(descriptor.relations)) {
-          expect(relation.requestMeta).toBeUndefined()
-          expect(relation.mutationMeta).toBeUndefined()
-          expect(relation.atomicRequestMeta).toBeUndefined()
-          expect(relation.identifierMeta?.additional).toBeUndefined()
-        }
+    const catalog = buildDescriptor(load('music-catalog.openapi.json'))
+    expect(Object.keys(catalog).filter((type) => catalog[type]!.requestMeta !== undefined)).toEqual(
+      ['albums'],
+    )
+    expect(
+      Object.keys(catalog).filter((type) => catalog[type]!.resourceMeta !== undefined),
+    ).toEqual(['albums'])
+    for (const descriptor of Object.values(buildDescriptor(baseline))) {
+      expect(descriptor.requestMeta).toBeUndefined()
+      expect(descriptor.atomicRequestMeta).toBeUndefined()
+      expect(descriptor.resourceMeta).toBeUndefined()
+      for (const relation of Object.values(descriptor.relations)) {
+        expect(relation.requestMeta).toBeUndefined()
+        expect(relation.mutationMeta).toBeUndefined()
+        expect(relation.atomicRequestMeta).toBeUndefined()
+        expect(relation.identifierMeta?.additional).toBeUndefined()
       }
     }
   })

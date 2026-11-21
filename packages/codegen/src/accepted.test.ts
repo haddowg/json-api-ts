@@ -34,6 +34,28 @@ function without202(doc: OpenApiDocument): OpenApiDocument {
 // The spec hash in the provenance stamp differs with the document, so it is left out.
 const unstamped = (source: string) => source.replace(/Spec hash: .*/, '')
 
+/**
+ * The emitted source with every `accepted` entry taken out, a type's or an action's, and every
+ * doc comment that only shows a `202` response example.
+ */
+function withoutAccepted(source: string): string {
+  let out = ''
+  let last = 0
+  const entry = /,\n\s*accepted: \{/g
+  for (let match = entry.exec(source); match !== null; match = entry.exec(source)) {
+    let at = match.index + match[0].length
+    for (let depth = 1; depth > 0; at++) {
+      if (source[at] === '{') depth++
+      else if (source[at] === '}') depth--
+    }
+    out += source.slice(last, match.index)
+    last = at
+    entry.lastIndex = at
+  }
+  out += source.slice(last)
+  return out.replace(/\n\s*\/\*\*\n\s*\* @example Response `202`\n[^]*?\*\/(?=\n)/g, '')
+}
+
 describe('writes and actions that declare a 202 Accepted', () => {
   it('reads the job type of a create from its registered job document', () => {
     const descriptor = buildDescriptor(load('music-catalog.openapi.json'))
@@ -94,9 +116,7 @@ describe('writes and actions that declare a 202 Accepted', () => {
       expect(source).not.toContain('accepted:')
       const full = load(name)
       const fullSource = unstamped(emit(full, buildDescriptor(full)))
-      expect(fullSource.replace(/,\n\s*accepted: \{\n[^]*?\n\s{4}\}(?=\n\s{2}\})/g, '')).toBe(
-        source,
-      )
+      expect(withoutAccepted(fullSource)).toBe(source)
     }
   })
 

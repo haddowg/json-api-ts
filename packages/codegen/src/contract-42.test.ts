@@ -9,13 +9,11 @@ import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
-import { withNestedFieldsets } from '../test/nested-fieldsets'
 
 const load = (
   name: 'contract-witness.json' | 'contract-witness-baseline.json' | 'music-catalog.openapi.json',
 ) => JSON.parse(readFileSync(documentPath(name), 'utf8')) as OpenApiDocument
 const witness = load('contract-witness.json')
-const selecting = withNestedFieldsets(witness)
 
 const scratch = mkdtempSync(join(tmpdir(), 'json-api-nested-fieldsets-'))
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
@@ -71,13 +69,13 @@ const SECTION_PATHS = [
 ]
 
 describe('generator contract 42 (nested fieldsets)', () => {
-  it('reads a document stamped 42 without a warning', () => {
-    expect(selecting.info?.['x-generator']?.contract).toBe(42)
-    expect(checkContract(selecting)).toBeUndefined()
+  it('reads the witness without a warning', () => {
+    expect(witness.info?.['x-generator']?.contract).toBe(43)
+    expect(checkContract(witness)).toBeUndefined()
   })
 
   it('records each attribute that takes single keys, with the pattern its key matches', () => {
-    const articles = buildDescriptor(selecting)['articles']!
+    const articles = buildDescriptor(witness)['articles']!
     expect(articles.nestedFieldsets).toEqual({
       scores: '(?:[a-z][a-z0-9_]*)',
       totals: '[^.,*]+',
@@ -102,7 +100,7 @@ describe('generator contract 42 (nested fieldsets)', () => {
   })
 
   it('splits a nested path only at a full stop outside a group or class', () => {
-    const doc = structuredClone(selecting)
+    const doc = structuredClone(witness)
     const items = doc.paths!['/articles/{id}']!.get!.parameters!.find(
       (param) => param.name === 'fields[articles]',
     )!.schema!.items!
@@ -134,44 +132,56 @@ describe('generator contract 42 (nested fieldsets)', () => {
   })
 
   it('records none where every fields parameter lists only members', () => {
-    for (const doc of [
-      witness,
-      load('contract-witness-baseline.json'),
-      load('music-catalog.openapi.json'),
-    ]) {
-      for (const descriptor of Object.values(buildDescriptor(doc))) {
+    for (const descriptor of Object.values(
+      buildDescriptor(load('contract-witness-baseline.json')),
+    )) {
+      expect(descriptor.nestedFieldsets).toBeUndefined()
+      expect(descriptor.nestedFieldsetPaths).toBeUndefined()
+    }
+    const catalog = buildDescriptor(load('music-catalog.openapi.json'))
+    for (const [type, descriptor] of Object.entries(catalog)) {
+      if (type !== 'albums') {
         expect(descriptor.nestedFieldsets).toBeUndefined()
         expect(descriptor.nestedFieldsetPaths).toBeUndefined()
       }
     }
+    expect(catalog['albums']!.nestedFieldsets).toEqual({
+      credits: '(?:[a-z][a-z_]*)',
+      editions: '\\*',
+    })
+    expect(catalog['albums']!.nestedFieldsetPaths).toEqual({
+      editions: [['\\*', '(?:format|year|label)']],
+    })
   })
 
-  it('leaves every other type as it was, and the articles but for the new attributes', () => {
-    const before = buildDescriptor(witness)
-    const after = buildDescriptor(selecting)
+  it('reads nothing else from the fields parameter', () => {
+    // The witness with each fields[articles] parameter taking only its member names.
+    const doc = structuredClone(witness)
+    for (const item of Object.values(doc.paths!)) {
+      for (const op of Object.values(item)) {
+        for (const param of op?.parameters ?? []) {
+          if (param.name === 'fields[articles]') {
+            param.schema = { type: 'array', items: param.schema!.items!.anyOf![0]! }
+          }
+        }
+      }
+    }
+    const before = buildDescriptor(doc)
+    const after = buildDescriptor(witness)
     for (const [type, descriptor] of Object.entries(before)) {
       if (type !== 'articles') {
         expect(after[type]).toEqual(descriptor)
       }
     }
-    const { nestedFieldsets, nestedFieldsetPaths, attributes, ...articles } = after['articles']!
-    const { attributes: beforeAttributes, ...beforeArticles } = before['articles']!
-    expect(articles).toEqual(beforeArticles)
-    expect(attributes).toEqual({
-      ...beforeAttributes,
-      scores: 'object',
-      totals: 'object',
-      location: 'object',
-      lines: 'array',
-      sections: 'array',
-      hero: 'unknown',
-    })
+    const { nestedFieldsets, nestedFieldsetPaths, ...articles } = after['articles']!
+    expect(articles).toEqual(before['articles'])
+    expect(before['articles']!.nestedFieldsets).toBeUndefined()
     expect(nestedFieldsets).toBeDefined()
     expect(nestedFieldsetPaths).toBeDefined()
   })
 
   it('reads a pattern only by the attribute it names', () => {
-    const doc = structuredClone(selecting)
+    const doc = structuredClone(witness)
     const items = doc.paths!['/articles/{id}']!.get!.parameters!.find(
       (param) => param.name === 'fields[articles]',
     )!.schema!.items!
@@ -265,7 +275,7 @@ describe('generator contract 42 (nested fieldsets)', () => {
       '  void [kind, text, width, level, heroKind, alt]',
       '}',
     ]
-    const source = emit(selecting, buildDescriptor(selecting))
+    const source = emit(witness, buildDescriptor(witness))
     expect(source).toContain(
       '    nestedFieldsets: {\n      scores: "(?:[a-z][a-z0-9_]*)",\n      totals: "[^.,*]+",\n      location: "(?:[a-z]+)",\n      lines: "\\\\*",\n      sections: "\\\\*",\n      hero: "(?:src|alt)"\n    },',
     )

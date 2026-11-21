@@ -85,11 +85,11 @@ const sorted = (codes: Iterable<string>) => [...codes].sort()
  */
 describe('generator contract 36 (error codes offered where the runtime raises them)', () => {
   it('reads the witness and both catalog servers without a warning', () => {
-    // Each declares typed document meta, so each carries 41.
+    // Each declares typed request meta, so each carries 43.
     for (const [doc, contract] of [
-      [witness, 41],
-      [catalog, 41],
-      [admin, 41],
+      [witness, 43],
+      [catalog, 43],
+      [admin, 43],
     ] as const) {
       expect(doc.info?.['x-generator']?.contract).toBe(contract)
       expect(checkContract(doc)).toBeUndefined()

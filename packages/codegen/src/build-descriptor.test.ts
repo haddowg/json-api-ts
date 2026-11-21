@@ -28,6 +28,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
       status: 'string',
       availableFrom: 'date',
       releaseInfo: 'object',
+      credits: 'object',
+      editions: 'array',
     })
 
     expect(albums.relations['artist']).toEqual({
@@ -62,8 +64,17 @@ describe('buildDescriptor (music-catalog default server)', () => {
       },
       // the related read sorts by `duration` and filters by `longerThan`, which the tracks
       // collection doesn't.
-      sortable: ['title', '-title', 'trackNumber', '-trackNumber', 'duration', '-duration'],
-      filterable: ['explicit', 'genres', 'longerThan', 'q', 'title'],
+      sortable: [
+        'title',
+        '-title',
+        'trackNumber',
+        '-trackNumber',
+        'albumTitle',
+        '-albumTitle',
+        'duration',
+        '-duration',
+      ],
+      filterable: ['albumAvailableFrom', 'explicit', 'genres', 'longerThan', 'q', 'title'],
       relatedQuery: true,
     })
 
@@ -113,6 +124,8 @@ describe('buildDescriptor (music-catalog default server)', () => {
         '-title',
         'trackNumber',
         '-trackNumber',
+        'albumTitle',
+        '-albumTitle',
         'position',
         '-position',
         'weight',
@@ -120,7 +133,16 @@ describe('buildDescriptor (music-catalog default server)', () => {
         'addedAt',
         '-addedAt',
       ],
-      filterable: ['explicit', 'genres', 'position', 'q', 'title', 'weight'],
+      filterable: [
+        'addedAt',
+        'albumAvailableFrom',
+        'explicit',
+        'genres',
+        'position',
+        'q',
+        'title',
+        'weight',
+      ],
       relatedQuery: true,
     })
   })
