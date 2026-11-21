@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  INFINITE_SEGMENT,
+  infiniteKeyFor,
   keyFor,
   keyHasPrefix,
   normalizeParams,
@@ -143,5 +145,30 @@ describe('relationReadKeys / keyHasPrefix (D35b)', () => {
     expect(
       keyHasPrefix(['playlists', 'fetchRelated'], ['playlists', 'fetchRelated', '1', 'tracks']),
     ).toBe(false)
+  })
+})
+
+describe('infiniteKeyFor', () => {
+  it("appends '$infinite' after the plain read's key and its params", () => {
+    const list = { type: 'albums', operation: 'fetchMany' } as const
+    expect(infiniteKeyFor(list)).toEqual(['albums', 'fetchMany', INFINITE_SEGMENT])
+    expect(infiniteKeyFor(list, { page: { size: 2 } })).toEqual([
+      'albums',
+      'fetchMany',
+      { page: { size: 2 } },
+      INFINITE_SEGMENT,
+    ])
+    // An empty query adds no params segment, as for the plain read.
+    expect(infiniteKeyFor(list, {})).toEqual(['albums', 'fetchMany', INFINITE_SEGMENT])
+  })
+
+  it("keeps every prefix of the plain read's key", () => {
+    const key = infiniteKeyFor(
+      { type: 'albums', operation: 'fetchRelated', id: '1', rel: 'tracks' },
+      { page: { size: 2 } },
+    )
+    expect(keyHasPrefix(key, typeKey('albums'))).toBe(true)
+    expect(keyHasPrefix(key, relationReadKeys('albums', '1', 'tracks')[0])).toBe(true)
+    expect(keyHasPrefix(key, ['albums', 'fetchRelated', '2'])).toBe(false)
   })
 })

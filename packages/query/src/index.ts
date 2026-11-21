@@ -9,7 +9,9 @@
  * Shipped (Build 1): the deterministic key factory (`keyFor` + hierarchical prefixes) and
  * the read option factories (collection list, single get, relationship-linkage + related
  * collection) — standalone (`listQueryOptions(client, type, query)`) or bound
- * (`createQueryApi(client).<type>.list(query)`), each yielding `{ queryKey, queryFn }`.
+ * (`createQueryApi(client).<type>.list(query)`), each yielding `{ queryKey, queryFn }`. The
+ * infinite reads (`infiniteListQueryOptions`, `infiniteRelatedQueryOptions`, or bound
+ * `.infinite(query)` / `.relatedInfinite(id, rel, query)`) page a collection through its links.
  *
  * Shipped (Build 2): the bespoke `type:id` write-through normalization —
  * `normalize(queryClient, result, descriptor)` indexes every resource in a result and patches
