@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.22.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.21.0...json-api-codegen-v2.22.0) (2026-11-21)
+
+
+### Features
+
+* **codegen:** record the values a list meta member's items list ([ec1b035](https://github.com/haddowg/json-api-ts/commit/ec1b035965cf372028ecdc70b1915ddecdb8867d))
+* **codegen:** record the values a meta member lists ([d13c464](https://github.com/haddowg/json-api-ts/commit/d13c46413aec07704138fcd9a1507043b9a53db7))
+
+
+### Bug Fixes
+
+* **codegen:** read the item path of a type served without a collection ([6385487](https://github.com/haddowg/json-api-ts/commit/6385487cb7128bdbed1e7f651ad2e72658fb8094))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.28.0
+
 ## [2.21.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.20.0...json-api-codegen-v2.21.0) (2026-11-20)
 
 

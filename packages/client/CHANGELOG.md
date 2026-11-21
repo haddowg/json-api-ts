@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.28.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.27.0...json-api-client-v1.28.0) (2026-11-21)
+
+
+### Features
+
+* **client:** type a list meta member as a list of its listed values ([3510281](https://github.com/haddowg/json-api-ts/commit/35102814ff16a72cbfaf54eb805190351ea8494b))
+* **client:** type a meta member as one of the values the server lists ([0beb75b](https://github.com/haddowg/json-api-ts/commit/0beb75b3d88c809e0b0b70b156eb90f686874413))
+
 ## [1.27.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.26.0...json-api-client-v1.27.0) (2026-11-20)
 
 
