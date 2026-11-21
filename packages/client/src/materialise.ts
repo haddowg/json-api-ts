@@ -7,6 +7,7 @@ import type {
 import { type Page, type ResolvedPaginator, resolvePaginator } from './pagination'
 import { type NestedFieldset, nestedFieldset } from './nested-fieldset'
 import type { Document } from './request'
+import type { ResourceIdentifier } from './types'
 import { assertJsonApiDocument, type ResolvedValidator, validateDocument } from './validate'
 
 /** A trimmed, by-reference top-level envelope shared by every resource from one response. */
@@ -74,12 +75,24 @@ export interface ResourceEnvelope {
    * `undefined`. Read from the raw relationship, so it works when the relation carries no data.
    */
   $count(name: string): number | undefined
+  /**
+   * `'pending'` while a cache layer holds an unconfirmed optimistic change to this resource (an
+   * attribute it predicted, or a change to one of its relations), else `undefined`.
+   */
+  readonly $optimistic: 'pending' | undefined
+  /**
+   * The members a cache layer predicted for relation `name` but couldn't show yet, because no copy
+   * of them fits the slot. Empty when there are none.
+   */
+  $pending(name: string): readonly ResourceIdentifier[]
 }
 
 /** Edge-local accessors carried by a materialised related VALUE (per-edge view). */
 export interface EdgeEnvelope {
   readonly $edge: Edge | undefined
   readonly $pivot: Record<string, unknown> | undefined
+  /** `'pending'` while a cache layer holds an unconfirmed optimistic change to this member. */
+  readonly $optimistic: 'pending' | undefined
 }
 
 /** Relationship-level accessors carried by an augmented to-many array. */
@@ -158,6 +171,91 @@ const define = (target: object, key: string, value: unknown): void => {
 
 const defineGetter = (target: object, key: string, get: () => unknown): void => {
   Object.defineProperty(target, key, { get, enumerable: false, configurable: true })
+}
+
+// ── The cache-layer overlay ─────────────────────────────────────────────────────────────────
+
+/**
+ * What a cache layer (such as `@haddowg/json-api-query`'s optimistic drafts) reports about the
+ * materialised values it holds, consulted by `$optimistic`, `$pending()` and `$count`. Each call
+ * gets the value the accessor was read on followed by the values it reads through to (a per-edge
+ * view, then the node it views), so a layer that recorded any of them answers for all.
+ *
+ * @internal
+ */
+export interface MaterialisedOverlay {
+  /** `'pending'` when the layer holds an unconfirmed change to any of `targets`. */
+  optimistic(targets: readonly object[]): 'pending' | undefined
+  /** The members of relation `name` the layer predicted for `targets` but couldn't show. */
+  pending(targets: readonly object[], name: string): readonly ResourceIdentifier[]
+  /**
+   * The count `targets` report for relation `name`, given the `raw` count the response carried.
+   * `name` is `undefined` when the target is the to-many array itself (its own `$count`).
+   */
+  count(
+    targets: readonly object[],
+    name: string | undefined,
+    raw: number | undefined,
+  ): number | undefined
+}
+
+let overlay: MaterialisedOverlay | undefined
+
+/**
+ * Install the cache layer's {@link MaterialisedOverlay}, or remove it with `undefined`. One layer is
+ * installed at a time; without one, `$optimistic` is `undefined`, `$pending()` is empty and `$count`
+ * is the response's count.
+ *
+ * @internal
+ */
+export function setMaterialisedOverlay(next: MaterialisedOverlay | undefined): void {
+  overlay = next
+}
+
+const NO_IDENTIFIERS: readonly ResourceIdentifier[] = Object.freeze([])
+
+/** The value each per-edge view reads through to. */
+const SOURCES = new WeakMap<object, object>()
+
+/** The raw (response) count of each node's relations, by node. */
+const RAW_COUNTS = new WeakMap<object, (name: string) => number | undefined>()
+
+/** `target` followed by the values it reads through to, nearest first. */
+function chainOf(target: object): object[] {
+  const chain: object[] = []
+  let at: object | undefined = target
+  while (at !== undefined && !chain.includes(at)) {
+    chain.push(at)
+    at = SOURCES.get(at)
+  }
+  return chain
+}
+
+/** The raw count of relation `name` the first value in `chain` with one carries. */
+function rawCount(chain: readonly object[], name: string): number | undefined {
+  for (const value of chain) {
+    const count = RAW_COUNTS.get(value)
+    if (count !== undefined) {
+      return count(name)
+    }
+  }
+  return undefined
+}
+
+/** Define the overlay-backed accessors (`$optimistic`, `$pending`, `$count`) of a resource value. */
+function attachOverlayAccessors(target: object): void {
+  defineGetter(target, '$optimistic', () => overlay?.optimistic(chainOf(target)))
+  define(
+    target,
+    '$pending',
+    (name: string): readonly ResourceIdentifier[] =>
+      overlay?.pending(chainOf(target), name) ?? NO_IDENTIFIERS,
+  )
+  define(target, '$count', (name: string): number | undefined => {
+    const chain = chainOf(target)
+    const raw = rawCount(chain, name)
+    return overlay === undefined ? raw : overlay.count(chain, name, raw)
+  })
 }
 
 /** A relationship object's `meta.total` when it is a finite number, else `undefined`. */
@@ -401,7 +499,10 @@ function resolveMember(
   return buildIdentifierView(member, relationEdge)
 }
 
-/** Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$nestedFieldset/$rel/$count). */
+/**
+ * Attach the resource-level `$`-accessors ($meta/$links/$self/$document/$raw/$nestedFieldset/$rel,
+ * and the overlay-backed $count/$optimistic/$pending).
+ */
 function attachResourceEnvelope(
   node: object,
   raw: RawResource,
@@ -424,9 +525,10 @@ function attachResourceEnvelope(
     if (rel.meta !== undefined) view.meta = rel.meta
     return view
   })
-  define(node, '$count', (name: string): number | undefined =>
+  RAW_COUNTS.set(node, (name: string): number | undefined =>
     Object.hasOwn(rels, name) ? relationTotal(rels[name]) : undefined,
   )
+  attachOverlayAccessors(node)
 }
 
 /**
@@ -437,27 +539,40 @@ function attachResourceEnvelope(
  * `relationEdge` (set for a to-one) carries the relationship object's self/related links and
  * meta, which ride the value's `$edge` (docs/materialisation.md).
  */
-function buildEdgeView(node: object, member: RawResource, relationEdge?: RelationEdge): object {
+function buildEdgeView(
+  node: object,
+  member: RawResource,
+  relationEdge?: RelationEdge,
+  pick?: (key: string) => boolean,
+): object {
   const view: Record<string, unknown> = {}
   // Copy the node's own enumerable props (type/id/attributes/relations) into this per-edge view.
   // INVARIANT (normalize.ts, ADR 0003): every cache patch must walk and patch ALL cached views
   // of a resource, not just the canonical node — `patchAll`/`walkResources`/`patchNode` do exactly
   // that, so these copied props stay consistent across writes. A future node-only write path would
   // leave edge views stale, so it must preserve this walk-every-view invariant.
-  Object.assign(view, node)
+  if (pick === undefined) {
+    Object.assign(view, node)
+  } else {
+    for (const [k, v] of Object.entries(node)) {
+      if (k === 'type' || k === 'id' || pick(k)) {
+        view[k] = v
+      }
+    }
+  }
+  SOURCES.set(view, node)
   // Delegate the node's non-enumerable `$`-accessors so they read through to the node.
-  for (const k of [
-    '$meta',
-    '$links',
-    '$self',
-    '$document',
-    '$raw',
-    '$nestedFieldset',
-    '$rel',
-    '$count',
-  ] as const) {
+  for (const k of ['$meta', '$links', '$self', '$document', '$raw', '$nestedFieldset'] as const) {
     delegate(view, node, k)
   }
+  const rel = (node as { $rel?: unknown }).$rel
+  define(
+    view,
+    '$rel',
+    typeof rel === 'function' ? rel.bind(node) : (): RelationView | undefined => undefined,
+  )
+  // Its own overlay accessors, which ask about this view and then the node it reads through to.
+  attachOverlayAccessors(view)
   // A full-resource member's own `links` is its self-link (already on `$links`/`$self`), so a
   // to-many member's `$edge` is meta-only; a to-one additionally carries the relationship
   // object's self/related links via `relationEdge`.
@@ -465,10 +580,47 @@ function buildEdgeView(node: object, member: RawResource, relationEdge?: Relatio
   return view
 }
 
+/** The linkage member a per-edge or identifier view is built for: its identity and its meta. */
+export interface EdgeMember {
+  type: string
+  id: string
+  meta?: Record<string, unknown>
+}
+
+/**
+ * A per-edge view over `node` for the membership `member` describes, as `materialise` builds one
+ * for an included member: it copies `node`'s own enumerable members (those `pick` keeps, when
+ * given; `type` and `id` always), reads its resource-level `$`-accessors through to `node`, and
+ * owns its `$edge`/`$pivot` from `member.meta`. `node` may be any resource value, a materialised
+ * one or a plain object; accessors it lacks read as `undefined`.
+ *
+ * For a cache layer placing a member in a slot (`@haddowg/json-api-query`'s optimistic drafts).
+ *
+ * @internal
+ */
+export function edgeViewOf(
+  node: object,
+  member: EdgeMember,
+  pick?: (key: string) => boolean,
+): object {
+  return buildEdgeView(node, member as RawResource, undefined, pick)
+}
+
+/**
+ * An identifier view for `member`, as `materialise` builds one for a linked member that isn't
+ * included: `{ type, id, meta? }` with its `$edge`/`$pivot`.
+ *
+ * @internal
+ */
+export function identifierViewOf(member: EdgeMember): object {
+  return buildIdentifierView(member as RawResource)
+}
+
 /** An identifier VIEW for a linked-but-not-included member: a clean `{type,id,meta?}` + edge. */
 function buildIdentifierView(member: RawResource, relationEdge?: RelationEdge): object {
   const view: Record<string, unknown> = { type: member.type, id: member.id }
   if (member.meta !== undefined) view.meta = member.meta
+  defineGetter(view, '$optimistic', () => overlay?.optimistic([view]))
   // A bare linkage member has no resource of its own, so any `links` it carries are edge links.
   attachEdgeEnvelope(view, member, true, relationEdge)
   return view
@@ -570,7 +722,16 @@ function augmentRelationArray(
   const links = rel.links
   defineGetter(arr, '$links', () => links)
   defineGetter(arr, '$meta', () => rel.meta)
-  defineGetter(arr, '$count', () => relationTotal(rel))
+  // Read through `this`, so a copy of the array carrying this accessor (a cache layer's edited
+  // membership) asks the overlay about itself.
+  Object.defineProperty(arr, '$count', {
+    get(this: object): number | undefined {
+      const raw = relationTotal(rel)
+      return overlay === undefined ? raw : overlay.count([this], undefined, raw)
+    },
+    enumerable: false,
+    configurable: true,
+  })
   attachPage(
     arr,
     paginator,
