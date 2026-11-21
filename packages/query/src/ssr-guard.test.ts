@@ -9,12 +9,14 @@ import {
   defaultShouldDehydrateQuery,
   dehydrate,
   hydrate,
+  InfiniteQueryObserver,
   QueryClient,
   QueryObserver,
 } from '@tanstack/query-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installNormalization, jsonApiShouldDehydrateQuery } from './install'
-import { listQueryOptions } from './read'
+import { isMaterialisedData } from './normalize'
+import { infiniteListQueryOptions, listQueryOptions } from './read'
 
 const descriptor = {
   albums: {
@@ -161,6 +163,66 @@ describe('hydration check', () => {
     qc.getQueryCache().build(
       qc,
       { queryKey: ['albums', 'fetchMany', { again: 'x' }] as readonly unknown[] },
+      state,
+    )
+    await flush()
+
+    expect(reset).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('hydration check for infinite reads', () => {
+  it('refetches a hydrated infinite query with one warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const server = new QueryClient()
+    installNormalization(server, descriptor)
+    await server.fetchInfiniteQuery(infiniteListQueryOptions(makeClient(), 'albums'))
+    const wire = JSON.parse(
+      JSON.stringify(dehydrate(server, { shouldDehydrateQuery: () => true })),
+    ) as ReturnType<typeof dehydrate>
+
+    const browser = new QueryClient()
+    installNormalization(browser, descriptor)
+    const options = infiniteListQueryOptions(makeClient('B'), 'albums')
+    hydrate(browser, wire)
+    expect(isMaterialisedData(browser.getQueryData(options.queryKey))).toBe(false)
+
+    const observer = new InfiniteQueryObserver(browser, { ...options, staleTime: Infinity })
+    const unsubscribe = observer.subscribe(() => {})
+    await flush()
+    await flush()
+
+    const data = observer.getCurrentResult().data
+    expect(isMaterialised(data?.pages[0])).toBe(true)
+    expect(data?.pages[0]?.[0]?.title).toBe('B')
+    expect(data?.pages[0]?.$page.kind).toBe('page')
+    unsubscribe()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('$infinite')
+  })
+
+  it('never resets a fetched infinite query, including after a patch republishes a page', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const qc = new QueryClient()
+    installNormalization(qc, descriptor)
+    const options = infiniteListQueryOptions(makeClient(), 'albums')
+    await qc.fetchInfiniteQuery(options)
+    const reset = vi.spyOn(qc, 'resetQueries')
+    const before = qc.getQueryData(options.queryKey)
+
+    await qc.fetchQuery(listQueryOptions(makeClient('B'), 'albums', { page: { number: 2 } }))
+    await flush()
+    const data = qc.getQueryData(options.queryKey)
+    expect(data).not.toBe(before)
+    expect(data?.pages[0]?.[0]?.title).toBe('B')
+    expect(isMaterialisedData(data)).toBe(true)
+
+    // The republished data still reads as materialised when a query is added holding it.
+    const state = qc.getQueryCache().find({ queryKey: options.queryKey })?.state
+    qc.getQueryCache().build(
+      qc,
+      { queryKey: ['albums', 'fetchMany', { again: 'x' }, '$infinite'] as readonly unknown[] },
       state,
     )
     await flush()
