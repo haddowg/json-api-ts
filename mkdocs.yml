@@ -93,6 +93,7 @@ nav:
       - validation.md
   - TanStack Query:
       - tanstack-query.md
+      - optimistic-updates.md
   - Angular:
       - angular.md
   - MCP tools:
