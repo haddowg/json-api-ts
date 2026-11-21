@@ -215,3 +215,55 @@ export type PageParamsOf<P extends Page> = PaginatorKind extends P['kind']
   ? Readonly<Record<string, string | number>>
   : StrategyParams<{ keys: P['keys'] }> &
       (P extends { arm: infer A extends string } ? { kind: A } : unknown)
+
+/**
+ * The `page` params for the page after `list`, read from its `next` link, or `undefined` on the
+ * last page (or before anything has loaded). Works the same for every strategy, because the
+ * server's link already carries the right parameters: counts come back as numbers, cursors as
+ * strings, under the wire keys the strategy uses, with the menu arm's `kind` when the link names
+ * one. Feed the result back as the `page` of the next read:
+ *
+ * ```ts
+ * const next = nextPageParams(albums)
+ * if (next) albums = await client.albums.list({ page: next })
+ * ```
+ */
+export function nextPageParams<P extends Page>(
+  list: { readonly $page: P } | undefined,
+): PageParamsOf<P> | undefined {
+  return pageParams(list?.$page, list?.$page.links.next)
+}
+
+/** The `page` params for the page before `list`, from its `prev` link. See {@link nextPageParams}. */
+export function prevPageParams<P extends Page>(
+  list: { readonly $page: P } | undefined,
+): PageParamsOf<P> | undefined {
+  return pageParams(list?.$page, list?.$page.links.prev)
+}
+
+const CURSOR_ROLES: readonly string[] = ['after', 'before']
+
+function pageParams<P extends Page>(
+  page: P | undefined,
+  link: string | undefined,
+): PageParamsOf<P> | undefined {
+  if (page === undefined || link === undefined) {
+    return undefined
+  }
+  const keys = Object.entries(page.keys) as [PaginatorRole, string][]
+  const query = link.includes('?') ? link.slice(link.indexOf('?') + 1).split('#')[0] : ''
+  const params: Record<string, string | number> = {}
+  for (const [name, value] of new URLSearchParams(query)) {
+    const member = /^page\[([^\]]+)\]$/.exec(name)?.[1]
+    if (member === undefined) {
+      continue
+    }
+    const role = keys.find(([, key]) => key === member)?.[0]
+    const count = Number(value)
+    params[member] =
+      role !== undefined && !CURSOR_ROLES.includes(role) && value !== '' && Number.isFinite(count)
+        ? count
+        : value
+  }
+  return params as PageParamsOf<P>
+}
