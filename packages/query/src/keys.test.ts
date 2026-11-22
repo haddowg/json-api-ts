@@ -6,8 +6,10 @@ import {
   keyHasPrefix,
   normalizeParams,
   operationKey,
+  type QueryKey,
   relationReadKeys,
   resourceKey,
+  SKIPPED_SEGMENT,
   typeKey,
 } from './keys'
 
@@ -170,5 +172,25 @@ describe('infiniteKeyFor', () => {
     expect(keyHasPrefix(key, typeKey('albums'))).toBe(true)
     expect(keyHasPrefix(key, relationReadKeys('albums', '1', 'tracks')[0])).toBe(true)
     expect(keyHasPrefix(key, ['albums', 'fetchRelated', '2'])).toBe(false)
+  })
+})
+
+describe('SKIPPED_SEGMENT', () => {
+  it('is a frozen object segment, so no id or relation name can equal it', () => {
+    expect(SKIPPED_SEGMENT).toEqual({ $skip: true })
+    expect(Object.isFrozen(SKIPPED_SEGMENT)).toBe(true)
+  })
+
+  it('keyHasPrefix compares it by value, as TanStack matches keys', () => {
+    const skipped: QueryKey = ['albums', 'fetchRelated', SKIPPED_SEGMENT, 'tracks']
+    const rebuilt = JSON.parse(JSON.stringify(skipped)) as QueryKey
+    expect(keyHasPrefix(rebuilt, ['albums', 'fetchRelated', SKIPPED_SEGMENT])).toBe(true)
+    expect(keyHasPrefix(rebuilt, skipped)).toBe(true)
+    // An id spelt like the old string segment, or a params object that merely carries `$skip`,
+    // is not a skipped read.
+    expect(keyHasPrefix(['albums', 'fetchRelated', '$skip', 'tracks'], skipped)).toBe(false)
+    expect(
+      keyHasPrefix(['albums', 'fetchRelated', { $skip: true, x: 1 }], skipped.slice(0, 3)),
+    ).toBe(false)
   })
 })

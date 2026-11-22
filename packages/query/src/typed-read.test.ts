@@ -10,6 +10,7 @@ import {
 } from '@haddowg/json-api-client'
 import {
   type DataTag,
+  hashKey,
   QueryClient,
   QueryObserver,
   type QueryObserverOptions,
@@ -288,7 +289,7 @@ describe('skipToken', () => {
     const id = undefined as string | undefined
     const options = createQueryApi(client).albums.get(id ?? skipToken)
     expect(options.queryFn).toBe(skipToken)
-    expect(options.queryKey).toEqual(['albums', 'fetchOne', '$skip'])
+    expect(options.queryKey).toEqual(['albums', 'fetchOne', { $skip: true }])
     expectTypeOf(options).toEqualTypeOf<
       SkippableQueryOptions<FetchOneResult<D, Attributes, 'albums'>, ReadError<ErrorCode>>
     >()
@@ -308,6 +309,14 @@ describe('skipToken', () => {
     expect(typeof options.queryFn).toBe('function')
   })
 
+  it("never shares a skipped read's key with a real id", () => {
+    const { client } = makeClient()
+    const api = createQueryApi(client)
+    const skipped = api.albums.get(skipToken).queryKey
+    expect(api.albums.get('$skip').queryKey).not.toEqual(skipped)
+    expect(hashKey(api.albums.get('$skip').queryKey)).not.toBe(hashKey(skipped))
+  })
+
   it('skips a list in place of the query', () => {
     const { client } = makeClient()
     const search = undefined as string | undefined
@@ -317,11 +326,11 @@ describe('skipToken', () => {
       search === undefined ? skipToken : { include: ['artist'] },
     )
     expect(options.queryFn).toBe(skipToken)
-    expect(options.queryKey).toEqual(['albums', 'fetchMany', '$skip'])
+    expect(options.queryKey).toEqual(['albums', 'fetchMany', { $skip: true }])
     expect(createQueryApi(client).albums.list(skipToken).queryKey).toEqual([
       'albums',
       'fetchMany',
-      '$skip',
+      { $skip: true },
     ])
   })
 
@@ -331,12 +340,12 @@ describe('skipToken', () => {
     expect(api.albums.related(skipToken, 'artist').queryKey).toEqual([
       'albums',
       'fetchRelated',
-      '$skip',
+      { $skip: true },
       'artist',
     ])
     const linkage = relationshipQueryOptions(client, 'albums', skipToken, 'artist')
     expect(linkage.queryFn).toBe(skipToken)
-    expect(linkage.queryKey).toEqual(['albums', 'fetchRelationship', '$skip', 'artist'])
+    expect(linkage.queryKey).toEqual(['albums', 'fetchRelationship', { $skip: true }, 'artist'])
   })
 
   it("skips a singleton's reads in place of the query", () => {
@@ -344,11 +353,11 @@ describe('skipToken', () => {
     const api = createQueryApi(client)
     const get = api.inboxes.get(skipToken)
     expect(get.queryFn).toBe(skipToken)
-    expect(get.queryKey).toEqual(['inboxes', 'fetchOne', '$skip'])
+    expect(get.queryKey).toEqual(['inboxes', 'fetchOne', { $skip: true }])
     expect(api.inboxes.related('owner', skipToken).queryKey).toEqual([
       'inboxes',
       'fetchRelated',
-      '$skip',
+      { $skip: true },
       'owner',
     ])
     expect(getQueryOptions(client, 'inboxes', skipToken).queryFn).toBe(skipToken)

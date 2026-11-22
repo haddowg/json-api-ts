@@ -301,7 +301,7 @@ describe('infiniteListQueryOptions', () => {
     const { client, requests } = makeClient()
     const options = createQueryApi(client).albums.infinite(skipToken)
     expect(options.queryFn).toBe(skipToken)
-    expect(options.queryKey).toEqual(['albums', 'fetchMany', '$skip', INFINITE_SEGMENT])
+    expect(options.queryKey).toEqual(['albums', 'fetchMany', { $skip: true }, INFINITE_SEGMENT])
     expectTypeOf(options.queryFn).toExtend<SkipToken | ((...args: never[]) => unknown)>()
     expect(infiniteListQueryOptions(client, 'albums', skipToken).queryKey).toEqual(options.queryKey)
     const observer = new InfiniteQueryObserver(new QueryClient(), options)
@@ -365,7 +365,7 @@ describe('infiniteRelatedQueryOptions', () => {
     expect(options.queryKey).toEqual([
       'albums',
       'fetchRelated',
-      '$skip',
+      { $skip: true },
       'tracks',
       INFINITE_SEGMENT,
     ])
@@ -375,7 +375,7 @@ describe('infiniteRelatedQueryOptions', () => {
     expect(api.inboxes.relatedInfinite('messages', skipToken).queryKey).toEqual([
       'inboxes',
       'fetchRelated',
-      '$skip',
+      { $skip: true },
       'messages',
       INFINITE_SEGMENT,
     ])
