@@ -83,6 +83,8 @@ playlist.$pending('tracks')
 // [{ type: 'tracks', id: 't7', member: { type: 'tracks', id: 't7', title: 'Lucky' } }]
 ```
 
+`$pending(rel)` is part of every materialised resource's type, and the client returns `[]` from it when no cache layer is involved, so a hand-written mock typed as a resource (a test fixture, a story) needs a `$pending: () => []` stub.
+
 A parent's `$count(rel)` moves by the members a pending write added and removed. Both markers clear when the write settles, after its refetch.
 
 ## Placement
@@ -96,6 +98,25 @@ writes.albums.create({
   optimistic: { into: (q) => (q.params.sort === '-title' ? 'start' : false) },
 })
 // q.params.sort === '-createdAt' fails to compile where albums' lists take no such sort.
+```
+
+On a relation with a pivot, the member and the loaded members carry a typed `$pivot`: the entering member the write pivot you sent (`WritePivotOf`), the loaded ones the read pivot their document rendered (`PivotFieldsOf`). Either is `undefined` when absent, as on any per-edge value, and on a relation without a pivot `$pivot` is always `undefined`. So a placement can order by a pivot field:
+
+```ts
+writes.playlists
+  .id(pid)
+  .rel('orderedTracks')
+  .add({
+    optimistic: {
+      into: (q, member) =>
+        q.type === 'playlists' && q.rel === 'orderedTracks'
+          ? (members) =>
+              members.findIndex(
+                (m) => (m.$pivot?.position ?? Infinity) > (member.$pivot?.position ?? 0),
+              )
+          : false,
+    },
+  })
 ```
 
 `autoPlace: false` on the mutation cache places additions only through `into`. Whatever the placement, the write's settle refetches every view it considered, so the server's own order and paging win.

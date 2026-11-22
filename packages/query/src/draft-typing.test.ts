@@ -1,4 +1,4 @@
-import type { ApiDescriptor } from '@haddowg/json-api-client'
+import { type ApiDescriptor, createClient } from '@haddowg/json-api-client'
 import { QueryClient } from '@tanstack/query-core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
@@ -11,6 +11,8 @@ import {
   type RelationDraftQuery,
   type RelationInto,
 } from './draft'
+import { JsonApiMutationCache } from './mutation-cache'
+import { createMutationApi } from './mutate'
 import type { QueryDescription } from './view-shape'
 
 const descriptor = {
@@ -54,6 +56,11 @@ const descriptor = {
         cardinality: 'many',
         types: ['tracks'],
         pivot: true,
+        readPivot: {
+          fields: { position: 'integer', addedAt: 'date-time' },
+          required: ['position', 'addedAt'],
+        },
+        writePivot: { fields: { position: 'integer' }, required: ['position'] },
         sortable: ['position', '-position'],
         filterable: [],
       },
@@ -164,12 +171,97 @@ describe('typed into', () => {
     )
     draft().replaceMembers('albums', '1', 'tracks', [], {
       into: (_q, member) => {
-        expectTypeOf(member).toEqualTypeOf<DraftMember<'tracks'>>()
+        expectTypeOf(member).toEqualTypeOf<DraftMember<'tracks', never>>()
         return false
       },
     })
     // @ts-expect-error albums relate no `members`
     draft().attach('albums', '1', 'members', [])
+  })
+
+  it("types a placed member's $pivot from the relation's pivot", () => {
+    draft().attach(
+      'playlists',
+      'p1',
+      'tracks',
+      [{ type: 'tracks', id: 't1', $pivot: { position: 1 } }],
+      {
+        into: (q, member) => {
+          // The entering member carries the pivot the caller sent, the loaded ones the server's;
+          // either may be absent.
+          expectTypeOf(member.$pivot?.position).toEqualTypeOf<number | undefined>()
+          // @ts-expect-error the entering member may carry no pivot
+          void member.$pivot.position
+          // @ts-expect-error addedAt is read-only: a request pivot never carries it
+          void member.$pivot?.addedAt
+          return q.params.sort === 'position'
+            ? (members) => {
+                expectTypeOf(members[0]!.$pivot?.addedAt).toEqualTypeOf<string | undefined>()
+                // @ts-expect-error a loaded member may carry no pivot
+                void members[0]!.$pivot.position
+                // The design's example, reading the pivot as the client types it.
+                return members.findIndex(
+                  (m) => (m.$pivot?.position ?? Infinity) > (member.$pivot?.position ?? 0),
+                )
+              }
+            : false
+        },
+      },
+    )
+    draft().replaceMembers('playlists', 'p1', 'tracks', [], {
+      into: (_q, member) => (members) =>
+        members.findIndex((m) => (m.$pivot?.position ?? Infinity) > (member.$pivot?.position ?? 0)),
+    })
+    draft().attach('albums', '1', 'tracks', [{ type: 'tracks', id: 't1' }], {
+      into: (_q, member) => {
+        expectTypeOf(member.$pivot).toEqualTypeOf<undefined>()
+        // @ts-expect-error the albums' tracks carry no pivot
+        void member.$pivot.position
+        return (members) => {
+          // @ts-expect-error nor do the members already loaded
+          void members[0]!.$pivot.position
+          return -1
+        }
+      },
+    })
+  })
+
+  it("types a placed member's $pivot through the mutation factories", () => {
+    const writes = createMutationApi(
+      new QueryClient({ mutationCache: new JsonApiMutationCache() }),
+      createClient(descriptor, { baseUrl: 'https://api.test' }),
+      descriptor,
+    )
+    writes.playlists
+      .id('p1')
+      .rel('tracks')
+      .add({
+        optimistic: {
+          into: (q, member) =>
+            q.params.sort === 'position'
+              ? (members) =>
+                  members.findIndex(
+                    (m) => (m.$pivot?.position ?? Infinity) > (member.$pivot?.position ?? 0),
+                  )
+              : false,
+        },
+      })
+    writes.tracks.create({
+      attachTo: {
+        type: 'playlists',
+        id: 'p1',
+        rel: 'tracks',
+        into: (_q, member) => {
+          expectTypeOf(member.$pivot?.position).toEqualTypeOf<number | undefined>()
+          return (members) => {
+            expectTypeOf(members[0]!.$pivot?.position).toEqualTypeOf<number | undefined>()
+            // @ts-expect-error a loaded member may carry no pivot
+            void members[0]!.$pivot.position
+            return 0
+          }
+        },
+      },
+    })
   })
 
   it("types the draft's own into over every view and member", () => {

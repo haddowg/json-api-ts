@@ -963,6 +963,13 @@ function heldTransport(routes: Record<string, object | 'fail'>) {
   }
 }
 
+/** An ordered track's linkage, carrying its pivot. */
+const edge = (id: string, position: number) => ({
+  type: 'tracks',
+  id,
+  meta: { pivot: { position, weight: null, addedAt: '2026-01-01T00:00:00Z' } },
+})
+
 describe('optimistic updates', () => {
   it('shows an update before the server answers, and rolls it back when the write fails', async () => {
     const { transport, hold } = heldTransport({
@@ -1072,6 +1079,54 @@ describe('optimistic updates', () => {
     expect(cached.tracks.map((t) => t.id)).toEqual(['1'])
     expect(cached.$pending('tracks')).toEqual([{ type: 'tracks', id: '4' }])
 
+    release()
+    await add
+  })
+
+  it('places an added member by its typed pivot', async () => {
+    const linkagePath = `${BASE}/playlists/${PLAYLIST}/relationships/orderedTracks`
+    const { transport, hold } = heldTransport({
+      [`GET ${linkagePath}?page[size]=2`]: {
+        data: [edge('1', 1), edge('3', 3)],
+        links: { next: `${linkagePath}?page[number]=2&page[size]=2` },
+      },
+      [`POST ${linkagePath}`]: { data: [edge('1', 1), edge('2', 2), edge('3', 3)] },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const qc = jsonApiQueryClient()
+    const reads = createQueryApi(client)
+    const writes = createMutationApi(qc, client, resourceMap)
+    const linkage = reads.playlists.relationship(PLAYLIST, 'orderedTracks', { page: { size: 2 } })
+    await qc.fetchQuery(linkage)
+
+    // The page has a `next` link, so the member isn't placed automatically. `into` orders it by
+    // its pivot: the entering member's `$pivot` is the write pivot, the loaded ones' the read pivot.
+    const release = hold(`POST ${linkagePath}`)
+    const add = qc
+      .getMutationCache()
+      .build(
+        qc,
+        writes.playlists
+          .id(PLAYLIST)
+          .rel('orderedTracks')
+          .add({
+            optimistic: {
+              into: (q, member) =>
+                q.type === 'playlists' && q.rel === 'orderedTracks'
+                  ? (members) =>
+                      members.findIndex(
+                        (m) => (m.$pivot?.position ?? Infinity) > (member.$pivot?.position ?? 0),
+                      )
+                  : false,
+            },
+          }) as never,
+      )
+      .execute([{ type: 'tracks', id: '2', $pivot: { position: 2 } }])
+    expect((qc.getQueryData(linkage.queryKey) as Array<{ id: string }>).map((t) => t.id)).toEqual([
+      '1',
+      '2',
+      '3',
+    ])
     release()
     await add
   })
