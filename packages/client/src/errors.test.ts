@@ -31,6 +31,48 @@ describe('JsonApiError', () => {
     expect(byPath['title']).toHaveLength(2)
     expect(byPath['artist']).toHaveLength(1)
   })
+
+  describe('message', () => {
+    const generic = 'JSON:API request failed with status 422'
+
+    it('appends the first error title, which wins over its detail', () => {
+      const err = new JsonApiError(404, [{ title: 'Not Found', detail: 'No album 999.' }])
+      expect(err.message).toBe('JSON:API request failed with status 404: Not Found')
+    })
+
+    it('appends the first error detail when it has no title', () => {
+      expect(new JsonApiError(422, [{ detail: 'must not be blank' }]).message).toBe(
+        `${generic}: must not be blank`,
+      )
+    })
+
+    it('keeps the generic text when the first error has neither', () => {
+      expect(new JsonApiError(422, [{ status: '422', code: 'X' }]).message).toBe(generic)
+      expect(new JsonApiError(422, [{ title: '' }]).message).toBe(generic)
+    })
+
+    it('counts the further errors after the first error title', () => {
+      const err = new JsonApiError(422, [{ title: 'Invalid' }, { title: 'Other' }, {}])
+      expect(err.message).toBe(`${generic}: Invalid (and 2 more)`)
+    })
+
+    it('counts the further errors when the first has no title', () => {
+      expect(new JsonApiError(422, [{ detail: 'a' }, { detail: 'b' }]).message).toBe(
+        `${generic}: a (and 1 more)`,
+      )
+      expect(new JsonApiError(422, [{}, { title: 'Later' }]).message).toBe(
+        `${generic} (and 1 more)`,
+      )
+    })
+
+    it('keeps the generic text when the body carries no error objects', () => {
+      expect(new JsonApiError(422, []).message).toBe(generic)
+    })
+
+    it('uses an explicit message as given', () => {
+      expect(new JsonApiError(422, [{ title: 'Invalid' }], 'custom').message).toBe('custom')
+    })
+  })
 })
 
 type Code = 'ACCESS_DENIED' | 'PASSWORD_EXPIRED' | 'RESOURCE_NOT_FOUND'

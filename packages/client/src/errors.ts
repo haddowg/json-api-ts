@@ -42,6 +42,24 @@ export class StructuralGuardError extends Error {
 }
 
 /**
+ * The default {@link JsonApiError} message: the generic status line, then the first error object's
+ * `title` (else its `detail`) when it has one, then `" (and N more)"` for the further error
+ * objects. The wording matches the PHP client's.
+ */
+function describeErrors(status: number, errors: readonly JsonApiErrorObject[]): string {
+  let message = `JSON:API request failed with status ${status}`
+  const first = errors[0]
+  const words = first === undefined ? undefined : (first.title ?? first.detail)
+  if (typeof words === 'string' && words !== '') {
+    message += `: ${words}`
+  }
+  if (errors.length > 1) {
+    message += ` (and ${errors.length - 1} more)`
+  }
+  return message
+}
+
+/**
  * Thrown for any non-2xx JSON:API response. Carries the parsed error document plus
  * expressive status matchers and pointer-grouping helpers.
  *
@@ -53,7 +71,7 @@ export class JsonApiError<C extends string = string> extends Error {
   readonly errors: JsonApiErrorObject<C>[]
 
   constructor(status: number, errors: JsonApiErrorObject<C>[], message?: string) {
-    super(message ?? `JSON:API request failed with status ${status}`)
+    super(message ?? describeErrors(status, errors))
     this.name = 'JsonApiError'
     this.status = status
     this.errors = errors

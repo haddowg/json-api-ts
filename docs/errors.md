@@ -38,6 +38,8 @@ The matchers read straight off `status`:
 
 Each entry in `error.errors` is a JSON:API error object — `status`, `code`, `title`, `detail`, `source`, `meta` — exactly as the server sent it, so you can surface a `detail` message or branch on an application `code`.
 
+The error's `message` starts from `JSON:API request failed with status <status>`, then appends the first error object's `title` (else its `detail`) after a colon when it has one, then ` (and <N> more)` when the document carries further errors: `JSON:API request failed with status 404: Not Found`, or `JSON:API request failed with status 422: must not be blank (and 2 more)`. The wording matches the PHP client's.
+
 !!! note "`isValidationError()` is `isUnprocessable()`"
     They are aliases — 422 is the JSON:API validation status. Use whichever reads better at the call site.
 
