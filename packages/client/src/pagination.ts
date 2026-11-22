@@ -253,10 +253,12 @@ function pageParams<P extends Page>(
   const keys = Object.entries(page.keys) as [PaginatorRole, string][]
   const query = link.includes('?') ? link.slice(link.indexOf('?') + 1).split('#')[0] : ''
   const params: Record<string, string | number> = {}
-  for (const [name, value] of new URLSearchParams(query)) {
+  // `forEach` rather than `for…of`: iterating `URLSearchParams` needs the DOM iterable lib, which
+  // the client's ES2022 consumers (generated clients type-checked without DOM) don't have.
+  new URLSearchParams(query).forEach((value, name) => {
     const member = /^page\[([^\]]+)\]$/.exec(name)?.[1]
     if (member === undefined) {
-      continue
+      return
     }
     const role = keys.find(([, key]) => key === member)?.[0]
     const count = Number(value)
@@ -264,6 +266,6 @@ function pageParams<P extends Page>(
       role !== undefined && !CURSOR_ROLES.includes(role) && value !== '' && Number.isFinite(count)
         ? count
         : value
-  }
+  })
   return params as PageParamsOf<P>
 }
