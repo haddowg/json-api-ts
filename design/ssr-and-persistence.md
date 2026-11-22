@@ -1,7 +1,8 @@
 # SSR and persistence for the TanStack bindings: follow-on design
 
-Status: potential follow-on to [Angular on TanStack Query](angular-tanstack-query.md). Not
-scheduled; nothing is built. The estimates are relative and rough, not measured.
+Status: potential follow-on to the TanStack Query bindings (`docs/tanstack-query.md`,
+`docs/angular.md`). Not scheduled; nothing is built. The estimates are relative and rough, not
+measured.
 
 **Goal.** Server-side rendering and persisted query caches work for both frameworks that use
 `@haddowg/json-api-query`: React through `@tanstack/react-query` (classic SSR, and streaming with
@@ -28,10 +29,19 @@ Verified in `query-core` 5.108.1:
   streamed queries take the same path.
 - A restored mutation gets its `mutationFn` from `setMutationDefaults`, matched by key prefix.
 
-The main design already adopts the constraints that keep this additive (its "Keeping SSR and
-persistence additive" section): the mutation plan in `meta` is plain data, optimistic policies are
-deterministic from plan plus variables, generated and temporary ids live in the variables, and
-mutation keys grow only by trailing segments.
+The shipped bindings already hold to the constraints that keep this additive:
+
+1. **The upkeep plan in a mutation's `meta` is plain data** (verb, type, id, rel,
+   include/fields/withCount/wait, policy name). Closures (`optimistic` functions, `into`
+   placements, request-`meta` functions) live on the factory and are looked up by `mutationKey`,
+   the way TanStack restores `mutationFn`.
+2. **Optimistic changes are deterministic from plan plus variables**, so a resumed mutation can
+   re-derive its draft.
+3. **A generated or temporary id lives in the variables**, so a resumed create doesn't mint a
+   second one: the id the client generated for a type whose server requires client ids, or the
+   `$tempId` every other type's create carries.
+4. **Mutation keys grow only by trailing segments**, so prefix matching keeps an app's existing
+   filters working.
 
 ## Shared core (both frameworks)
 
@@ -64,7 +74,7 @@ included, across generated documents.
   `deserializeData` that apply only to queries whose key has the binding's shape, including each
   page of an infinite query.
 - `installNormalization` indexes queries arriving through the `added` event with data.
-- **Freshness stamps across machines.** The main design's R1 compares request start times. Data
+- **Freshness stamps across machines.** Normalisation compares the client's request stamps, a per-process counter. Data
   rendered on a server or restored from storage carries a timestamp from another machine or an
   earlier session, and clock skew could make it look newer than a fresh browser read. Hydrated and
   restored nodes are therefore stamped as the oldest possible, so any read made in the browser
@@ -119,9 +129,9 @@ The hard part, and almost all shared:
 - **Framework wiring is thin:** calling `resumePausedMutations` at the right moment through each
   framework's persistence provider.
 
-## Effort, relative to the main design
+## Effort, relative to the TanStack bindings pass
 
-The main design's pass is about 20 units:
+The pass that built the TanStack bindings was about 20 units:
 
 | Phase                                                  | Units |
 | ------------------------------------------------------ | ----- |
@@ -149,16 +159,16 @@ This follow-on:
 - The shared core costs the same for one framework or both, so if SSR becomes likely for either,
   plan both together as one phase. Build S1 and the stamp rule first, then each framework's wiring;
   React's classic path is the cheapest.
-- Building S1 alongside the main design's optimistic phase would be somewhat cheaper than later,
-  because the round trip must agree with the freshness stamps and optimistic markers designed there.
+- S1's round trip must agree with the request stamps and optimistic markers the bindings already
+  carry, so it is built against them rather than alongside them.
 - Offline write resumption stays its own project, only if offline-first editing becomes a
   requirement.
 
 ## Until then: the SSR guard
 
-The main pass ships an SSR guard in `json-api-query` for React and Angular alike (main design
-A8): binding queries are excluded from dehydration by default, and any that reach the browser
-without being materialised are reset and warned about. SSR apps refetch in the browser rather than
+`installNormalization` ships an SSR guard for React and Angular alike: on the server, any query
+whose data is a client result is left out of dehydration, and a binding query that reaches the
+browser without its accessors is reset, refetched and warned about. SSR apps refetch in the browser rather than
 render values without their accessors. This follow-on replaces the guard: S2's serialise and
 deserialise defaults take the place of its exclusion, and its browser check stays as a safety net
 for apps whose explicit `dehydrate` options skip the serialiser.
