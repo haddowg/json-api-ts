@@ -198,6 +198,8 @@ The first page is the query's own `page`, or the server's first page when the qu
 
 `reads.<type>.relatedInfinite(id, rel, query)` pages a to-many relation's related collection the same way. A to-one relation is a compile error there, having no pages, as is a to-many whose related read the descriptor records as unpaginated (paginator `'none'`, the relation's own or else its related type's), and a singleton drops the id, as its other reads do. A type whose collection paginator is `'none'` has no `infinite` at all. The standalone forms are `infiniteListQueryOptions(client, type, query)` and `infiniteRelatedQueryOptions(client, type, id, rel, query)`, which refuse the same unpaginated types and relations.
 
+To name these surfaces in your own types: `TypeQueryApi<D, A, T, E>` is one type's bound reads, and it is a type alias, the intersection of `TypeReadQueryApi<D, A, T, E>` (every read a type has, `relatedInfinite` included) and, for a type whose paginator isn't `'none'`, `InfiniteListQueryApi<D, A, T, E>` (its `infinite`). Being an alias, it can't be extended by declaration merging: augment `TypeReadQueryApi` or `InfiniteListQueryApi` instead. `PaginatedTypeName<D>` is the union of the types `infinite` exists on, and `PaginatedRelationName<D, T>` the relations of `T` that `relatedInfinite` takes.
+
 The key is the plain read's key plus a trailing `'$infinite'`: `[type, 'fetchMany', params?, '$infinite']` and `[type, 'fetchRelated', id, rel, params?, '$infinite']`. That keeps the cached pages apart from the plain read of the same query, and under the same prefixes, so a create or delete invalidates a type's infinite lists with its other lists, and a relationship write invalidates the parent's infinite related reads. The key is tagged with TanStack's `InfiniteData` of the read's pages and page params, so `getQueryData(options.queryKey)` is typed, and `error` is typed as for a plain read.
 
 `skipToken` in place of the query, or of a related read's id, skips the read, and the key ends `{ $skip: true }, rel?, '$infinite'`:
@@ -372,6 +374,37 @@ a singleton relation's two read prefixes.
 A [skipped read](#skipping-a-read-with-skiptoken)'s key is `[type, operation, { $skip: true }, rel?]`, and an [infinite read](#infinite-queries)'s is its plain read's key plus `'$infinite'`.
 
 You rarely build a key yourself — the factories embed the right key, and normalisation drives invalidation from mutations. The helpers (`keyFor`, `infiniteKeyFor`, `typeKey`, `operationKey`, `resourceKey`, `relationKey`, `relationReadKeys`, `normalizeParams`) are exported for the cases where you need a targeted invalidation of your own.
+
+### Reading and building keys yourself
+
+A few more helpers are exported for code that inspects keys, such as a `QueryCache` listener, a `predicate` filter or a custom dehydrate rule, or that builds a key for a [scope](#several-servers):
+
+| Export | What it is | When you'd use it |
+| ------ | ---------- | ----------------- |
+| `keyHasPrefix(key, prefix)` | True when `key` starts with `prefix`, segment by segment: a scope segment compared by its scope, a skipped-read segment by value, every other segment by identity (so compare a prefix that stops before the params) | A `predicate` that combines a prefix with another condition, which `queryKey` alone can't express |
+| `parentRelationReadKeys(type, id, rel, scope?)` | A relation's two read prefixes, related and relationship: `relationReadKeys` for a resource, or `singletonRelationReadKeys` when `id` is `undefined` | Invalidating or matching one parent's relation reads without caring whether the type is a singleton |
+| `scopedKey(key, scope)` | `key` led by `{ $scope: scope }`, replacing any scope it had; with `undefined`, the key unscoped | Putting a key you built, or one a factory built for another scope, into a scope |
+| `scopeSegment(scope)` | The `{ $scope }` segment itself | A prefix for everything in one scope, such as `useIsMutating({ mutationKey: [scopeSegment('admin')] })` |
+| `scopeOf(key)` | The scope a query's or mutation's key is in, or `undefined` | Routing a global `onError` or a log by server |
+| `isScopeSegment(segment)` | True when a segment is a `{ $scope }` segment | Skipping the scope before reading a key's type, as `key[isScopeSegment(key[0]) ? 1 : 0]` |
+| `INFINITE_SEGMENT` | `'$infinite'`, the last segment of an [infinite read](#infinite-queries)'s key | Telling infinite reads apart from plain ones: `key.at(-1) === INFINITE_SEGMENT` |
+| `SKIPPED_SEGMENT` | `{ $skip: true }`, the segment a [skipped read](#skipping-a-read-with-skiptoken)'s key carries; its type is `SkippedSegment` | Recognising a skipped read's key. Compare by value (`keyHasPrefix` does): a key TanStack rebuilt holds an equal object, not this one |
+
+```ts
+import { keyHasPrefix, resourceKey, scopedKey, typeKey } from '@haddowg/json-api-query'
+
+// Every album read except the album's own, which a predicate can say and a queryKey can't.
+queryClient.invalidateQueries({
+  predicate: (query) =>
+    keyHasPrefix(query.queryKey, typeKey('albums')) &&
+    !keyHasPrefix(query.queryKey, resourceKey('albums', '1')),
+})
+
+// The same list read, in the admin server's scope.
+scopedKey(reads.users.list().queryKey, 'admin') // [{ $scope: 'admin' }, 'users', 'fetchMany']
+```
+
+Both run under `pnpm test` in [keys.test.ts](../packages/query/src/keys.test.ts) (the `documented key helpers` group).
 
 ## Normalisation: `type:id` write-through patching
 

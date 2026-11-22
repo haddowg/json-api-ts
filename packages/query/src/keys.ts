@@ -347,9 +347,10 @@ export function parentRelationReadKeys(
  * segment by identity). The cache-walking optimistic/invalidation paths use it to find every page
  * variant of a `(parent, relation)` read (whose params ride the key's trailing segment). Mirrors
  * TanStack's own prefix-based `queryKey` matching so a targeted patch and TanStack's
- * `invalidateQueries` agree.
+ * `invalidateQueries` agree. Takes any query or mutation key, so it reads `query.queryKey` in a
+ * `predicate` as it is.
  */
-export function keyHasPrefix(key: QueryKey, prefix: QueryKey): boolean {
+export function keyHasPrefix(key: readonly unknown[], prefix: readonly unknown[]): boolean {
   if (key.length < prefix.length) {
     return false
   }

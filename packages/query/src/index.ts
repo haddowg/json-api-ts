@@ -142,13 +142,7 @@ export {
 } from './mutation-cache'
 export { type ScopeOption, withScope } from './scope'
 export { type PendingCreateOf, type PendingList, type PendingPages, withPending } from './pending'
-export {
-  applyOptimisticPatch,
-  type MembershipRef,
-  normalize,
-  sameRef,
-  type Snapshot,
-} from './normalize'
+export { normalize } from './normalize'
 export {
   createQueryApi,
   type FetchOneResult,
