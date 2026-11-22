@@ -5,8 +5,10 @@ import type {
   CreateInput,
   FieldsMap,
   IncludePath,
+  PivotFieldsOf,
   ReadResult,
   UpdateInput,
+  WritePivotOf,
 } from './result-types'
 
 // A descriptor shaped like codegen output for generator contract 8: a write-only relation
@@ -153,6 +155,20 @@ describe('pivot shapes', () => {
     ]
     void add
     void missing
+  })
+
+  it('exports each side of a relation’s pivot', () => {
+    type Read = PivotFieldsOf<Map, 'playlists', 'orderedTracks'>
+    expectTypeOf<Read['position']>().toEqualTypeOf<number>()
+    expectTypeOf<Read['weight']>().toEqualTypeOf<number | null>()
+    type Write = WritePivotOf<Map, 'playlists', 'orderedTracks'>
+    expectTypeOf<Write['position']>().toEqualTypeOf<number>()
+    // @ts-expect-error the request pivot takes no read-only field
+    expectTypeOf<Write['addedAt']>()
+    // A relation without pivot fields keeps the loose record.
+    expectTypeOf<PivotFieldsOf<Map, 'playlists', 'publisher'>>().toEqualTypeOf<
+      Record<string, unknown>
+    >()
   })
 
   it('types create and update pivots from writePivot', () => {
