@@ -745,6 +745,27 @@ Changelog-kept behaviour changes:
 - pnpm must resolve one `@tanstack/query-core` for both `json-api-query` and
   `@tanstack/angular-query`, which pins an exact version.
 
+## Possible optimisation: incremental index updates for top-level list edits
+
+Build only if large caches need it. With about 5,000 cached resources, an optimistic delete and its
+rollback take about 8 ms (`bench/cache.bench.ts`), against under 1 ms for the other operations. The
+draft's edit to a query's own member list (`evict`, `insert`, a pending create) replaces the list,
+so the `type:id` index walks that query again at its next lookup, and again after a rollback. An
+edit inside a relation slot already re-walks only the list member reaching it (`resegment`).
+
+The draft knows which members it removed or inserted and where, so it could update the index
+directly:
+
+- on removal, drop the visits only the removed member reached (each `Visit` records its `member`),
+  leaving gaps in walk order, which lookups only compare;
+- on insertion or rollback, walk only the entering member and place its visits at its position;
+- fall back to the full walk when a copy the removed member reached first is also reached elsewhere
+  in the query, as `resegment` does.
+
+That should bring the delete near the attach's cost and make pending creates into large lists
+cheaper. Test it by comparing the incrementally updated index with a freshly built one after random
+inserts, evictions and rollbacks.
+
 ## Keeping SSR and persistence additive
 
 Verified in `query-core` 5.108.1:
