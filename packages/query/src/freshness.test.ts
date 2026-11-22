@@ -4,11 +4,16 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { type InfiniteData, InfiniteQueryObserver, QueryClient } from '@tanstack/query-core'
+import {
+  type InfiniteData,
+  InfiniteQueryObserver,
+  MutationObserver,
+  QueryClient,
+} from '@tanstack/query-core'
 import { describe, expect, it, vi } from 'vitest'
 import { nextStamp, stampResult } from './freshness'
 import { installNormalization } from './install'
-import { updateMutationOptions } from './mutate'
+import { atomicMutationOptions, updateMutationOptions } from './mutate'
 import { JsonApiMutationCache } from './mutation-cache'
 import { normalize } from './normalize'
 import { getQueryOptions, infiniteListQueryOptions, listQueryOptions } from './read'
@@ -317,6 +322,51 @@ describe('every client result competes by when its request started', () => {
 
     expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'New' })
     expect((queryClient.getQueryData(own.queryKey) as unknown as Album[])[0]?.title).toBe('New')
+  })
+
+  it('judges an atomic batch’s results by when the batch started', async () => {
+    const { client, queryClient, request } = setup()
+    const one = getQueryOptions(client, 'albums', '1')
+    const seeded = queryClient.fetchQuery(one)
+    ;(await request(0)).reply({ data: album('1', 'Original') })
+    await seeded
+
+    // The batch starts, then a refetch; the refetch answers first, the batch last.
+    const batch = new MutationObserver(
+      queryClient,
+      atomicMutationOptions(queryClient, client, descriptor) as never,
+    )
+    const written = batch.mutate(((tx: { update(input: unknown): unknown }) => {
+      tx.update({ type: 'albums', id: '1', title: 'Batched' })
+    }) as never)
+    await request(1)
+    const refetch = queryClient.refetchQueries({ queryKey: one.queryKey })
+    ;(await request(2)).reply({ data: album('1', 'Read after') })
+    await refetch
+    ;(await request(1)).reply({ 'atomic:results': [{ data: album('1', 'Batched') }] })
+    await written
+
+    expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'Read after' })
+  })
+
+  it('lets an atomic batch’s results overwrite reads started before it', async () => {
+    const { client, queryClient, request } = setup()
+    const one = getQueryOptions(client, 'albums', '1')
+    const seeded = queryClient.fetchQuery(one)
+    ;(await request(0)).reply({ data: album('1', 'Original') })
+    await seeded
+
+    const batch = new MutationObserver(
+      queryClient,
+      atomicMutationOptions(queryClient, client, descriptor) as never,
+    )
+    const written = batch.mutate(((tx: { update(input: unknown): unknown }) => {
+      tx.update({ type: 'albums', id: '1', title: 'Batched' })
+    }) as never)
+    ;(await request(1)).reply({ 'atomic:results': [{ data: album('1', 'Batched') }] })
+    await written
+
+    expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'Batched' })
   })
 
   it('counts data the app writes with setQueryData as current when written', async () => {
