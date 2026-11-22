@@ -121,6 +121,30 @@ export function infiniteKeyFor(target: KeyTarget, params?: unknown): QueryKey {
   return [...keyFor(target, params), INFINITE_SEGMENT]
 }
 
+/** The shape of {@link SKIPPED_SEGMENT}. */
+export type SkippedSegment = { readonly $skip: true }
+
+/**
+ * The segment a skipped read's key carries where the id would go (or, for a list or a singleton,
+ * after the operation): `[type, operation, { $skip: true }, rel?]`. A skipped read keeps no params,
+ * so every skipped read of one `(type, operation, rel)` shares a key. Being an object, it can never
+ * equal an id or a relation name, and JSON:API member names can't contain `$`, so no params object
+ * a read builds equals it either. Compare a key's segment with it by value, as TanStack does: a key
+ * hashed and rebuilt holds an equal object, not this one.
+ */
+export const SKIPPED_SEGMENT: SkippedSegment = Object.freeze({ $skip: true })
+
+/** True when a key segment is {@link SKIPPED_SEGMENT}, compared by value. */
+function isSkippedSegment(part: unknown): boolean {
+  return (
+    typeof part === 'object' &&
+    part !== null &&
+    !Array.isArray(part) &&
+    Object.keys(part).length === 1 &&
+    (part as { $skip?: unknown }).$skip === true
+  )
+}
+
 /** True when a normalised params value carries no information (an empty object or array, or null). */
 function isEmptyNormalized(value: NormalizedParams): boolean {
   if (value === null) {
@@ -219,8 +243,9 @@ export function parentRelationReadKeys(
 }
 
 /**
- * True when `key` is prefixed by `prefix` (segment-by-segment string equality over the prefix's
- * length). The cache-walking optimistic/invalidation paths use it to find every page variant of a
+ * True when `key` is prefixed by `prefix` (segment-by-segment equality over the prefix's length,
+ * comparing a {@link SKIPPED_SEGMENT} by value and any other segment by identity). The
+ * cache-walking optimistic/invalidation paths use it to find every page variant of a
  * `(parent, relation)` read (whose params ride the key's trailing segment). Mirrors TanStack's own
  * prefix-based `queryKey` matching so a targeted patch and TanStack's `invalidateQueries` agree.
  */
@@ -229,7 +254,7 @@ export function keyHasPrefix(key: QueryKey, prefix: QueryKey): boolean {
     return false
   }
   for (let i = 0; i < prefix.length; i++) {
-    if (key[i] !== prefix[i]) {
+    if (key[i] !== prefix[i] && !(isSkippedSegment(key[i]) && isSkippedSegment(prefix[i]))) {
       return false
     }
   }

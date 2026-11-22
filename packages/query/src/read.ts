@@ -53,6 +53,7 @@ import {
   keyFor,
   type QueryKey,
   type ReadOperation,
+  SKIPPED_SEGMENT,
 } from './keys'
 
 /**
@@ -277,14 +278,6 @@ function withSignal<Q extends object>(query: Q | undefined, signal: AbortSignal 
 function tag<R, E>(key: QueryKey): DataTag<QueryKey, R, E> {
   return key as DataTag<QueryKey, R, E>
 }
-
-/**
- * The segment a skipped read's key carries where the id would go (or, for a list or a singleton,
- * after the operation): `[type, operation, '$skip', rel?]`. A skipped read keeps no params, so
- * every skipped read of one `(type, operation, rel)` shares a key, which never collides with a
- * list's or a singleton's real reads (whose segment there is a params object, or absent).
- */
-export const SKIPPED_SEGMENT = '$skip'
 
 /** The deterministic key of a skipped read. */
 function skippedKey(type: string, operation: ReadOperation, rel?: string): QueryKey {
@@ -568,7 +561,7 @@ function infiniteRelatedOptions<D extends ApiDescriptor, A>(
  * The collection-list read (`GET /{type}`): options resolving the typed `Collection`, narrowed by
  * `include`/`fields` exactly as `client.<type>.list(query)`. The key is `[type, 'fetchMany',
  * <params>]` — the normalised query rides the trailing segment, so two equal queries share a key.
- * Passing `skipToken` for the query skips the read (key `[type, 'fetchMany', '$skip']`).
+ * Passing `skipToken` for the query skips the read (key `[type, 'fetchMany', { $skip: true }]`).
  */
 export function listQueryOptions<
   D extends ApiDescriptor,
@@ -612,7 +605,8 @@ export function listQueryOptions<D extends ApiDescriptor, A>(
  * Key: `[type, 'fetchOne', id, <params>]` — the `id` sits at a fixed position so {@link keyFor}'s
  * prefix matches a resource's reads. A singleton (`GET /inbox`) takes `undefined` for the id and
  * reads as `client.<type>.get(query)`, keyed `[type, 'fetchOne', <params>]`. Passing `skipToken`
- * for the id skips the read (key `[type, 'fetchOne', '$skip']`), as in `get(id ?? skipToken)`.
+ * for the id skips the read (key `[type, 'fetchOne', { $skip: true }]`), as in
+ * `get(id ?? skipToken)`.
  */
 export function getQueryOptions<
   D extends ApiDescriptor,
@@ -644,7 +638,8 @@ export function getQueryOptions<
  * shape; the relationship endpoint's per-relation value is loose at the `.rel(name)` boundary, so
  * the option resolves `unknown` unless the caller annotates it (parity with the client's runtime).
  * A singleton takes `undefined` for the id, keyed `[type, 'fetchRelationship', rel, <params>]`.
- * Passing `skipToken` for the id skips the read (key `[type, 'fetchRelationship', '$skip', rel]`).
+ * Passing `skipToken` for the id skips the read (key `[type, 'fetchRelationship',
+ * { $skip: true }, rel]`).
  */
 export function relationshipQueryOptions<
   D extends ApiDescriptor,
@@ -676,7 +671,7 @@ export function relationshipQueryOptions<
  * 'fetchRelated', id, rel, <params>]`. As with linkage, the related value is loose at the
  * `.rel(name)` boundary, so this resolves `unknown` (parity with the client runtime). A singleton
  * takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>]`. Passing `skipToken`
- * for the id skips the read (key `[type, 'fetchRelated', '$skip', rel]`).
+ * for the id skips the read (key `[type, 'fetchRelated', { $skip: true }, rel]`).
  */
 export function relatedQueryOptions<
   D extends ApiDescriptor,
@@ -708,8 +703,8 @@ export function relatedQueryOptions<
  * is the query's own `page` (the server's first page when it has none), and each next or previous
  * page is read with the `page` params of the `next`/`prev` link. Key: `[type, 'fetchMany',
  * <params>, '$infinite']`, under the same `[type, 'fetchMany']` prefix a create or delete
- * invalidates. Passing `skipToken` for the query skips the read (key `[type, 'fetchMany', '$skip',
- * '$infinite']`).
+ * invalidates. Passing `skipToken` for the query skips the read (key `[type, 'fetchMany',
+ * { $skip: true }, '$infinite']`).
  */
 export function infiniteListQueryOptions<
   D extends ApiDescriptor,
@@ -759,7 +754,7 @@ export function infiniteListQueryOptions<D extends ApiDescriptor, A>(
  * '$infinite']`, under the `(parent, relation)` prefix a relationship write invalidates. A
  * singleton takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>,
  * '$infinite']`. Passing `skipToken` for the id skips the read (key `[type, 'fetchRelated',
- * '$skip', rel, '$infinite']`).
+ * { $skip: true }, rel, '$infinite']`).
  */
 export function infiniteRelatedQueryOptions<
   D extends ApiDescriptor,

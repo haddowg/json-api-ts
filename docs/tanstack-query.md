@@ -141,7 +141,7 @@ const albumsQuery = useQuery(reads.albums.list(ready ? { include: ['artist'] } :
 const artistQuery = useQuery(reads.albums.related(albumId ?? skipToken, 'artist'))
 ```
 
-A singleton takes `skipToken` in place of its query (`reads.inboxes.get(skipToken)`). A skipped read's key carries the segment `'$skip'` where the id would go, `[type, operation, '$skip', rel?]`, with no params, so it is deterministic and never matches a list's or singleton's real reads. `useSuspenseQuery` doesn't accept `skipToken`, as TanStack documents.
+A singleton takes `skipToken` in place of its query (`reads.inboxes.get(skipToken)`). A skipped read's key carries the object segment `{ $skip: true }` (exported as `SKIPPED_SEGMENT`) where the id would go, `[type, operation, { $skip: true }, rel?]`, with no params, so it is deterministic and never matches a real read: no id or relation name equals an object, and no params object a read builds has a `$skip` member. TanStack and `keyHasPrefix` compare it by value. `useSuspenseQuery` doesn't accept `skipToken`, as TanStack documents.
 
 ## Infinite queries
 
@@ -164,7 +164,7 @@ The first page is the query's own `page`, or the server's first page when the qu
 
 The key is the plain read's key plus a trailing `'$infinite'`: `[type, 'fetchMany', params?, '$infinite']` and `[type, 'fetchRelated', id, rel, params?, '$infinite']`. That keeps the cached pages apart from the plain read of the same query, and under the same prefixes, so a create or delete invalidates a type's infinite lists with its other lists, and a relationship write invalidates the parent's infinite related reads. The key is tagged with TanStack's `InfiniteData` of the read's pages and page params, so `getQueryData(options.queryKey)` is typed, and `error` is typed as for a plain read.
 
-`skipToken` in place of the query, or of a related read's id, skips the read, and the key ends `'$skip', rel?, '$infinite'`:
+`skipToken` in place of the query, or of a related read's id, skips the read, and the key ends `{ $skip: true }, rel?, '$infinite'`:
 
 ```ts
 const albums = useInfiniteQuery(reads.albums.infinite(ready ? { page: { size: 20 } } : skipToken))
@@ -257,7 +257,7 @@ The update's variables carry the resource's `id`, as the client's singleton upda
 optimistic update patches the resource that id names. `singletonRelationReadKeys(type, rel)` gives
 a singleton relation's two read prefixes.
 
-A [skipped read](#skipping-a-read-with-skiptoken)'s key is `[type, operation, '$skip', rel?]`, and an [infinite read](#infinite-queries)'s is its plain read's key plus `'$infinite'`.
+A [skipped read](#skipping-a-read-with-skiptoken)'s key is `[type, operation, { $skip: true }, rel?]`, and an [infinite read](#infinite-queries)'s is its plain read's key plus `'$infinite'`.
 
 You rarely build a key yourself — the factories embed the right key, and normalisation drives invalidation from mutations. The helpers (`keyFor`, `infiniteKeyFor`, `typeKey`, `operationKey`, `resourceKey`, `relationKey`, `relationReadKeys`, `normalizeParams`) are exported for the cases where you need a targeted invalidation of your own.
 
