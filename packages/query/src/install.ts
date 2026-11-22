@@ -43,7 +43,7 @@ type ShouldDehydrate = (query: Query) => boolean
  * ```ts
  * dehydrate(queryClient, {
  *   shouldDehydrateQuery: jsonApiShouldDehydrateQuery(
- *     (q) => defaultShouldDehydrateQuery(q) && q.queryKey[0] !== 'session',
+ *     (q) => defaultShouldDehydrateQuery(q) || q.state.status === 'pending',
  *   ),
  * })
  * ```
@@ -51,8 +51,9 @@ type ShouldDehydrate = (query: Query) => boolean
  * It judges a query by its data, not its key, so it needs no descriptor: a query you build
  * yourself around a client call is left out like the binding's own reads, infinite reads
  * included, and a query holding plain data is passed to `next` whatever its key. A query still
- * pending has no data to judge, so it too is passed to `next`: including pending queries sends a
- * pending client read's result through JSON without its accessors.
+ * pending has no data to judge, so it too is passed to `next`. A pending binding read dehydrated
+ * that way resolves in the browser without its accessors, and {@link installNormalization}'s
+ * hydration check refetches it there.
  */
 export function jsonApiShouldDehydrateQuery(next: ShouldDehydrate = defaultShouldDehydrateQuery) {
   return (query: Query): boolean => !isMaterialisedData(query.state.data) && next(query)
@@ -78,6 +79,13 @@ function warnOnce(queryClient: QueryClient, query: Query): void {
       'TanStack Query docs.',
   )
 }
+
+/** True when a binding query holds data that isn't a materialised value: it lost its accessors. */
+const isStripped = (query: Query): boolean =>
+  isBindingKey(query.queryKey) &&
+  query.state.data !== undefined &&
+  query.state.data !== null &&
+  !isMaterialisedData(query.state.data)
 
 /** Tear down an installed normalization subscription. Idempotent. */
 export type Teardown = () => void
@@ -171,26 +179,47 @@ export function installNormalization(
     }
   }
 
+  // Refetch a query that lost its accessors (deferred, so not inside `hydrate`'s loop).
+  const reset = (query: Query): void => {
+    queueMicrotask(() => {
+      void queryClient.resetQueries({ queryKey: query.queryKey, exact: true })
+    })
+  }
+
+  // Binding queries added pending with no query function: what `hydrate` builds for a query
+  // dehydrated while pending, before it settles with the streamed promise's result.
+  const awaitingHydration = new WeakSet<Query>()
+
   const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
     // Hydration check: a binding query added with data that isn't a materialised value lost its
     // accessors on the way through JSON, so refetch it (deferred, so not inside `hydrate`'s loop).
     if (event.type === 'added') {
       const { query } = event
-      if (
-        isBindingKey(query.queryKey) &&
-        query.state.data !== undefined &&
-        !isMaterialisedData(query.state.data)
-      ) {
+      if (isStripped(query)) {
         warnOnce(queryClient, query)
-        queueMicrotask(() => {
-          void queryClient.resetQueries({ queryKey: query.queryKey, exact: true })
-        })
+        reset(query)
+      } else if (
+        isBindingKey(query.queryKey) &&
+        query.state.status === 'pending' &&
+        query.options.queryFn === undefined
+      ) {
+        awaitingHydration.add(query)
       }
       return
     }
-    // Patch on a settled success — the query's data is the freshest copy of its resources.
     if (event.type === 'updated' && event.action.type === 'success') {
-      run(event.query.state.data)
+      const { query } = event
+      // A pending binding read dehydrated on the server hydrates as a promise and settles here,
+      // its first time, with the result stripped by JSON: refetch it. Only that first settle is
+      // checked (`setQueryData`, being `manual`, doesn't count), so a fetch the client runs is
+      // never reset, and the refetch can't loop.
+      if (event.action.manual !== true && awaitingHydration.delete(query) && isStripped(query)) {
+        warnOnce(queryClient, query)
+        reset(query)
+        return
+      }
+      // Patch on a settled success — the query's data is the freshest copy of its resources.
+      run(query.state.data)
     }
   })
 

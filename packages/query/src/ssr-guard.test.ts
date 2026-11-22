@@ -154,6 +154,93 @@ describe('jsonApiShouldDehydrateQuery', () => {
   })
 })
 
+describe('hydration check for a streamed pending read', () => {
+  it('refetches a pending binding read that resolves without its accessors, once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // A server whose albums list answers only when the test releases it, so it dehydrates pending.
+    const latch: { release?: () => void } = {}
+    const gate = new Promise<void>((resolve) => {
+      latch.release = resolve
+    })
+    const slow = createClient(descriptor, {
+      baseUrl: 'https://music.example',
+      transport: async () => {
+        await gate
+        return { status: 200, headers: {}, body: JSON.stringify({ data: [album('1', 'A')] }) }
+      },
+    })
+    const server = new QueryClient()
+    installNormalization(server, descriptor)
+    void server.prefetchQuery(listQueryOptions(slow, 'albums'))
+    const dehydrated = dehydrate(server, {
+      shouldDehydrateQuery: (q) => q.state.status === 'pending' || jsonApiShouldDehydrateQuery()(q),
+    })
+    expect(dehydrated.queries.map((q) => q.state.status)).toEqual(['pending'])
+    // The wire: JSON for the state, and the promise streamed as its result's JSON.
+    const wire = {
+      ...(JSON.parse(JSON.stringify(dehydrated)) as typeof dehydrated),
+      queries: dehydrated.queries.map((q) => ({
+        ...(JSON.parse(JSON.stringify(q)) as typeof q),
+        promise: q.promise?.then((data) => JSON.parse(JSON.stringify(data)) as unknown),
+      })),
+    }
+
+    const browser = new QueryClient()
+    installNormalization(browser, descriptor)
+    const options = listQueryOptions(makeClient('B'), 'albums')
+    const reset = vi.spyOn(browser, 'resetQueries')
+    hydrate(browser, wire)
+    const observer = new QueryObserver(browser, { ...options, staleTime: Infinity })
+    const unsubscribe = observer.subscribe(() => {})
+
+    latch.release?.()
+    for (let i = 0; i < 5; i++) {
+      await flush()
+    }
+
+    expect(reset).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('albums')
+    const data = browser.getQueryData(options.queryKey)
+    expect(isMaterialised(data)).toBe(true)
+    expect(data?.[0]?.title).toBe('B')
+    expect(observer.getCurrentResult().data?.$page.kind).toBe('page')
+    unsubscribe()
+  })
+
+  it('never resets a normal fetch or a setQueryData of a binding read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const qc = new QueryClient()
+    installNormalization(qc, descriptor)
+    const reset = vi.spyOn(qc, 'resetQueries')
+    const options = listQueryOptions(makeClient(), 'albums')
+    await qc.fetchQuery(options)
+    await qc.refetchQueries({ queryKey: options.queryKey })
+    qc.setQueryData(['albums', 'fetchMany', 'plain'] as readonly unknown[], ['x'])
+    await flush()
+    expect(reset).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('never resets a query of your own keyed like a binding read, holding plain data', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const qc = new QueryClient()
+    installNormalization(qc, descriptor)
+    const reset = vi.spyOn(qc, 'resetQueries')
+    const queryFn = vi.fn(() => Promise.resolve([{ id: '1' }]))
+    const observer = new QueryObserver(qc, { queryKey: ['albums', 'fetchMany', 'mine'], queryFn })
+    const unsubscribe = observer.subscribe(() => {})
+    for (let i = 0; i < 5; i++) {
+      await flush()
+    }
+    expect(reset).not.toHaveBeenCalled()
+    expect(queryFn).toHaveBeenCalledTimes(1)
+    expect(warn).not.toHaveBeenCalled()
+    expect(observer.getCurrentResult().data).toEqual([{ id: '1' }])
+    unsubscribe()
+  })
+})
+
 describe('hydration check', () => {
   it('refetches a hydrated binding query with one warning, and leaves others alone', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

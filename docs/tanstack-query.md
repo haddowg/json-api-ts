@@ -386,12 +386,12 @@ import { jsonApiShouldDehydrateQuery } from '@haddowg/json-api-query'
 
 dehydrate(queryClient, {
   shouldDehydrateQuery: jsonApiShouldDehydrateQuery(
-    (query) => defaultShouldDehydrateQuery(query) && query.queryKey[0] !== 'session',
+    (query) => defaultShouldDehydrateQuery(query) || query.state.status === 'pending',
   ),
 })
 ```
 
-A query still pending when you dehydrate has no data to judge, so the predicate passes it to yours. Including pending queries, as TanStack's streaming setup does, sends a pending client read's result through JSON without its accessors.
+A query still pending when you dehydrate has no data to judge, so the predicate passes it to yours. When yours includes pending queries, as TanStack's streaming setup does, a pending binding read resolves in the browser without its accessors, so it is reset and refetched there as it resolves, with the same development warning.
 
 The cost is a refetch in the browser, so the first render can differ from the server HTML.
 
