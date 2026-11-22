@@ -57,7 +57,11 @@ function setup(scope?: string) {
         reply: (body, status = 200) => resolve({ status, headers: {}, body: JSON.stringify(body) }),
       })
     })
-  const client = createClient(descriptor, { baseUrl: BASE, transport })
+  const client = createClient(descriptor, {
+    baseUrl: BASE,
+    transport,
+    atomic: { path: '/operations' },
+  })
   const queryClient = new QueryClient({
     mutationCache: new JsonApiMutationCache(),
     defaultOptions: { queries: { staleTime: Infinity } },
@@ -256,6 +260,82 @@ describe('newer data wins when responses race', () => {
 
     // The read replaced the prediction, so the rollback leaves the read's values in place.
     expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'Server', year: 2023 })
+  })
+})
+
+describe('every client result competes by when its request started', () => {
+  it('lets a factory read win over an older request in a query the app built', async () => {
+    const { client, queryClient, request } = setup()
+    const own = { queryKey: ['mine', 'album', '1'], queryFn: () => client.albums.get('1') }
+    const one = getQueryOptions(client, 'albums', '1')
+
+    // The app's query starts first, the factory read second; the app's answers last, older.
+    const a = queryClient.fetchQuery(own)
+    const b = queryClient.fetchQuery(one)
+    ;(await request(1)).reply({ data: album('1', 'New') })
+    await b
+    ;(await request(0)).reply({ data: album('1', 'Old') })
+    await a
+
+    expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'New' })
+    expect(queryClient.getQueryData(own.queryKey)).toMatchObject({ title: 'New' })
+  })
+
+  it('lets a newer request in a query the app built win over an older factory read', async () => {
+    const { client, queryClient, request } = setup()
+    const own = { queryKey: ['mine', 'album', '1'], queryFn: () => client.albums.get('1') }
+    const list = listQueryOptions(client, 'albums')
+
+    const a = queryClient.fetchQuery(list)
+    const b = queryClient.fetchQuery(own)
+    ;(await request(1)).reply({ data: album('1', 'New') })
+    await b
+    ;(await request(0)).reply({ data: [album('1', 'Old')] })
+    await a
+
+    expect((queryClient.getQueryData(list.queryKey) as unknown as Album[])[0]?.title).toBe('New')
+  })
+
+  it('judges a $next() page by when its request started', async () => {
+    const { client, queryClient, request } = setup()
+    const one = getQueryOptions(client, 'albums', '1')
+    const reading = client.albums.list()
+    ;(await request(0)).reply({
+      data: [album('2', 'Two')],
+      links: { next: `${BASE}/albums?page%5Bnumber%5D=2` },
+    })
+    const first = await reading
+    const own = { queryKey: ['mine', 'page', 2], queryFn: () => first.$next() }
+
+    // The page's request starts before the factory read, and answers after it.
+    const a = queryClient.fetchQuery(own)
+    const b = queryClient.fetchQuery(one)
+    ;(await request(2)).reply({ data: album('1', 'New') })
+    await b
+    ;(await request(1)).reply({ data: [album('1', 'Old')] })
+    await a
+
+    expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'New' })
+    expect((queryClient.getQueryData(own.queryKey) as unknown as Album[])[0]?.title).toBe('New')
+  })
+
+  it('counts data the app writes with setQueryData as current when written', async () => {
+    const { client, queryClient, request } = setup()
+    const one = getQueryOptions(client, 'albums', '1')
+    const list = listQueryOptions(client, 'albums')
+
+    // A result whose request started before the list read's, written by the app after it landed.
+    const fetching = client.albums.get('1')
+    const reading = queryClient.fetchQuery(list)
+    ;(await request(1)).reply({ data: [album('1', 'Listed')] })
+    await reading
+    ;(await request(0)).reply({ data: album('1', 'Written') })
+    queryClient.setQueryData(one.queryKey, (await fetching) as never)
+
+    expect(queryClient.getQueryData(one.queryKey)).toMatchObject({ title: 'Written' })
+    expect((queryClient.getQueryData(list.queryKey) as unknown as Album[])[0]?.title).toBe(
+      'Written',
+    )
   })
 })
 

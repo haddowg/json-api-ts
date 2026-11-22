@@ -119,8 +119,9 @@ sparse reads merge. It doesn't propagate **linkage** or **membership**. The last
 arrive wins, even an older one. A read landing during a pending optimistic write overwrites the
 prediction with the server's old value.
 
-- **R1. Newer data wins.** The read factories' `queryFn` wrapper stamps each result with its
-  request's start time (non-enumerable), and mutations stamp theirs. Each node records the stamp
+- **R1. Newer data wins.** The client stamps each result it returns with its request's start
+  (non-enumerable, a per-process counter), so a factory's read or write and an app's own query
+  around a client call compete alike; `setQueryData` counts as current when written. Each node records the stamp
   of the data it holds (a `WeakMap`). A patch writes a node only when its stamp is no older.
 - **R2. Optimistic fields take precedence while their write is pending.** A read landing on a
   field an open draft owns doesn't change what's shown: it updates the draft's recorded server
