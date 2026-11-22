@@ -169,7 +169,9 @@ const descriptions = new WeakMap<
 
 /**
  * {@link describeQuery} for a cached query, memoised per query and descriptor (a query's key never
- * changes).
+ * changes). The description is a deep-frozen copy: it is shared by every later call, and an `into`
+ * receives it, so nothing it is handed can change what the next call sees, nor reach back into the
+ * query's key or the descriptor it was read from.
  * @internal
  */
 export function describeCached(
@@ -180,9 +182,31 @@ export function describeCached(
   if (memo !== undefined && memo.descriptor === descriptor) {
     return memo.description
   }
-  const description = describeQuery(query, descriptor)
+  const decoded = describeQuery(query, descriptor)
+  const description = decoded === undefined ? undefined : frozenCopy(decoded)
   descriptions.set(query, { descriptor, description })
   return description
+}
+
+/**
+ * A deep copy of `value` with every array and plain object in it frozen. Anything else (a class
+ * instance a filter value carries) is kept as it is.
+ */
+function frozenCopy<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map(frozenCopy)) as T
+  }
+  if (typeof value === 'object' && value !== null) {
+    const proto: unknown = Object.getPrototypeOf(value)
+    if (proto === Object.prototype || proto === null) {
+      const out: Record<string, unknown> = {}
+      for (const [k, member] of Object.entries(value)) {
+        out[k] = frozenCopy(member)
+      }
+      return Object.freeze(out) as T
+    }
+  }
+  return value
 }
 
 const shapes = new WeakMap<Query, { descriptor: ApiDescriptor; shape: ViewShape | undefined }>()

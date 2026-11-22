@@ -563,6 +563,55 @@ describe('placement', () => {
     draft.rollback()
     expect(ids(dataOf(queryClient, all))).toEqual(['t1', 't2', 't3', 't4'])
   })
+
+  it('hands into a frozen description, so changing it reaches no later call', async () => {
+    const { client, queryClient } = catalogue()
+    const filter = { title: 'Song 2' }
+    const filtered = listQueryOptions(client, 'tracks', { filter, sort: ['title'] } as never)
+    await queryClient.fetchQuery(filtered)
+    const created = { id: 'new', title: 'Untitled', duration: 0, artist: null }
+    const seen: unknown[] = []
+    const errors: unknown[] = []
+    const into = (q: DraftQuery) => {
+      seen.push(JSON.parse(JSON.stringify(q)))
+      for (const corrupt of [
+        () => {
+          ;(q as { type: string }).type = 'artists'
+        },
+        () => {
+          ;(q.params as { filter?: unknown }).filter = undefined
+        },
+        () => {
+          ;(q.params.filter as Record<string, unknown>)['title'] = 'Airbag'
+        },
+        () => {
+          ;(q.params.sort as unknown as string[]).push('duration')
+        },
+        () => {
+          ;(q.types as string[]).push('artists')
+        },
+      ]) {
+        try {
+          corrupt()
+        } catch (error) {
+          errors.push(error)
+        }
+      }
+      return false as const
+    }
+
+    openDraft(queryClient, descriptor).insert('tracks', created as never, into)
+    openDraft(queryClient, descriptor).insert('tracks', created as never, into)
+
+    // Strict mode (an ES module) throws on every write to a frozen description.
+    expect(errors).toHaveLength(10)
+    expect(errors.every((error) => error instanceof TypeError)).toBe(true)
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    // Neither the query's key nor the descriptor was frozen with it.
+    expect(Object.isFrozen(filter)).toBe(false)
+    expect(Object.isFrozen(descriptor.albums.relations.tracks.types)).toBe(false)
+  })
 })
 
 // ── To-one ─────────────────────────────────────────────────────────────────────────────────
