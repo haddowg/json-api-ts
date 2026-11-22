@@ -30,6 +30,7 @@ import type { ApiDescriptor, RequestMetaOperation } from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
 import { execute, type JsonApiContext, type JsonApiRequest } from './request'
+import { nextRequestStamp, stampRequest } from './request-stamp'
 import type {
   AtomicResultOf,
   CreateInput,
@@ -416,6 +417,7 @@ export async function runAtomic(
   }
 
   let doc
+  const stamp = nextRequestStamp()
   try {
     doc = await execute(request, req)
   } catch (error) {
@@ -434,6 +436,7 @@ export async function runAtomic(
     doc as { ['atomic:results']?: unknown } | undefined,
     materialiseCtx,
     (opIndex) => relationByOp.has(opIndex),
+    stamp,
   )
 
   // Loose form: the callback returned nothing, or not an all-handles array -> the ordered results
@@ -444,13 +447,16 @@ export async function runAtomic(
     Array.isArray(returned) &&
     returned.every((h) => h !== null && typeof h === 'object' && 'opIndex' in h)
   if (!isHandleTuple) {
-    return results
+    return stampRequest(results, stamp)
   }
   // Typed-tuple form: resolve each RETURNED handle by its `opIndex` (a delete -> undefined), so
   // the tuple is sound regardless of the order/subset of handles returned. (A server returning no
   // `atomic:results` for an op yields undefined; the reference bundle always returns the created/
   // updated resource, so create/update results are typed present.)
-  return returned.map((handle) => (handle.kind === 'delete' ? undefined : results[handle.opIndex]))
+  return stampRequest(
+    returned.map((handle) => (handle.kind === 'delete' ? undefined : results[handle.opIndex])),
+    stamp,
+  )
 }
 
 /**
@@ -507,13 +513,14 @@ function toRef(ref: unknown, what: string): { type: string; identity: AtomicIden
 
 /**
  * Parse `{ "atomic:results": [...] }` positionally, materialising each result's `data`: a
- * relationship op's as linkage, any other's as a resource. An absent results array (an all-`204`
- * batch) yields `[]`.
+ * relationship op's as linkage, any other's as a resource, each stamped with the batch's request
+ * start. An absent results array (an all-`204` batch) yields `[]`.
  */
 function parseResults(
   doc: { ['atomic:results']?: unknown } | undefined,
   ctx: MaterialiseContext,
   isLinkage: (opIndex: number) => boolean,
+  stamp: number,
 ): AtomicResult[] {
   const results = doc?.['atomic:results']
   if (!Array.isArray(results)) {
@@ -524,7 +531,7 @@ function parseResults(
     const data =
       entry['data'] === undefined
         ? undefined
-        : materialise({ data: entry['data'] }, ctx, isLinkage(opIndex))
+        : stampRequest(materialise({ data: entry['data'] }, ctx, isLinkage(opIndex)), stamp)
     const out: AtomicResult = { data }
     if (isObject(entry['meta'])) {
       out.meta = entry['meta']
