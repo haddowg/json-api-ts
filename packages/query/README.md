@@ -25,20 +25,27 @@ pnpm add @haddowg/json-api-query @tanstack/query-core
 
 ## Binding the client
 
-The read factories accept `Client<D, A>` and the write factories `Client<D, A, W>` — neither
-carries the client's custom-action types (actions aren't cacheable resources). The generated
-`createClient` returns a client that _also_ carries action types, so view it through the
-action-agnostic `Client` types at the query boundary — one cast per surface:
+The factories read only a client's resource accessors and its error codes, never its
+custom-action types (actions aren't cacheable resources), so the generated client passes straight
+through. When you need to name its type, for a context or a prop, keep every `Client` parameter,
+the generated `ErrorCode` included, so `error` keeps the server's codes rather than any string:
 
 ```ts
 import type { Client } from '@haddowg/json-api-client'
 import { createClient } from './api/music.gen'
-import type { Attributes, ResourceMap, WriteAttributes } from './api/music.gen'
+import type {
+  ActionTypes,
+  Attributes,
+  ErrorCode,
+  Links,
+  ResourceMap,
+  WriteAttributes,
+} from './api/music.gen'
 
-const client = createClient({ baseUrl: 'https://music.example' })
+// The generated `createClient`'s return type.
+type ApiClient = Client<ResourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>
 
-type ReadClient = Client<ResourceMap, Attributes>
-type WriteClient = Client<ResourceMap, Attributes, WriteAttributes>
+const client: ApiClient = createClient({ baseUrl: 'https://music.example' })
 ```
 
 ## Reads — query option factories
@@ -51,14 +58,14 @@ narrows). Two equivalent forms:
 import { createQueryApi, listQueryOptions } from '@haddowg/json-api-query'
 
 // Bound API — the cleanest per-type call shape.
-const reads = createQueryApi(client as unknown as ReadClient)
+const reads = createQueryApi(client)
 const listOpts = reads.albums.list({ include: ['artist'] })
 const getOpts = reads.albums.get('1')
 const relOpts = reads.albums.relationship('1', 'tracks') // linkage
 const relatedOpts = reads.albums.related('1', 'tracks') // related collection
 
 // Standalone factories — equivalent, with `client`/`type` passed explicitly.
-const listOpts2 = listQueryOptions(client as unknown as ReadClient, 'albums', {
+const listOpts2 = listQueryOptions(client, 'albums', {
   include: ['artist'],
 })
 
@@ -152,7 +159,7 @@ normalization / invalidation / optimism), structurally compatible with query-cor
 ```ts
 import { createMutationApi } from '@haddowg/json-api-query'
 
-const writes = createMutationApi(queryClient, client as unknown as WriteClient, resourceMap)
+const writes = createMutationApi(queryClient, client, resourceMap)
 
 // Create — invalidates the type's lists on settle; normalizes the new resource on success.
 const createOpts = writes.albums.create()
@@ -180,8 +187,8 @@ The standalone factories are `createMutationOptions`, `updateMutationOptions`,
 ### Worked example (query-core directly)
 
 ```ts
-const reads = createQueryApi(client as unknown as ReadClient)
-const writes = createMutationApi(queryClient, client as unknown as WriteClient, resourceMap)
+const reads = createQueryApi(client)
+const writes = createMutationApi(queryClient, client, resourceMap)
 
 const listOpts = reads.albums.list()
 const getOpts = reads.albums.get('1')
