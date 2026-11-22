@@ -117,13 +117,17 @@ The page only renders what the draft reports:
 - **Rename** is an attribute update; because normalisation does `type:id` write-through patching, the new title shows up in the Playlists list and Browse with no refetch, "edit once, updates everywhere".
 - The ref builders (position → `$pivot`) are all that remain in [`api/playlist-tracks.ts`](../examples/spotify-clone/src/api/playlist-tracks.ts); [`components/TrackPicker.tsx`](../examples/spotify-clone/src/components/TrackPicker.tsx) is the add-tracks surface.
 
-[`PlaylistsPage.tsx`](../examples/spotify-clone/src/pages/PlaylistsPage.tsx) creates playlists optimistically. A create is never placed automatically, so `into` puts the new playlist at the top of the newest-first list. The list reads whole playlists, which promise the server-made `slug` and `externalId`, so `complete` gives the row a placeholder slug from its title, and `externalId`, which may be `null`, completes to `null` on its own:
+[`PlaylistsPage.tsx`](../examples/spotify-clone/src/pages/PlaylistsPage.tsx) creates playlists optimistically. A create is never placed automatically, so `into` puts the new playlist at the top of the newest-first list. The list reads whole playlists, which promise every attribute: the server-made `slug`, and `public` and `externalId`, which a create may leave out. So `complete` gives the row a placeholder slug from its title and fills the optional attributes the input didn't give:
 
 ```ts
 writes.playlists.create({
   optimistic: {
     into: (q) => (q.params.filter === undefined ? 'start' : false),
-    complete: (input) => ({ slug: slugOf(input.title) }),
+    complete: (input) => ({
+      slug: slugOf(input.title),
+      public: input.public ?? true,
+      externalId: input.externalId ?? null,
+    }),
   },
 })
 ```
