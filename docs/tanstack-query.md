@@ -35,7 +35,7 @@ export const writes = createMutationApi(queryClient, client, resourceMap)
 That is exactly how the example app bootstraps its data layer — see [client.ts](../examples/spotify-clone/src/api/client.ts).
 
 !!! note "Action-agnostic at the query boundary"
-    The read factories accept `Client<D, A>` and the write factories `Client<D, A, W>` — neither carries the client's custom-action types (actions aren't cacheable resources). The generated `createClient` returns a client that *also* carries action types; pass it straight through (as above), or view it through the action-agnostic `Client` types with a single cast per surface if your setup needs it.
+    The factories read only a client's resource accessors and its error codes, never its custom-action types (actions aren't cacheable resources), so the generated client passes straight through, as above. If your setup needs to name the client's type, for a context or a prop, keep every `Client` parameter, the generated `ErrorCode` included, or `error` falls back to any string code: `Client<ResourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>`, which is the generated `createClient`'s return type.
 
 ## A basic query
 
@@ -93,25 +93,36 @@ Every read factory also passes TanStack's abort `signal` to the read. When a que
 
 Each factory's `queryKey` is tagged with the read's result and error types (TanStack's `DataTag`), so `getQueryData`, `setQueryData` and `getQueryState` are typed without a cast. The tag exists only in the types: the key is the plain tuple described under [deterministic query keys](#deterministic-query-keys).
 
-```ts
-const albumOptions = reads.albums.get(id, { include: ['artist'] })
-const cached = queryClient.getQueryData(albumOptions.queryKey) // the album view | undefined
-cached?.title
+This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `TanStack Query bindings` group). It fetches an album with its artist, then reads and writes the cache through the options' key:
 
-queryClient.setQueryData(albumOptions.queryKey, (old) => old) // `old` is the album view too
+```ts
+const albumOptions = reads.albums.get('1', { include: ['artist'] })
+await queryClient.fetchQuery(albumOptions)
+
+// The key is tagged with the read's result type, so the cache hands back the album view.
+const cached = queryClient.getQueryData(albumOptions.queryKey) // the album view | undefined
+expect(cached?.title).toBe('OK Computer')
+expect(cached?.artist?.name).toBe('Radiohead')
+
+// `old` is the album view too.
+queryClient.setQueryData(albumOptions.queryKey, (old) => old)
 ```
 
 ### Typed errors and retries
 
 TanStack types a query's `error` from a typed callback in its options, so each factory's options type declares an optional `retry` typed with what a read rejects with: `ReadError<ErrorCode>`, which is `JsonApiError<ErrorCode> | StructuralGuardError | Error`, `ErrorCode` being the generated client's error-code union. The options never set `retry`, so the `retry` your QueryClient is configured with still applies.
 
+This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `TanStack Query bindings` group). It reads an album the server answers with a `404`, through a `QueryObserver` standing in for `useQuery`:
+
 ```ts
 import { hasErrorCode } from '../generated/music-catalog.gen'
 
-const albumQuery = useQuery(reads.albums.get(id))
-albumQuery.error // ReadError<ErrorCode> | null
+// What `useQuery(reads.albums.get('404'))` holds once the read settles.
+const albumQuery = await new QueryObserver(queryClient, reads.albums.get('404')).refetch()
+expectTypeOf(albumQuery.error).toEqualTypeOf<ReadError<ErrorCode> | null>()
 if (hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')) {
-  albumQuery.error.errors // JsonApiErrorObject<ErrorCode>[]
+  const errors: JsonApiErrorObject<ErrorCode>[] = albumQuery.error.errors
+  expect(errors[0]?.code).toBe('RESOURCE_NOT_FOUND')
 }
 ```
 
@@ -133,12 +144,28 @@ A `retry` you spread over a factory's options is used for that query, and its `e
 
 Pass TanStack's `skipToken` in place of the id, or of a list's whole query, to keep a read disabled until its input exists. The options' `queryFn` is then `skipToken`, which `useQuery` treats as `enabled: false` while keeping the result typed.
 
-```ts
-import { skipToken, useQuery } from '@tanstack/react-query'
+This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `TanStack Query bindings` group), with a `QueryObserver` per read standing in for `useQuery`, and `skipToken` imported from `@tanstack/query-core` (your framework adapter re-exports it):
 
-const albumQuery = useQuery(reads.albums.get(albumId ?? skipToken))
-const albumsQuery = useQuery(reads.albums.list(ready ? { include: ['artist'] } : skipToken))
-const artistQuery = useQuery(reads.albums.related(albumId ?? skipToken, 'artist'))
+```ts
+import { skipToken } from '@tanstack/query-core'
+
+const albumQuery = new QueryObserver(queryClient, reads.albums.get(albumId ?? skipToken))
+const albumsQuery = new QueryObserver(
+  queryClient,
+  reads.albums.list(ready ? { include: ['artist'] } : skipToken),
+)
+const artistQuery = new QueryObserver(
+  queryClient,
+  reads.albums.related(albumId ?? skipToken, 'artist'),
+)
+
+// A skipped read stays idle and sends nothing, under a deterministic key with no params.
+expect(requests).toHaveLength(0)
+expect(reads.albums.get(albumId ?? skipToken).queryKey).toEqual([
+  'albums',
+  'fetchOne',
+  { $skip: true },
+])
 ```
 
 A singleton takes `skipToken` in place of its query (`reads.inboxes.get(skipToken)`). A skipped read's key carries the object segment `{ $skip: true }` (exported as `SKIPPED_SEGMENT`) where the id would go, `[type, operation, { $skip: true }, rel?]`, with no params, so it is deterministic and never matches a real read: no id or relation name equals an object, and no params object a read builds has a `$skip` member. TanStack and `keyHasPrefix` compare it by value. `useSuspenseQuery` doesn't accept `skipToken`, as TanStack documents.
