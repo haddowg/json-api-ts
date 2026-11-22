@@ -80,7 +80,8 @@ Infinite reads page a list, or a to-many relation's related collection, through 
 links: `reads.albums.infinite(query)` and `reads.albums.relatedInfinite('1', 'tracks', query)`
 (standalone, `infiniteListQueryOptions` and `infiniteRelatedQueryOptions`) return options for
 `useInfiniteQuery` or `fetchInfiniteQuery`. Their key is the plain read's key plus `'$infinite'`,
-and normalisation patches every cached page.
+and normalisation patches every cached page. A type or to-many relation whose paginator is
+`'none'` has no infinite read: it is a compile error.
 
 ## The query-key factory
 
