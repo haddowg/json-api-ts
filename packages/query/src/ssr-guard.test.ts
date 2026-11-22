@@ -65,6 +65,36 @@ describe('server side', () => {
     expect(dehydrate(server).queries.map((q) => q.queryKey)).toEqual([['other']])
   })
 
+  it('leaves out a query of your own holding a client result, whatever its key', async () => {
+    const client = makeClient()
+    const server = new QueryClient()
+    installNormalization(server, descriptor)
+    await server.fetchQuery({
+      queryKey: ['albums', 'top'],
+      queryFn: () => client.albums.list(),
+      structuralSharing: false,
+    })
+    await server.fetchInfiniteQuery({
+      queryKey: ['albums', 'pages'],
+      queryFn: () => client.albums.list(),
+      initialPageParam: 1,
+      getNextPageParam: () => undefined,
+      structuralSharing: false,
+    })
+    await server.fetchQuery({ queryKey: ['other'], queryFn: () => 'x' })
+    expect(dehydrate(server).queries.map((q) => q.queryKey)).toEqual([['other']])
+  })
+
+  it('dehydrates a query holding plain data, even under a binding-shaped key', async () => {
+    const server = new QueryClient()
+    installNormalization(server, descriptor)
+    await server.fetchQuery({
+      queryKey: ['albums', 'fetchMany'],
+      queryFn: () => [{ id: '1', title: 'A' }],
+    })
+    expect(dehydrate(server).queries.map((q) => q.queryKey)).toEqual([['albums', 'fetchMany']])
+  })
+
   it('honours a previously configured default and restores it on teardown', async () => {
     const client = makeClient()
     const server = new QueryClient()
@@ -95,16 +125,26 @@ describe('server side', () => {
 })
 
 describe('jsonApiShouldDehydrateQuery', () => {
-  it('excludes binding queries and otherwise calls next', async () => {
-    const { server } = await serverWithData()
+  it('excludes queries holding a client result and otherwise calls next', async () => {
+    const { client, server } = await serverWithData()
+    await server.fetchQuery({
+      queryKey: ['albums', 'top'],
+      queryFn: () => client.albums.list(),
+      structuralSharing: false,
+    })
+    await server.fetchQuery({ queryKey: ['albums', 'fetchMany', 'plain'], queryFn: () => ['x'] })
     const next = vi.fn(() => true)
     const predicate = jsonApiShouldDehydrateQuery(next)
-    const binding = server.getQueryCache().find({ queryKey: ['albums', 'fetchMany'] })
+    const binding = server.getQueryCache().find({ queryKey: ['albums', 'fetchMany'], exact: true })
+    const own = server.getQueryCache().find({ queryKey: ['albums', 'top'] })
+    const plain = server.getQueryCache().find({ queryKey: ['albums', 'fetchMany', 'plain'] })
     const other = server.getQueryCache().find({ queryKey: ['other'] })
     expect(binding && predicate(binding)).toBe(false)
+    expect(own && predicate(own)).toBe(false)
     expect(next).not.toHaveBeenCalled()
+    expect(plain && predicate(plain)).toBe(true)
     expect(other && predicate(other)).toBe(true)
-    expect(next).toHaveBeenCalledTimes(1)
+    expect(next).toHaveBeenCalledTimes(2)
   })
 
   it('defaults next to defaultShouldDehydrateQuery', async () => {

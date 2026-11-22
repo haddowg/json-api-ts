@@ -22,33 +22,40 @@ const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
   'fetchRelationship',
 ])
 
-/** The key's first two segments, when it has the binding's shape: `[type, readOperation, …]`. */
+/**
+ * The key's first two segments, when it has the binding's shape: `[type, readOperation, …]`. Only
+ * the browser-side hydration check reads it, since a hydrated query's stripped data can't be told
+ * apart from plain data; the server-side dehydrate predicate judges a query by its data instead.
+ */
 const isBindingKey = (queryKey: readonly unknown[]): boolean =>
   typeof queryKey[0] === 'string' && READ_OPERATIONS.has(queryKey[1])
 
 type ShouldDehydrate = (query: Query) => boolean
 
 /**
- * A `shouldDehydrateQuery` predicate that leaves out the binding's read queries and otherwise
- * defers to `next` (TanStack's `defaultShouldDehydrateQuery` when omitted). A materialised result
- * loses its `$`-accessors through `dehydrate` and JSON, so those queries are fetched in the
- * browser instead. {@link installNormalization} installs this as the client's default; use it
- * directly when passing explicit options to `dehydrate()`, which override the defaults:
+ * A `shouldDehydrateQuery` predicate that leaves out every query holding a materialised client
+ * result and otherwise defers to `next` (TanStack's `defaultShouldDehydrateQuery` when omitted). A
+ * materialised result loses its `$`-accessors through `dehydrate` and JSON, so those queries are
+ * fetched in the browser instead. {@link installNormalization} installs this as the client's
+ * default; use it directly when passing explicit options to `dehydrate()`, which override the
+ * defaults:
  *
  * ```ts
  * dehydrate(queryClient, {
  *   shouldDehydrateQuery: jsonApiShouldDehydrateQuery(
- *     (q) => defaultShouldDehydrateQuery(q) || q.state.status === 'pending',
+ *     (q) => defaultShouldDehydrateQuery(q) && q.queryKey[0] !== 'session',
  *   ),
  * })
  * ```
  *
- * It needs no descriptor, so it recognises a binding query by its key shape alone: a string first
- * segment (the type) and a read operation (`fetchMany`, `fetchOne`, `fetchRelated`,
- * `fetchRelationship`) second. A query of your own keyed that way is excluded too.
+ * It judges a query by its data, not its key, so it needs no descriptor: a query you build
+ * yourself around a client call is left out like the binding's own reads, infinite reads
+ * included, and a query holding plain data is passed to `next` whatever its key. A query still
+ * pending has no data to judge, so it too is passed to `next`: including pending queries sends a
+ * pending client read's result through JSON without its accessors.
  */
 export function jsonApiShouldDehydrateQuery(next: ShouldDehydrate = defaultShouldDehydrateQuery) {
-  return (query: Query): boolean => !isBindingKey(query.queryKey) && next(query)
+  return (query: Query): boolean => !isMaterialisedData(query.state.data) && next(query)
 }
 
 /** Hashes of queries already warned about, per client, so each warns once. */
@@ -99,7 +106,7 @@ const installed = new WeakMap<QueryClient, ApiDescriptor>()
  *
  * It also installs the client's defaults the binding relies on, each only where the app set none,
  * and removes them on teardown while they are still the installed value: a `dehydrate`
- * predicate that leaves the binding's reads out, and {@link jsonApiRetry} as `queries.retry`, so a
+ * predicate that leaves out every query holding a client result, and {@link jsonApiRetry} as `queries.retry`, so a
  * read failing with a 4xx JSON:API error or a non-JSON:API response isn't retried.
  *
  * Re-entrancy is guarded: the patch pass itself sets data on other queries (firing further
@@ -121,7 +128,7 @@ export function installNormalization(
   }
   installed.set(queryClient, descriptor)
 
-  // Dehydrate default: the binding's queries are fetched in the browser instead.
+  // Dehydrate default: queries holding a client result are fetched in the browser instead.
   const previousDehydrate = queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery
   const shouldDehydrateQuery = jsonApiShouldDehydrateQuery(
     previousDehydrate ?? defaultShouldDehydrateQuery,

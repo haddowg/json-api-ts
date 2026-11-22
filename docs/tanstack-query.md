@@ -348,10 +348,10 @@ Server-side rendering is not supported yet. TanStack's `dehydrate`, JSON and `hy
 
 `installNormalization` guards against that for every framework binding:
 
-- Queries with the binding's key shape (a type, then `fetchMany`, `fetchOne`, `fetchRelated` or `fetchRelationship`), infinite reads included, are left out of `dehydrate()` through a `shouldDehydrateQuery` default, composed with any default you set before installing, so they fetch in the browser.
-- A query of that shape that still arrives hydrated without its accessors is reset, so it refetches, and a development warning names its key.
+- A query holding a client result, whether a binding read, an infinite read or a query you build yourself around a client call, is left out of `dehydrate()` through a `shouldDehydrateQuery` default, composed with any default you set before installing, so it fetches in the browser. A query holding plain data is dehydrated as usual, whatever its key.
+- A query with the binding's key shape (a type, then `fetchMany`, `fetchOne`, `fetchRelated` or `fetchRelationship`) that still arrives hydrated without its accessors is reset, so it refetches, and a development warning names its key. Stripped data looks like plain data, so this check goes by key shape. A reset query that nothing is observing is left empty, and fetches when a component first uses it.
 
-A `dehydrate()` call with explicit options overrides the defaults. Wrap your own predicate in `jsonApiShouldDehydrateQuery` to keep the exclusion. It recognises binding queries by key shape alone, so it needs no descriptor:
+A `dehydrate()` call with explicit options overrides the defaults. Wrap your own predicate in `jsonApiShouldDehydrateQuery` to keep the exclusion. It judges each query by its data, so it needs no descriptor:
 
 ```ts
 import { defaultShouldDehydrateQuery } from '@tanstack/query-core'
@@ -359,10 +359,12 @@ import { jsonApiShouldDehydrateQuery } from '@haddowg/json-api-query'
 
 dehydrate(queryClient, {
   shouldDehydrateQuery: jsonApiShouldDehydrateQuery(
-    (query) => defaultShouldDehydrateQuery(query) || query.state.status === 'pending',
+    (query) => defaultShouldDehydrateQuery(query) && query.queryKey[0] !== 'session',
   ),
 })
 ```
+
+A query still pending when you dehydrate has no data to judge, so the predicate passes it to yours. Including pending queries, as TanStack's streaming setup does, sends a pending client read's result through JSON without its accessors.
 
 The cost is a refetch in the browser, so the first render can differ from the server HTML.
 
