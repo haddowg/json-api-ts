@@ -56,6 +56,7 @@ import {
   type WritePivotOf,
 } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
+import { type CacheView, cacheView, describeCached, renameNode, touchNode } from './cache-index'
 import type { QueryKey } from './keys'
 import type { UpdateVariables } from './mutate'
 import {
@@ -90,7 +91,6 @@ import {
 } from './relationships'
 import { resolveMember } from './resolve'
 import {
-  describeQuery,
   isComplete,
   isUnfilteredUnsorted,
   type QueryDescription,
@@ -839,6 +839,7 @@ class Draft {
   private flush(): void {
     const staged = [...this.staged]
     this.staged.clear()
+    let view: CacheView | undefined
     for (const [query, { data, nodes, parts }] of staged) {
       const changed = new Set<object>()
       for (const part of partsOf(data)) {
@@ -846,9 +847,27 @@ class Draft {
           changed.add(targetOf(part))
         }
       }
-      if (nodes.size > 0) {
-        for (const part of partsOf(data)) {
+      if (nodes.size > 0 && data !== query.state.data) {
+        // Data this draft replaced isn't the cache's yet: walk what it replaced, and read the pages
+        // of an infinite query it kept from the cache index.
+        const cached = query.state.data
+        const kept =
+          isInfiniteValue(data) && isInfiniteValue(cached)
+            ? (view ??= this.view()).partsHolding(query, nodes)
+            : undefined
+        for (const [at, part] of partsOf(data).entries()) {
           if (typeof part !== 'object' || part === null) {
+            continue
+          }
+          if (
+            kept !== undefined &&
+            isInfiniteValue(cached) &&
+            at < cached.pages.length &&
+            targetOf(part) === targetOf(cached.pages[at] as object)
+          ) {
+            if (kept.has(at)) {
+              changed.add(targetOf(part))
+            }
             continue
           }
           let holds = false
@@ -856,6 +875,15 @@ class Draft {
             holds ||= nodes.has(targetOf(node))
           })
           if (holds) {
+            changed.add(targetOf(part))
+          }
+        }
+      } else if (nodes.size > 0) {
+        view ??= this.view()
+        const pages = partsOf(data)
+        for (const at of view.partsHolding(query, nodes)) {
+          const part = pages[at]
+          if (typeof part === 'object' && part !== null) {
             changed.add(targetOf(part))
           }
         }
@@ -902,6 +930,7 @@ class Draft {
   private write(loc: Loc, value: unknown): void {
     if (loc.kind === 'slot') {
       loc.node[loc.rel] = value
+      touchNode(this.queryClient, loc.node)
       this.stage(loc.query).nodes.add(targetOf(loc.node))
       return
     }
@@ -926,7 +955,7 @@ class Draft {
       if (this.only !== undefined && query !== this.only) {
         continue
       }
-      const description = describeQuery(query, this.descriptor)
+      const description = describeCached(query, this.descriptor)
       // A to-one read may hold `null`; a query that holds nothing yet has nothing to edit.
       if (description !== undefined && !description.skipped && this.current(query) !== undefined) {
         out.push({ query, description })
@@ -945,6 +974,119 @@ class Draft {
     for (const part of partsOf(this.current(candidate.query))) {
       walkShaped(part, shape, this.descriptor, visit, seen)
     }
+  }
+
+  /** The scope's cache index, brought up to date. */
+  private view(): CacheView {
+    return cacheView(this.queryClient, this.scope, this.descriptor)
+  }
+
+  /**
+   * Whether `query` is walked rather than read from the cache index: its data as this draft sees it
+   * is data the draft staged in place of the cache's, or the draft is replaying into it alone.
+   */
+  private walksDirectly(query: Query): boolean {
+    return (
+      this.only !== undefined ||
+      (this.staged.has(query) && this.staged.get(query)?.data !== query.state.data)
+    )
+  }
+
+  /**
+   * The candidates holding a copy of `type:id` (any id of `type` when `id` is `undefined`), each
+   * with a visitor of its copies, in the order a walk of every candidate would visit them.
+   */
+  private holders(
+    type: string,
+    id: string | undefined,
+  ): {
+    candidate: Candidate
+    each: (visit: (node: Record<string, unknown>, shape: ViewShape | undefined) => void) => void
+  }[] {
+    const view = this.view()
+    const holding = view.holding(type, id)
+    const out: ReturnType<Draft['holders']> = []
+    for (const candidate of this.candidates()) {
+      if (this.walksDirectly(candidate.query) || holding.has(candidate.query)) {
+        out.push({
+          candidate,
+          each: (visit) => this.copiesIn(view, candidate, type, id, visit),
+        })
+      }
+    }
+    return out
+  }
+
+  /**
+   * Visit each copy of `type:id` (any id of `type` when `id` is `undefined`) in a candidate's data as
+   * this draft sees it, in walk order, each with the shape of its slot: from the cache index, else,
+   * for an infinite query some of whose pages the draft replaced, from the index for the pages it
+   * kept and a walk of those it replaced, else from a walk of the whole.
+   */
+  private copiesIn(
+    view: CacheView,
+    candidate: Candidate,
+    type: string,
+    id: string | undefined,
+    visit: (node: Record<string, unknown>, shape: ViewShape | undefined) => void,
+  ): void {
+    const { query } = candidate
+    const matches = (node: Record<string, unknown>): boolean =>
+      node['type'] === type && this.matchesId(id, node['id'] as string | undefined)
+    if (!this.walksDirectly(query)) {
+      if (!view.current(query)) {
+        view.refresh(query)
+      }
+      for (const copy of view.visits(query, type, id)) {
+        if (copy.first) {
+          visit(copy.node, copy.shape)
+        }
+      }
+      return
+    }
+    const data = this.current(query)
+    const cached = query.state.data
+    if (this.only !== undefined || !isInfiniteValue(data) || !isInfiniteValue(cached)) {
+      this.walk(candidate, (node, shape) => {
+        if (matches(node)) {
+          visit(node, shape)
+        }
+      })
+      return
+    }
+    if (!view.current(query)) {
+      view.refresh(query)
+    }
+    const kept = (page: number): boolean =>
+      page < cached.pages.length &&
+      typeof data.pages[page] === 'object' &&
+      data.pages[page] !== null &&
+      targetOf(data.pages[page] as object) === targetOf(cached.pages[page] as object)
+    const shape = viewShape(candidate.description, this.descriptor)
+    // What the pages this draft replaced reach, for the pages after them.
+    const walked = new Map<number, Set<object>>()
+    const earlier = (node: object, page: number): boolean =>
+      view.partsReaching(query, node).some((part) => part < page && kept(part)) ||
+      [...walked].some(([part, nodes]) => part < page && nodes.has(node))
+    const copies = view.visits(query, type, id)
+    data.pages.forEach((page, at) => {
+      if (kept(at)) {
+        for (const copy of copies) {
+          if (copy.part === at && !earlier(copy.node, at)) {
+            visit(copy.node, copy.shape)
+          }
+        }
+        return
+      }
+      const nodes = new Set<object>()
+      walkShaped(page, shape, this.descriptor, (node, slot) => {
+        nodes.add(node)
+        if (matches(node) && !earlier(node, at)) {
+          visit(node, slot)
+        }
+      })
+      walked.set(at, nodes)
+    })
   }
 
   private matchesId(id: string | undefined, candidate: string | undefined): boolean {
@@ -995,11 +1137,8 @@ class Draft {
       return
     }
     const mark = this.markFor(type, id)
-    for (const candidate of this.candidates()) {
-      this.walk(candidate, (node) => {
-        if (node['type'] !== type || !this.matchesId(id, node['id'] as string | undefined)) {
-          return
-        }
+    for (const { candidate, each } of this.holders(type, id)) {
+      each((node) => {
         this.register(candidate.query, node, mark)
         const slot = rel === undefined ? undefined : node[rel]
         if (rel !== undefined && Array.isArray(slot)) {
@@ -1200,6 +1339,8 @@ class Draft {
     const many: ManyView[] = []
     const one: OneView[] = []
     const cardinality = this.descriptor[type]?.relations[rel]?.cardinality
+    const view = this.view()
+    const holding = view.holding(type, id)
     for (const candidate of this.candidates()) {
       const { query, description } = candidate
       // The relation's own reads.
@@ -1230,14 +1371,18 @@ class Draft {
         continue
       }
       // The relation's slot on every cached copy of the parent.
-      this.walk(candidate, (node, at) => {
-        if (node['type'] !== type || !this.matchesId(id, node['id'] as string | undefined)) {
-          return
-        }
+      if (!this.walksDirectly(query) && !holding.has(query)) {
+        continue
+      }
+      const copies: [Record<string, unknown>, ViewShape | undefined][] = []
+      this.copiesIn(view, candidate, type, id, (node, at) => {
+        copies.push([node, at])
+      })
+      for (const [node, at] of copies) {
         this.consider(query)
         const slot = node[rel]
         if (linksOnly(node, rel, slot)) {
-          return
+          continue
         }
         const shape = at === undefined ? undefined : slotShape(at, type, rel)
         const loc: Loc = { kind: 'slot', query, node, rel }
@@ -1252,7 +1397,7 @@ class Draft {
         } else if (cardinality === 'one' && !Array.isArray(slot)) {
           one.push({ query, description, loc, shape })
         }
-      })
+      }
     }
     return { many, one }
   }
@@ -1409,11 +1554,8 @@ class Draft {
       const claims = new Map(
         attributes.map(([key, value]) => [key, this.claim(type, id, key, value)] as const),
       )
-      for (const candidate of this.candidates()) {
-        this.walk(candidate, (node, shape) => {
-          if (node['type'] !== type || !this.matchesId(id, node['id'] as string | undefined)) {
-            return
-          }
+      for (const { candidate, each } of this.holders(type, id)) {
+        each((node, shape) => {
           let touched = false
           for (const [key, value] of attributes) {
             if (!writable(node, key, shape)) {
@@ -1732,13 +1874,9 @@ class Draft {
   /** The count a cached copy of the parent reports for `rel`, when one carries a count. */
   private countOf(type: string, id: string | undefined, rel: string): number | undefined {
     let count: number | undefined
-    for (const candidate of this.candidates()) {
-      this.walk(candidate, (node) => {
-        if (
-          count !== undefined ||
-          node['type'] !== type ||
-          !this.matchesId(id, node['id'] as string | undefined)
-        ) {
+    for (const { each } of this.holders(type, id)) {
+      each((node) => {
+        if (count !== undefined) {
           return
         }
         const $count = node['$count']
@@ -1840,8 +1978,14 @@ class Draft {
     this.op(() => {
       const evicted = { type, id }
       const parents = new Map<string, { type: string; id: string | undefined; rel: string }>()
+      // Only a query holding the resource has anything to evict.
+      const view = this.view()
+      const holding = view.holding(type, id)
       for (const candidate of this.candidates()) {
         const { query, description } = candidate
+        if (!holding.has(query) && !this.walksDirectly(query)) {
+          continue
+        }
         const own =
           description.type === type &&
           description.id === id &&
@@ -1869,24 +2013,41 @@ class Draft {
           this.undo.push({ kind: 'linked', loc, prior: data, wrote: null })
           held = true
         }
-        // Every relation slot holding it, on every resource the query holds.
+        // Every relation slot holding it, on every resource the query holds: from the cache index,
+        // when the query's data is the cache's and each copy has the one slot the index names.
         const slots: { node: Record<string, unknown>; rel: string }[] = []
-        this.walk(candidate, (node) => {
-          if (addresses(node, evicted)) {
+        if (!this.walksDirectly(query) && !view.current(query)) {
+          view.refresh(query)
+        }
+        const indexed = this.walksDirectly(query) ? undefined : view.slotsHolding(query, type, id)
+        if (indexed === undefined) {
+          this.walk(candidate, (node) => {
+            if (addresses(node, evicted)) {
+              held = true
+              return
+            }
+            const nodeType = node['type'] as string
+            for (const rel of Object.keys(this.descriptor[nodeType]?.relations ?? {})) {
+              const slot = node[rel]
+              if (
+                (Array.isArray(slot) && slot.some((member) => addresses(member, evicted))) ||
+                addresses(slot, evicted)
+              ) {
+                slots.push({ node, rel })
+              }
+            }
+          })
+        } else {
+          if (view.visits(query, type, id).some((copy) => copy.first)) {
             held = true
-            return
           }
-          const nodeType = node['type'] as string
-          for (const rel of Object.keys(this.descriptor[nodeType]?.relations ?? {})) {
-            const slot = node[rel]
-            if (
-              (Array.isArray(slot) && slot.some((member) => addresses(member, evicted))) ||
-              addresses(slot, evicted)
-            ) {
+          for (const [node, rel] of indexed) {
+            const last = slots.at(-1)
+            if (!addresses(node, evicted) && !(last?.node === node && last.rel === rel)) {
               slots.push({ node, rel })
             }
           }
-        })
+        }
         for (const { node, rel } of slots) {
           this.own(node['type'] as string, node['id'] as string, rel)
           const loc: Loc = { kind: 'slot', query, node, rel }
@@ -1916,11 +2077,8 @@ class Draft {
   resolve(type: string, id: string): DraftMember {
     let best: Record<string, unknown> | undefined
     let richness = -1
-    for (const candidate of this.candidates()) {
-      this.walk(candidate, (node) => {
-        if (node['type'] !== type || node['id'] !== id) {
-          return
-        }
+    for (const { each } of this.holders(type, id)) {
+      each((node) => {
         const keys = Object.keys(node).length
         if (keys > richness) {
           best = node
@@ -2060,9 +2218,11 @@ class Draft {
 
   swapId(type: string, from: string, to: string): void {
     this.run(() => {
-      for (const candidate of this.candidates()) {
-        this.walk(candidate, (node) => {
+      for (const { candidate, each } of this.holders(type, from)) {
+        each((node) => {
           if (node['type'] === type && node['id'] === from) {
+            // Reported while the index still holds it under the id it had.
+            renameNode(this.queryClient, node)
             node['id'] = to
             this.stageQuiet(candidate.query).nodes.add(targetOf(node))
           }

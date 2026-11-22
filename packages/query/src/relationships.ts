@@ -43,22 +43,14 @@ import {
   bornOf,
   partsOf,
   recordSlot,
-  shapeOfQuery,
   targetOf,
   walkResources,
   withMembers,
   writtenSlot,
 } from './normalize'
+import { type CacheView, describeCached, touchNode, type Visit } from './cache-index'
 import { resolveMember } from './resolve'
-import {
-  describeQuery,
-  fits,
-  isComplete,
-  type QueryDescription,
-  slotShape,
-  type ViewShape,
-  walkShaped,
-} from './view-shape'
+import { fits, isComplete, type QueryDescription, slotShape, type ViewShape } from './view-shape'
 
 // ── Linkage ────────────────────────────────────────────────────────────────────────────────
 
@@ -347,10 +339,10 @@ const induced = new WeakMap<Query, true>()
 
 /**
  * Propagate the relationships `result` carries to every other cached copy of their resources in
- * `queries` (the scope's), as the module comment describes. `landed` is the query the read landed
- * in, when known; a query whose data is `result` counts as that query too. Returns, per query, the
- * parts (by materialised value) whose slots changed in place, for the caller to republish, and
- * invalidates the queries whose slot would change but can't be filled.
+ * the scope (`view`, its index), as the module comment describes. `landed` is the query the read
+ * landed in, when known; a query whose data is `result` counts as that query too. Returns, per
+ * query, the parts (by materialised value) whose slots changed in place, for the caller to
+ * republish, and invalidates the queries whose slot would change but can't be filled.
  * @internal
  */
 export function propagateRelationships(
@@ -358,9 +350,10 @@ export function propagateRelationships(
   result: unknown,
   descriptor: ApiDescriptor,
   scope: string | undefined,
-  queries: readonly Query[],
+  view: CacheView,
   landed: Query | undefined,
 ): Map<Query, Set<object>> {
+  const { queries } = view
   const changed = new Map<Query, Set<object>>()
   const source = typeof result === 'object' && result !== null ? targetOf(result) : undefined
   const isSource = (query: Query): boolean =>
@@ -371,10 +364,11 @@ export function propagateRelationships(
       targetOf(query.state.data) === source)
   const sourceQuery = landed ?? queries.find(isSource)
   const sourceDescription =
-    sourceQuery === undefined ? undefined : describeQuery(sourceQuery, descriptor)
+    sourceQuery === undefined ? undefined : describeCached(sourceQuery, descriptor)
 
   // 1. The linkage the read carries, the newest per relation.
   const linkages: Linkages = new Map()
+  const identities = new Map<string, { type: string; id: string }>()
   for (const part of partsOf(result)) {
     if (typeof part !== 'object' || part === null) {
       continue
@@ -391,6 +385,7 @@ export function propagateRelationships(
         if (held === undefined || !whole(held.linkage) || narrowed(sourceDescription, rel)) {
           continue
         }
+        identities.set(resourceKey(type, id), { type, id })
         // A later occurrence wins a tie: for one response, the copies are the same wire object.
         consider(
           linkages,
@@ -407,57 +402,104 @@ export function propagateRelationships(
   }
 
   // 2. Raised to the newest linkage any cached copy holds, so an older read spreads nothing stale.
-  for (const query of queries) {
-    walkResources(query.state.data, descriptor, (visited) => {
-      const node = visited as unknown as Record<string, unknown>
-      const relations = linkages.get(resourceKey(String(node['type']), String(node['id'])))
-      if (relations === undefined) {
-        return
-      }
-      for (const [rel, current] of relations) {
-        const held = heldSlot(node, rel, current.cardinality)
-        if (held !== undefined && whole(held.linkage) && held.stamp > current.stamp) {
-          relations.set(rel, { ...current, ...held, incoming: false, copy: node })
+  // The copies are the index's, in the order a walk of the cache visits them.
+  const holding = new Set<Query>()
+  for (const [key, relations] of linkages) {
+    const { type, id } = identities.get(key)!
+    for (const query of view.ordered(view.holding(type, id))) {
+      holding.add(query)
+      for (const visit of view.visits(query, type, id)) {
+        if (!visit.first) {
+          continue
+        }
+        const node = visit.node
+        for (const [rel, current] of relations) {
+          const held = heldSlot(node, rel, current.cardinality)
+          if (held !== undefined && whole(held.linkage) && held.stamp > current.stamp) {
+            relations.set(rel, { ...current, ...held, incoming: false, copy: node })
+          }
         }
       }
-    })
+    }
   }
 
-  // 3. Each cached copy's slot takes the newest linkage, in place where it fits.
+  // 3. Each cached copy's slot takes the newest linkage, in place where it fits. Only a query
+  // holding a copy can change. Its copies are the index's, in walk order: once a slot changes, the
+  // index is brought up to date and the walk goes on from that copy, so the copies a slot gains
+  // are relinked too and those it loses aren't.
   const invalid = new Set<Query>()
   const context: BuildContext = { queryClient, descriptor, scope }
-  for (const query of queries) {
+  for (const query of view.ordered(holding)) {
     const data = query.state.data
     if (data === undefined || data === null) {
       continue
     }
-    const description = describeQuery(query, descriptor)
-    const shape = shapeOfQuery(query, descriptor)
-    const seen = new Set<object>()
-    for (const part of partsOf(data)) {
-      walkShaped(
-        part,
-        shape,
-        descriptor,
-        (node, at) => {
-          const { type, id } = node
-          const relations = linkages.get(resourceKey(String(type), String(id)))
-          if (relations === undefined || typeof type !== 'string' || typeof id !== 'string') {
-            return
+    const description = describeCached(query, descriptor)
+    const parts = partsOf(data)
+    /** Relink one copy reached in `part`; returns whether a slot changed. */
+    const relinkCopy = (
+      node: Record<string, unknown>,
+      at: ViewShape | undefined,
+      part: unknown,
+    ) => {
+      const { type, id } = node
+      const relations = linkages.get(resourceKey(String(type), String(id)))
+      if (relations === undefined || typeof type !== 'string' || typeof id !== 'string') {
+        return false
+      }
+      let relinked = false
+      for (const [rel, next] of relations) {
+        const outcome = relink(context, query, description, node, at, rel, next)
+        if (outcome === 'changed' && typeof part === 'object' && part !== null) {
+          relinked = true
+          const touched = changed.get(query) ?? new Set<object>()
+          touched.add(targetOf(part))
+          changed.set(query, touched)
+        } else if (outcome === 'unfit' && !isSource(query)) {
+          invalid.add(query)
+        }
+      }
+      return relinked
+    }
+    // The copies already relinked, and the place in walk order the next one comes after.
+    const done = new Set<object>()
+    let after = -Infinity
+    for (;;) {
+      if (!view.current(query)) {
+        view.refresh(query)
+      }
+      const copies: Visit[] = []
+      for (const key of linkages.keys()) {
+        const { type, id } = identities.get(key)!
+        for (const visit of view.visits(query, type, id)) {
+          if (visit.first && visit.seq > after && !done.has(visit.node)) {
+            copies.push(visit)
           }
-          for (const [rel, next] of relations) {
-            const outcome = relink(context, query, description, node, at, rel, next)
-            if (outcome === 'changed' && typeof part === 'object' && part !== null) {
-              const parts = changed.get(query) ?? new Set<object>()
-              parts.add(targetOf(part))
-              changed.set(query, parts)
-            } else if (outcome === 'unfit' && !isSource(query)) {
-              invalid.add(query)
-            }
-          }
-        },
-        seen,
-      )
+        }
+      }
+      // oxlint-disable-next-line no-array-sort -- this pass's own list
+      copies.sort((a, b) => a.seq - b.seq)
+      let relinked: Record<string, unknown> | undefined
+      for (const visit of copies) {
+        done.add(visit.node)
+        if (relinkCopy(visit.node, visit.shape, parts[visit.part])) {
+          relinked = visit.node
+          break
+        }
+      }
+      if (relinked === undefined) {
+        break
+      }
+      // A slot changed: what the walk reaches after this copy is read from the index brought up
+      // to date. What it reached before is unchanged, and already relinked.
+      view.refresh(query)
+      const at = view
+        .visits(query, String(relinked['type']), String(relinked['id']))
+        .find((visit) => visit.node === relinked && visit.first)
+      if (at === undefined) {
+        break
+      }
+      after = at.seq
     }
   }
 
@@ -552,6 +594,7 @@ function relink(
     return 'unfit'
   }
   node[rel] = built.value
+  touchNode(context.queryClient, node)
   recordSlot(node, rel, server)
   return 'changed'
 }
