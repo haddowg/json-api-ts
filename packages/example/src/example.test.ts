@@ -27,20 +27,31 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import {
   type JsonApiError,
+  type JsonApiErrorObject,
   loadAll,
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
 import { createAjvValidator } from '@haddowg/json-api-client/ajv'
-import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
-import { InfiniteQueryObserver, QueryClient } from '@tanstack/query-core'
+import {
+  createMutationApi,
+  createQueryApi,
+  installNormalization,
+  type ReadError,
+} from '@haddowg/json-api-query'
+import { InfiniteQueryObserver, QueryClient, QueryObserver, skipToken } from '@tanstack/query-core'
 import Ajv2020 from 'ajv/dist/2020'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 // The generated artifacts — exactly what `json-api-codegen --input … --output … --schemas …`
 // writes. `createClient` is the descriptor-bound factory; `resourceMap` is the runtime
 // descriptor TanStack normalization needs; `schemas` is the per-type JSON Schema map for ajv;
 // `Attributes`/`WriteAttributes`/`ResourceMap` are the generated type maps.
-import { createClient, resourceMap } from './generated/music-catalog.gen'
+import {
+  createClient,
+  type ErrorCode,
+  hasErrorCode,
+  resourceMap,
+} from './generated/music-catalog.gen'
 import { schemas } from './generated/music-catalog.schemas.gen'
 
 /**
@@ -619,6 +630,103 @@ describe('TanStack Query bindings', () => {
     expect(cachedGet.title).toBe('Fresh title')
 
     teardown()
+  })
+
+  it('types cache reads and writes by the query key, with no cast', async () => {
+    const { transport } = mockTransport({
+      [`${BASE}/albums/1?include=artist`]: {
+        data: {
+          type: 'albums',
+          id: '1',
+          attributes: { title: 'OK Computer', status: 'released' },
+          relationships: { artist: { data: { type: 'artists', id: '1' } } },
+        },
+        included: [{ type: 'artists', id: '1', attributes: { name: 'Radiohead' } }],
+      },
+    })
+    const client = createClient({ baseUrl: BASE, transport })
+    const queryClient = new QueryClient()
+    const reads = createQueryApi(client)
+
+    const albumOptions = reads.albums.get('1', { include: ['artist'] })
+    await queryClient.fetchQuery(albumOptions)
+
+    // The key is tagged with the read's result type, so the cache hands back the album view.
+    const cached = queryClient.getQueryData(albumOptions.queryKey) // the album view | undefined
+    expect(cached?.title).toBe('OK Computer')
+    expect(cached?.artist?.name).toBe('Radiohead')
+
+    // `old` is the album view too.
+    queryClient.setQueryData(albumOptions.queryKey, (old) => old)
+    expect(queryClient.getQueryData(albumOptions.queryKey)).toBe(cached)
+  })
+
+  it("narrows a read's error to the server's documented codes with hasErrorCode", async () => {
+    const { transport } = mockTransport({
+      [`${BASE}/albums/404`]: {
+        errors: [{ status: '404', code: 'RESOURCE_NOT_FOUND', title: 'Resource not found' }],
+      },
+    })
+    const notFound: typeof transport = async (req) => ({ ...(await transport(req)), status: 404 })
+    const client = createClient({ baseUrl: BASE, transport: notFound })
+    const queryClient = new QueryClient()
+    // `installNormalization` also installs `jsonApiRetry`, so the 404 isn't retried.
+    const teardown = installNormalization(queryClient, resourceMap)
+    const reads = createQueryApi(client)
+
+    // What `useQuery(reads.albums.get('404'))` holds once the read settles.
+    const albumQuery = await new QueryObserver(queryClient, reads.albums.get('404')).refetch()
+    expectTypeOf(albumQuery.error).toEqualTypeOf<ReadError<ErrorCode> | null>()
+    expect(hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')).toBe(true)
+    if (hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')) {
+      const errors: JsonApiErrorObject<ErrorCode>[] = albumQuery.error.errors
+      expect(errors[0]?.code).toBe('RESOURCE_NOT_FOUND')
+    }
+
+    teardown()
+  })
+
+  it('keeps a read disabled with skipToken until its input exists', async () => {
+    const { transport, requests } = mockTransport({})
+    const client = createClient({ baseUrl: BASE, transport })
+    const queryClient = new QueryClient()
+    const reads = createQueryApi(client)
+    const albumId = undefined as string | undefined
+    const ready = false as boolean
+
+    const albumQuery = new QueryObserver(queryClient, reads.albums.get(albumId ?? skipToken))
+    const albumsQuery = new QueryObserver(
+      queryClient,
+      reads.albums.list(ready ? { include: ['artist'] } : skipToken),
+    )
+    const artistQuery = new QueryObserver(
+      queryClient,
+      reads.albums.related(albumId ?? skipToken, 'artist'),
+    )
+    const observers = [albumQuery, albumsQuery, artistQuery]
+    const unsubscribes = observers.map((observer) => observer.subscribe(() => {}))
+    await Promise.resolve()
+
+    // A skipped read stays idle and sends nothing, under a deterministic key with no params.
+    expect(observers.map((observer) => observer.getCurrentResult().fetchStatus)).toEqual([
+      'idle',
+      'idle',
+      'idle',
+    ])
+    expect(requests).toHaveLength(0)
+    expect(reads.albums.get(albumId ?? skipToken).queryKey).toEqual([
+      'albums',
+      'fetchOne',
+      { $skip: true },
+    ])
+    expect(reads.albums.related(albumId ?? skipToken, 'artist').queryKey).toEqual([
+      'albums',
+      'fetchRelated',
+      { $skip: true },
+      'artist',
+    ])
+
+    unsubscribes.forEach((unsubscribe) => unsubscribe())
   })
 })
 
