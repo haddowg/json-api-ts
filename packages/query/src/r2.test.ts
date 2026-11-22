@@ -10,7 +10,7 @@ const bound = (h: ReturnType<typeof harness>) =>
 const refetch = (h: ReturnType<typeof harness>, options: { queryKey: readonly unknown[] }) =>
   h.queryClient.fetchQuery({ ...options, staleTime: 0 } as never)
 
-describe('a read landing while an optimistic write is pending (A7 R2)', () => {
+describe('a read landing while an optimistic write is pending', () => {
   it('keeps showing the prediction, and a failed write rolls back to the newest server value', async () => {
     const h = harness()
     const get = getQueryOptions(h.client, 'albums', '1')

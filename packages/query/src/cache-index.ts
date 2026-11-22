@@ -1,5 +1,5 @@
 /**
- * The cached resources of a QueryClient, indexed by `type:id` (design B1, "the normalised index").
+ * The cached resources of a QueryClient, indexed by `type:id`.
  *
  * Normalisation, member resolution, an optimistic draft's discovery of a resource's cached copies
  * and the upkeep that finds the queries holding a resource all look for one `type:id` across every
@@ -28,12 +28,23 @@
  * - A removed query is dropped from the index on the cache's `removed` event (and by the next
  *   lookup), so a garbage-collected query releases its nodes.
  * - A change this package makes inside a graph in place, without new values at the top (a relation
- *   slot an optimistic draft or an R3 propagation replaces, a temporary id swapped for the
+ *   slot an optimistic draft or a relationship propagation replaces, a temporary id swapped for the
  *   server's), is reported through {@link touchNode} (or {@link renameNode} for an id, which
  *   indexes the query again whole). The next lookup walks again only the member
  *   of the query's list that reaches the node (a segment), when that walk can't change what the
  *   rest of the list reaches: no copy it gains is reached elsewhere in the query, and none it loses
  *   was. Otherwise, and for a query that isn't a list, the query is indexed again whole.
+ *
+ * **A possible optimisation, if large caches need it.** An edit to a query's own member list (an
+ * optimistic draft's `evict` or `insert`, a pending create) gives the query a new array, so the
+ * query is indexed again whole at the next lookup, and again after a rollback: an optimistic delete
+ * and its rollback take about 8 ms at 5,000 cached resources (`bench/cache.bench.ts`), against under
+ * 1 ms for the other operations. The draft knows which members it removed or inserted and where, so
+ * it could update the index directly instead: drop the visits only a removed member reached (each
+ * {@link Visit} records its `member`), walk only an entering member, and fall back to the whole walk
+ * when a copy the removed member reached first is reached elsewhere in the query, as a segment walk
+ * does. Prove it by comparing the updated index with a freshly built one after random inserts,
+ * evictions and rollbacks.
  *
  * **Memory.** The index keeps strong references to the nodes of the queries it indexes, and drops
  * them with the query. Each QueryClient's index lives in a `WeakMap` keyed by the client, so a

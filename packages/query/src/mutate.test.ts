@@ -272,7 +272,7 @@ describe('deleteMutationOptions — invalidate list, remove resource', () => {
     await runMutation(qc, deleteMutationOptions(qc, client, 'albums', '1'), undefined)
 
     // The list subtree is invalidated; the resource's own reads are removed, rather than
-    // refetched into a 404 (D8).
+    // refetched into a 404.
     expect(qc.getQueryState(listOpts.queryKey)?.isInvalidated).toBe(true)
     expect(qc.getQueryState(getOpts.queryKey)).toBeUndefined()
     // Sanity: the resource-prefix matches the get key.

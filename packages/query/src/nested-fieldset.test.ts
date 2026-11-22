@@ -233,7 +233,7 @@ describe('a read narrowed to single keys', () => {
 const shown = (queryClient: QueryClient, key: readonly unknown[]) =>
   (queryClient.getQueryData(key) as unknown as { values: unknown }).values
 
-describe('a read narrowed to single keys landing on a predicted value (A7 R2)', () => {
+describe('a read narrowed to single keys landing on a predicted value', () => {
   const writable = {
     products: {
       ...descriptor.products,

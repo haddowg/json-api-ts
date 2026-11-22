@@ -1,11 +1,11 @@
 /**
- * What a cached view is and what its data promises (design B1a and B1b).
+ * What a cached view is and what its data promises.
  *
  * A cached query's key decodes into a {@link QueryDescription}: the read it is, its address and its
  * params. From a description and the descriptor, {@link viewShape} computes the {@link ViewShape}
  * its data promises at the top level and, recursively, at every included relation slot below it,
  * and {@link fits} says whether a member may enter a slot of that shape. {@link isComplete} and
- * {@link isUnfilteredUnsorted} answer the two questions B1b's automatic placement asks of a view.
+ * {@link isUnfilteredUnsorted} answer the two questions the automatic placement asks of a view.
  *
  * Internal groundwork for optimistic drafts and read coherence; nothing here is public API.
  *
@@ -526,7 +526,7 @@ const hasOwnEnumerable = (target: object, key: string): boolean =>
   Object.prototype.propertyIsEnumerable.call(target, key)
 
 /**
- * Whether `member` may enter a slot of `shape` (B1a: "the member satisfies a destination when it
+ * Whether `member` may enter a slot of `shape` ("the member satisfies a destination when it
  * holds every attribute key the destination's fieldset selects, and, recursively, every included
  * relation below that destination is itself satisfied; identifier destinations are always
  * satisfied by `{ type, id }`").
@@ -623,7 +623,7 @@ const filters = (filter: Readonly<Record<string, unknown>> | undefined): boolean
   filter !== undefined && Object.keys(filter).length > 0
 
 /**
- * Whether a view is unfiltered and unsorted, the first two conditions of B1b's automatic
+ * Whether a view is unfiltered and unsorted, the first two conditions of the automatic
  * placement: its params carry no `filter` and no explicit `sort`. With `relation`, the question is
  * asked of that relation's slot inside the view's resources instead: whether the view's
  * `relatedQuery` filters or sorts that relation's members.

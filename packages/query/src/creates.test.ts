@@ -1,5 +1,5 @@
 /**
- * Optimistic creates (design B2a): completion by `complete` and automatic nulls, included relations
+ * Optimistic creates: completion by `complete` and automatic nulls, included relations
  * resolved from the cache, pending entries where the row still can't fit, `withPending`, the list
  * totals, deferred relation members carrying data, and the development warning.
  */

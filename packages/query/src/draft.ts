@@ -1,5 +1,5 @@
 /**
- * The optimistic draft (design B1, B1a, B1b and B5): one typed transaction over the normalised
+ * The optimistic draft: one typed transaction over the normalised
  * cache, through which every optimistic change goes, built-in or written by an app.
  *
  * A draft edits the cached materialised values of one scope of a QueryClient in place:
@@ -306,7 +306,7 @@ export type Placement<M = DraftMember> =
   | false
 
 /**
- * Explicit placement (design B1b): consulted for every candidate view the automatic placement
+ * Explicit placement: consulted for every candidate view the automatic placement
  * didn't cover, with the view's decoded query `Q`, the member `M` that would enter it, and, for a
  * placement function, the view's loaded members `Members`. An operation types all three:
  * `insert('albums', …)` passes an albums collection read and albums members, and a relationship
@@ -397,7 +397,7 @@ export interface InsertOptions {
 }
 
 /**
- * A typed transaction over the normalised cache of one scope of a QueryClient (design B1). Open
+ * A typed transaction over the normalised cache of one scope of a QueryClient. Open
  * one with {@link openDraft}.
  *
  * Operations are typed against the descriptor `D` (type, relation and attribute names) and, for
@@ -763,9 +763,9 @@ class Draft implements OptimisticDraft, DraftLifecycle {
   private readonly keys = new Map<string, QueryKey>()
   /** The keys of the queries only an attribute prediction touched. */
   private readonly patchedKeys = new Map<string, QueryKey>()
-  /** The attribute predictions the draft holds (design A7 R2). */
+  /** The attribute predictions the draft holds. */
   private claims: FieldClaim[] = []
-  /** The relations the draft edited, whose slots a read leaves alone while it is open (A7 R2). */
+  /** The relations the draft edited, whose slots a read leaves alone while it is open. */
   private readonly owned = new Map<string, SlotClaim>()
   /** Every operation run so far, to run again on a query whose data a read replaces. */
   private log: (() => void)[] = []
@@ -1231,7 +1231,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
 
   /**
    * A created row as a destination of `shape` would hold it: each relation the shape includes,
-   * resolved from the cache by the ref the row gives (B1a), as a view keeping what the slot below
+   * resolved from the cache by the ref the row gives, as a view keeping what the slot below
    * selects. A ref no cached copy fits is left as it is, so the row doesn't fit.
    */
   private hydrate(
@@ -1566,7 +1566,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
 
   /**
    * Own relation `rel` of `type:id`: while the draft is open, a read's linkage for it is recorded
-   * for a rollback rather than shown (A7 R2).
+   * for a rollback rather than shown.
    */
   private own(type: string, id: string | undefined, rel: string): void {
     const key = relationIdentityKey(type, id, rel)
@@ -2434,7 +2434,7 @@ export interface DraftLifecycle {
 
 /**
  * Run every open draft's operations again on `query`, whose data a read just replaced, so what the
- * drafts predict keeps showing there while their writes are pending (design A7 R2).
+ * drafts predict keeps showing there while their writes are pending.
  * @internal
  */
 export function reapplyDrafts(

@@ -394,7 +394,7 @@ describe('the cache index', () => {
     s.stop()
   })
 
-  it('follows a read relinking other cached copies (R3)', async () => {
+  it('follows a read relinking other cached copies', async () => {
     const s = await cached()
     await s.queryClient.fetchQuery(getQueryOptions(s.client, 'tracks', 't3'))
     s.albums['1']!.tracks = ['t1', 't3']
@@ -406,7 +406,7 @@ describe('the cache index', () => {
     const list = s.queryClient.getQueryCache().find({ queryKey: albumsList(s).queryKey })!
     const first = (list.state.data as { tracks: unknown }[])[0]!
     expect(idsOf(first.tracks)).toEqual(['t1', 't3'])
-    // The R3 relink of album 1's slot in the list didn't drop t2 from what the index finds there.
+    // The propagated relink of album 1's slot in the list didn't drop t2 from what the index finds there.
     expect(cacheView(s.queryClient, undefined, descriptor).holding('tracks', 't2')).not.toContain(
       list,
     )

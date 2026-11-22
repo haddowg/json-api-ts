@@ -5,7 +5,7 @@
  * closures (an optimistic function, an explicit placement, what a custom write invalidates) on the
  * options under a symbol, and sets no lifecycle callbacks of its own, so the callbacks an app adds
  * alongside the factory's options are entirely the app's. The cache's config hooks, which TanStack
- * awaits before the mutation's own callbacks, carry the plan out (design B3).
+ * awaits before the mutation's own callbacks, carry the plan out.
  */
 import { type ApiDescriptor, isAccepted } from '@haddowg/json-api-client'
 import { hashKey, type Mutation, MutationCache, type QueryClient } from '@tanstack/query-core'
@@ -49,7 +49,7 @@ export interface OptimisticDefaults {
 /** The config of a {@link JsonApiMutationCache}: a `MutationCache`'s, plus the optimism default. */
 export type JsonApiMutationCacheConfig = MutationCacheConfig & {
   /**
-   * Optimism for every JSON:API write on the QueryClient (D5): `true` makes each write optimistic
+   * Optimism for every JSON:API write on the QueryClient: `true` makes each write optimistic
    * unless its factory says `optimistic: false`; an object does too (unless `enabled: false`) and
    * sets how drafts place additions. Default `false`: a write is optimistic only when its factory
    * says so.
@@ -138,7 +138,7 @@ const overlap = (a: QueryKey, b: QueryKey): boolean => keyHasPrefix(a, b) || key
  * `onMutate`/`onSuccess`/`onError`/`onSettled` an app adds to the options run after the upkeep,
  * against an already-reconciled cache. A mutation whose `meta` carries no plan is left alone.
  *
- * `config.optimistic` sets the default optimism of every write (D5). The rest of `config` is
+ * `config.optimistic` sets the default optimism of every write. The rest of `config` is
  * chained: each of its hooks runs after the upkeep of the same name, for every mutation.
  */
 export class JsonApiMutationCache extends MutationCache {
@@ -274,7 +274,7 @@ export class JsonApiMutationCache extends MutationCache {
           const descriptor = descriptorOf(queryClient, plan)
           const draft = entry.draft
           if (isAccepted(data)) {
-            // Accepted for later processing (D9): the server hasn't done the work, so the
+            // Accepted for later processing: the server hasn't done the work, so the
             // optimistic change stays and nothing of this write's is refetched.
             entry.skipOwn = true
             draft?.confirm()
@@ -292,7 +292,7 @@ export class JsonApiMutationCache extends MutationCache {
             if (plan.verb === 'delete') {
               const id = targetIdOf(plan, variables)
               if (id !== undefined) {
-                // Its own reads would refetch into a 404 (D8).
+                // Its own reads would refetch into a 404.
                 for (const queryKey of ownReadKeys(plan.type, id, plan.scope)) {
                   queryClient.removeQueries({ queryKey })
                 }

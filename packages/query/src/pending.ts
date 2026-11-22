@@ -1,6 +1,5 @@
 /**
- * Rendering the creates an optimistic draft placed in a list but couldn't show as members (design
- * B2a): {@link withPending} merges a list's members with a placeholder per pending create, in the
+ * Rendering the creates an optimistic draft placed in a list but couldn't show as members: {@link withPending} merges a list's members with a placeholder per pending create, in the
  * places the creates' `into` chose.
  */
 import type {

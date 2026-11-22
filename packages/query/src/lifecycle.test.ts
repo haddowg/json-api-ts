@@ -134,7 +134,7 @@ describe('overlapping writes (B3: the last to settle invalidates for all)', () =
   })
 })
 
-describe('a deleted resource (D8)', () => {
+describe('a deleted resource', () => {
   it('evicts it optimistically, and removes its own queries on success instead of refetching into a 404', async () => {
     const h = harness()
     const { client, queryClient } = h
@@ -178,7 +178,7 @@ describe('a deleted resource (D8)', () => {
   })
 })
 
-describe('202 Accepted (D9)', () => {
+describe('202 Accepted', () => {
   it('without wait, keeps the optimistic change, refetches nothing of its own, and clears the markers at settle', async () => {
     const h = harness()
     const { client, queryClient } = h
@@ -217,7 +217,7 @@ describe('202 Accepted (D9)', () => {
   })
 })
 
-describe('optimism by default (D5)', () => {
+describe('optimism by default', () => {
   it('JsonApiMutationCache({ optimistic: true }) makes every write optimistic unless it says false', async () => {
     const h = harness({ optimistic: true })
     const { client, queryClient } = h
