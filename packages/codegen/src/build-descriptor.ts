@@ -748,23 +748,27 @@ export class DescriptorBuilder {
     }
     const read = this.schemas[`${base}Attributes`]?.properties ?? {}
     const creatable = this.schemas[`${base}CreateAttributes`]?.properties ?? {}
-    return Object.keys(read)
-      .filter((name) => isSchema(read[name]) && !(name in creatable))
-      // `filter` returns a fresh array, so sorting it in place mutates nothing shared, and
-      // `Array#toSorted` is ES2023, outside the ES2022 lib this package targets.
-      // oxlint-disable-next-line no-array-sort
-      .sort()
+    return (
+      Object.keys(read)
+        .filter((name) => isSchema(read[name]) && !(name in creatable))
+        // `filter` returns a fresh array, so sorting it in place mutates nothing shared, and
+        // `Array#toSorted` is ES2023, outside the ES2022 lib this package targets.
+        // oxlint-disable-next-line no-array-sort
+        .sort()
+    )
   }
 
   /** The read attributes (`<Base>Attributes`) whose schema admits `null`. */
   private nullableAttributes(base: string): string[] {
     const read = this.schemas[`${base}Attributes`]?.properties ?? {}
-    return Object.entries(read)
-      .filter(([, prop]) => isSchema(prop) && isNullable(prop))
-      .map(([name]) => name)
-      // A fresh array from `map`; see serverOnlyAttributes.
-      // oxlint-disable-next-line no-array-sort
-      .sort()
+    return (
+      Object.entries(read)
+        .filter(([, prop]) => isSchema(prop) && isNullable(prop))
+        .map(([name]) => name)
+        // A fresh array from `map`; see serverOnlyAttributes.
+        // oxlint-disable-next-line no-array-sort
+        .sort()
+    )
   }
 
   /**
