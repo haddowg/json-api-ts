@@ -443,15 +443,18 @@ export type CreateMutationOpts<
 > = WriteMutationOpts<D, T, Inc, F, Wt, 'create', Cnt, CreateInput<D, W, T>> & {
   /**
    * Insert the new resource before the write: into no list unless `into` places it, and into
-   * `attachTo`'s relation. It carries the id the client generated (a type taking client ids), sent
-   * with the create, or a temporary id swapped for the server's on success. The row is completed
+   * `attachTo`'s relation. It carries the id the client generated (a type whose `clientId` is
+   * `required`), sent with the create, or a temporary id swapped for the server's on success. The row is completed
    * first (`complete`'s values, and `null` for each nullable attribute only the server sets); a list
    * it still can't fill takes it as a pending entry. `true`, a function, or `{ into, complete }`;
    * `false` overrides the mutation cache's default.
    */
   optimistic?: CreateOptimisticOption<D, A, W, T> | undefined
   attachTo?: AttachTo<D> | undefined
-  /** The id an optimistic create generates for a type taking client ids. `crypto.randomUUID()` by default. */
+  /**
+   * The id an optimistic create generates: the id sent for a type whose `clientId` is `required`,
+   * and the suffix of the temporary id (`$tmp:<id>`) for any other. `crypto.randomUUID()` by default.
+   */
   clientId?: (() => string) | undefined
 }
 
