@@ -152,6 +152,10 @@ typed from the request shape, so it has no read-only `addedAt` and only `positio
 required. See
 [Relationship mutation](relationship-mutation.md) for that path.
 
+To name either shape in your own code, `PivotFieldsOf<D, T, R>` is the pivot a response renders on
+relation `R` of type `T`, and `WritePivotOf<D, T, R>` the one a request sends, both exported from
+`@haddowg/json-api-client` (`D` is the generated descriptor's type).
+
 ??? note "Going deeper: per-edge views and identity by type:id"
     Each materialised related value is a *per-edge view* — a distinct wrapper per
     membership. It reads through to one shared, canonical node for the resource's

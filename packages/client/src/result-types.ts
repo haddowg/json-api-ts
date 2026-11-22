@@ -1128,7 +1128,7 @@ type LegacyPivot<P> = { readonly [K in keyof P]: FormatToTs<P[K]> }
  * with only `pivotFields` types every field present and non-null; one with neither falls back to
  * a loose record.
  */
-type PivotFieldsOf<
+export type PivotFieldsOf<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
@@ -1169,7 +1169,7 @@ type EdgePivot<
  * `writePivot` (only writable fields, optional unless required). Falls back like
  * {@link PivotFieldsOf} when the descriptor has no `writePivot`.
  */
-type WritePivotOf<
+export type WritePivotOf<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
