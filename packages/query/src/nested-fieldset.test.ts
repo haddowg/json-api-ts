@@ -5,8 +5,11 @@ import {
   type TransportResponse,
 } from '@haddowg/json-api-client'
 import { QueryClient } from '@tanstack/query-core'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { installNormalization } from './install'
+import { updateMutationOptions } from './mutate'
+import { JsonApiMutationCache } from './mutation-cache'
+import { serverValueOf } from './normalize'
 import { getQueryOptions, listQueryOptions } from './read'
 
 const BASE = 'https://shop.example'
@@ -223,5 +226,109 @@ describe('a read narrowed to single keys', () => {
       listQueryOptions(client, 'products', { fields: { products: ['lines.*'] } }),
     )
     expect(whole.lines).toEqual([{ qty: 5 }, { sku: 'B' }])
+  })
+})
+
+/** The `values` a query's cached product shows. */
+const shown = (queryClient: QueryClient, key: readonly unknown[]) =>
+  (queryClient.getQueryData(key) as unknown as { values: unknown }).values
+
+describe('a read narrowed to single keys landing on a predicted value (A7 R2)', () => {
+  const writable = {
+    products: {
+      ...descriptor.products,
+      paths: { ...descriptor.products.paths, update: '/products/{id}' },
+    },
+  } as const satisfies ApiDescriptor
+
+  /** A request the test answers when it chooses. */
+  interface Held {
+    req: TransportRequest
+    reply(body: unknown, status?: number): void
+  }
+
+  /** A client holding every request until the test answers it, and a QueryClient as an app builds one. */
+  function held() {
+    const pending: Held[] = []
+    const transport = (req: TransportRequest) =>
+      new Promise<TransportResponse>((resolve) => {
+        pending.push({
+          req,
+          reply: (body, status = 200) =>
+            resolve({ status, headers: {}, body: JSON.stringify(body) }),
+        })
+      })
+    const client = createClient<typeof writable, Attributes>(writable, { baseUrl: BASE, transport })
+    const queryClient = new QueryClient({
+      mutationCache: new JsonApiMutationCache(),
+      defaultOptions: { queries: { staleTime: Infinity } },
+    })
+    installNormalization(queryClient, writable)
+    const request = async (n: number): Promise<Held> => {
+      await vi.waitFor(() => expect(pending.length).toBeGreaterThan(n))
+      return pending[n] as Held
+    }
+    return { client, queryClient, request }
+  }
+
+  /**
+   * A whole read of the product cached, an optimistic write of its whole `values` pending, and a
+   * read narrowed to `values.cap` landed during it.
+   */
+  async function landed() {
+    const h = held()
+    const whole = getQueryOptions(h.client, 'products', 'p-1')
+    const seeded = h.queryClient.fetchQuery(whole)
+    ;(await h.request(0)).reply({ data: product({ cap: 1, floor: 0 }) })
+    await seeded
+
+    const update = updateMutationOptions(h.queryClient, h.client, writable, 'products', 'p-1', {
+      optimistic: true,
+    })
+    const written = h.queryClient
+      .getMutationCache()
+      .build(h.queryClient, update as never)
+      .execute({ values: { cap: 10, floor: 20, extra: 30 } } as never)
+    const write = await h.request(1)
+
+    // A read narrowed to the `cap` key, started after the write, lands while it is pending.
+    const narrowed = listQueryOptions(h.client, 'products', {
+      fields: { products: ['values.cap'] },
+    })
+    const reading = h.queryClient.fetchQuery(narrowed)
+    ;(await h.request(2)).reply({ data: [product({ cap: 5 })] })
+    await reading
+    const node = h.queryClient.getQueryData(whole.queryKey) as unknown as object
+    return { queryClient: h.queryClient, whole, written, node, write }
+  }
+
+  it('keeps showing the prediction, and records the keys merged into the previous server value', async () => {
+    const { queryClient, whole, node, write, written } = await landed()
+
+    expect(shown(queryClient, whole.queryKey)).toEqual({ cap: 10, floor: 20, extra: 30 })
+    // The narrowed key merged into the server value the node held, not into the prediction: none
+    // of the prediction's keys leak into what a rollback restores.
+    expect(serverValueOf(node, 'values')).toEqual({ value: { cap: 5, floor: 0 } })
+
+    write.reply({ data: product({ cap: 10, floor: 20, extra: 30 }) })
+    await written
+  })
+
+  it('rolls back to that merged server value when the write fails', async () => {
+    const { queryClient, whole, write, written } = await landed()
+
+    write.reply({ errors: [{ status: '422', code: 'NO' }] }, 422)
+    await expect(written).rejects.toBeDefined()
+
+    expect(shown(queryClient, whole.queryKey)).toEqual({ cap: 5, floor: 0 })
+  })
+
+  it('takes the write’s response when the write succeeds', async () => {
+    const { queryClient, whole, write, written } = await landed()
+
+    write.reply({ data: product({ cap: 11, floor: 21 }) })
+    await written
+
+    expect(shown(queryClient, whole.queryKey)).toEqual({ cap: 11, floor: 21 })
   })
 })
