@@ -107,7 +107,8 @@ For a shared cache, the `@haddowg/json-api-angular/query` entry point runs the c
 `type:id` normalised cache from [`@haddowg/json-api-query`](../query): a write updates every cached
 read of the resources it returns, with no refetch. It needs Angular 20.1 or later (TanStack's own
 floor; the root entry above still works on 20.0) and two more packages, which are optional peer
-dependencies of this one:
+dependencies of this one. `@tanstack/angular-query` is ES modules only, so a CommonJS `require` of
+the entry needs Node.js 20.19 or later, the floor this package declares:
 
 ```bash
 npm install @tanstack/angular-query @haddowg/json-api-query
