@@ -400,7 +400,7 @@ describe('errors', () => {
     expect(result.isError).toBe(true)
     expect(result.structuredContent).toBeUndefined()
     expect(json(result)).toEqual({
-      error: 'JSON:API request failed with status 422',
+      error: 'JSON:API request failed with status 422: The title is too short.',
       status: 422,
       errors: [
         {
