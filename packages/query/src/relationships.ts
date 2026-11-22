@@ -1,5 +1,5 @@
 /**
- * Reads propagate relationships (design A7 R3, under B1a's fit rules).
+ * Reads propagate relationships.
  *
  * A read carries each resource's relationships as linkage. Besides patching the attributes it
  * carries (./normalize.ts), a read updates each relation it carries linkage for on the resource's
@@ -19,18 +19,18 @@
  * its membership), as is a slot whose view filters the relation's members, which no linkage can
  * fill. The query the read landed in is never invalidated.
  *
- * **Freshness (R1).** Each slot records the stamp of the linkage it holds, alongside the node's
+ * **Freshness.** Each slot records the stamp of the linkage it holds, alongside the node's
  * attribute records: the read that materialised it, else the read whose linkage was last written
  * into it. A read's linkage is written only into a slot holding no newer linkage; where a cached
  * copy holds newer linkage than the read, that linkage is what propagates (into the read's own
  * copies too, where it fits).
  *
- * **Optimistic drafts (R2).** A slot an open draft owns (the draft edited that relation) isn't
+ * **Optimistic drafts.** A slot an open draft owns (the draft edited that relation) isn't
  * changed by a read. The linkage it brings is recorded on the draft's {@link SlotClaim} instead, and
  * a rollback writes it, so the slot shows the newest server membership.
  *
  * **No refetch loops.** A refetched query is newer than the read that invalidated it, so its
- * linkage updates the others and theirs never overwrites it. And a refetch R3 caused writes in
+ * linkage updates the others and theirs never overwrites it. And a refetch a propagation caused writes in
  * place but invalidates nothing, so two views whose server answers keep disagreeing settle after
  * one refetch rather than invalidating each other in turn.
  *
@@ -191,7 +191,7 @@ function narrowed(
   return entry.sort !== undefined && entry.sort.length > 0 ? 'sort' : undefined
 }
 
-// ── Claims: the relations an open optimistic draft owns (design A7 R2) ─────────────────────
+// ── Claims: the relations an open optimistic draft owns ─────────────────────
 
 /** The newest server value a read brought for one slot a draft owns, recorded for a rollback. */
 export interface SlotServerValue {
@@ -339,7 +339,7 @@ function relationsOf(descriptor: ApiDescriptor, type: string): Readable {
   return list
 }
 
-/** Queries R3 invalidated whose next success is the refetch it caused: those invalidate nothing. */
+/** Queries a propagation invalidated whose next success is the refetch it caused: those invalidate nothing. */
 const induced = new WeakMap<Query, true>()
 
 /**
@@ -549,7 +549,7 @@ export function propagateRelationships(
     }
   }
 
-  // A refetch R3 caused writes in place but invalidates nothing, so views can't ping-pong.
+  // A refetch a propagation caused writes in place but invalidates nothing, so views can't ping-pong.
   const quiet = landed !== undefined && induced.has(landed)
   if (landed !== undefined) {
     induced.delete(landed)
@@ -578,7 +578,7 @@ function insertionPoint(queue: readonly Visit[], from: number, seq: number): num
 }
 
 /**
- * Invalidate `query` for R3: an active query refetches, an inactive one goes stale. Its next
+ * Invalidate `query` for a propagation: an active query refetches, an inactive one goes stale. Its next
  * success is the refetch this caused.
  * @internal
  */
@@ -625,7 +625,7 @@ function relink(
   const shape = at === undefined ? undefined : slotShape(at, type, rel)
   const server: ServerSlot = { stamp: next.stamp, linkage: next.linkage }
 
-  // A slot an open draft owns keeps its prediction; the draft records the server value (R2).
+  // A slot an open draft owns keeps its prediction; the draft records the server value.
   const claim = topSlotClaim(context.queryClient, context.scope, type, id, rel)
   if (claim !== undefined) {
     const built = holds(slot, next.linkage) ? { value: slot } : build(context, shape, slot, next)

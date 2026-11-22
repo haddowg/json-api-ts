@@ -1,5 +1,5 @@
 /**
- * Resolving a member for a destination (design B1a): the copy of `type:id` that fits the shape the
+ * Resolving a member for a destination: the copy of `type:id` that fits the shape the
  * destination promises, from what the caller passed or from the richest cached copy.
  *
  * Internal groundwork for optimistic drafts and read coherence; nothing here is public API.

@@ -266,7 +266,7 @@ type Fresh = Map<ResourceKey, FreshResource>
 /**
  * What a cached node holds from the server: the stamp of the response it was materialised from,
  * each attribute a normalisation has written onto it since, with that write's stamp, and each
- * relation slot a read's linkage has replaced since (design A7 R3), with that read's stamp and
+ * relation slot a read's linkage has replaced since, with that read's stamp and
  * linkage. Kept per node (each per-edge view and each canonical node), keyed by the materialised
  * object behind it. An optimistic change writes no record, so a prediction is never mistaken for a
  * server value.
@@ -299,7 +299,7 @@ export const bornOf = (node: object): number => records.get(targetOf(node))?.bor
 
 /**
  * The linkage a read last wrote into relation slot `rel` of `node`, with that read's stamp, when one
- * has (design A7 R3).
+ * has.
  * @internal
  */
 export const writtenSlot = (node: object, rel: string): ServerSlot | undefined =>
@@ -678,7 +678,7 @@ function patchVisits(visits: readonly Visit[], fresh: Fresh, at: PatchContext): 
         held !== undefined && (held > value.stamp || (held === value.stamp && !value.incoming))
       const claim = claimOf?.(k)
       if (claim !== undefined) {
-        // An open draft owns the field (R2): the server value is recorded, for a rollback to
+        // An open draft owns the field: the server value is recorded, for a rollback to
         // restore, and the node keeps showing the prediction.
         if (!stale) {
           recordServerValue(node, k, value)
@@ -748,7 +748,7 @@ export function normalize(
 /**
  * {@link normalize} for a read's result, `landed` being the query it landed in when known: the
  * attributes are patched as for any response, and the relationships it carries are propagated to
- * the other cached copies of their resources (design A7 R3, see ./relationships.ts), never
+ * the other cached copies of their resources, never
  * invalidating `landed` itself.
  * @internal
  */
@@ -907,7 +907,7 @@ function patchAll(
 
 const bySeq = (a: Visit, b: Visit): number => a.seq - b.seq
 
-// ── Claims: the fields an open optimistic draft predicts (design A7 R2) ────────────────────
+// ── Claims: the fields an open optimistic draft predicts ────────────────────
 
 /** A node showing a claim's prediction, and what it showed before the claim reached it. */
 export interface ClaimedNode {

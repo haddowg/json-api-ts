@@ -234,7 +234,7 @@ export function installNormalization(
     normalizing = true
     try {
       normalizeRead(queryClient, data, descriptor, scope, landed)
-      // A read replaced the query's data: what open drafts predict shows there too (A7 R2).
+      // A read replaced the query's data: what open drafts predict shows there too.
       if (landed !== undefined) {
         reapplyDrafts(queryClient, scope, landed)
       }

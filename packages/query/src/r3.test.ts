@@ -274,7 +274,7 @@ function setup() {
 
 const ids = (value: unknown): string[] => (value as Row[]).map((member) => member['id'] as string)
 
-describe('reads propagate to-one linkage (A7 R3)', () => {
+describe('reads propagate to-one linkage', () => {
   it('moves an identifier slot to the new target in place', async () => {
     const h = setup()
     const get = getQueryOptions(h.client, 'albums', '1')
@@ -352,7 +352,7 @@ describe('reads propagate to-one linkage (A7 R3)', () => {
   })
 })
 
-describe('reads propagate complete to-many linkage (A7 R3)', () => {
+describe('reads propagate complete to-many linkage', () => {
   it('replaces an identifier slot’s members, keeping its envelope', async () => {
     const h = setup()
     const get = getQueryOptions(h.client, 'albums', '1')
@@ -493,7 +493,7 @@ describe('reads propagate complete to-many linkage (A7 R3)', () => {
   })
 })
 
-describe('relationship freshness (A7 R1 for R3)', () => {
+describe('relationship freshness', () => {
   it('an older read arriving last overwrites no newer slot, and takes the newer linkage itself', async () => {
     const h = setup()
     const list = listQueryOptions(h.client, 'albums')
@@ -544,7 +544,7 @@ describe('relationship freshness (A7 R1 for R3)', () => {
   })
 })
 
-describe('reads and pending optimistic relationship writes (A7 R2 for R3)', () => {
+describe('reads and pending optimistic relationship writes', () => {
   it('a slot a pending draft edited keeps its prediction, and a rollback shows the newest server membership', async () => {
     const h = setup()
     const get = getQueryOptions(h.client, 'albums', '1')
@@ -580,7 +580,7 @@ describe('reads and pending optimistic relationship writes (A7 R2 for R3)', () =
   })
 })
 
-describe('R3 never loops', () => {
+describe('relationship propagation never loops', () => {
   it('two views whose server answers keep disagreeing settle after one refetch', async () => {
     const h = setup()
     // Each view's read gets its own answer, and neither's members fit the other's fieldset.
@@ -638,7 +638,7 @@ describe('R3 never loops', () => {
   })
 })
 
-describe('R3 scopes', () => {
+describe('relationship propagation and scopes', () => {
   it('a read in one scope leaves another scope’s copies alone', async () => {
     const h = setup()
     installNormalization(h.queryClient, descriptor, { scope: 'admin' })

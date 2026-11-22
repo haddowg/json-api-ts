@@ -330,7 +330,7 @@ export type WriteMutationOpts<
   >
 
 /**
- * A parent relation a created resource is attached to (design B2): optimistically, placed by the
+ * A parent relation a created resource is attached to: optimistically, placed by the
  * relation's rules (automatically in an unfiltered, unsorted, complete view, else by `into`), and
  * at settle, when the relation's reads are invalidated.
  */
@@ -939,7 +939,7 @@ export interface JsonApiMutationConfig<
 }
 
 /**
- * The options of any write, with the lifecycle of the JSON:API write factories (design B4): its
+ * The options of any write, with the lifecycle of the JSON:API write factories: its
  * `optimistic` function applied through a draft after the reads it could be overwritten by are
  * cancelled, rolled back on error; its result normalized on success (unless it is an `Accepted`
  * job); and `invalidates`' keys invalidated on settle, by the last overlapping write to settle.

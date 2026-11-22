@@ -9,7 +9,7 @@
  *    relationship verb, an update's relations) -> on settle the queries it may have changed are
  *    invalidated by key prefix, by the last overlapping write to settle.
  *
- * OPTIMISTIC writes (design B2): before the write, its predicted change is applied through an
+ * OPTIMISTIC writes: before the write, its predicted change is applied through an
  * optimistic draft (./draft.ts), by a built-in policy derived from the plan and the mutation's
  * variables alone, so it is deterministic, or by the app's own function. An error rolls the draft
  * back; the settle commits it.
@@ -262,7 +262,7 @@ export function optimisticHooks(
   return {}
 }
 
-// ── Ids for an optimistic create (D6) ──────────────────────────────────────────────────────
+// ── Ids for an optimistic create ──────────────────────────────────────────────────────
 
 /** What a temporary id begins with. */
 export const TEMP_ID_PREFIX = '$tmp:'
@@ -392,7 +392,7 @@ function mutationDraft(draft: OptimisticDraft, applyDefault: () => void): Mutati
 }
 
 /**
- * The built-in optimistic change (design B2):
+ * The built-in optimistic change:
  *
  * - `update`: `patch`, attributes and relations alike, on the id the plan or the variables name;
  * - `delete`: `evict`;
@@ -548,7 +548,7 @@ const holding = (
 ): ReadonlySet<Query> => cacheView(queryClient, scope, descriptor).holding(type, id)
 
 /**
- * The keys a write invalidates when it settles, before any its draft adds (design B1b):
+ * The keys a write invalidates when it settles, before any its draft adds:
  *
  * - `create`: the type's lists, and `attachTo`'s relation and parent;
  * - `update`: each relation its variables change, and the parent's reads;
