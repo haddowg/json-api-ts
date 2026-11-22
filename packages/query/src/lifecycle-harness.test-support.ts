@@ -74,6 +74,13 @@ export const descriptor = {
     paginator: 'none',
     clientId: 'forbidden',
   },
+  labels: {
+    attributes: { name: 'string' },
+    relations: {},
+    paths: { fetchMany: '/labels', create: '/labels' },
+    paginator: 'none',
+    clientId: 'required',
+  },
 } as const satisfies ApiDescriptor
 
 export type Row = Record<string, unknown> & {
@@ -121,6 +128,8 @@ export function harness(cache: JsonApiMutationCacheConfig = {}) {
     a1: { name: 'Radiohead' },
     a2: { name: 'Blur' },
   }
+  // A label's id is always the client's: the type requires one.
+  const labels: Record<string, { name: string }> = {}
   const requests: string[] = []
   const sent = new Map<string, unknown>()
   const holds = new Map<string, { started: () => void; gate: Promise<void> }[]>()
@@ -130,6 +139,7 @@ export function harness(cache: JsonApiMutationCacheConfig = {}) {
 
   const track = (id: string) => ({ type: 'tracks', id, attributes: { ...tracks[id]! } })
   const artist = (id: string) => ({ type: 'artists', id, attributes: { ...artists[id]! } })
+  const label = (id: string) => ({ type: 'labels', id, attributes: { ...labels[id]! } })
   const album = (id: string) => {
     const { artist: by, tracks: members, ...attributes } = albums[id]!
     return {
@@ -158,6 +168,9 @@ export function harness(cache: JsonApiMutationCacheConfig = {}) {
     if (req.method === 'GET') {
       if (kind === 'jobs') {
         return json(303, undefined, { Location: `${BASE}/albums/1` })
+      }
+      if (kind === 'labels') {
+        return json(200, { data: Object.keys(labels).map(label) })
       }
       if (kind === 'albums' && id === undefined) {
         return json(200, { data: Object.keys(albums).map(album) })
@@ -226,6 +239,13 @@ export function harness(cache: JsonApiMutationCacheConfig = {}) {
     const write = data as { id?: string; attributes?: Record<string, unknown> }
     if (req.method === 'POST') {
       created += 1
+      if (kind === 'labels') {
+        if (write.id === undefined) {
+          return json(422, { errors: [{ status: '422', detail: 'A label needs a client id.' }] })
+        }
+        labels[write.id] = { name: String(write.attributes?.['name'] ?? '') }
+        return json(201, { data: label(write.id) })
+      }
       if (kind === 'artists') {
         const newId = write.id ?? `srv-${created}`
         artists[newId] = { name: String(write.attributes?.['name'] ?? '') }

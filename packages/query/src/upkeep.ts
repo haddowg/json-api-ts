@@ -265,7 +265,10 @@ export function optimisticHooks(
 /** What a temporary id begins with. */
 export const TEMP_ID_PREFIX = '$tmp:'
 
-/** The member of a create's variables carrying the temporary id of a `forbidden` type. */
+/**
+ * The member of a create's variables carrying the temporary id of a type that doesn't require a
+ * client id (`optional` or `forbidden`).
+ */
 export const TEMP_ID_MEMBER = '$tempId'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -277,11 +280,12 @@ function uuid(): string {
 }
 
 /**
- * The id an optimistic create's row carries, written into the variables so it is sent with the
- * create (a type whose `clientId` is `optional` or `required`) or carried, never sent, as
- * `$tempId` (a `forbidden` type), and so persists with the mutation. An id the variables already
- * carry is kept, so a resumed mutation never mints a second one. `undefined` when the variables
- * can't carry one.
+ * The id an optimistic create's row carries, written into the variables so it persists with the
+ * mutation. A type whose `clientId` is `required` gets a generated `id`, sent with the create;
+ * every other type a temporary `$tempId`, never sent, which the server's id replaces on success.
+ * An id the variables already carry is kept, so a resumed mutation never mints a second one, and
+ * so is an `id` the caller gave an `optional` type, which is sent as the final id. `undefined` when
+ * the variables can't carry one.
  */
 export function prepareCreateId(
   plan: JsonApiResourcePlan,
@@ -293,7 +297,11 @@ export function prepareCreateId(
     return undefined
   }
   const policy = descriptor[plan.type]?.clientId
-  const member = policy === 'optional' || policy === 'required' ? 'id' : TEMP_ID_MEMBER
+  const own = variables['id']
+  if (policy !== undefined && policy !== 'forbidden' && typeof own === 'string') {
+    return own
+  }
+  const member = policy === 'required' ? 'id' : TEMP_ID_MEMBER
   const existing = variables[member]
   if (typeof existing === 'string') {
     return existing

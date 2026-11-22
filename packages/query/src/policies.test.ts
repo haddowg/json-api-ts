@@ -145,24 +145,59 @@ describe('create', () => {
     expect((queryClient.getQueryData(resourceKey('albums', 'srv-1')) as Row)['id']).toBe('srv-1')
   })
 
-  it('a client-id type gets a generated id in its variables, sent with the create (no swap)', async () => {
+  it('a type requiring client ids gets a generated id in its variables, sent with the create (no swap)', async () => {
+    const h = harness()
+    const { client, queryClient } = h
+    const list = listQueryOptions(client, 'labels')
+    await queryClient.fetchQuery(list)
+    const variables: Record<string, unknown> = { name: 'Parlophone' }
+    await h.run(
+      bound(h).labels.create({ optimistic: { into: () => 'end' }, clientId: () => 'parlophone' }),
+      variables,
+    )
+    expect(variables['id']).toBe('parlophone')
+    expect(variables['$tempId']).toBeUndefined()
+    const sent = JSON.parse(String(h.sent('POST /labels'))) as { data: { id?: string } }
+    expect(sent.data.id).toBe('parlophone')
+
+    const generated: Record<string, unknown> = { name: 'XL' }
+    await h.run(bound(h).labels.create({ optimistic: true }), generated)
+    expect(generated['id']).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('a type taking optional client ids gets a temporary id, never sent, swapped for the server’s', async () => {
     const h = harness()
     const { client, queryClient } = h
     const list = listQueryOptions(client, 'artists')
     await queryClient.fetchQuery(list)
+    const held = h.hold('POST /artists')
     const variables: Record<string, unknown> = { name: 'Muse' }
-    await h.run(
+    const pending = h.run(
       bound(h).artists.create({ optimistic: { into: () => 'end' }, clientId: () => 'muse' }),
       variables,
     )
-    expect(variables['id']).toBe('muse')
+    await tick()
+    expect(variables['id']).toBeUndefined()
+    expect(variables['$tempId']).toBe('$tmp:muse')
+    expect(ids(h.data(list))).toEqual(['a1', 'a2', '$tmp:muse'])
+
+    held.release()
+    await pending
+    const sent = JSON.parse(String(h.sent('POST /artists'))) as { data: Record<string, unknown> }
+    expect(sent.data['id']).toBeUndefined()
+    expect(JSON.stringify(sent)).not.toContain('$tempId')
+    expect(ids(h.data(list))).toEqual(['a1', 'a2', 'srv-1'])
+    expect(h.artists['srv-1']?.name).toBe('Muse')
+  })
+
+  it('an id the caller gives a type taking optional client ids is kept and sent', async () => {
+    const h = harness()
+    const variables: Record<string, unknown> = { id: 'muse', name: 'Muse' }
+    await h.run(bound(h).artists.create({ optimistic: true }), variables)
+    expect(variables['$tempId']).toBeUndefined()
     const sent = JSON.parse(String(h.sent('POST /artists'))) as { data: { id?: string } }
     expect(sent.data.id).toBe('muse')
     expect(h.artists['muse']?.name).toBe('Muse')
-
-    const generated: Record<string, unknown> = { name: 'Pulp' }
-    await h.run(bound(h).artists.create({ optimistic: true }), generated)
-    expect(generated['id']).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('places into no list without into', async () => {

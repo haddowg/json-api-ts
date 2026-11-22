@@ -133,8 +133,9 @@ const create = writes.albums.create({
 
 The row needs an id before the server assigns one:
 
-- For a type that takes client ids (`clientId` is `optional` or `required`), the create generates one with `crypto.randomUUID()`, or your `clientId: () => string` option, writes it into the variables, and sends it, so the row already has its final id.
-- For a type that doesn't, the row carries a temporary id, `$tmp:<uuid>`, kept in the variables as `$tempId` and never sent. When the write succeeds it is swapped for the server's id in place: on every cached copy, in `$pending`, and in the key of any cached query keyed by it. A query still observed under the temporary id is left for you to move to the result's id.
+- For a type that requires client ids (`clientId` is `required`), the create generates one with `crypto.randomUUID()`, or your `clientId: () => string` option, writes it into the variables, and sends it, so the row already has its final id.
+- For any other type, `optional` and `forbidden` alike, the row carries a temporary id, `$tmp:<uuid>` (your `clientId` option supplies the part after `$tmp:`), kept in the variables as `$tempId` and never sent, so the server assigns the id. When the write succeeds it is swapped for the server's id in place: on every cached copy, in `$pending`, and in the key of any cached query keyed by it.
+- An `id` you put in the variables of an `optional` type yourself is kept and sent as the final id.
 
 Because the id lives in the variables, it also shows in `useMutationState`, and a create that resumes keeps the id it had.
 
