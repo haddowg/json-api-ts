@@ -30,8 +30,9 @@ import {
   type ScopeSegment,
 } from './keys'
 import { type DraftRef, type Into, lifecycleOf, type OptimisticDraft } from './draft'
+import { cacheView } from './cache-index'
 import { peekStamp, stampResult } from './freshness'
-import { normalizeWith, queriesIn, walkResources } from './normalize'
+import { normalizeWith, queriesIn } from './normalize'
 import { describeQuery } from './view-shape'
 
 /** The `meta` key a JSON:API mutation's {@link JsonApiMutationPlan} rides under. */
@@ -543,14 +544,14 @@ function isOwnRead(query: Query, descriptor: ApiDescriptor, type: string, id: st
   )
 }
 
-/** Whether a query's data holds `type:id` anywhere. */
-function holds(query: Query, descriptor: ApiDescriptor, type: string, id: string): boolean {
-  let found = false
-  walkResources(query.state.data, descriptor, (node) => {
-    found ||= node.type === type && node.id === id
-  })
-  return found
-}
+/** The cached queries of `scope` whose data holds `type:id` anywhere, from the cache index. */
+const holding = (
+  queryClient: QueryClient,
+  scope: string | undefined,
+  descriptor: ApiDescriptor,
+  type: string,
+  id: string,
+): ReadonlySet<Query> => cacheView(queryClient, scope, descriptor).holding(type, id)
 
 /**
  * The keys a write invalidates when it settles, before any its draft adds (design B1b):
@@ -607,11 +608,9 @@ export function planKeys(
       if (id === undefined) {
         return keys
       }
+      const held = holding(queryClient, scope, descriptor, plan.type, id)
       for (const query of queriesIn(queryClient, scope)) {
-        if (
-          !isOwnRead(query, descriptor, plan.type, id) &&
-          holds(query, descriptor, plan.type, id)
-        ) {
+        if (!isOwnRead(query, descriptor, plan.type, id) && held.has(query)) {
           keys.push(query.queryKey as QueryKey)
         }
       }
@@ -643,11 +642,14 @@ export function fetchingTargets(
       addressed.push({ type: plan.attachTo.type, id: plan.attachTo.id })
     }
   }
+  const held = addressed.map(({ type, id }) =>
+    holding(queryClient, plan.scope, descriptor, type, id),
+  )
   return queriesIn(queryClient, plan.scope).filter(
     (query) =>
       query.state.fetchStatus === 'fetching' &&
       (keys.some((key) => keyHasPrefix(query.queryKey as QueryKey, key)) ||
-        addressed.some(({ type, id }) => holds(query, descriptor, type, id))),
+        held.some((queries) => queries.has(query))),
   )
 }
 

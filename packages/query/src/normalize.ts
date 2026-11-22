@@ -28,10 +28,11 @@
  */
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
+import { type CacheView, cacheView, shapeOfCached, type Visit } from './cache-index'
 import { peekStamp, stampNow, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { scopeOf } from './keys'
 import { propagateRelationships, type ServerSlot } from './relationships'
-import { describeQuery, viewShape, type ViewShape, walkShaped } from './view-shape'
+import type { ViewShape } from './view-shape'
 
 /** A `type:id` cache key for a resource. */
 type ResourceKey = string
@@ -284,8 +285,15 @@ interface Candidate extends ServerValue {
   incoming: boolean
 }
 
+/** The newest server value of each attribute of one resource a response carries. */
+interface FreshResource {
+  readonly type: string
+  readonly id: string
+  readonly attributes: Map<string, Candidate>
+}
+
 /** The newest server value of each attribute a response carries, by `type:id` then attribute. */
-type Fresh = Map<ResourceKey, Map<string, Candidate>>
+type Fresh = Map<ResourceKey, FreshResource>
 
 /**
  * What a cached node holds from the server: the stamp of the response it was materialised from,
@@ -586,19 +594,23 @@ function mergedValue(
 function consider(
   fresh: Fresh,
   key: ResourceKey,
+  ident: { readonly type: string; readonly id: string },
   k: string,
   candidate: Candidate,
   tieWins: boolean,
 ): void {
-  const attributes = fresh.get(key) ?? new Map<string, Candidate>()
-  fresh.set(key, attributes)
-  const current = attributes.get(k)
+  let resource = fresh.get(key)
+  if (resource === undefined) {
+    resource = { type: ident.type, id: ident.id, attributes: new Map() }
+    fresh.set(key, resource)
+  }
+  const current = resource.attributes.get(k)
   if (
     current === undefined ||
     candidate.stamp > current.stamp ||
     (tieWins && candidate.stamp === current.stamp)
   ) {
-    attributes.set(k, candidate)
+    resource.attributes.set(k, candidate)
   }
 }
 
@@ -624,7 +636,7 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
       const key = resourceKey(ident.type, ident.id)
       for (const [k, value] of serverValues(node)) {
         // A later occurrence wins a tie: for one response, the copies are the same wire object.
-        consider(fresh, key, k, { ...value, incoming: true }, true)
+        consider(fresh, key, ident, k, { ...value, incoming: true }, true)
       }
     })
   }
@@ -634,40 +646,33 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
 /**
  * Raise each attribute in `fresh` to the newest server value any cached copy of its resource holds,
  * so a response arriving after a newer one takes the newer values rather than spreading its own.
+ * The copies are the index's, in the order a walk of the cache visits them.
  */
-function raiseToNewest(
-  queries: readonly Query[],
-  fresh: Fresh,
-  descriptor: ApiDescriptor,
-  wins: ReadonlySet<string> | undefined,
-): void {
-  for (const query of queries) {
-    walkResources(query.state.data, descriptor, (node) => {
-      const ident = identity(node)
-      if (ident === undefined) {
-        return
-      }
-      const key = resourceKey(ident.type, ident.id)
-      const attributes = fresh.get(key)
-      if (attributes === undefined) {
-        return
-      }
-      for (const [k, value] of serverValues(node)) {
-        const current = attributes.get(k)
-        if (current === undefined) {
+function raiseToNewest(view: CacheView, fresh: Fresh, wins: ReadonlySet<string> | undefined): void {
+  for (const [key, resource] of fresh) {
+    const { type, id, attributes } = resource
+    for (const query of view.ordered(view.holding(type, id))) {
+      for (const visit of view.visits(query, type, id)) {
+        if (!visit.first) {
           continue
         }
-        if (wins?.has(fieldKey(ident.type, ident.id, k)) === true) {
-          // A write's own response wins over every value cached meanwhile: it keeps its value and
-          // takes the newest stamp, so no older read landing later replaces it.
-          if (current.incoming && value.stamp > current.stamp) {
-            current.stamp = value.stamp
+        for (const [k, value] of serverValues(visit.node as unknown as MaterialisedResource)) {
+          const current = attributes.get(k)
+          if (current === undefined) {
+            continue
           }
-          continue
+          if (wins?.has(fieldKey(type, id, k)) === true) {
+            // A write's own response wins over every value cached meanwhile: it keeps its value and
+            // takes the newest stamp, so no older read landing later replaces it.
+            if (current.incoming && value.stamp > current.stamp) {
+              current.stamp = value.stamp
+            }
+            continue
+          }
+          consider(fresh, key, resource, k, { ...value, incoming: false }, false)
         }
-        consider(fresh, key, k, { ...value, incoming: false }, false)
       }
-    })
+    }
   }
 }
 
@@ -694,10 +699,7 @@ export function writable(node: object, k: string, shape: ViewShape | undefined):
  * @internal
  */
 export function shapeOfQuery(query: Query, descriptor: ApiDescriptor): ViewShape | undefined {
-  const description = describeQuery(query, descriptor)
-  return description === undefined || description.skipped
-    ? undefined
-    : viewShape(description, descriptor)
+  return shapeOfCached(query, descriptor)
 }
 
 /**
@@ -722,33 +724,27 @@ function writeServerValue(node: MaterialisedResource, k: string, fresh: ServerVa
 }
 
 /**
- * Patch every materialised node in `cached` whose `type:id` appears in `fresh`, in place, returning
- * whether any VALUE actually changed. An attribute is written only where {@link writable} allows it
- * (a key the copy holds, or one its slot's fieldset selects), and only onto a node holding an older
- * server value of it, or none, or one as old when the response being normalised carried it: a
- * node whose value came from a request started later keeps it. We mutate the cached objects
+ * Patch the copies `visits` (one part's, in walk order) of the resources in `fresh`, in place,
+ * returning whether any VALUE actually changed. An attribute is written only where {@link writable}
+ * allows it (a key the copy holds, or one its slot's fieldset selects), and only onto a node holding
+ * an older server value of it, or none, or one as old when the response being normalised carried
+ * it: a node whose value came from a request started later keeps it. We mutate the cached objects
  * directly (preserving their identity/accessors) rather than rebuilding them, so writing the same
  * reference back triggers TanStack's subscribers without a structural-sharing diff fighting the
  * per-edge views. A node already holding the values is a no-op (reports unchanged), so a redundant
  * re-application doesn't write back or re-notify.
  */
-function patchCached(
-  cached: unknown,
-  fresh: Fresh,
-  descriptor: ApiDescriptor,
-  shape: ViewShape | undefined,
-  at: PatchContext,
-): boolean {
+function patchVisits(visits: readonly Visit[], fresh: Fresh, at: PatchContext): boolean {
   let changed = false
-  walkShaped(cached, shape, descriptor, (visited, slot) => {
+  for (const { node: visited, shape: slot } of visits) {
     const node = visited as unknown as MaterialisedResource
     const ident = identity(node)
     if (ident === undefined) {
-      return
+      continue
     }
-    const attributes = fresh.get(resourceKey(ident.type, ident.id))
+    const attributes = fresh.get(resourceKey(ident.type, ident.id))?.attributes
     if (attributes === undefined) {
-      return
+      continue
     }
     for (const [k, value] of attributes) {
       const held = heldStamp(node, k)
@@ -773,7 +769,7 @@ function patchCached(
         changed = true
       }
     }
-  })
+  }
   return changed
 }
 
@@ -870,19 +866,27 @@ function run(
   // An infinite query's earlier pages are indexed again each time a page is added. Their nodes'
   // records carry any newer value written since, so indexing them again never spreads stale data.
   const fresh = collectIncoming(result, descriptor)
-  const queries = queriesIn(queryClient, scope)
   // Relationships first, so a member a slot gains is patched with the newest attributes below.
   const relinked =
     read === undefined
       ? new Map<Query, Set<object>>()
-      : propagateRelationships(queryClient, result, descriptor, scope, queries, read ?? undefined)
+      : propagateRelationships(
+          queryClient,
+          result,
+          descriptor,
+          scope,
+          cacheView(queryClient, scope, descriptor),
+          read ?? undefined,
+        )
   if (fresh.size === 0 && relinked.size === 0) {
     return
   }
+  // Taken again: the relationships propagated may have changed what a query holds.
+  const view = cacheView(queryClient, scope, descriptor)
   if (fresh.size > 0) {
-    raiseToNewest(queries, fresh, descriptor, wins)
+    raiseToNewest(view, fresh, wins)
   }
-  patchAll(queryClient, scope, queries, fresh, descriptor, relinked)
+  patchAll(queryClient, scope, view, fresh, relinked)
 }
 
 /**
@@ -923,30 +927,45 @@ export function queriesIn(queryClient: QueryClient, scope: string | undefined): 
 }
 
 /**
- * Patch the cached `queries` with the newest server values in `fresh`. We republish only the
- * queries that {@link patchCached} actually mutated, or whose relation slots a read relinked
- * (`relinked`, by query, the parts holding them), under a new root (see {@link republish}), so
- * their observers notify once. Untouched queries keep their data reference, and every query keeps its
- * `isInvalidated` flag, so a patch never undoes the invalidation a create or delete made.
+ * Patch the cached queries holding a resource in `fresh` with its newest server values. We
+ * republish only the queries that {@link patchVisits} actually mutated, or whose relation slots a
+ * read relinked (`relinked`, by query, the parts holding them), under a new root (see
+ * {@link republish}), so their observers notify once. Untouched queries keep their data reference,
+ * and every query keeps its `isInvalidated` flag, so a patch never undoes the invalidation a create
+ * or delete made.
  */
 function patchAll(
   queryClient: QueryClient,
   scope: string | undefined,
-  queries: readonly Query[],
+  view: CacheView,
   fresh: Fresh,
-  descriptor: ApiDescriptor,
   relinked: ReadonlyMap<Query, ReadonlySet<object>>,
 ): void {
-  for (const query of queries) {
+  // The copies to patch, by query, then by part.
+  const copies = new Map<Query, Map<number, Visit[]>>()
+  for (const { type, id } of fresh.values()) {
+    for (const query of view.holding(type, id)) {
+      const parts = copies.get(query) ?? new Map<number, Visit[]>()
+      copies.set(query, parts)
+      for (const visit of view.visits(query, type, id)) {
+        const list = parts.get(visit.part) ?? []
+        parts.set(visit.part, list)
+        list.push(visit)
+      }
+    }
+  }
+  for (const query of view.ordered(new Set([...copies.keys(), ...relinked.keys()]))) {
     const data = query.state.data
     if (data === undefined || data === null) {
       continue
     }
-    const shape = shapeOfQuery(query, descriptor)
     const at: PatchContext = { queryClient, scope, query }
     const slots = relinked.get(query)
-    const touched = partsOf(data).filter((part) => {
-      const patched = fresh.size > 0 && patchCached(part, fresh, descriptor, shape, at)
+    const parts = copies.get(query)
+    const touched = partsOf(data).filter((part, index) => {
+      const visits = parts?.get(index)
+      // oxlint-disable-next-line no-array-sort -- each part's list is this pass's own
+      const patched = visits !== undefined && patchVisits(visits.sort(bySeq), fresh, at)
       return (
         patched ||
         (typeof part === 'object' && part !== null && slots?.has(targetOf(part)) === true)
@@ -957,6 +976,8 @@ function patchAll(
     }
   }
 }
+
+const bySeq = (a: Visit, b: Visit): number => a.seq - b.seq
 
 // ── Claims: the fields an open optimistic draft predicts (design A7 R2) ────────────────────
 
