@@ -44,6 +44,7 @@ import {
   type PendingCreate,
   type PendingMember,
   type PendingPlacement,
+  type PivotFieldsOf,
   type RelatedQueryParam,
   type RelatedReadRelatedQuery,
   type RelationFilterQuery,
@@ -52,6 +53,7 @@ import {
   setMaterialisedOverlay,
   type SortQuery,
   type TypeName,
+  type WritePivotOf,
 } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import type { QueryKey } from './keys'
@@ -119,13 +121,54 @@ export type DraftRef = {
  * A member as {@link Into} sees it: the value that would enter the view (a per-edge view of the
  * resolved copy, or an identifier view), or, when no copy fits, the ref the caller passed. `TType`
  * is the type it can be: the inserted type, or a relation's related types.
+ *
+ * `Pivot` types its `$pivot`: on a relation with a pivot, the read pivot (`PivotFieldsOf`) for a
+ * member already in the view and the write pivot (`WritePivotOf`) for the member entering it, each
+ * `| undefined`, as the client's own per-edge `$pivot` is (a slot holds only what its document
+ * rendered, and a ref may be added without one); `never` where there is no pivot (an insert, or a
+ * relation without one), which leaves `$pivot` `undefined`. Over the base descriptor it is a loose
+ * record that may be absent.
  */
-export interface DraftMember<TType extends string = string> {
+export type DraftMember<
+  TType extends string = string,
+  Pivot = Readonly<Record<string, unknown>> | undefined,
+> = {
   readonly type: TType
   readonly id: string
-  readonly $pivot?: Readonly<Record<string, unknown>> | undefined
   readonly [key: string]: unknown
-}
+} & ([Pivot] extends [never]
+  ? { readonly $pivot?: undefined }
+  : undefined extends Pivot
+    ? { readonly $pivot?: Pivot }
+    : { readonly $pivot: Pivot })
+
+/** Whether relation `R` of type `T` carries pivot data on its members. */
+type HasPivot<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { readPivot: object } | { pivotFields: object } | { pivot: true }
+  ? true
+  : false
+
+/**
+ * The `$pivot` a {@link DraftMember} of relation `R` carries: `Side` (the read or write pivot) or
+ * `undefined` on a relation with a pivot, `never` on one without, and the loose record over the base
+ * descriptor.
+ *
+ * @internal
+ */
+export type DraftPivot<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  Side,
+> =
+  string extends TypeName<D>
+    ? Readonly<Record<string, unknown>> | undefined
+    : HasPivot<D, T, R> extends true
+      ? Side | undefined
+      : never
 
 /**
  * The params a candidate view was read with, as {@link DraftQuery} carries them: `filter`, `sort`
@@ -251,32 +294,44 @@ export type Placement<M = DraftMember> =
 
 /**
  * Explicit placement (design B1b): consulted for every candidate view the automatic placement
- * didn't cover, with the view's decoded query `Q` and the member `M` that would enter it. An
- * operation types both: `insert('albums', …)` passes an albums collection read and an albums
- * member, and a relationship verb any {@link DraftQuery} and a member of the relation's types.
+ * didn't cover, with the view's decoded query `Q`, the member `M` that would enter it, and, for a
+ * placement function, the view's loaded members `Members`. An operation types all three:
+ * `insert('albums', …)` passes an albums collection read and albums members, and a relationship
+ * verb any {@link DraftQuery} and members of the relation's types, each `$pivot` typed from the
+ * relation's pivot.
  */
 export type Into<
   D extends ApiDescriptor = ApiDescriptor,
   Q = DraftQuery<D>,
   M = DraftMember<TypeName<D>>,
+  Members = M,
 > = {
   // Declared as a method so its parameters are bivariant: a typed `into` can be held where any
   // descriptor's is (an option or a plan typed loosely), while an inline one is typed in context.
-  into(query: Q, member: M): Placement<M>
+  into(query: Q, member: M): Placement<Members>
 }['into']
 
-/** The {@link Into} an operation on relation `R` of type `T` takes. */
+/**
+ * The {@link Into} an operation on relation `R` of type `T` takes. On a relation with a pivot, the
+ * entering member's `$pivot` is the write pivot the caller sent (`WritePivotOf`), and each loaded
+ * member's the read pivot its document rendered (`PivotFieldsOf`), either `undefined` when absent.
+ */
 export type RelationInto<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = Into<D, DraftQuery<D>, DraftMember<RelatedTypeName<D, T, R>>>
+> = Into<
+  D,
+  DraftQuery<D>,
+  DraftMember<RelatedTypeName<D, T, R>, DraftPivot<D, T, R, WritePivotOf<D, T, R>>>,
+  DraftMember<RelatedTypeName<D, T, R>, DraftPivot<D, T, R, PivotFieldsOf<D, T, R>>>
+>
 
-/** The {@link Into} an insert of type `T` takes. */
+/** The {@link Into} an insert of type `T` takes: list rows carry no `$pivot`. */
 export type InsertInto<D extends ApiDescriptor, T extends TypeName<D>> = Into<
   D,
   string extends TypeName<D> ? QueryDescription : ListDraftQuery<D, T>,
-  DraftMember<T>
+  DraftMember<T, never>
 >
 
 /** How an adding operation places its members; `I` is the {@link Into} it takes. */
