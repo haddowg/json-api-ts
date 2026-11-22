@@ -111,7 +111,7 @@ export const apiProviders = [
 ```
 
 - The `JsonApiMutationCache` runs each write's cache upkeep: its optimistic change and rollback, normalising the response, and invalidating what it may have changed. See [how the upkeep runs](tanstack-query.md#how-the-upkeep-runs).
-- `provideJsonApiQuery` installs the `type:id` [normalisation](tanstack-query.md#normalisation-type-id-write-through-patching) on that `QueryClient`, removed again when the environment injector is destroyed, and registers the client's bound read and write factories.
+- `provideJsonApiQuery` installs the `type:id` [normalisation](tanstack-query.md#normalisation-typeid-write-through-patching) on that `QueryClient`, removed again when the environment injector is destroyed, and registers the client's bound read and write factories.
 - It fails when the app starts if `provideTanStackQuery` is missing, or if the `QueryClient` wasn't built with a `JsonApiMutationCache`.
 
 To make every write [optimistic](optimistic-updates.md#turning-it-on) unless it says otherwise, build the cache with `new JsonApiMutationCache({ optimistic: true })`.
