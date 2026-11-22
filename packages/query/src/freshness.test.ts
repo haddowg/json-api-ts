@@ -387,6 +387,31 @@ describe('every client result competes by when its request started', () => {
       'Written',
     )
   })
+  it('patches a copy the app wrote with setQueryData from a later atomic batch', async () => {
+    const { client, queryClient, request } = setup()
+    const list = listQueryOptions(client, 'albums')
+    const reading = queryClient.fetchQuery(list)
+    ;(await request(0)).reply({ data: [album('1', 'Listed')] })
+    await reading
+
+    // The app writes a list holding a resource no cached query held before.
+    const fetching = client.albums.list()
+    ;(await request(1)).reply({ data: [album('1', 'Listed'), album('2', 'Two')] })
+    queryClient.setQueryData(list.queryKey, (await fetching) as never)
+
+    const batch = new MutationObserver(
+      queryClient,
+      atomicMutationOptions(queryClient, client, descriptor) as never,
+    )
+    const written = batch.mutate(((tx: { update(input: unknown): unknown }) => {
+      tx.update({ type: 'albums', id: '2', title: 'Batched' })
+    }) as never)
+    ;(await request(2)).reply({ 'atomic:results': [{ data: album('2', 'Batched') }] })
+    await written
+
+    const rows = queryClient.getQueryData(list.queryKey) as unknown as Album[]
+    expect(rows.map((row) => row.title)).toEqual(['Listed', 'Batched'])
+  })
 })
 
 describe('newer data wins across infinite pages', () => {
