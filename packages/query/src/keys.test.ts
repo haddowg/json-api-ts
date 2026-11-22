@@ -1,14 +1,20 @@
+import { QueryClient } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
 import {
   INFINITE_SEGMENT,
   infiniteKeyFor,
+  isScopeSegment,
   keyFor,
   keyHasPrefix,
   normalizeParams,
   operationKey,
+  parentRelationReadKeys,
   type QueryKey,
   relationReadKeys,
   resourceKey,
+  scopedKey,
+  scopeOf,
+  scopeSegment,
   SKIPPED_SEGMENT,
   typeKey,
 } from './keys'
@@ -192,5 +198,49 @@ describe('SKIPPED_SEGMENT', () => {
     expect(
       keyHasPrefix(['albums', 'fetchRelated', { $skip: true, x: 1 }], skipped.slice(0, 3)),
     ).toBe(false)
+  })
+})
+
+// The "Reading and building keys yourself" snippets in docs/tanstack-query.md.
+describe('the documented key helpers', () => {
+  it('invalidates every album read but the album’s own through a predicate', async () => {
+    const qc = new QueryClient()
+    const list = keyFor({ type: 'albums', operation: 'fetchMany' })
+    const one = keyFor({ type: 'albums', operation: 'fetchOne', id: '1' }, { include: ['artist'] })
+    qc.setQueryData(list, [])
+    qc.setQueryData(one, {})
+    await qc.invalidateQueries({
+      predicate: (query) =>
+        keyHasPrefix(query.queryKey, typeKey('albums')) &&
+        !keyHasPrefix(query.queryKey, resourceKey('albums', '1')),
+    })
+    expect(qc.getQueryState(list)?.isInvalidated).toBe(true)
+    expect(qc.getQueryState(one)?.isInvalidated).toBe(false)
+  })
+
+  it('moves a key into a scope, and reads the scope back', () => {
+    const key = scopedKey(keyFor({ type: 'users', operation: 'fetchMany' }), 'admin')
+    expect(key).toEqual([{ $scope: 'admin' }, 'users', 'fetchMany'])
+    expect(scopeOf(key)).toBe('admin')
+    expect(isScopeSegment(key[0])).toBe(true)
+    expect(key[isScopeSegment(key[0]) ? 1 : 0]).toBe('users')
+    expect(scopedKey(key, undefined)).toEqual(['users', 'fetchMany'])
+    expect(scopedKey(key, 'main')[0]).toEqual(scopeSegment('main'))
+  })
+
+  it('gives a resource’s or a singleton’s relation read prefixes', () => {
+    expect(parentRelationReadKeys('albums', '1', 'tracks')).toEqual(
+      relationReadKeys('albums', '1', 'tracks'),
+    )
+    expect(parentRelationReadKeys('inboxes', undefined, 'owner')).toEqual([
+      ['inboxes', 'fetchRelated', 'owner'],
+      ['inboxes', 'fetchRelationship', 'owner'],
+    ])
+  })
+
+  it('tells an infinite read’s key by its last segment', () => {
+    const infinite = infiniteKeyFor({ type: 'albums', operation: 'fetchMany' })
+    expect(infinite.at(-1)).toBe(INFINITE_SEGMENT)
+    expect(keyFor({ type: 'albums', operation: 'fetchMany' }).at(-1)).not.toBe(INFINITE_SEGMENT)
   })
 })

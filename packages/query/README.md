@@ -109,7 +109,7 @@ resourceKey('albums', '1') // ['albums', 'fetchOne', '1']
 queryClient.invalidateQueries({ queryKey: typeKey('albums') }) // every albums read
 ```
 
-Also exported: `infiniteKeyFor`, `relationKey`, `normalizeParams`.
+Also exported: `infiniteKeyFor`, `relationKey`, `normalizeParams`, and the helpers for reading and scoping keys (`keyHasPrefix`, `parentRelationReadKeys`, `scopedKey`, `scopeSegment`, `scopeOf`, `isScopeSegment`, `INFINITE_SEGMENT`, `SKIPPED_SEGMENT`), described in the [TanStack Query guide](https://haddowg.github.io/json-api-ts/tanstack-query/#reading-and-building-keys-yourself).
 
 A singleton type's keys leave out the id (`['inboxes', 'fetchOne']`). Its factories take
 `undefined` for the id, which the types allow only for a singleton, and the bound API drops the

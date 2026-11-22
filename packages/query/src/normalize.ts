@@ -1116,25 +1116,16 @@ export function serverValueOf(node: object, k: string): { value: unknown } | und
 /**
  * Undoes an optimistic change: `restore()` rolls it back, compare-and-swap, so a value written since
  * (by a response, or another optimistic change) is left alone.
+ *
+ * @internal
  */
 export interface Snapshot {
   /** Undo the optimistic change, leaving every value changed since alone. */
   restore(): void
 }
 
+/** @internal */
 export { applyOptimisticPatch } from './draft'
-
-/**
- * A to-many member an optimistic change places: at minimum a linkage identifier (`type`+`id`,
- * optional `$pivot`). A member carrying attributes too can fill a slot that holds resources.
- * Membership identity is by `type:id` alone (`sameRef`).
- */
-export interface MembershipRef {
-  type: string
-  id: string
-  $pivot?: Record<string, unknown>
-  [key: string]: unknown
-}
 
 /**
  * The `members` as an array carrying `source`'s own non-index properties, the non-enumerable
@@ -1153,9 +1144,4 @@ function withEnvelope(source: readonly unknown[], members: readonly unknown[]): 
     }
   }
   return out
-}
-
-/** True when two refs address the same resource (`type:id`). Ignores `$pivot`/attributes. */
-export function sameRef(a: MembershipRef, b: MembershipRef): boolean {
-  return a.type === b.type && a.id === b.id
 }

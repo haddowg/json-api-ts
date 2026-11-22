@@ -2319,6 +2319,8 @@ export function reapplyDrafts(
 /**
  * Apply an optimistic attribute patch to one `type:id` across every cached query of the scope, and
  * return the {@link Snapshot} that undoes it. A draft's `patch`, without markers.
+ *
+ * @internal
  */
 export function applyOptimisticPatch(
   queryClient: QueryClient,
