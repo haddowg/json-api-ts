@@ -30,6 +30,7 @@ import {
   type ScopeSegment,
 } from './keys'
 import { type DraftRef, type Into, lifecycleOf, type OptimisticDraft } from './draft'
+import { peekStamp, stampResult } from './freshness'
 import { normalizeWith, queriesIn, walkResources } from './normalize'
 import { describeQuery } from './view-shape'
 
@@ -667,11 +668,22 @@ export function normalizeResult(
   wins?: ReadonlySet<string>,
 ): void {
   switch (plan.verb) {
+    case 'atomic':
+      // The batch resolves to its results, `{ data, meta? }` each (`undefined` for a delete in the
+      // positional form). Their resources are normalised together, as old as the batch.
+      if (Array.isArray(data)) {
+        const resources = (data as readonly unknown[]).map(atomicData)
+        const stamp = peekStamp(data)
+        if (stamp !== undefined) {
+          stampResult(resources, stamp)
+        }
+        normalizeWith(queryClient, resources, descriptor, plan.scope, wins)
+      }
+      return
     case 'create':
     case 'update':
     case 'set':
     case 'replace':
-    case 'atomic':
     case 'custom':
       if (!isAccepted(data)) {
         normalizeWith(queryClient, data, descriptor, plan.scope, wins)
@@ -680,6 +692,18 @@ export function normalizeResult(
     default:
       return
   }
+}
+
+/** The resource one atomic result carries: its `data`, or the result itself when it is a resource. */
+function atomicData(result: unknown): unknown {
+  if (typeof result !== 'object' || result === null) {
+    return undefined
+  }
+  const { type, id } = result as { type?: unknown; id?: unknown }
+  if (typeof type === 'string' && typeof id === 'string') {
+    return result
+  }
+  return 'data' in result ? result.data : undefined
 }
 
 /**
