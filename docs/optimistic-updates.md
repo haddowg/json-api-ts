@@ -137,6 +137,22 @@ The row needs an id before the server assigns one:
 - For any other type, `optional` and `forbidden` alike, the row carries a temporary id, `$tmp:<uuid>` (your `clientId` option supplies the part after `$tmp:`), kept in the variables as `$tempId` and never sent, so the server assigns the id. When the write succeeds it is swapped for the server's id in place: on every cached copy, in `$pending`, and in the key of any cached query keyed by it.
 - An `id` you put in the variables of an `optional` type yourself is kept and sent as the final id.
 
+**A query keyed by a temporary id.** The swap copies such a query's data to the server id's key, and drops the temporary one if nothing observes it, but it can't move a component observing it: that component stays on the temporary id's key, still showing the row as it was, and any refetch asks the server for an id it never issued. So don't link a pending row to anything that reads by its id, and send the user to the real id once the write succeeds, since the mutation's data is the created resource (for a type whose create may answer `202`, pass `wait` so it is). The spotify-clone's playlists page renders a pending card without its link:
+
+```tsx
+const create = useMutation({
+  ...writes.playlists.create({ optimistic: { into: () => 'start' } }),
+  onSuccess: (playlist) => navigate(`/playlists/${playlist.id}`), // the server's id
+})
+
+// A pending playlist has only its temporary id, which no route can open yet.
+playlist.$optimistic ? (
+  <div className="card">{card}</div>
+) : (
+  <Link to={`/playlists/${playlist.id}`} className="card">{card}</Link>
+)
+```
+
 Because the id lives in the variables, it also shows in `useMutationState`, and a create that resumes keeps the id it had.
 
 ### Showing a create in a list
