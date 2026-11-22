@@ -129,7 +129,11 @@ A list promises its rows' whole shape: every attribute its fieldset selects (all
 const create = writes.playlists.create({
   optimistic: {
     into: () => 'start',
-    complete: (input) => ({ slug: slugOf(input.title), public: input.public ?? false }),
+    complete: (input) => ({
+      slug: slugOf(input.title),
+      public: input.public ?? false,
+      externalId: input.externalId ?? null,
+    }),
   },
 })
 create.mutate({ title: 'Quiet' })

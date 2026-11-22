@@ -25,9 +25,10 @@ const slugOf = (title: string): string =>
  *
  * The create is optimistic. A create is never placed automatically (only the server knows where a
  * new resource belongs in a filtered, sorted or paged list), so `into` puts it at the top of the
- * unfiltered lists, where a newest-first server would. A list of whole playlists promises `slug`
- * and `externalId`, which only the server sets, so `complete` gives the row a placeholder slug made
- * from its title, and `externalId`, which may be `null`, completes to `null` on its own. The row
+ * unfiltered lists, where a newest-first server would. A list of whole playlists promises every
+ * attribute: `slug`, which only the server sets, and `public` and `externalId`, which a create may
+ * leave out. So `complete` gives the row a placeholder slug made from its title and fills the two
+ * optional attributes the input didn't give (the server defaults `public` to true). The row
  * then shows as a real card, with a temporary id (`playlists` takes no client ids) and
  * `$optimistic: 'pending'`, until the write settles, when its id is swapped for the server's and the
  * type's lists refetch.
@@ -46,7 +47,11 @@ export function PlaylistsPage() {
     ...writes.playlists.create({
       optimistic: {
         into: (q) => (q.params.filter === undefined ? 'start' : false),
-        complete: (input) => ({ slug: slugOf(input.title) }),
+        complete: (input) => ({
+          slug: slugOf(input.title),
+          public: input.public ?? true,
+          externalId: input.externalId ?? null,
+        }),
       },
     }),
     onSuccess: () => {
