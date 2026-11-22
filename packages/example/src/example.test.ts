@@ -1078,7 +1078,7 @@ describe('optimistic updates', () => {
 
   it('creates a row with a temporary id, placed by into, swapped for the server’s id', async () => {
     const { transport, hold } = heldTransport({
-      [`GET ${BASE}/albums?fields[albums]=title,status`]: {
+      [`GET ${BASE}/albums?fields[albums]=title%2Cstatus`]: {
         data: [albumObject('1', 'OK Computer')],
       },
       [`POST ${BASE}/albums`]: album('10', { title: 'Kid A', status: 'released' }),
@@ -1125,8 +1125,9 @@ describe('optimistic updates', () => {
     const list = reads.playlists.list()
     await qc.fetchQuery(list)
 
-    // The list promises every attribute, `slug` and `externalId` included, which only the server
-    // sets: `complete` supplies them for the row, typed by what the create input lacks.
+    // The list promises every attribute: `slug`, which only the server sets, and the optional
+    // `externalId`, which this create leaves out. `complete` supplies both, typed by what the create
+    // input may lack.
     const create = writes.playlists.create({
       optimistic: {
         into: () => 'start',
