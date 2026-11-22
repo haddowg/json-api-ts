@@ -12,7 +12,7 @@
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
 import { type ReadOperation, scopeOf } from './keys'
-import { isMaterialisedData, normalizeRead, stampHydrated } from './normalize'
+import { isMaterialisedData, normalizeRead, stampHydrated, stampWritten } from './normalize'
 import { jsonApiRetry } from './read'
 import type { ScopeOption } from './scope'
 import { planOf } from './upkeep'
@@ -270,8 +270,8 @@ export function installNormalization(
         return
       }
       if (isMaterialisedData(query.state.data)) {
-        // Arrived with data no request here stamped (hydrated, restored, or seeded): it is the
-        // oldest possible, so any read made in this process replaces it.
+        // Arrived with data (hydrated, restored, or seeded): unless a request here stamped it, it
+        // is the oldest possible, so any read made in this process replaces it.
         stampHydrated(query.state.data)
       }
       if (isStripped(query)) {
@@ -300,6 +300,11 @@ export function installNormalization(
         warnOnce(queryClient, query)
         reset(query)
         return
+      }
+      // Data the app wrote with `setQueryData` counts as current when written, whatever request
+      // produced it; a fetch's result competes by when its request started.
+      if (event.action.manual === true) {
+        stampWritten(query.state.data)
       }
       // Patch on a settled success — the query's data is the freshest copy of its resources.
       run(query.state.data, query)

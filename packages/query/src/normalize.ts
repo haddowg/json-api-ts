@@ -28,7 +28,7 @@
  */
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
-import { peekStamp, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
+import { peekStamp, stampNow, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { scopeOf } from './keys'
 import { propagateRelationships, type ServerSlot } from './relationships'
 import { describeQuery, viewShape, type ViewShape, walkShaped } from './view-shape'
@@ -790,7 +790,7 @@ interface PatchContext {
  * those `type:id`s in place, so a single response updates the same resource everywhere it
  * is cached ("edit once, updates everywhere").
  *
- * Newer data wins, whatever order responses arrive in. A result is stamped with its request's
+ * Newer data wins, whatever order responses arrive in. A client result carries its request's
  * start (see ./freshness.ts), and each cached node records the stamp of each attribute value it
  * holds. An attribute is patched only where the cached value is no newer than the result's; where
  * a cached copy holds a newer value, that value is written over the result's own nodes instead, so
@@ -801,7 +801,7 @@ interface PatchContext {
  * Edge-local `$pivot`/`$edge` and a node's identity are preserved (only own-enumerable
  * attribute props are overwritten). Pass `result` from an option factory's `onSuccess` (or use
  * {@link installNormalization} to subscribe to every query/mutation success automatically). A
- * result no factory stamped is stamped when it is first normalised, so it keeps arrival order.
+ * result no request stamped is stamped when it is first normalised, so it keeps arrival order.
  *
  * `result` is the materialised value the client produced for this response (a resource, a
  * `Collection`, a related collection, or linkage). The same reference may also be the cached
@@ -894,6 +894,19 @@ export function stampHydrated(data: unknown): void {
   for (const part of partsOf(data)) {
     if (typeof part === 'object' && part !== null) {
       stampUnknown(targetOf(part))
+    }
+  }
+}
+
+/**
+ * Record data the app wrote itself (`setQueryData`) as current now, whatever request produced it:
+ * the app asserts it is current when it writes it.
+ * @internal
+ */
+export function stampWritten(data: unknown): void {
+  for (const part of partsOf(data)) {
+    if (typeof part === 'object' && part !== null) {
+      stampNow(targetOf(part))
     }
   }
 }
