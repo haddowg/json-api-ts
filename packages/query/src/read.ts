@@ -33,6 +33,7 @@ import {
   type ReadResult,
   type RelationName,
   type RelationPageParams,
+  type RelationPaginator,
   type RelationReadQuery,
   type RelationshipAccessor,
   type ResourceCountToken,
@@ -177,6 +178,31 @@ export type ReadOptions<R, E, I> = SkipToken extends I
 export type ToManyRelationName<D extends ApiDescriptor, T extends TypeName<D>> = {
   [R in RelationName<D, T>]: 'many' extends D[T]['relations'][R]['cardinality'] ? R : never
 }[RelationName<D, T>]
+
+/**
+ * The types whose collection read an infinite read pages through: every type but one whose
+ * descriptor paginator is `'none'`, since an unpaginated collection has no pages.
+ */
+export type PaginatedTypeName<D extends ApiDescriptor> = Extract<
+  { [T in TypeName<D>]: [D[T]['paginator']] extends ['none'] ? never : T }[TypeName<D>],
+  TypeName<D>
+>
+
+/**
+ * The to-many relations of type `T` whose related read an infinite related read pages through:
+ * every {@link ToManyRelationName} but one whose related endpoint's paginator (the relation's own,
+ * else its related type's collection paginator) is `'none'`.
+ */
+export type PaginatedRelationName<D extends ApiDescriptor, T extends TypeName<D>> = Extract<
+  {
+    [R in Extract<ToManyRelationName<D, T>, RelationName<D, T>>]: [
+      RelationPaginator<D, T, R>,
+    ] extends ['none']
+      ? never
+      : R
+  }[Extract<ToManyRelationName<D, T>, RelationName<D, T>>],
+  RelationName<D, T>
+>
 
 /**
  * The page param an infinite read of type `T`'s collection passes between pages: the read's typed
@@ -704,12 +730,12 @@ export function relatedQueryOptions<
  * page is read with the `page` params of the `next`/`prev` link. Key: `[type, 'fetchMany',
  * <params>, '$infinite']`, under the same `[type, 'fetchMany']` prefix a create or delete
  * invalidates. Passing `skipToken` for the query skips the read (key `[type, 'fetchMany',
- * { $skip: true }, '$infinite']`).
+ * { $skip: true }, '$infinite']`). A type whose paginator is `'none'` is a compile error here.
  */
 export function infiniteListQueryOptions<
   D extends ApiDescriptor,
   A,
-  T extends TypeName<D>,
+  T extends PaginatedTypeName<D>,
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
   const Pg extends ListPageParams<D, T> | undefined = undefined,
@@ -723,7 +749,7 @@ export function infiniteListQueryOptions<
 export function infiniteListQueryOptions<
   D extends ApiDescriptor,
   A,
-  T extends TypeName<D>,
+  T extends PaginatedTypeName<D>,
   const Inc extends readonly IncludePath<D, T>[] = [],
   const F extends FieldsMap<D> = {},
   const Pg extends ListPageParams<D, T> | undefined = undefined,
@@ -754,13 +780,14 @@ export function infiniteListQueryOptions<D extends ApiDescriptor, A>(
  * '$infinite']`, under the `(parent, relation)` prefix a relationship write invalidates. A
  * singleton takes `undefined` for the id, keyed `[type, 'fetchRelated', rel, <params>,
  * '$infinite']`. Passing `skipToken` for the id skips the read (key `[type, 'fetchRelated',
- * { $skip: true }, rel, '$infinite']`).
+ * { $skip: true }, rel, '$infinite']`). A to-one relation, or one whose related read's paginator is
+ * `'none'`, is a compile error here.
  */
 export function infiniteRelatedQueryOptions<
   D extends ApiDescriptor,
   A,
   T extends TypeName<D>,
-  R extends ToManyRelationName<D, T>,
+  R extends PaginatedRelationName<D, T>,
   C extends string = string,
   I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
@@ -783,9 +810,24 @@ export function infiniteRelatedQueryOptions<
 
 /**
  * The per-type read-option factories, with `client`/`type` pre-applied (`api.<type>.list(...)`).
- * `E` is the read's error. Each id (and a list's query) accepts `skipToken`.
+ * `E` is the read's error. Each id (and a list's query) accepts `skipToken`. A type whose paginator
+ * is `'none'` has no `infinite`, since its collection has no pages.
  */
-export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>, E = ReadError> {
+export type TypeQueryApi<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  E = ReadError,
+> = TypeReadQueryApi<D, A, T, E> &
+  ([D[T]['paginator']] extends ['none'] ? {} : InfiniteListQueryApi<D, A, T, E>)
+
+/** The read-option factories every collection type has; see {@link TypeQueryApi}. */
+export interface TypeReadQueryApi<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  E = ReadError,
+> {
   list<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -821,6 +863,21 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>,
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R>,
   ): ReadOptions<RelatedResult<D, A, T, R>, E, I>
+  /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
+  relatedInfinite<R extends PaginatedRelationName<D, T>, I extends string | SkipToken = string>(
+    id: I,
+    rel: R,
+    query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
+  ): InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E, I>
+}
+
+/** The infinite list read of a type whose collection paginates; see {@link TypeQueryApi}. */
+export interface InfiniteListQueryApi<
+  D extends ApiDescriptor,
+  A,
+  T extends TypeName<D>,
+  E = ReadError,
+> {
   /** The infinite list read; see {@link infiniteListQueryOptions}. */
   infinite<
     const Inc extends readonly IncludePath<D, T>[] = [],
@@ -838,12 +895,6 @@ export interface TypeQueryApi<D extends ApiDescriptor, A, T extends TypeName<D>,
   >(
     query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
   ): SkippableInfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, E>
-  /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
-  relatedInfinite<R extends ToManyRelationName<D, T>, I extends string | SkipToken = string>(
-    id: I,
-    rel: R,
-    query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
-  ): InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E, I>
 }
 
 /**
@@ -887,11 +938,11 @@ export interface SingletonQueryApi<
     query: TypedRelatedReadQuery<D, T, R> | SkipToken,
   ): SkippableQueryOptions<RelatedResult<D, A, T, R>, E>
   /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
-  relatedInfinite<R extends ToManyRelationName<D, T>>(
+  relatedInfinite<R extends PaginatedRelationName<D, T>>(
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
   ): InfiniteQueryOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E>
-  relatedInfinite<R extends ToManyRelationName<D, T>>(
+  relatedInfinite<R extends PaginatedRelationName<D, T>>(
     rel: R,
     query: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>> | SkipToken,
   ): SkippableInfiniteQueryOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E>

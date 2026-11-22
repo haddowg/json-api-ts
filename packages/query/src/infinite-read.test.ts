@@ -426,3 +426,74 @@ describe('infinite keys and invalidation', () => {
     expect(qc.getQueryState(options.queryKey)?.isInvalidated).toBe(true)
   })
 })
+
+describe('unpaginated reads', () => {
+  const unpaged = {
+    genres: {
+      attributes: { name: 'string' },
+      relations: {
+        // Paged through its related type's collection paginator.
+        albums: { cardinality: 'many', types: ['albums'], pivot: false },
+        // Unpaged through its related type's collection paginator.
+        children: { cardinality: 'many', types: ['genres'], pivot: false },
+        // Unpaged through its own paginator, though its related type pages.
+        top: { cardinality: 'many', types: ['albums'], pivot: false, paginator: 'none' },
+      },
+      paths: {
+        fetchMany: '/genres',
+        fetchOne: '/genres/{id}',
+        fetchRelated: '/genres/{id}/{rel}',
+      },
+      paginator: 'none',
+      clientId: 'forbidden',
+    },
+    albums: {
+      attributes: { title: 'string' },
+      relations: {},
+      paths: { fetchMany: '/albums', fetchOne: '/albums/{id}' },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+  } as const satisfies ApiDescriptor
+  const client = createClient(unpaged, {
+    baseUrl: BASE,
+    transport: async () => reply({ data: [] }),
+  })
+
+  it('has no infinite list read for a type whose paginator is none', () => {
+    const api = createQueryApi(client)
+    // @ts-expect-error an unpaginated collection has no pages
+    infiniteListQueryOptions(client, 'genres')
+    // @ts-expect-error an unpaginated collection has no pages
+    void api.genres.infinite
+    expectTypeOf(api.albums).toHaveProperty('infinite')
+    expectTypeOf(api.genres).not.toHaveProperty('infinite')
+    expect(infiniteListQueryOptions(client, 'albums').queryKey).toEqual([
+      'albums',
+      'fetchMany',
+      INFINITE_SEGMENT,
+    ])
+  })
+
+  it('takes only to-many relations whose related read paginates', () => {
+    const api = createQueryApi(client)
+    expect(api.genres.relatedInfinite('1', 'albums').queryKey).toEqual([
+      'genres',
+      'fetchRelated',
+      '1',
+      'albums',
+      INFINITE_SEGMENT,
+    ])
+    expect(infiniteRelatedQueryOptions(client, 'genres', '1', 'albums').queryKey).toEqual(
+      api.genres.relatedInfinite('1', 'albums').queryKey,
+    )
+    // @ts-expect-error the related type's collection paginator is none
+    api.genres.relatedInfinite('1', 'children')
+    // @ts-expect-error the related type's collection paginator is none
+    infiniteRelatedQueryOptions(client, 'genres', '1', 'children')
+    // @ts-expect-error the relation's own paginator is none
+    api.genres.relatedInfinite('1', 'top')
+    // @ts-expect-error the relation's own paginator is none
+    infiniteRelatedQueryOptions(client, 'genres', '1', 'top')
+  })
+})
