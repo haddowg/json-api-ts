@@ -39,7 +39,7 @@ const booking = {
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
   it('reads the witness', () => {
-    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(44)
+    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(45)
   })
 
   it('takes the meta each write declares, required when the document requires it', () => {

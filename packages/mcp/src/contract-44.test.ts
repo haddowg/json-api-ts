@@ -11,9 +11,9 @@ const { document: witness } = source('contract-witness')
  * every object, so the tools come out as they did from the open ranges.
  */
 describe('generator contract 44 (closed range filters)', () => {
-  it('reads a document stamped 44', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(44)
-    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(44)
+  it('reads the witness', () => {
+    expect(witness.info?.['x-generator']?.contract).toBe(45)
+    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(45)
   })
 
   it('takes a range filter as an object of its bounds and nothing else', () => {
