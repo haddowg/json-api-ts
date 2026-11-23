@@ -60,8 +60,8 @@ const CHANGED_BY = {
  * declared `meta` object says whether it is open. The codegen records each in the descriptor.
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
-  it('reads a document stamped 43 without a warning', () => {
-    expect(typed.info?.['x-generator']?.contract).toBe(43)
+  it('reads the witness without a warning', () => {
+    expect(typed.info?.['x-generator']?.contract).toBe(44)
     expect(checkContract(typed)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
   })
@@ -189,7 +189,7 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
   })
 
   it('reads the baseline with its pivots closed as it reads them open', () => {
-    expect(baseline.info?.['x-generator']?.contract).toBe(43)
+    expect(baseline.info?.['x-generator']?.contract).toBe(44)
     const open = structuredClone(baseline)
     const schemas = open.components!.schemas!
     for (const name of ['ArticlesTagsPivot', 'ArticlesTagsWritePivot']) {

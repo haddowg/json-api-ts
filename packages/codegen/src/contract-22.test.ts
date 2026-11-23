@@ -25,7 +25,7 @@ function operation(doc: OpenApiDocument, path: string, method: 'get' | 'post'): 
 
 describe('generator contract 22 (deprecation)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(43)
+    expect(witness.info?.['x-generator']?.contract).toBe(44)
     expect(checkContract(witness)).toBeUndefined()
   })
 
