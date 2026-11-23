@@ -138,12 +138,20 @@ export function provideJsonApiQuery<C>(
   ])
 }
 
-/** The registration for `token`, or a clear error naming the missing provider. */
+/**
+ * The registration for `token` (the default client without one), or a clear error naming the
+ * missing provider. Outside an injection context it needs `injector`.
+ */
 function registered(
-  token: InjectionToken<unknown>,
-  caller: string,
+  caller: (...args: never[]) => unknown,
+  name: string,
+  token: InjectionToken<unknown> | undefined,
   injector: Injector | undefined,
 ): Registration {
+  if (injector === undefined) {
+    assertInInjectionContext(caller)
+  }
+  token ??= JSON_API_CLIENT as InjectionToken<unknown>
   const registration = registrationFor(token)
   const found =
     injector !== undefined
@@ -151,7 +159,7 @@ function registered(
       : inject(registration, { optional: true })
   if (found === null) {
     throw new Error(
-      `@haddowg/json-api-angular/query: ${caller}() found no provideJsonApiQuery() for ` +
+      `@haddowg/json-api-angular/query: ${name}() found no provideJsonApiQuery() for ` +
         `${describeClient(token)}. Add provideJsonApiQuery(resourceMap${
           token === JSON_API_CLIENT ? '' : ', { client: <its token> }'
         }) to the providers that provide the client.`,
@@ -176,11 +184,12 @@ export function injectJsonApiReads<C = RegisteredClient>(
   token?: InjectionToken<C>,
   options?: { injector?: Injector },
 ): JsonApiReads<C> {
-  if (options?.injector === undefined) {
-    assertInInjectionContext(injectJsonApiReads)
-  }
-  const resolved = (token ?? JSON_API_CLIENT) as InjectionToken<unknown>
-  return registered(resolved, 'injectJsonApiReads', options?.injector).reads as JsonApiReads<C>
+  return registered(
+    injectJsonApiReads,
+    'injectJsonApiReads',
+    token as InjectionToken<unknown> | undefined,
+    options?.injector,
+  ).reads as JsonApiReads<C>
 }
 
 /**
@@ -203,9 +212,10 @@ export function injectJsonApiWrites<C = RegisteredClient>(
   token?: InjectionToken<C>,
   options?: { injector?: Injector },
 ): JsonApiWrites<C> {
-  if (options?.injector === undefined) {
-    assertInInjectionContext(injectJsonApiWrites)
-  }
-  const resolved = (token ?? JSON_API_CLIENT) as InjectionToken<unknown>
-  return registered(resolved, 'injectJsonApiWrites', options?.injector).writes as JsonApiWrites<C>
+  return registered(
+    injectJsonApiWrites,
+    'injectJsonApiWrites',
+    token as InjectionToken<unknown> | undefined,
+    options?.injector,
+  ).writes as JsonApiWrites<C>
 }
