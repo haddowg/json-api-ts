@@ -141,6 +141,15 @@ describe('scoped keys', () => {
     ])
   })
 
+  it('returns the same scoped accessor on every read, so it can sit in dependency arrays', () => {
+    const { client } = server(admin, 'https://admin.example', {})
+    const reads = createQueryApi(client, { scope: 'admin' })
+    expect(reads.users).toBe(reads.users)
+    expect(reads.users.list).toBe(reads.users.list)
+    const writes = createMutationApi(new QueryClient(), client, admin, { scope: 'admin' })
+    expect(writes.users.id).toBe(writes.users.id)
+  })
+
   it('scopes a standalone factory through withScope', () => {
     const { client } = server(admin, 'https://admin.example', {})
     const qc = new QueryClient()

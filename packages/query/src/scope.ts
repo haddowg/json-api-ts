@@ -67,12 +67,29 @@ export function scopeApi<T>(api: T, scope: string | undefined): T {
   return scope === undefined ? api : (scoped(api, scope) as T)
 }
 
+// One wrapper per value and scope, so a scoped API keeps the base API's identities.
+const wrappers = new Map<string, WeakMap<object, unknown>>()
+
 function scoped(value: unknown, scope: string): unknown {
+  if ((typeof value !== 'object' && typeof value !== 'function') || value === null) {
+    return value
+  }
+  let byValue = wrappers.get(scope)
+  if (byValue === undefined) {
+    byValue = new WeakMap()
+    wrappers.set(scope, byValue)
+  }
+  if (byValue.has(value)) {
+    return byValue.get(value)
+  }
+  const wrapper = wrap(value, scope)
+  byValue.set(value, wrapper)
+  return wrapper
+}
+
+function wrap(value: object, scope: string): unknown {
   if (typeof value === 'function') {
     return (...args: unknown[]) => scoped((value as (...a: unknown[]) => unknown)(...args), scope)
-  }
-  if (typeof value !== 'object' || value === null) {
-    return value
   }
   if (isOptions(value)) {
     return withScope(scope, value)
