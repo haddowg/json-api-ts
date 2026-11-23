@@ -80,8 +80,14 @@ See [reads.md](reads.md), [includes-and-sparse-fieldsets.md](includes-and-sparse
 Every read factory sets `structuralSharing: false`. TanStack's structural sharing rebuilds a refetched value that changed as plain arrays and objects, which drops the non-enumerable accessors a materialised value carries, so a refetched collection would lose `$page` and `$next()` and its resources `$self` and `$rel()`. A query you build yourself around a client call needs the same setting:
 
 ```ts
-useQuery({ queryKey: ['albums', 'top'], queryFn: () => client.albums.list(), structuralSharing: false })
+useQuery({
+  queryKey: ['albums', 'top'],
+  queryFn: ({ signal }) => client.albums.list({ signal }),
+  structuralSharing: false,
+})
 ```
+
+Every read factory also passes TanStack's abort `signal` to the read. When a query's key changes, or its last observer goes away while a request is in flight, TanStack cancels the query and the request is aborted on the wire, so a search box leaves one request running rather than one per keystroke. The example above does the same with `{ signal }`. See [cancelling a read](reads.md#cancelling-a-read).
 
 ## A basic mutation
 
