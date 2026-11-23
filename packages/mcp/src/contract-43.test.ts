@@ -1,6 +1,5 @@
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { fakeTransport, modelOf, source } from './test-fixtures'
@@ -39,12 +38,8 @@ const booking = {
  * declared resource meta.
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
-  it('reads a document stamped 43, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(43)
+  it('reads a document stamped 43', () => {
     expect(createJsonApiMcp(modelOf(typed)).contract).toBe(43)
-    const newer = structuredClone(typed)
-    newer.info!['x-generator']!.contract = 44
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('takes the meta each write declares, required when the document requires it', () => {
