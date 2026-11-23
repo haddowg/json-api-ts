@@ -84,7 +84,6 @@ import {
   type Snapshot,
   targetOf,
   topClaim,
-  walkResources,
   withMembers,
   writable,
 } from './normalize'
@@ -852,7 +851,7 @@ class Draft {
             continue
           }
           let holds = false
-          walkResources(part, this.descriptor, (node) => {
+          walkShaped(part, undefined, this.descriptor, (node) => {
             holds ||= nodes.has(targetOf(node))
           })
           if (holds) {

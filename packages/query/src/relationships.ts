@@ -44,14 +44,20 @@ import {
   partsOf,
   recordSlot,
   targetOf,
-  walkResources,
   withMembers,
   writtenSlot,
 } from './normalize'
 import { addresses, identityKey, identityOf, isRecord } from './identity'
 import { type CacheView, describeCached, touchNode, type Visit } from './cache-index'
 import { resolveMember } from './resolve'
-import { fits, isComplete, type QueryDescription, slotShape, type ViewShape } from './view-shape'
+import {
+  fits,
+  isComplete,
+  type QueryDescription,
+  slotShape,
+  type ViewShape,
+  walkShaped,
+} from './view-shape'
 
 // ── Linkage ────────────────────────────────────────────────────────────────────────────────
 
@@ -320,11 +326,25 @@ function consider(
   }
 }
 
-/** The readable relations of `type` with their cardinality. */
-function relationsOf(descriptor: ApiDescriptor, type: string): [string, 'one' | 'many'][] {
-  return Object.entries(descriptor[type]?.relations ?? {}).flatMap(([name, relation]) =>
-    relation.writeOnly === true ? [] : [[name, relation.cardinality] as [string, 'one' | 'many']],
-  )
+type Readable = readonly (readonly [string, 'one' | 'many'])[]
+
+const readable = new WeakMap<ApiDescriptor, Map<string, Readable>>()
+
+/** The readable relations of `type` with their cardinality, memoised per descriptor. */
+function relationsOf(descriptor: ApiDescriptor, type: string): Readable {
+  let types = readable.get(descriptor)
+  if (types === undefined) {
+    types = new Map()
+    readable.set(descriptor, types)
+  }
+  let list = types.get(type)
+  if (list === undefined) {
+    list = Object.entries(descriptor[type]?.relations ?? {}).flatMap(([name, relation]) =>
+      relation.writeOnly === true ? [] : [[name, relation.cardinality] as const],
+    )
+    types.set(type, list)
+  }
+  return list
 }
 
 /** Queries R3 invalidated whose next success is the refetch it caused: those invalidate nothing. */
@@ -366,8 +386,7 @@ export function propagateRelationships(
     if (typeof part !== 'object' || part === null) {
       continue
     }
-    walkResources(part, descriptor, (visited) => {
-      const node = visited as unknown as Record<string, unknown>
+    walkShaped(part, undefined, descriptor, (node) => {
       const { type, id } = node
       if (typeof type !== 'string' || typeof id !== 'string') {
         return

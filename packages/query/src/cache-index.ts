@@ -8,7 +8,7 @@
  *
  * **What it holds.** Per QueryClient and scope, for each cached query: every resource its data
  * reaches (canonical nodes, per-edge views, included members and every page of an infinite query),
- * found by the walk `walkShaped` makes (./view-shape.ts), each with the shape of the slot it was
+ * found by `walkGraph` (./view-shape.ts), each with the shape of the slot it was
  * first reached in, the part (an infinite query's page) it sits in, and its place in walk order.
  * And per `type`, then `id`, the queries holding a copy. A lookup returns copies in the order a walk
  * of the cache would visit them: queries in the cache's order, copies in walk order.
@@ -45,13 +45,16 @@ import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { identityKey, splitIdentityKey } from './identity'
 import { scopeOf } from './keys'
-import { isInfiniteValue, partsOf, targetOf } from './normalize'
+import { partsOf, targetOf } from './normalize'
 import {
   describeQuery,
   type QueryDescription,
-  slotShape,
+  relationNames,
+  type Seen,
   viewShape,
   type ViewShape,
+  type Visitor,
+  walkGraph,
 } from './view-shape'
 
 /** One copy of a resource in a cached query. */
@@ -231,114 +234,6 @@ export function shapeOfCached(query: Query, descriptor: ApiDescriptor): ViewShap
   return shape
 }
 
-// ── The walk ───────────────────────────────────────────────────────────────────────────────
-
-/** Each type's declared relation names, by descriptor. */
-const relationLists = new WeakMap<ApiDescriptor, Map<string, readonly string[]>>()
-
-function relationNames(descriptor: ApiDescriptor): (type: string) => readonly string[] {
-  let names = relationLists.get(descriptor)
-  if (names === undefined) {
-    names = new Map()
-    relationLists.set(descriptor, names)
-  }
-  const cache = names
-  return (type) => {
-    let list = cache.get(type)
-    if (list === undefined) {
-      list = Object.keys(descriptor[type]?.relations ?? {})
-      cache.set(type, list)
-    }
-    return list
-  }
-}
-
-/** `slotShape`, memoised per shape (a shape never changes). */
-const slotShapes = new WeakMap<ViewShape, Map<string, ViewShape | undefined>>()
-
-function slotShapeOf(shape: ViewShape, type: string, rel: string): ViewShape | undefined {
-  let memo = slotShapes.get(shape)
-  if (memo === undefined) {
-    memo = new Map()
-    slotShapes.set(shape, memo)
-  }
-  const key = `${type}\u0000${rel}`
-  if (memo.has(key)) {
-    return memo.get(key)
-  }
-  const below = slotShape(shape, type, rel)
-  memo.set(key, below)
-  return below
-}
-
-/** The objects a walk has reached. */
-interface Seen {
-  has(value: object): boolean
-  add(value: object): void
-}
-
-/**
- * A visitor of each resource a walk reaches, with its type, id, the shape of its slot, and what the
- * visitor returned for the resource whose slot `rel` it was reached through. What it returns is
- * handed on to the resources below.
- */
-type Visitor<T> = (
-  node: Record<string, unknown>,
-  type: string,
-  id: string,
-  shape: ViewShape | undefined,
-  from: T | undefined,
-  rel: string | undefined,
-) => T
-
-/**
- * `walkShaped`'s walk: the same resources in the same order with the same slot shapes, telling
- * `again` of each object reached after its first time.
- */
-function walk<T>(
-  value: unknown,
-  shape: ViewShape | undefined,
-  relations: (type: string) => readonly string[],
-  seen: Seen,
-  visit: Visitor<T>,
-  again: (value: object) => void,
-  from?: T,
-  rel?: string,
-): void {
-  if (value === null || value === undefined || typeof value !== 'object') {
-    return
-  }
-  if (Array.isArray(value)) {
-    for (const member of value) {
-      walk(member, shape, relations, seen, visit, again, from, rel)
-    }
-    return
-  }
-  if (seen.has(value)) {
-    again(value)
-    return
-  }
-  seen.add(value)
-  const node = value as Record<string, unknown>
-  const { type, id } = node
-  if (typeof type !== 'string' || typeof id !== 'string') {
-    if (isInfiniteValue(value)) {
-      for (const page of value.pages) {
-        walk(page, shape, relations, seen, visit, again, from, rel)
-      }
-    }
-    return
-  }
-  const token = visit(node, type, id, shape, from, rel)
-  for (const name of relations(type)) {
-    const slot = node[name]
-    if (slot !== undefined) {
-      const below = shape === undefined ? undefined : slotShapeOf(shape, type, name)
-      walk(slot, below, relations, seen, visit, again, token, name)
-    }
-  }
-}
-
 // ── Indexing ───────────────────────────────────────────────────────────────────────────────
 
 /** The materialised value behind each part of `data`. */
@@ -425,12 +320,12 @@ function walkPart(
       return visit
     }
   if (!Array.isArray(part)) {
-    walk(part, shape, relations, seen, record(undefined), again)
+    walkGraph(part, shape, relations, seen, record(undefined), again)
     return visits
   }
   for (const member of part) {
     const segment: Segment = { root: member, part: at, shape, lo: seq, hi: seq, visits: [] }
-    walk(member, shape, relations, seen, record(segment), again)
+    walkGraph(member, shape, relations, seen, record(segment), again)
     // The range ends where the next member's begins.
     ;(segment as { hi: number }).hi = seq
   }
@@ -630,7 +525,7 @@ function resegment(indexed: QueryIndex, target: object): Set<string> | undefined
   }
   const found: Found[] = []
   const hits: object[] = []
-  walk<Found>(
+  walkGraph<Found>(
     segment.root,
     segment.shape,
     relations,

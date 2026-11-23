@@ -396,34 +396,84 @@ export function slotShape(shape: ViewShape, type: string, rel: string): ViewShap
   return shape.relations.get(rel) ?? IDENTIFIERS
 }
 
+/** Each type's declared relation names, by descriptor. */
+const relationLists = new WeakMap<ApiDescriptor, Map<string, readonly string[]>>()
+
 /**
- * Walk a cached value as {@link walkResources} does, visiting every reachable resource once, with
- * the shape of the slot it was reached in: `shape` at the top (every page of an infinite query
- * shares it), and below each resource the {@link slotShape} of the relation it sits in. A slot
- * whose shape the view doesn't describe (a relation its fieldset leaves out, held anyway) is
- * walked with an `undefined` shape, as is everything when `shape` is `undefined`.
- *
- * A resource reached twice is visited only the first time, with the shape it was first reached in.
- *
+ * Each type's declared relation names in `descriptor`, memoised.
  * @internal
  */
-export function walkShaped(
+export function relationNames(descriptor: ApiDescriptor): (type: string) => readonly string[] {
+  let names = relationLists.get(descriptor)
+  if (names === undefined) {
+    names = new Map()
+    relationLists.set(descriptor, names)
+  }
+  const cache = names
+  return (type) => {
+    let list = cache.get(type)
+    if (list === undefined) {
+      list = Object.keys(descriptor[type]?.relations ?? {})
+      cache.set(type, list)
+    }
+    return list
+  }
+}
+
+/** The objects a walk has reached. @internal */
+export interface Seen {
+  has(value: object): boolean
+  add(value: object): void
+}
+
+/**
+ * A visitor of each resource a walk reaches, with its type, id, the shape of its slot, and what the
+ * visitor returned for the resource whose slot `rel` it was reached through. What it returns is
+ * handed on to the resources below.
+ * @internal
+ */
+export type Visitor<T> = (
+  node: Record<string, unknown>,
+  type: string,
+  id: string,
+  shape: ViewShape | undefined,
+  from: T | undefined,
+  rel: string | undefined,
+) => T
+
+/**
+ * Walk a cached value (a resource, an array, an infinite query's data, whose every page it walks,
+ * or `null`/`undefined`), visiting every reachable resource once, with the shape of the slot it was
+ * reached in: `shape` at the top (every page of an infinite query shares it), and below each
+ * resource the {@link slotShape} of the relation it sits in. Only declared relation slots are
+ * followed. A slot whose shape the view doesn't describe (a relation its fieldset leaves out, held
+ * anyway) is walked with an `undefined` shape, as is everything when `shape` is `undefined`.
+ *
+ * A resource reached twice is visited only the first time, with the shape it was first reached in;
+ * `again` is told of each object reached after its first time.
+ * @internal
+ */
+export function walkGraph<T>(
   value: unknown,
   shape: ViewShape | undefined,
-  descriptor: ApiDescriptor,
-  visit: (node: Record<string, unknown>, shape: ViewShape | undefined) => void,
-  seen: Set<object> = new Set(),
+  relations: (type: string) => readonly string[],
+  seen: Seen,
+  visit: Visitor<T>,
+  again?: (value: object) => void,
+  from?: T,
+  rel?: string,
 ): void {
   if (value === null || value === undefined || typeof value !== 'object') {
     return
   }
   if (Array.isArray(value)) {
     for (const member of value) {
-      walkShaped(member, shape, descriptor, visit, seen)
+      walkGraph(member, shape, relations, seen, visit, again, from, rel)
     }
     return
   }
   if (seen.has(value)) {
+    again?.(value)
     return
   }
   seen.add(value)
@@ -432,19 +482,35 @@ export function walkShaped(
   if (typeof type !== 'string' || typeof id !== 'string') {
     if (isInfiniteValue(value)) {
       for (const page of value.pages) {
-        walkShaped(page, shape, descriptor, visit, seen)
+        walkGraph(page, shape, relations, seen, visit, again, from, rel)
       }
     }
     return
   }
-  visit(node, shape)
-  for (const rel of Object.keys(descriptor[type]?.relations ?? {})) {
-    const slot = node[rel]
+  const token = visit(node, type, id, shape, from, rel)
+  for (const name of relations(type)) {
+    const slot = node[name]
     if (slot !== undefined) {
-      const below = shape === undefined ? undefined : slotShape(shape, type, rel)
-      walkShaped(slot, below, descriptor, visit, seen)
+      const below = shape === undefined ? undefined : slotShape(shape, type, name)
+      walkGraph(slot, below, relations, seen, visit, again, token, name)
     }
   }
+}
+
+/**
+ * {@link walkGraph} with a visitor of each resource and its slot's shape alone.
+ * @internal
+ */
+export function walkShaped(
+  value: unknown,
+  shape: ViewShape | undefined,
+  descriptor: ApiDescriptor,
+  visit: (node: Record<string, unknown>, shape: ViewShape | undefined) => void,
+  seen: Seen = new Set(),
+): void {
+  walkGraph(value, shape, relationNames(descriptor), seen, (node, _type, _id, slot) => {
+    visit(node, slot)
+  })
 }
 
 // ── Fit ────────────────────────────────────────────────────────────────────────────────────
