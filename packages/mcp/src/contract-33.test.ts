@@ -31,8 +31,8 @@ describe('generator contract 33 (error documents named for the operation)', () =
   const mcp = createJsonApiMcp(modelOf(document, descriptor))
 
   it('reads the witness', () => {
-    expect(document.info?.['x-generator']?.contract).toBe(44)
-    expect(mcp.contract).toBe(44)
+    expect(document.info?.['x-generator']?.contract).toBe(45)
+    expect(mcp.contract).toBe(45)
   })
 
   it('builds the same tools without the error documents', () => {
