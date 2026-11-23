@@ -793,22 +793,24 @@ function run(
   // records carry any newer value written since, so indexing them again never spreads stale data.
   const { fresh, nodes } = collectIncoming(result, descriptor)
   // Relationships first, so a member a slot gains is patched with the newest attributes below.
-  const relinked =
-    read === undefined
-      ? new Map<Query, Set<object>>()
-      : propagateRelationships(
-          queryClient,
-          result,
-          descriptor,
-          scope,
-          cacheView(queryClient, scope, descriptor),
-          read ?? undefined,
-        )
+  const taken = read === undefined ? undefined : cacheView(queryClient, scope, descriptor)
+  const propagated =
+    taken === undefined
+      ? undefined
+      : propagateRelationships(queryClient, result, descriptor, scope, taken, read ?? undefined)
+  const relinked = propagated?.relinked ?? new Map<Query, Set<object>>()
   if (fresh.size === 0 && relinked.size === 0) {
     return
   }
-  // Taken again: the relationships propagated may have changed what a query holds.
-  const view = cacheView(queryClient, scope, descriptor)
+  // The relationships propagated may have changed what a query holds in place. An invalidation
+  // starts refetches, whose query functions may change the cache, so the view is taken again.
+  let view: CacheView
+  if (taken === undefined || propagated?.invalidated !== false) {
+    view = cacheView(queryClient, scope, descriptor)
+  } else {
+    taken.update()
+    view = taken
+  }
   if (fresh.size > 0) {
     raiseToNewest(view, fresh, nodes, wins)
   }
