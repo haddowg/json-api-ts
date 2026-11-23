@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.23.0...json-api-codegen-v2.24.0) (2026-11-23)
+
+
+### Features
+
+* **codegen:** read generator contract 45 and date formats on filter values ([f702616](https://github.com/haddowg/json-api-ts/commit/f702616e8c18d69402f32fcb32a02034c7df5a42))
+
 ## [2.23.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.22.0...json-api-codegen-v2.23.0) (2026-11-23)
 
 
