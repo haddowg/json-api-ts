@@ -48,6 +48,7 @@ import {
   withMembers,
   writtenSlot,
 } from './normalize'
+import { addresses, identityKey, identityOf, isRecord } from './identity'
 import { type CacheView, describeCached, touchNode, type Visit } from './cache-index'
 import { resolveMember } from './resolve'
 import { fits, isComplete, type QueryDescription, slotShape, type ViewShape } from './view-shape'
@@ -77,20 +78,14 @@ export interface ServerSlot {
   readonly linkage: SlotLinkage
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 /** A linkage member, when `value` is one with a string `type` and `id`. */
 function memberOf(value: unknown): LinkageMember | undefined {
-  if (!isRecord(value) || typeof value['type'] !== 'string' || typeof value['id'] !== 'string') {
+  const identity = identityOf(value)
+  if (identity === undefined) {
     return undefined
   }
-  const meta = value['meta']
-  return {
-    type: value['type'],
-    id: value['id'],
-    ...(isRecord(meta) ? { meta } : {}),
-  }
+  const meta = (value as Record<string, unknown>)['meta']
+  return isRecord(meta) ? { ...identity, meta } : identity
 }
 
 /** Whether a relationship's `links` carry a `rel` link. */
@@ -306,8 +301,6 @@ interface Incoming extends ServerSlot {
 /** The newest linkage per relation, by `type:id` then relation. */
 type Linkages = Map<string, Map<string, Incoming>>
 
-const resourceKey = (type: string, id: string): string => `${type}:${id}`
-
 function consider(
   linkages: Linkages,
   key: string,
@@ -385,11 +378,11 @@ export function propagateRelationships(
         if (held === undefined || !whole(held.linkage) || narrowed(sourceDescription, rel)) {
           continue
         }
-        identities.set(resourceKey(type, id), { type, id })
+        identities.set(identityKey(type, id), { type, id })
         // A later occurrence wins a tie: for one response, the copies are the same wire object.
         consider(
           linkages,
-          resourceKey(type, id),
+          identityKey(type, id),
           rel,
           { ...held, rel, cardinality, incoming: true, copy: node },
           true,
@@ -443,7 +436,7 @@ export function propagateRelationships(
       part: unknown,
     ) => {
       const { type, id } = node
-      const relations = linkages.get(resourceKey(String(type), String(id)))
+      const relations = linkages.get(identityKey(String(type), String(id)))
       if (relations === undefined || typeof type !== 'string' || typeof id !== 'string') {
         return false
       }
@@ -607,9 +600,6 @@ function edgeMeta(member: unknown): Record<string, unknown> | undefined {
 
 const sameMeta = (a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined) =>
   JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-
-const addresses = (value: unknown, member: LinkageMember): boolean =>
-  isRecord(value) && value['type'] === member.type && value['id'] === member.id
 
 /** Whether a slot's value already holds `linkage`: the same members, in order, with the same meta. */
 function holds(slot: unknown, linkage: SlotLinkage): boolean {

@@ -32,6 +32,7 @@ import {
 import { type DraftRef, type Into, lifecycleOf, type OptimisticDraft } from './draft'
 import { cacheView } from './cache-index'
 import { peekStamp, stampResult } from './freshness'
+import { identityOf, isRecord } from './identity'
 import { normalizeWith, queriesIn } from './normalize'
 import { describeQuery } from './view-shape'
 
@@ -272,9 +273,6 @@ export const TEMP_ID_PREFIX = '$tmp:'
  * client id (`optional` or `forbidden`).
  */
 export const TEMP_ID_MEMBER = '$tempId'
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** A random UUID, from `crypto.randomUUID()`. */
 function uuid(): string {
@@ -701,8 +699,7 @@ function atomicData(result: unknown): unknown {
   if (typeof result !== 'object' || result === null) {
     return undefined
   }
-  const { type, id } = result as { type?: unknown; id?: unknown }
-  if (typeof type === 'string' && typeof id === 'string') {
+  if (identityOf(result) !== undefined) {
     return result
   }
   return 'data' in result ? result.data : undefined
