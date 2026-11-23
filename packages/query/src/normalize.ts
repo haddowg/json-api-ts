@@ -33,7 +33,7 @@ import { identityKey, identityOf, isRecord } from './identity'
 import { peekStamp, stampNow, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { scopeOf } from './keys'
 import { propagateRelationships, type ServerSlot } from './relationships'
-import type { ViewShape } from './view-shape'
+import { type ViewShape, walkShaped } from './view-shape'
 
 /** A `type:id` cache key for a resource ({@link identityKey}). */
 type ResourceKey = string
@@ -411,64 +411,6 @@ function attributesOf(node: MaterialisedResource): Record<string, unknown> | und
 }
 
 /**
- * Walk a materialised value (a single resource, an augmented array, a to-one/to-many relation
- * value, an infinite query's `InfiniteData`, whose every page it walks, or `null`/`undefined`)
- * and visit every reachable resource exactly once. Recurses into
- * each resource's own enumerable relation slots so a deeply-included graph is fully indexed.
- * `seen` guards relation cycles (a node memoised by reference) and keeps the walk linear.
- * @internal
- */
-export function walkResources(
-  value: unknown,
-  descriptor: ApiDescriptor,
-  visit: (node: MaterialisedResource) => void,
-  seen: Set<object> = new Set(),
-): void {
-  if (value === null || value === undefined) {
-    return
-  }
-  if (Array.isArray(value)) {
-    for (const member of value) {
-      walkResources(member, descriptor, visit, seen)
-    }
-    return
-  }
-  if (!isRecord(value)) {
-    return
-  }
-  if (seen.has(value)) {
-    return
-  }
-  seen.add(value)
-
-  const node = value as unknown as MaterialisedResource
-  const ident = identityOf(node)
-  if (ident === undefined) {
-    // An infinite query's data: every page is a read result of its own.
-    if (isInfiniteValue(value)) {
-      for (const page of value.pages) {
-        walkResources(page, descriptor, visit, seen)
-      }
-    }
-    return
-  }
-  visit(node)
-
-  // Recurse into declared relation slots only — every other own enumerable prop is an
-  // attribute (a scalar/array/plain object), never a materialised resource to index.
-  const relations = descriptor[ident.type]?.relations
-  if (relations === undefined) {
-    return
-  }
-  for (const name of Object.keys(relations)) {
-    const slot = (value as Record<string, unknown>)[name]
-    if (slot !== undefined) {
-      walkResources(slot, descriptor, visit, seen)
-    }
-  }
-}
-
-/**
  * Merge an attribute a read narrowed to some of its keys into the cached value: the keys it carries
  * replace the cached ones and every other cached key stays. A key the read narrowed in turn, by a
  * path such as `geo.lat`, merges into the cached object the same way, and a list it narrowed item
@@ -614,7 +556,8 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
       continue
     }
     const stamp = stampOf(targetOf(part))
-    walkResources(part, descriptor, (node) => {
+    walkShaped(part, undefined, descriptor, (visited) => {
+      const node = visited as unknown as MaterialisedResource
       const ident = identityOf(node)
       if (ident === undefined) {
         return
