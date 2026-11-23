@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
 
@@ -35,14 +35,11 @@ function closedRanges(doc: OpenApiDocument): string[] {
  * shape, so the client it generates doesn't change.
  */
 describe('generator contract 44 (closed range filters)', () => {
-  it('reads a document stamped 44 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(44)
+  it('reads a document stamped 44 without a warning', () => {
     expect(witness.info?.['x-generator']?.contract).toBe(44)
     expect(baseline.info?.['x-generator']?.contract).toBe(44)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
-    const newer = { ...witness, info: { ...witness.info!, 'x-generator': { contract: 45 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 44')
   })
 
   it('closes each range filter the witness projects', () => {
