@@ -666,7 +666,22 @@ function edgeMeta(member: unknown): Record<string, unknown> | undefined {
 }
 
 const sameMeta = (a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined) =>
-  JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+
+/** The first of `values` addressing each `type:id`, by its `identityKey`. */
+function firstByIdentity(values: readonly unknown[]): Map<string, unknown> {
+  const out = new Map<string, unknown>()
+  for (const value of values) {
+    const identity = identityOf(value)
+    if (identity !== undefined) {
+      const key = identityKey(identity.type, identity.id)
+      if (!out.has(key)) {
+        out.set(key, value)
+      }
+    }
+  }
+  return out
+}
 
 /** Whether a slot's value already holds `linkage`: the same members, in order, with the same meta. */
 function holds(slot: unknown, linkage: SlotLinkage): boolean {
@@ -685,11 +700,11 @@ function holds(slot: unknown, linkage: SlotLinkage): boolean {
 
 /** Whether a to-many slot holds exactly `linkage`'s members, in any order. */
 function sameSet(slot: unknown, linkage: SlotLinkage & { kind: 'many' }): boolean {
-  return (
-    Array.isArray(slot) &&
-    slot.length === linkage.members.length &&
-    linkage.members.every((member) => slot.some((held) => addresses(held, member)))
-  )
+  if (!Array.isArray(slot) || slot.length !== linkage.members.length) {
+    return false
+  }
+  const held = firstByIdentity(slot)
+  return linkage.members.every((member) => held.has(identityKey(member.type, member.id)))
 }
 
 /**
@@ -720,8 +735,11 @@ function build(
     return undefined
   }
   const members: unknown[] = []
+  const held = firstByIdentity(slot)
+  const read = Array.isArray(carried) ? firstByIdentity(carried) : undefined
   for (const member of next.linkage.members) {
-    const kept = slot.find((held) => addresses(held, member))
+    const key = identityKey(member.type, member.id)
+    const kept = held.get(key)
     if (
       kept !== undefined &&
       sameMeta(edgeMeta(kept), member.meta) &&
@@ -730,9 +748,7 @@ function build(
       members.push(kept)
       continue
     }
-    const fromRead = Array.isArray(carried)
-      ? carried.find((held: unknown) => addresses(held, member))
-      : undefined
+    const fromRead = read?.get(key)
     const value = memberView(context, shape, member, [fromRead, kept])
     if (value === undefined) {
       return undefined
