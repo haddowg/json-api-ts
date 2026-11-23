@@ -11,9 +11,11 @@
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
-import type { ReadOperation } from './keys'
+import { type ReadOperation, scopeOf } from './keys'
 import { isMaterialisedData, normalize } from './normalize'
 import { jsonApiRetry } from './read'
+import type { ScopeOption } from './scope'
+import { planOf } from './upkeep'
 
 const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
   'fetchMany',
@@ -23,12 +25,15 @@ const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
 ])
 
 /**
- * The key's first two segments, when it has the binding's shape: `[type, readOperation, …]`. Only
- * the browser-side hydration check reads it, since a hydrated query's stripped data can't be told
- * apart from plain data; the server-side dehydrate predicate judges a query by its data instead.
+ * True when a key has the binding's shape: `[type, readOperation, …]`, or the same led by a
+ * `{ $scope }` segment. Only the browser-side hydration check reads it, since a hydrated query's
+ * stripped data can't be told apart from plain data; the server-side dehydrate predicate judges a
+ * query by its data instead.
  */
-const isBindingKey = (queryKey: readonly unknown[]): boolean =>
-  typeof queryKey[0] === 'string' && READ_OPERATIONS.has(queryKey[1])
+function isBindingKey(queryKey: readonly unknown[]): boolean {
+  const at = scopeOf(queryKey) === undefined ? 0 : 1
+  return typeof queryKey[at] === 'string' && READ_OPERATIONS.has(queryKey[at + 1])
+}
 
 type ShouldDehydrate = (query: Query) => boolean
 
@@ -48,12 +53,12 @@ type ShouldDehydrate = (query: Query) => boolean
  * })
  * ```
  *
- * It judges a query by its data, not its key, so it needs no descriptor: a query you build
- * yourself around a client call is left out like the binding's own reads, infinite reads
- * included, and a query holding plain data is passed to `next` whatever its key. A query still
- * pending has no data to judge, so it too is passed to `next`. A pending binding read dehydrated
- * that way resolves in the browser without its accessors, and {@link installNormalization}'s
- * hydration check refetches it there.
+ * It judges a query by its data, not its key, so it needs no descriptor and no scope: a query you
+ * build yourself around a client call is left out like the binding's own reads, infinite reads
+ * and scoped reads included, and a query holding plain data is passed to `next` whatever its key.
+ * A query still pending has no data to judge, so it too is passed to `next`. A pending binding
+ * read dehydrated that way resolves in the browser without its accessors, and
+ * {@link installNormalization}'s hydration check refetches it there.
  */
 export function jsonApiShouldDehydrateQuery(next: ShouldDehydrate = defaultShouldDehydrateQuery) {
   return (query: Query): boolean => !isMaterialisedData(query.state.data) && next(query)
@@ -91,51 +96,46 @@ const isStripped = (query: Query): boolean =>
 export type Teardown = () => void
 
 /**
- * Which descriptor is currently installed on a given QueryClient. The normalizer patches a cached
- * query by walking it with the *patch's* descriptor and matching on `type:id`, so two descriptors
- * sharing one QueryClient (e.g. a `default` + an `admin` server whose `users` carry different
- * attribute sets — one client per server) would cross-contaminate: a read from one would
- * overwrite the other's cached node with foreign attributes. The supported contract is therefore
- * ONE descriptor per QueryClient; this registry enforces it for the auto-install entry point.
- * A `WeakMap` so a discarded QueryClient (and its install record) is garbage-collected.
+ * Which descriptor is installed for each scope of a QueryClient (`undefined` for unscoped), and how
+ * many installs hold it. The normalizer patches a cached query by walking it with the *patch's*
+ * descriptor and matching on `type:id`, so two descriptors patching the same queries (e.g. a
+ * `default` + an `admin` server whose `users` carry different attribute sets) would
+ * cross-contaminate: a read from one would overwrite the other's cached node with foreign
+ * attributes. Each descriptor therefore patches only the queries keyed in its scope, and the
+ * contract is ONE descriptor per scope of a QueryClient; this registry enforces it. A `WeakMap` so
+ * a discarded QueryClient (and its install record) is garbage-collected.
  */
-const installed = new WeakMap<QueryClient, ApiDescriptor>()
+const installed = new WeakMap<
+  QueryClient,
+  Map<string | undefined, { descriptor: ApiDescriptor; count: number }>
+>()
 
 /**
- * Subscribe the normalizer to a QueryClient's query + mutation caches: each time a query or
- * mutation settles successfully, the freshly-resolved data is indexed by `type:id` and patched
- * across every cached query in place (preserving edge-local `$pivot`/`$edge`).
+ * The descriptor {@link installNormalization} installed for `scope` on `queryClient`, if any.
+ * Internal: the mutation cache reads it to run a mutation's upkeep.
  *
- * A QueryClient may host only ONE descriptor (see {@link installed}): installing a *second*,
- * different descriptor on the same QueryClient throws, because the normalizer cannot safely tell
- * which descriptor a given `type:id` belongs to once two descriptors overlap. Use one QueryClient
- * per typed client/server. Re-installing the *same* descriptor is allowed (idempotent-friendly):
- * it just adds another subscription pair with its own teardown.
- *
- * It also installs the client's defaults the binding relies on, each only where the app set none,
- * and removes them on teardown while they are still the installed value: a `dehydrate`
- * predicate that leaves out every query holding a client result, and {@link jsonApiRetry} as `queries.retry`, so a
- * read failing with a 4xx JSON:API error or a non-JSON:API response isn't retried.
- *
- * Re-entrancy is guarded: the patch pass itself sets data on other queries (firing further
- * `success` events), so while a pass runs we ignore the events it generates — otherwise a
- * single response would cascade into a loop. Returns a {@link Teardown} that removes both
- * subscriptions (and clears the install record when this was the active install).
+ * @internal
  */
-export function installNormalization(
+export function installedDescriptor(
   queryClient: QueryClient,
-  descriptor: ApiDescriptor,
-): Teardown {
-  const existing = installed.get(queryClient)
-  if (existing !== undefined && existing !== descriptor) {
-    throw new Error(
-      'installNormalization: this QueryClient already has a different descriptor installed. ' +
-        'A QueryClient may host only one descriptor — use a separate QueryClient per client/server ' +
-        'so a normalize pass cannot leak one descriptor’s attributes into another’s cached resources.',
-    )
-  }
-  installed.set(queryClient, descriptor)
+  scope?: string,
+): ApiDescriptor | undefined {
+  return installed.get(queryClient)?.get(scope)?.descriptor
+}
 
+/**
+ * The client-wide defaults installed on each QueryClient, and how many installs (of any scope)
+ * share them: the first install sets them, the last teardown removes them.
+ */
+const defaults = new WeakMap<QueryClient, { count: number; remove: () => void }>()
+
+/**
+ * Install the client-wide defaults the binding relies on, each only where the app set none: a
+ * `dehydrate` predicate that leaves out every query holding a client result, and
+ * {@link jsonApiRetry} as `queries.retry`. Returns the function that removes them while they are
+ * still the installed value.
+ */
+function installDefaults(queryClient: QueryClient): () => void {
   // Dehydrate default: queries holding a client result are fetched in the browser instead.
   const previousDehydrate = queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery
   const shouldDehydrateQuery = jsonApiShouldDehydrateQuery(
@@ -165,6 +165,72 @@ export function installNormalization(
     withRetry(jsonApiRetry)
   }
 
+  return () => {
+    if (queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery === shouldDehydrateQuery) {
+      withDehydrate(previousDehydrate)
+    }
+    if (installsRetry && queryClient.getDefaultOptions().queries?.retry === jsonApiRetry) {
+      withRetry(undefined)
+    }
+  }
+}
+
+/**
+ * Subscribe the normalizer to a QueryClient's query + mutation caches: each time a query or
+ * mutation settles successfully, the freshly-resolved data is indexed by `type:id` and patched
+ * across every cached query in place (preserving edge-local `$pivot`/`$edge`).
+ *
+ * `options.scope` installs the descriptor for one scope, for a server sharing the QueryClient with
+ * another: it normalises only the queries whose key carries that scope (as `createQueryApi(client,
+ * { scope })` builds them), and runs the upkeep of mutations planned in it. An unscoped install
+ * normalises only unscoped keys.
+ *
+ * A scope of a QueryClient may host only ONE descriptor (see {@link installed}): installing a
+ * *second*, different descriptor for the same scope throws, because the normalizer cannot safely
+ * tell which descriptor a given `type:id` belongs to once two descriptors overlap. Give each server
+ * its own scope. Re-installing the *same* descriptor is allowed (idempotent-friendly): it just
+ * adds another subscription pair with its own teardown.
+ *
+ * It also installs the client's defaults the binding relies on, each only where the app set none,
+ * and removes them when the last install on the QueryClient, of any scope, is torn down, while
+ * they are still the installed value: a `dehydrate` predicate that leaves out every query holding a
+ * client result, and {@link jsonApiRetry} as `queries.retry`, so a read failing with a 4xx JSON:API error or a
+ * non-JSON:API response isn't retried.
+ *
+ * Re-entrancy is guarded: the patch pass itself sets data on other queries (firing further
+ * `success` events), so while a pass runs we ignore the events it generates — otherwise a
+ * single response would cascade into a loop. Returns a {@link Teardown} that removes both
+ * subscriptions (and releases the install record once its last install is torn down).
+ */
+export function installNormalization(
+  queryClient: QueryClient,
+  descriptor: ApiDescriptor,
+  options: ScopeOption = {},
+): Teardown {
+  const { scope } = options
+  const scopes =
+    installed.get(queryClient) ??
+    new Map<string | undefined, { descriptor: ApiDescriptor; count: number }>()
+  const existing = scopes.get(scope)
+  if (existing !== undefined && existing.descriptor !== descriptor) {
+    throw new Error(
+      `installNormalization: this QueryClient already has a different descriptor installed ${
+        scope === undefined ? 'unscoped' : `in scope "${scope}"`
+      }. A scope may host only one descriptor — give each client/server its own scope ` +
+        '(installNormalization(queryClient, descriptor, { scope })) so a normalize pass cannot ' +
+        'leak one descriptor’s attributes into another’s cached resources.',
+    )
+  }
+  scopes.set(scope, { descriptor, count: (existing?.count ?? 0) + 1 })
+  installed.set(queryClient, scopes)
+
+  const shared = defaults.get(queryClient) ?? { count: 0, remove: () => {} }
+  if (shared.count === 0) {
+    shared.remove = installDefaults(queryClient)
+  }
+  shared.count += 1
+  defaults.set(queryClient, shared)
+
   let normalizing = false
 
   const run = (data: unknown): void => {
@@ -173,7 +239,7 @@ export function installNormalization(
     }
     normalizing = true
     try {
-      normalize(queryClient, data, descriptor)
+      normalize(queryClient, data, descriptor, scope)
     } finally {
       normalizing = false
     }
@@ -195,6 +261,9 @@ export function installNormalization(
     // accessors on the way through JSON, so refetch it (deferred, so not inside `hydrate`'s loop).
     if (event.type === 'added') {
       const { query } = event
+      if (scopeOf(query.queryKey) !== scope) {
+        return
+      }
       if (isStripped(query)) {
         warnOnce(queryClient, query)
         reset(query)
@@ -207,7 +276,11 @@ export function installNormalization(
       }
       return
     }
-    if (event.type === 'updated' && event.action.type === 'success') {
+    if (
+      event.type === 'updated' &&
+      event.action.type === 'success' &&
+      scopeOf(event.query.queryKey) === scope
+    ) {
       const { query } = event
       // A pending binding read dehydrated on the server hydrates as a promise and settles here,
       // its first time, with the result stripped by JSON: refetch it. Only that first settle is
@@ -226,7 +299,12 @@ export function installNormalization(
   const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
     // A write that returns a resource (create/update) carries the freshest attributes; index +
     // patch them. A mutation that resolves nothing (a `204` delete) has no data — `run` no-ops.
-    if (event.type === 'updated' && event.action.type === 'success') {
+    // A JSON:API mutation is normalised by its scope's install; any other by the unscoped one.
+    if (
+      event.type === 'updated' &&
+      event.action.type === 'success' &&
+      planOf(event.mutation.options.meta)?.scope === scope
+    ) {
       run(event.mutation.state.data)
     }
   })
@@ -239,17 +317,20 @@ export function installNormalization(
     torn = true
     unsubscribeQueries()
     unsubscribeMutations()
-    if (queryClient.getDefaultOptions().dehydrate?.shouldDehydrateQuery === shouldDehydrateQuery) {
-      withDehydrate(previousDehydrate)
+    // The last install on the QueryClient removes the client-wide defaults.
+    shared.count -= 1
+    if (shared.count === 0) {
+      shared.remove()
+      defaults.delete(queryClient)
     }
-    if (installsRetry && queryClient.getDefaultOptions().queries?.retry === jsonApiRetry) {
-      withRetry(undefined)
-    }
-    // Release the install record so a different descriptor can be installed afterwards (only when
-    // ours is still the active record — a same-descriptor re-install left it pointing at the same
-    // descriptor, so clearing it is correct either way).
-    if (installed.get(queryClient) === descriptor) {
-      installed.delete(queryClient)
+    // Release the scope's record once its last install is torn down, so a different descriptor can
+    // be installed for it afterwards.
+    const record = scopes.get(scope)
+    if (record !== undefined && record.descriptor === descriptor) {
+      record.count -= 1
+      if (record.count === 0) {
+        scopes.delete(scope)
+      }
     }
   }
 }

@@ -4,9 +4,11 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { QueryClient } from '@tanstack/query-core'
+import { MutationObserver, QueryClient } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
+import { installNormalization } from './install'
 import { atomicMutationOptions } from './mutate'
+import { JsonApiMutationCache } from './mutation-cache'
 import { getQueryOptions } from './read'
 
 const BASE = 'https://api.example'
@@ -51,7 +53,11 @@ function setup(...replies: unknown[]) {
     transport,
     atomic: { path: '/operations' },
   })
-  const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+  const queryClient = new QueryClient({
+    mutationCache: new JsonApiMutationCache(),
+    defaultOptions: { queries: { staleTime: Infinity } },
+  })
+  installNormalization(queryClient, descriptor)
   return { client, queryClient, requests }
 }
 
@@ -70,13 +76,13 @@ describe('atomicMutationOptions with relationship operations', () => {
     await queryClient.fetchQuery(read)
 
     const options = atomicMutationOptions(queryClient, client, descriptor)
-    const build: Parameters<typeof options.mutationFn>[0] = (tx) => {
+    const build: Parameters<NonNullable<typeof options.mutationFn>>[0] = (tx) => {
       tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').add([{ type: 'rooms', id: 'rm-1' }], {
         meta: { changedBy: 'desk' },
       })
       tx.update({ type: 'bookings', id: 'bk-1', title: 'Later' })
     }
-    options.onSuccess?.(await options.mutationFn(build), build, undefined)
+    await new MutationObserver(queryClient, options).mutate(build)
 
     expect(JSON.parse(requests[1]!.body ?? 'null')).toEqual({
       'atomic:operations': [
@@ -96,8 +102,8 @@ describe('atomicMutationOptions with relationship operations', () => {
     // The linkage the relationship operation answered with carries no attributes to patch.
     expect(queryClient.getQueryData(read.queryKey)).toMatchObject({ name: 'Sea view' })
 
-    void options
-      .mutationFn((tx) => {
+    void new MutationObserver(queryClient, options)
+      .mutate((tx) => {
         // @ts-expect-error -- adding rooms in a batch must send who changed them.
         tx.rel({ type: 'bookings', id: 'bk-1' }, 'rooms').add([])
       })

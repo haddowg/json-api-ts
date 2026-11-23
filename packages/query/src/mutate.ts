@@ -1,26 +1,17 @@
 /**
- * Mutation OPTION FACTORIES over the client write surface (optimistic updates routed
- * through the normalized patch; docs/tanstack-query.md).
+ * Mutation OPTION FACTORIES over the client write surface (docs/tanstack-query.md).
  *
- * Each factory returns a plain `{ mutationFn, onMutate?, onError?, onSuccess?, onSettled? }`
- * object structurally compatible with `@tanstack/query-core` — the user passes it to their
- * framework's `useMutation` or to a `MutationObserver`/`mutationCache.build(...)`. The binding
- * depends only on `query-core` (framework-agnostic) and preserves the client's full static
- * narrowing on the variables (create/update input) and the resolved result.
+ * Each factory returns a plain `{ mutationKey, mutationFn, meta }` object structurally compatible
+ * with `@tanstack/query-core` — the user passes it to their framework's `useMutation` /
+ * `injectMutation`, or to a `MutationObserver`/`mutationCache.build(...)`. The binding depends only
+ * on `query-core` (framework-agnostic) and preserves the client's full static narrowing on the
+ * variables (create/update input) and the resolved result.
  *
- * The PATCH-vs-INVALIDATE split (ADR 0003):
- *  - an UPDATE (or a relationship set/replace on an existing resource) only changes a node's
- *    attributes/linkage, never collection membership -> on success run the Build-2 write-through
- *    {@link normalize} so the fresh resource patches everywhere it is cached, silently (no
- *    refetch);
- *  - a CREATE or DELETE (or a relationship add/remove — membership change) changes which
- *    resources a list/relationship holds, which is not a node patch -> on settle invalidate the
- *    relevant query subtrees by key PREFIX (the Build-1 hierarchy) so they refetch.
- *
- * OPTIMISTIC updates (update/relationship-set/replace only — the membership-changing verbs
- * have no node to pre-patch): `onMutate` applies the expected attribute change THROUGH the
- * same normalized patch and snapshots the touched queries; `onError` restores the snapshot;
- * `onSettled` runs the post-write reconciliation (the success patch having already landed).
+ * A factory sets no lifecycle callbacks. Its cache upkeep (normalization on success, invalidation
+ * on settle, the optimistic change and its rollback) is described as plain data in
+ * `meta[JSON_API_PLAN]` and carried out by {@link JsonApiMutationCache}, which the QueryClient must
+ * be built with; see ./upkeep.ts for what each verb does. So the `onMutate`/`onError`/`onSuccess`/
+ * `onSettled` an app spreads alongside are its own, and never replace the upkeep.
  */
 import {
   type ApiDescriptor,
@@ -33,7 +24,6 @@ import {
   type DocumentMetaOperation,
   type FieldsMap,
   type IncludePath,
-  isAccepted,
   type LinkageRef,
   type MetaOption,
   type OperationMeta,
@@ -52,41 +42,71 @@ import {
   type WithDocumentMeta,
   type WriteOptions,
 } from '@haddowg/json-api-client'
-import type { QueryClient } from '@tanstack/query-core'
-import { operationKey, parentRelationReadKeys, resourceKey } from './keys'
-import {
-  applyOptimisticMembership,
-  applyOptimisticPatch,
-  applyOptimisticToOne,
-  type MembershipRef,
-  normalize,
-  sameRef,
-  type Snapshot,
-} from './normalize'
+import type { MutationFunctionContext, QueryClient } from '@tanstack/query-core'
+import { assertUpkeepRuns } from './mutation-cache'
+import { scopeApi, type ScopeOption } from './scope'
 import type { ResourceId } from './read'
+import {
+  JSON_API_PLAN,
+  type JsonApiMutationKey,
+  type JsonApiMutationMeta,
+  type JsonApiMutationPlan,
+  type JsonApiResourceVerb,
+  planKey,
+} from './upkeep'
 
 /**
- * A TanStack-compatible mutation-options object: the async `mutationFn` plus the lifecycle
- * callbacks the binding wires for normalization / invalidation / optimism. Structurally
- * assignable to `query-core`'s `MutationOptions`/`UseMutationOptions` (the user merges in
- * `retry`, `onMutate` of their own, etc.), so the binding needn't import or re-export
- * query-core's option type — it stays a peer.
+ * A TanStack-compatible mutation-options object: the mutation's key, its async `mutationFn`, and
+ * the `meta` carrying the plan {@link JsonApiMutationCache} runs the cache upkeep from. It sets no
+ * lifecycle callbacks, so the app spreads in its own (`retry`, `onSuccess`, …) freely. Structurally
+ * assignable to `query-core`'s `MutationOptions` and the framework adapters' `useMutation` /
+ * `injectMutation` options, so the binding needn't re-export query-core's option type.
  *
- * `TData` is the resolved result, `TVars` the input the caller passes to `mutate(vars)`, and
- * `TContext` the value `onMutate` threads to `onError`/`onSettled` (here a {@link MutationContext}
- * carrying the optimistic snapshot).
+ * Replace `meta` only by merging with this one (`meta: { ...options.meta, mine }`): a mutation whose
+ * plan is gone throws rather than skip its upkeep.
+ *
+ * `TData` is the resolved result and `TVars` the input the caller passes to `mutate(vars)`.
  */
-export interface MutationOptions<TData, TVars, TContext = unknown> {
-  mutationFn: (variables: TVars) => Promise<TData>
-  onMutate?: (variables: TVars) => Promise<TContext> | TContext
-  onError?: (error: unknown, variables: TVars, context: TContext | undefined) => void
-  onSuccess?: (data: TData, variables: TVars, context: TContext | undefined) => void
-  onSettled?: (
-    data: TData | undefined,
-    error: unknown,
-    variables: TVars,
-    context: TContext | undefined,
-  ) => void
+export interface MutationOptions<TData, TVars> {
+  /**
+   * `[type, verb, id?, rel?]`, as {@link mutationKeyFor} builds it (`['$atomic']` for a batch), led
+   * by a `{ $scope }` segment in a scope.
+   */
+  mutationKey: JsonApiMutationKey
+  mutationFn: (variables: TVars, context: MutationFunctionContext) => Promise<TData>
+  meta: JsonApiMutationMeta
+}
+
+/** The options of a plan's mutation, its `mutationFn` refusing to run where the upkeep can't. */
+function planned<TData, TVars>(
+  plan: JsonApiMutationPlan,
+  run: (variables: TVars) => Promise<TData>,
+): MutationOptions<TData, TVars> {
+  return {
+    mutationKey: planKey(plan),
+    mutationFn: (variables, context) => {
+      assertUpkeepRuns(context)
+      return run(variables)
+    },
+    meta: { [JSON_API_PLAN]: plan },
+  }
+}
+
+/** The plan of a write on `type`, leaving out the members it doesn't have. */
+function resourcePlan(
+  verb: JsonApiResourceVerb,
+  type: string,
+  id: string | undefined,
+  rel: string | undefined,
+  optimistic: boolean,
+): JsonApiMutationPlan {
+  return {
+    verb,
+    type,
+    ...(id === undefined ? {} : { id }),
+    ...(rel === undefined ? {} : { rel }),
+    optimistic,
+  }
 }
 
 /**
@@ -102,11 +122,6 @@ type WriteResource<
   Cnt extends readonly string[],
   Op extends DocumentMetaOperation,
 > = WithDocumentMeta<ReadResult<D, A, T, Inc, F, Cnt[number]>, OperationMeta<D, T, Op>>
-
-/** The context an optimistic `onMutate` threads forward: the snapshot to roll back to on error. */
-export interface MutationContext {
-  snapshot: Snapshot
-}
 
 /** The loose relationship mutations a handle offers at the `.rel(name)` boundary. */
 interface RelationWrites {
@@ -201,59 +216,6 @@ export type UpdateVariables<D extends ApiDescriptor, W, T extends TypeName<D>> =
   ? SingletonUpdateInput<D, W, T>
   : UpdateInput<D, W, T>
 
-/**
- * Invalidate the list/collection subtree of a type (`[type, 'fetchMany']`) — refetched after a
- * create/delete changes which resources the collection holds. A prefix match, so every cached
- * list of the type (any filter/sort/page) is marked stale at once.
- */
-function invalidateLists(queryClient: QueryClient, type: string): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: operationKey(type, 'fetchMany') })
-}
-
-/**
- * Invalidate every read OF a single resource on delete: its `fetchOne` reads (so a stale `get`
- * refetches and 404s/clears) AND its own `fetchRelated`/`fetchRelationship` reads (orphaned once
- * the resource is gone — `[type, 'fetchOne', id]` does not prefix those). Prefix matches across
- * include/fields/rel. NOTE: this covers the deleted resource's OWN reads; OTHER resources whose
- * relationship/related queries listed this one as a member are not auto-invalidated here (the
- * binding can't know which parents hold it without a cache scan — invalidate those explicitly, or
- * model the parent's own relationship mutation which DOES target it).
- */
-function invalidateResource(queryClient: QueryClient, type: string, id: string): Promise<void> {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: resourceKey(type, id) }),
-    queryClient.invalidateQueries({ queryKey: [type, 'fetchRelated', id] }),
-    queryClient.invalidateQueries({ queryKey: [type, 'fetchRelationship', id] }),
-  ]).then(() => undefined)
-}
-
-/**
- * Invalidate one parent resource's reads of one relation after a set/replace/add/remove changes
- * that relation's linkage/membership (a TARGETED invalidation). We invalidate exactly:
- *  - the relation's related-collection reads (`[type, 'fetchRelated', id, rel]`),
- *  - the relation's linkage reads (`[type, 'fetchRelationship', id, rel]`),
- *  - the parent resource's own reads (`[type, 'fetchOne', id]`) — whose `?include` of the relation
- *    embeds the now-stale members.
- * It deliberately does NOT touch `[type, 'fetchMany']` (the type's collection lists): a relationship
- * change never alters which resources a collection holds, so scoping to the type would needlessly
- * invalidate every list of the type.
- */
-function invalidateParentRelations(
-  queryClient: QueryClient,
-  type: string,
-  id: string | undefined,
-  rel: string,
-): Promise<void> {
-  // A singleton's keys carry no id, so its single reads sit under `[type, 'fetchOne']`.
-  const parent = id === undefined ? operationKey(type, 'fetchOne') : resourceKey(type, id)
-  return Promise.all([
-    ...parentRelationReadKeys(type, id, rel).map((queryKey) =>
-      queryClient.invalidateQueries({ queryKey }),
-    ),
-    queryClient.invalidateQueries({ queryKey: parent }),
-  ]).then(() => undefined)
-}
-
 // ── Create / update / delete ──────────────────────────────────────────────────────────────
 
 // A create or update called through a client whose method type is still a deferred conditional.
@@ -278,15 +240,17 @@ export type WriteMutationOpts<
   >
 
 /**
- * The create mutation (`POST /{type}`): `mutationFn` runs `client.<type>.create(input, opts)`;
- * on settle the type's list subtree is invalidated (a new member changes collection membership —
- * a patch can't insert it). The fresh resource is also normalized on success so any
- * query already holding the (server-assigned-id) resource reflects it. A create that declares a
- * `202` may resolve to an `Accepted` job instead, which is not normalized, unless `wait` polls it.
+ * The create mutation (`POST /{type}`), keyed `[type, 'create']`: `mutationFn` runs
+ * `client.<type>.create(input, opts)`. Its upkeep normalizes the fresh resource on success, so any
+ * query already holding it reflects it, and invalidates the type's lists on settle (a new member
+ * changes collection membership, which a patch can't insert). A create that declares a `202` may
+ * resolve to an `Accepted` job instead, which is not normalized, unless `wait` polls it.
  *
- * No optimistic insert by default: inserting into the right cached lists requires knowing each
- * list's sort/filter/page, which is list-specific — we invalidate instead (the documented,
- * always-correct default). A caller wanting optimism supplies their own `onMutate`.
+ * No optimistic insert: inserting into the right cached lists requires knowing each list's
+ * sort/filter/page, which is list-specific, so the lists are invalidated instead.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function createMutationOptions<
   D extends ApiDescriptor,
@@ -311,33 +275,31 @@ export function createMutationOptions<
   CreateInput<D, W, T>
 > {
   const accessor = writesOf(client, type)
-  return {
-    mutationFn: (input) =>
+  return planned(
+    resourcePlan('create', type, undefined, undefined, false),
+    (input: CreateInput<D, W, T>) =>
       (accessor.create as LooseWrite)(input, callOptions(opts, input)) as Promise<
         WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>
       >,
-    onSuccess: (data) => {
-      if (!isAccepted(data)) {
-        normalize(queryClient, data, descriptor)
-      }
-    },
-    onSettled: () => invalidateLists(queryClient, type),
-  }
+  )
 }
 
 /**
- * The update mutation (`PATCH /{type}/{id}`): `mutationFn` runs
+ * The update mutation (`PATCH /{type}/{id}`), keyed `[type, 'update', id]`: `mutationFn` runs
  * `client.<type>.id(id).update(patch, opts)`. An update only changes a node's attributes/linkage,
- * so on success it PATCHES across the cache via {@link normalize} (no refetch). When optimistic,
- * `onMutate` pre-applies the patch's attributes (those keys that are declared attributes of the
- * type — relation slots are skipped) through the normalized patch and snapshots the touched
- * queries; `onError` restores the snapshot. An update that declares a `202` may resolve to an
- * `Accepted` job, which is not normalized, unless `wait` polls it.
+ * so its upkeep PATCHES the result across the cache via `normalize` on success (no refetch). When
+ * optimistic, the patch's attributes (those keys that are declared attributes of the type —
+ * relation slots are skipped) are applied through the normalized patch before the write and
+ * restored on error. An update that declares a `202` may resolve to an `Accepted` job, which is not
+ * normalized, unless `wait` polls it.
  *
- * A singleton (`PATCH /inbox`) takes `undefined` for the id and runs `client.<type>.update(input)`,
- * whose input carries the resource's `id` for the body.
+ * A singleton (`PATCH /inbox`) takes `undefined` for the id, is keyed `[type, 'update']`, and runs
+ * `client.<type>.update(input)`, whose input carries the resource's `id` for the body.
  *
- * @param optimistic apply the patch's attributes immediately (rolled back on error). Default off.
+ * `optimistic` applies the patch's attributes immediately (rolled back on error). Default off.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function updateMutationOptions<
   D extends ApiDescriptor,
@@ -360,56 +322,20 @@ export function updateMutationOptions<
   >
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
-  UpdateVariables<D, W, T>,
-  MutationContext
+  UpdateVariables<D, W, T>
 > {
   const accessor = writesOf(client, type)
   const resource: string | undefined = id
-  const optimistic = opts?.optimistic === true
-  const base: MutationOptions<
-    WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
-    UpdateVariables<D, W, T>,
-    MutationContext
-  > = {
-    mutationFn: (patch) =>
+  return planned(
+    resourcePlan('update', type, resource, undefined, opts?.optimistic === true),
+    (patch: UpdateVariables<D, W, T>) =>
       ((resource === undefined ? accessor.update : accessor.id(resource).update) as LooseWrite)(
         patch,
         callOptions(opts, patch),
       ) as Promise<
         WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>
       >,
-    onSuccess: (data) => {
-      if (!isAccepted(data)) {
-        normalize(queryClient, data, descriptor)
-      }
-    },
-  }
-  if (!optimistic) {
-    return base
-  }
-  // Optimistic: pre-apply the patch's attributes through the normalized patch (snapshotting the
-  // touched queries first) on `onMutate`, and restore that snapshot on `onError`.
-  base.onMutate = (patch) => {
-    const input = patch as Record<string, unknown>
-    // A singleton's input names the resource the patch lands on.
-    const target = resource ?? input['id']
-    return {
-      snapshot:
-        typeof target === 'string'
-          ? applyOptimisticPatch(
-              queryClient,
-              type,
-              target,
-              attributesFromPatch(descriptor, type, input),
-              descriptor,
-            )
-          : { restore() {} },
-    }
-  }
-  base.onError = (_error, _patch, context) => {
-    context?.snapshot.restore()
-  }
-  return base
+  )
 }
 
 /**
@@ -426,10 +352,14 @@ export type DeleteMutationArgs<D extends ApiDescriptor, T extends TypeName<D>> =
     >
 
 /**
- * The delete mutation (`DELETE /{type}/{id}`): `mutationFn` runs `client.<type>.id(id).delete()`
- * (resolves the `meta` of the meta-only `200` the delete declares, else `void`), with the request
- * `meta` a delete declaring it takes. On settle the type's list subtree AND that resource's reads
- * are invalidated (a delete changes collection membership and orphans the resource's `get`).
+ * The delete mutation (`DELETE /{type}/{id}`), keyed `[type, 'delete', id]`: `mutationFn` runs
+ * `client.<type>.id(id).delete()` (resolves the `meta` of the meta-only `200` the delete declares,
+ * else `void`), with the request `meta` a delete declaring it takes. Its upkeep invalidates the
+ * type's lists AND that resource's reads on settle (a delete changes collection membership and
+ * orphans the resource's `get`).
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
   queryClient: QueryClient,
@@ -440,13 +370,9 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
 ): MutationOptions<DeleteResult<D, T>, void> {
   const accessor = writesOf(client, type)
   const remove = accessor.id(id).delete as (opts?: unknown) => Promise<DeleteResult<D, T>>
-  return {
-    mutationFn: () => remove(callOptions(opts as { meta?: unknown } | undefined, undefined)),
-    onSettled: async () => {
-      await invalidateLists(queryClient, type)
-      await invalidateResource(queryClient, type, id)
-    },
-  }
+  return planned(resourcePlan('delete', type, id, undefined, false), () =>
+    remove(callOptions(opts as { meta?: unknown } | undefined, undefined)),
+  )
 }
 
 // ── Relationship mutations ──────────────────────────────────────────────────────────────────
@@ -455,8 +381,8 @@ export function deleteMutationOptions<D extends ApiDescriptor, A, W, T extends T
 export interface RelationshipMutationOpts<V = never> {
   /**
    * Apply the membership change to the parent's cached related/relationship reads immediately
-   * (by key prefix — every page variant), snapshotting for automatic rollback on error. The factory
-   * still invalidates the relation subtree on settle so the server reconciles. Default off (a plain
+   * (by key prefix — every page variant), snapshotting for automatic rollback on error. The
+   * relation subtree is still invalidated on settle so the server reconciles. Default off (a plain
    * invalidate-on-settle). An optimistic `add` appends bare identifier members (`{type,id}` + any
    * `$pivot` on the ref) — the settle refetch replaces them with the fully-hydrated resources.
    */
@@ -472,63 +398,16 @@ export interface RelationshipMutationOpts<V = never> {
 const isOptimistic = <V>(opts?: RelationshipMutationOpts<V>): boolean => opts?.optimistic === true
 
 /**
- * Coerce a linkage ref (`{type,id}` / `{type,lid}` / a resource view, optionally `$pivot`) to a
- * membership ref for the optimistic array patch. The whole ref is preserved (so a hydrated member
- * carrying attributes yields a rich optimistic row), requiring only a string `type`+`id`. A ref
- * addressed only by `lid` (an atomic handle) has no cache identity, so it is dropped from the
- * optimistic view (it still writes on the wire).
- */
-function toMembershipRef(ref: LinkageRef<string>): MembershipRef | undefined {
-  const r = ref as { type?: unknown; id?: unknown }
-  if (typeof r.type !== 'string' || typeof r.id !== 'string') {
-    return undefined
-  }
-  return { ...(ref as Record<string, unknown>), type: r.type, id: r.id }
-}
-
-/** The membership refs (cache-addressable) of a to-many mutation's variables. */
-const membershipRefs = (refs: readonly LinkageRef<string>[]): MembershipRef[] =>
-  refs.map(toMembershipRef).filter((r): r is MembershipRef => r !== undefined)
-
-/**
- * Wire the optimistic membership lifecycle onto a to-many relationship mutation: `onMutate` applies
- * `transform` to the parent's cached related/relationship arrays (snapshotting), `onError` rolls
- * back, `onSettled` invalidates the relation subtree (kept from the base). When not optimistic, the
- * base (invalidate-on-settle only) is returned untouched.
- */
-function withMembershipOptimism<TVars extends readonly LinkageRef<string>[]>(
-  queryClient: QueryClient,
-  type: string,
-  id: string | undefined,
-  rel: string,
-  base: MutationOptions<unknown, TVars, MutationContext>,
-  transform: (current: readonly MembershipRef[], vars: TVars) => readonly MembershipRef[],
-  optimistic: boolean,
-): MutationOptions<unknown, TVars, MutationContext> {
-  if (!optimistic) {
-    return base
-  }
-  return {
-    ...base,
-    onMutate: (vars) => ({
-      snapshot: applyOptimisticMembership(queryClient, type, id, rel, (current) =>
-        transform(current, vars),
-      ),
-    }),
-    onError: (_error, _vars, context) => {
-      context?.snapshot.restore()
-    },
-  }
-}
-
-/**
- * A to-one relationship `set` (`PATCH …/relationships/{rel}` with a single ref or `null`):
- * `mutationFn` runs `client.<type>.id(id).rel(rel).set(ref)`. A `set` changes which resource the
- * to-one points at — linkage, not collection membership and not a node attribute — so on settle
- * we invalidate the PARENT's relations subtree (its `fetchRelationship`/`fetchRelated`/included
- * reads refetch). The mutation response (linkage) is also normalized on success. When optimistic,
- * `onMutate` swaps the parent's cached relationship/related reads to the new single value (or `null`)
- * and rolls back on error.
+ * A to-one relationship `set` (`PATCH …/relationships/{rel}` with a single ref or `null`), keyed
+ * `[type, 'set', id, rel]`: `mutationFn` runs `client.<type>.id(id).rel(rel).set(ref)`. A `set`
+ * changes which resource the to-one points at — linkage, not collection membership and not a node
+ * attribute — so its upkeep normalizes the response (linkage) on success and invalidates the
+ * PARENT's reads of the relation, and the parent itself, on settle. When optimistic, the parent's
+ * cached relationship/related reads swap to the new single value (or `null`) before the write and
+ * roll back on error.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function setRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -543,38 +422,23 @@ export function setRelationshipMutationOptions<
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts<LinkageRef<string> | null>,
-): MutationOptions<unknown, LinkageRef<string> | null, MutationContext> {
-  const base: MutationOptions<unknown, LinkageRef<string> | null, MutationContext> = {
-    mutationFn: (ref) =>
+): MutationOptions<unknown, LinkageRef<string> | null> {
+  return planned(
+    resourcePlan('set', type, id, rel, isOptimistic(opts)),
+    (ref: LinkageRef<string> | null) =>
       relationWrites(client, type, id, rel).set(ref, callOptions(opts, ref) as LooseMetaOpts),
-    onSuccess: (data) => {
-      normalize(queryClient, data, descriptor)
-    },
-    onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
-  }
-  if (!isOptimistic(opts)) {
-    return base
-  }
-  return {
-    ...base,
-    onMutate: (ref) => {
-      const next = ref === null ? undefined : toMembershipRef(ref)
-      return {
-        snapshot: applyOptimisticToOne(queryClient, type, id, rel, ref === null ? null : next),
-      }
-    },
-    onError: (_error, _ref, context) => {
-      context?.snapshot.restore()
-    },
-  }
+  )
 }
 
 /**
- * A to-many relationship `replace` (`PATCH …/relationships/{rel}` with the full new set):
- * `mutationFn` runs `client.<type>.id(id).rel(rel).replace(refs)`. A full replacement resets the
- * relation's membership, so on settle the parent's relations subtree is invalidated. The
- * mutation response (the new linkage) is normalized on success. When optimistic, the cached
- * membership is swapped to `refs` and rolled back on error.
+ * A to-many relationship `replace` (`PATCH …/relationships/{rel}` with the full new set), keyed
+ * `[type, 'replace', id, rel]`: `mutationFn` runs `client.<type>.id(id).rel(rel).replace(refs)`. A
+ * full replacement resets the relation's membership, so its upkeep normalizes the response (the
+ * new linkage) on success and invalidates the parent's reads of the relation on settle. When
+ * optimistic, the cached membership is swapped to `refs` and rolled back on error.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function replaceRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -589,33 +453,23 @@ export function replaceRelationshipMutationOptions<
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
-): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
-  const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) =>
+): MutationOptions<unknown, readonly LinkageRef<string>[]> {
+  return planned(
+    resourcePlan('replace', type, id, rel, isOptimistic(opts)),
+    (refs: readonly LinkageRef<string>[]) =>
       relationWrites(client, type, id, rel).replace(refs, callOptions(opts, refs) as LooseMetaOpts),
-    onSuccess: (data) => {
-      normalize(queryClient, data, descriptor)
-    },
-    onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
-  }
-  // Replace: the optimistic set IS the new refs (order preserved), regardless of the current members.
-  return withMembershipOptimism(
-    queryClient,
-    type,
-    id,
-    rel,
-    base,
-    (_current, refs) => membershipRefs(refs),
-    isOptimistic(opts),
   )
 }
 
 /**
- * A to-many relationship `add` (`POST …/relationships/{rel}`): `mutationFn` runs
- * `client.<type>.id(id).rel(rel).add(refs)`. Adding changes the relation's membership, so on
- * settle the parent's relations subtree is invalidated (a patch can't insert linkage members).
- * When optimistic, the added refs are appended to the cached membership (deduplicated by `type:id`)
- * and rolled back on error.
+ * A to-many relationship `add` (`POST …/relationships/{rel}`), keyed `[type, 'add', id, rel]`:
+ * `mutationFn` runs `client.<type>.id(id).rel(rel).add(refs)`. Adding changes the relation's
+ * membership, so its upkeep invalidates the parent's reads of the relation on settle (a patch can't
+ * insert linkage members). When optimistic, the added refs are appended to the cached membership
+ * (deduplicated by `type:id`) and rolled back on error.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function addRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -629,33 +483,23 @@ export function addRelationshipMutationOptions<
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
-): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
-  const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) =>
+): MutationOptions<unknown, readonly LinkageRef<string>[]> {
+  return planned(
+    resourcePlan('add', type, id, rel, isOptimistic(opts)),
+    (refs: readonly LinkageRef<string>[]) =>
       relationWrites(client, type, id, rel).add(refs, callOptions(opts, refs) as LooseMetaOpts),
-    onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
-  }
-  return withMembershipOptimism(
-    queryClient,
-    type,
-    id,
-    rel,
-    base,
-    (current, refs) => {
-      const added = membershipRefs(refs)
-      // Append the added refs, skipping any already present (an add is idempotent on membership).
-      const kept = current.filter((m) => !added.some((a) => sameRef(a, m)))
-      return [...kept, ...added]
-    },
-    isOptimistic(opts),
   )
 }
 
 /**
- * A to-many relationship `remove` (`DELETE …/relationships/{rel}`): `mutationFn` runs
- * `client.<type>.id(id).rel(rel).remove(refs)`. Removing changes the relation's membership, so on
- * settle the parent's relations subtree is invalidated. When optimistic, the removed refs are
- * dropped from the cached membership and rolled back on error.
+ * A to-many relationship `remove` (`DELETE …/relationships/{rel}`), keyed
+ * `[type, 'remove', id, rel]`: `mutationFn` runs `client.<type>.id(id).rel(rel).remove(refs)`.
+ * Removing changes the relation's membership, so its upkeep invalidates the parent's reads of the
+ * relation on settle. When optimistic, the removed refs are dropped from the cached membership and
+ * rolled back on error.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function removeRelationshipMutationOptions<
   D extends ApiDescriptor,
@@ -669,34 +513,22 @@ export function removeRelationshipMutationOptions<
   id: ResourceId<D, T>,
   rel: RelationName<D, T>,
   opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
-): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> {
-  const base: MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext> = {
-    mutationFn: (refs) =>
+): MutationOptions<unknown, readonly LinkageRef<string>[]> {
+  return planned(
+    resourcePlan('remove', type, id, rel, isOptimistic(opts)),
+    (refs: readonly LinkageRef<string>[]) =>
       relationWrites(client, type, id, rel).remove(refs, callOptions(opts, refs) as LooseMetaOpts),
-    onSettled: () => invalidateParentRelations(queryClient, type, id, rel),
-  }
-  return withMembershipOptimism(
-    queryClient,
-    type,
-    id,
-    rel,
-    base,
-    (current, refs) => {
-      const removed = membershipRefs(refs)
-      return current.filter((m) => !removed.some((r) => sameRef(r, m)))
-    },
-    isOptimistic(opts),
   )
 }
 
 // ── Atomic (a thin passthrough) ─────────────────────────────────────────────────────────────
 
 /**
- * A thin atomic-batch mutation (`POST /operations`): `mutationFn` forwards the `build` callback to
- * `client.atomic(build)`. The variables are the build callback, which may record any operation and
- * return anything, and the result is the loose, ordered `AtomicResult[]`. On success the
- * materialised results are run through {@link normalize} so any updated resource patches across
- * the cache.
+ * A thin atomic-batch mutation (`POST /operations`), keyed `['$atomic']`: `mutationFn` forwards the
+ * `build` callback to `client.atomic(build)`. The variables are the build callback, which may
+ * record any operation and return anything, and the result is the loose, ordered `AtomicResult[]`.
+ * Its upkeep runs the materialised results through `normalize` on success so any updated resource
+ * patches across the cache.
  *
  * INVALIDATION is the caller's responsibility for atomic: a batch can mix creates/updates/deletes
  * across many types, and the recorded ops aren't enumerable after the build runs, so the binding
@@ -704,43 +536,22 @@ export function removeRelationshipMutationOptions<
  * normalization; for a batch that creates/deletes, add an `onSettled` that invalidates the
  * affected `operationKey(type, 'fetchMany')` subtrees (or `queryClient.invalidateQueries()` for a
  * blanket refetch). Kept deliberately minimal — atomic is an escape hatch, not a normalized path.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
+ * @param _descriptor The descriptor, which types the batch's recorder.
  */
 export function atomicMutationOptions<D extends ApiDescriptor, A, W>(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
-  descriptor: D,
+  _descriptor: D,
 ): MutationOptions<AtomicResult[], (tx: AtomicRecorder<D, W>) => unknown> {
-  return {
-    mutationFn: (build) =>
-      // The client's `atomic` carries the precise per-op return type; the binding's loose
-      // `AtomicResult[]` result is the common supertype (a caller wanting the positional tuple
-      // calls `client.atomic` directly — the binding's value is the cache normalization).
-      (client as unknown as { atomic: (b: unknown) => Promise<AtomicResult[]> }).atomic(build),
-    onSuccess: (data) => {
-      normalize(queryClient, data, descriptor)
-    },
-  }
-}
-
-/**
- * Split an update patch into just its ATTRIBUTE keys (for an optimistic node patch): a key is an
- * attribute iff the descriptor declares it under `attributes` for the type. Relation slots and
- * any unknown key are dropped — an optimistic patch only touches a node's shared attributes (the
- * same split {@link normalize}'s real patch honours), never linkage.
- */
-function attributesFromPatch(
-  descriptor: ApiDescriptor,
-  type: string,
-  patch: Record<string, unknown>,
-): Record<string, unknown> {
-  const attributes = descriptor[type]?.attributes ?? {}
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(patch)) {
-    if (key in attributes) {
-      out[key] = value
-    }
-  }
-  return out
+  return planned({ verb: 'atomic' }, (build) =>
+    // The client's `atomic` carries the precise per-op return type; the binding's loose
+    // `AtomicResult[]` result is the common supertype (a caller wanting the positional tuple
+    // calls `client.atomic` directly — the binding's value is the cache normalization).
+    (client as unknown as { atomic: (b: unknown) => Promise<AtomicResult[]> }).atomic(build),
+  )
 }
 
 // ── Bound per-type mutation API (sugar over the standalone factories) ────────────────────────
@@ -773,16 +584,16 @@ export type UpdateMutationOpts<
 export interface RelationMutationApi {
   add(
     opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
-  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
+  ): MutationOptions<unknown, readonly LinkageRef<string>[]>
   remove(
     opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
-  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
+  ): MutationOptions<unknown, readonly LinkageRef<string>[]>
   replace(
     opts?: RelationshipMutationOpts<readonly LinkageRef<string>[]>,
-  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationContext>
+  ): MutationOptions<unknown, readonly LinkageRef<string>[]>
   set(
     opts?: RelationshipMutationOpts<LinkageRef<string> | null>,
-  ): MutationOptions<unknown, LinkageRef<string> | null, MutationContext>
+  ): MutationOptions<unknown, LinkageRef<string> | null>
 }
 
 /** The id-scoped mutation option factories (`api.<type>.id(id).update(...)` etc.). */
@@ -799,8 +610,7 @@ export interface HandleMutationApi<D extends ApiDescriptor, A, W, T extends Type
     >
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
-    UpdateInput<D, W, T>,
-    MutationContext
+    UpdateInput<D, W, T>
   >
   delete(...opts: DeleteMutationArgs<D, T>): MutationOptions<DeleteResult<D, T>, void>
   rel(name: RelationName<D, T>): RelationMutationApi
@@ -842,8 +652,7 @@ export interface SingletonMutationApi<D extends ApiDescriptor, A, W, T extends T
     >
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
-    SingletonUpdateInput<D, W, T>,
-    MutationContext
+    SingletonUpdateInput<D, W, T>
   >
   rel(name: RelationName<D, T>): RelationMutationApi
 }
@@ -864,8 +673,25 @@ export type MutationApi<D extends ApiDescriptor, A, W> = {
  * returns the same `MutationOptions` as the standalone {@link updateMutationOptions}, with the
  * common arguments pre-applied. A Proxy (descriptor-keyed type validity is enforced by the static
  * `MutationApi` shape) — no per-type allocation until first access.
+ *
+ * `options.scope` scopes every mutation, for a server sharing the QueryClient with another: its
+ * key is led by `{ $scope }`, and its plan carries the scope, so the upkeep runs against the
+ * descriptor installed for that scope and invalidates and patches only that scope's queries.
+ *
+ * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
+ * on. Kept so existing calls compile; it will be removed in a future major.
  */
 export function createMutationApi<D extends ApiDescriptor, A, W>(
+  queryClient: QueryClient,
+  client: WriteClient<D, A, W>,
+  descriptor: D,
+  options: ScopeOption = {},
+): MutationApi<D, A, W> {
+  return scopeApi(unscopedMutationApi(queryClient, client, descriptor), options.scope)
+}
+
+/** The bound mutation API, unscoped. */
+function unscopedMutationApi<D extends ApiDescriptor, A, W>(
   queryClient: QueryClient,
   client: WriteClient<D, A, W>,
   descriptor: D,

@@ -10,6 +10,7 @@ import { installNormalization } from './install'
 import { getQueryOptions, listQueryOptions } from './read'
 import { applyOptimisticPatch, normalize } from './normalize'
 import { createMutationOptions } from './mutate'
+import { JsonApiMutationCache } from './mutation-cache'
 
 const BASE = 'https://music.example'
 
@@ -400,7 +401,10 @@ describe('normalize — does not clobber invalidation flags (regression: patch o
       'GET /albums': { data: [resource('albums', '1', { title: 'A' })] },
       'POST /albums': { data: resource('albums', '2', { title: 'New' }) },
     })
-    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+    const qc = new QueryClient({
+      mutationCache: new JsonApiMutationCache(),
+      defaultOptions: { queries: { staleTime: Infinity } },
+    })
     // installNormalization subscribes to mutation success — the exact path that previously
     // un-invalidated the cache by writing back every query via setQueriesData({}).
     teardowns.push(installNormalization(qc, descriptor))
@@ -410,7 +414,7 @@ describe('normalize — does not clobber invalidation flags (regression: patch o
     await qc.fetchQuery(listOpts)
     expect(qc.getQueryState(listOpts.queryKey)?.isInvalidated).toBe(false)
 
-    // Drive a create: onSuccess(normalize) then onSettled(invalidateLists). The install mutation
+    // Drive a create: the cache's onSuccess (normalize) then onSettled (invalidateLists). The install mutation
     // subscription ALSO fires a normalize on the same success — which previously cleared the just-set
     // isInvalidated flag. The inactive list must remain invalidated so it refetches on next mount.
     await qc

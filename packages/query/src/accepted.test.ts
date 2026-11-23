@@ -6,8 +6,10 @@ import {
   type ReadResult,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { QueryClient } from '@tanstack/query-core'
+import { QueryClient, type QueryClientConfig } from '@tanstack/query-core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import { installNormalization } from './install'
+import { JsonApiMutationCache } from './mutation-cache'
 import { resourceKey } from './keys'
 import { createMutationApi, createMutationOptions, type MutationOptions } from './mutate'
 
@@ -57,20 +59,32 @@ const client = createClient<D, Attributes>(descriptor, {
   transport: async () => accepted,
 })
 
-function runMutation<TData, TVars, TContext>(
+function runMutation<TData, TVars>(
   qc: QueryClient,
-  options: MutationOptions<TData, TVars, TContext>,
+  options: MutationOptions<TData, TVars>,
   variables: TVars,
 ): Promise<TData> {
   return qc
     .getMutationCache()
-    .build<TData, unknown, TVars, TContext>(qc, options as never)
+    .build<TData, unknown, TVars, unknown>(qc, options as never)
     .execute(variables)
+}
+
+/**
+ * A QueryClient as an app builds one for mutations: with the JsonApiMutationCache and the
+ * descriptor installed.
+ */
+function jsonApiQueryClient(
+  config: QueryClientConfig = { defaultOptions: { queries: { staleTime: Infinity } } },
+): QueryClient {
+  const qc = new QueryClient({ ...config, mutationCache: new JsonApiMutationCache() })
+  installNormalization(qc, descriptor)
+  return qc
 }
 
 describe('mutations of a write that declares a 202', () => {
   it('resolves to the Accepted job and leaves the cache alone', async () => {
-    const qc = new QueryClient()
+    const qc = jsonApiQueryClient()
     qc.setQueryData(resourceKey('export-jobs', '1'), { type: 'export-jobs', id: '1', state: 'x' })
     const result = await runMutation(
       qc,

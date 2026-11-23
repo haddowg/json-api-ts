@@ -4,9 +4,11 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from '@haddowg/json-api-client'
-import { QueryClient } from '@tanstack/query-core'
+import { QueryClient, type QueryClientConfig } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
-import { createMutationApi } from './mutate'
+import { installNormalization } from './install'
+import { JsonApiMutationCache } from './mutation-cache'
+import { createMutationApi, type MutationOptions } from './mutate'
 
 const BASE = 'https://api.example'
 
@@ -76,14 +78,32 @@ function setup(...replies: { status?: number; body?: unknown }[]) {
     baseUrl: BASE,
     transport,
   })
-  const mutations = createMutationApi(new QueryClient(), client, descriptor)
+  const qc = jsonApiQueryClient()
+  const mutations = createMutationApi(qc, client, descriptor)
+  const run = <TData, TVars>(options: MutationOptions<TData, TVars>, variables: TVars) =>
+    qc
+      .getMutationCache()
+      .build<TData, unknown, TVars, unknown>(qc, options as never)
+      .execute(variables)
   const sent = (index: number): unknown => JSON.parse(requests[index]!.body ?? 'null')
-  return { mutations, requests, sent }
+  return { mutations, requests, run, sent }
+}
+
+/**
+ * A QueryClient as an app builds one for mutations: with the JsonApiMutationCache and the
+ * descriptor installed.
+ */
+function jsonApiQueryClient(
+  config: QueryClientConfig = { defaultOptions: { queries: { staleTime: Infinity } } },
+): QueryClient {
+  const qc = new QueryClient({ ...config, mutationCache: new JsonApiMutationCache() })
+  installNormalization(qc, descriptor)
+  return qc
 }
 
 describe('request meta through the mutation factories', () => {
   it('builds a create’s meta from each call’s variables', async () => {
-    const { mutations, sent } = setup(
+    const { mutations, run, sent } = setup(
       { status: 201, body: { data: booking } },
       { status: 201, body: { data: booking } },
     )
@@ -91,8 +111,8 @@ describe('request meta through the mutation factories', () => {
     const create = mutations.bookings.create({
       meta: () => ({ idempotencyKey: `k-${++calls}` }),
     })
-    await create.mutationFn({ title: 'Weekend', $meta: { source: 'web' } })
-    await create.mutationFn({ title: 'Later' })
+    await run(create, { title: 'Weekend', $meta: { source: 'web' } })
+    await run(create, { title: 'Later' })
     expect(sent(0)).toEqual({
       data: { type: 'bookings', attributes: { title: 'Weekend' }, meta: { source: 'web' } },
       meta: { idempotencyKey: 'k-1' },
@@ -106,15 +126,14 @@ describe('request meta through the mutation factories', () => {
   })
 
   it('sends an update’s and a delete’s meta as given', async () => {
-    const { mutations, requests, sent } = setup({ body: { data: booking } }, { status: 204 })
-    await mutations.bookings
-      .id('bk-1')
-      .update({ meta: { reason: 'late' } })
-      .mutationFn({ title: 'Later' })
-    await mutations.bookings
-      .id('bk-1')
-      .delete({ meta: { cancellationReason: 'ill' } })
-      .mutationFn()
+    const { mutations, requests, run, sent } = setup({ body: { data: booking } }, { status: 204 })
+    await run(mutations.bookings.id('bk-1').update({ meta: { reason: 'late' } }), {
+      title: 'Later',
+    })
+    await run(
+      mutations.bookings.id('bk-1').delete({ meta: { cancellationReason: 'ill' } }),
+      undefined,
+    )
     expect(sent(0)).toEqual({
       data: { type: 'bookings', id: 'bk-1', attributes: { title: 'Later' } },
       meta: { reason: 'late' },
@@ -129,12 +148,14 @@ describe('request meta through the mutation factories', () => {
   })
 
   it('sends a relationship write’s meta and resolves its meta-only answer', async () => {
-    const { mutations, sent } = setup({ body: { meta: { moved: 1 } } })
-    const added = await mutations.bookings
-      .id('bk-1')
-      .rel('rooms')
-      .add({ meta: (refs) => ({ changedBy: `desk:${refs.length}` }) })
-      .mutationFn([{ type: 'rooms', id: 'rm-1' }])
+    const { mutations, run, sent } = setup({ body: { meta: { moved: 1 } } })
+    const added = await run(
+      mutations.bookings
+        .id('bk-1')
+        .rel('rooms')
+        .add({ meta: (refs) => ({ changedBy: `desk:${refs.length}` }) }),
+      [{ type: 'rooms', id: 'rm-1' }],
+    )
     expect(sent(0)).toEqual({
       data: [{ type: 'rooms', id: 'rm-1' }],
       meta: { changedBy: 'desk:1' },

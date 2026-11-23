@@ -5,7 +5,12 @@
  * normalization, and exposes the bound TanStack read/write APIs.
  */
 import { fetchTransport, type JsonApiTransport } from '@haddowg/json-api-client'
-import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
+import {
+  createMutationApi,
+  createQueryApi,
+  installNormalization,
+  JsonApiMutationCache,
+} from '@haddowg/json-api-query'
 import { QueryClient } from '@tanstack/react-query'
 import { createClient, resourceMap } from '../generated/music-catalog.gen'
 import { createMockTransport, type MockTransport } from '../mock/transport'
@@ -42,6 +47,8 @@ export const client = createClient({
 })
 
 export const queryClient = new QueryClient({
+  // Runs each mutation's cache upkeep: normalisation, invalidation and optimistic rollback.
+  mutationCache: new JsonApiMutationCache(),
   defaultOptions: { queries: { staleTime: 30_000, retry: false } },
 })
 

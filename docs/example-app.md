@@ -27,13 +27,18 @@ Everything the app needs is bootstrapped in one file, [`src/api/client.ts`](../e
 
 ```ts
 import { fetchTransport } from '@haddowg/json-api-client'
-import { createMutationApi, createQueryApi, installNormalization } from '@haddowg/json-api-query'
+import {
+  createMutationApi,
+  createQueryApi,
+  installNormalization,
+  JsonApiMutationCache,
+} from '@haddowg/json-api-query'
 import { QueryClient } from '@tanstack/react-query'
 import { createClient, resourceMap } from '../generated/music-catalog.gen'
 
 export const client = createClient({ baseUrl, transport })
 
-const queryClient = new QueryClient(/* ... */)
+const queryClient = new QueryClient({ mutationCache: new JsonApiMutationCache() /* , ... */ })
 installNormalization(queryClient, resourceMap) // type:id write-through patching
 
 export const reads = createQueryApi(client)
