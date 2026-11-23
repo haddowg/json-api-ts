@@ -735,9 +735,10 @@ export interface CacheView {
   current(query: Query): boolean
   /**
    * Bring `query`'s index up to date now, after something changed its graph in place during this
-   * view's use.
+   * view's use. Returns the `type:id`s (each an `identityKey`) whose copies changed, or `undefined`
+   * when the query was indexed again whole.
    */
-  refresh(query: Query): void
+  refresh(query: Query): ReadonlySet<string> | undefined
   /**
    * Every relation slot in `query` holding a member addressing `type:id`, as `[node, rel]`, in the
    * order a walk visits the nodes and, per node, its relations; `undefined` when a member is reached
@@ -755,10 +756,19 @@ export interface CacheView {
 }
 
 const EMPTY: ReadonlySet<Query> = new Set()
+const NO_KEYS: ReadonlySet<string> = new Set()
 
-/** Bring `query`'s index in `at` up to date with its data. */
-function refresh(at: ScopeIndex, query: Query, descriptor: ApiDescriptor): void {
+/**
+ * Bring `query`'s index in `at` up to date with its data, returning the `type:id`s whose copies
+ * changed, or `undefined` when it was indexed again whole.
+ */
+function refresh(
+  at: ScopeIndex,
+  query: Query,
+  descriptor: ApiDescriptor,
+): ReadonlySet<string> | undefined {
   const indexed = at.queries.get(query)
+  let changed: Set<string> | undefined
   if (
     indexed !== undefined &&
     !indexed.stale &&
@@ -769,6 +779,7 @@ function refresh(at: ScopeIndex, query: Query, descriptor: ApiDescriptor): void 
     const keys = repart(indexed, query.state.data)
     if (keys !== undefined) {
       holdKeys(at, indexed, keys)
+      changed = keys
     }
   }
   if (
@@ -786,11 +797,11 @@ function refresh(at: ScopeIndex, query: Query, descriptor: ApiDescriptor): void 
       }
     }
     if (indexed.touched.size === 0) {
-      return
+      return changed ?? NO_KEYS
     }
     const targets = [...indexed.touched]
     indexed.touched.clear()
-    const changed = new Set<string>()
+    changed ??= new Set()
     let whole = false
     for (const target of targets) {
       const keys = resegment(indexed, target)
@@ -804,12 +815,13 @@ function refresh(at: ScopeIndex, query: Query, descriptor: ApiDescriptor): void 
     }
     holdKeys(at, indexed, changed)
     if (!whole) {
-      return
+      return changed
     }
   }
   const rebuilt = build(query, descriptor)
   at.queries.set(query, rebuilt)
   hold(at, query, indexed?.byType, rebuilt.byType)
+  return undefined
 }
 
 /**
@@ -892,7 +904,7 @@ export function cacheView(
       )
     },
     refresh(query) {
-      refresh(at, query, descriptor)
+      return refresh(at, query, descriptor)
     },
     slotsHolding(query, type, id) {
       const indexed = at.queries.get(query)

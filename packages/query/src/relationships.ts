@@ -440,18 +440,24 @@ export function propagateRelationships(
     }
     const description = describeCached(query, descriptor)
     const parts = partsOf(data)
-    /** Relink one copy reached in `part`; returns whether a slot changed. */
+    /**
+     * Relink one copy reached in `part`. Returns `undefined` when no slot changed, else the
+     * `type:id`s whose copies the index moved (`moved` is `undefined` when it indexed the query
+     * again whole).
+     */
     const relinkCopy = (
       node: Record<string, unknown>,
       at: ViewShape | undefined,
       part: unknown,
-    ) => {
+    ): { moved: ReadonlySet<string> | undefined } | undefined => {
       const { type, id } = node
       const relations = linkages.get(identityKey(String(type), String(id)))
       if (relations === undefined || typeof type !== 'string' || typeof id !== 'string') {
-        return false
+        return undefined
       }
       let relinked = false
+      let whole = false
+      const moved = new Set<string>()
       for (const [rel, next] of relations) {
         const outcome = relink(context, query, description, node, at, rel, next)
         if (outcome === 'changed' && typeof part === 'object' && part !== null) {
@@ -459,51 +465,86 @@ export function propagateRelationships(
           const touched = changed.get(query) ?? new Set<object>()
           touched.add(targetOf(part))
           changed.set(query, touched)
+          // At once: resolving the next relation's members reads the index, which would bring it up
+          // to date without telling what moved.
+          const keys = view.refresh(query)
+          if (keys === undefined) {
+            whole = true
+          } else {
+            for (const key of keys) {
+              moved.add(key)
+            }
+          }
         } else if (outcome === 'unfit' && !isSource(query)) {
           invalid.add(query)
         }
       }
-      return relinked
+      return relinked ? { moved: whole ? undefined : moved } : undefined
     }
-    // The copies already relinked, and the place in walk order the next one comes after.
+    if (!view.current(query)) {
+      view.refresh(query)
+    }
+    // The copies already relinked, and those still to relink after them (`queue` from `next`), in
+    // walk order.
     const done = new Set<object>()
-    let after = -Infinity
-    for (;;) {
-      if (!view.current(query)) {
-        view.refresh(query)
-      }
-      const copies: Visit[] = []
-      for (const key of linkages.keys()) {
+    const queued = new Set<Visit>()
+    let queue: Visit[] = []
+    let next = 0
+    const collect = (keys: Iterable<string>, after: number): Visit[] => {
+      const out: Visit[] = []
+      for (const key of keys) {
         const { type, id } = identities.get(key)!
         for (const visit of view.visits(query, type, id)) {
-          if (visit.first && visit.seq > after && !done.has(visit.node)) {
-            copies.push(visit)
+          if (visit.first && visit.seq > after && !done.has(visit.node) && !queued.has(visit)) {
+            out.push(visit)
           }
         }
       }
+      return out
+    }
+    const restart = (after: number): void => {
+      queued.clear()
       // oxlint-disable-next-line no-array-sort -- this pass's own list
-      copies.sort((a, b) => a.seq - b.seq)
-      let relinked: Record<string, unknown> | undefined
-      for (const visit of copies) {
-        done.add(visit.node)
-        if (relinkCopy(visit.node, visit.shape, parts[visit.part])) {
-          relinked = visit.node
-          break
-        }
+      queue = collect(linkages.keys(), after).sort((a, b) => a.seq - b.seq)
+      next = 0
+      for (const visit of queue) {
+        queued.add(visit)
       }
+    }
+    restart(-Infinity)
+    while (next < queue.length) {
+      const visit = queue[next]!
+      next += 1
+      queued.delete(visit)
+      // A copy an update since dropped from the index is no longer reached.
+      if (done.has(visit.node) || !view.visits(query, visit.type, visit.id).includes(visit)) {
+        continue
+      }
+      done.add(visit.node)
+      const relinked = relinkCopy(visit.node, visit.shape, parts[visit.part])
       if (relinked === undefined) {
-        break
+        continue
       }
-      // A slot changed: what the walk reaches after this copy is read from the index brought up
-      // to date. What it reached before is unchanged, and already relinked.
-      view.refresh(query)
+      // A slot changed: what the walk reaches after this copy is read from the updated index, for
+      // the resources whose copies the update moved. The others' copies stand.
+      const { moved } = relinked
       const at = view
-        .visits(query, String(relinked['type']), String(relinked['id']))
-        .find((visit) => visit.node === relinked && visit.first)
+        .visits(query, visit.type, visit.id)
+        .find((one) => one.node === visit.node && one.first)
       if (at === undefined) {
         break
       }
-      after = at.seq
+      if (moved === undefined) {
+        restart(at.seq)
+        continue
+      }
+      for (const added of collect(
+        [...moved].filter((key) => linkages.has(key)),
+        at.seq,
+      )) {
+        queued.add(added)
+        queue.splice(insertionPoint(queue, next, added.seq), 0, added)
+      }
     }
   }
 
@@ -518,6 +559,21 @@ export function propagateRelationships(
     }
   }
   return changed
+}
+
+/** Where a visit at `seq` goes in `queue`, sorted by walk order from `from`. */
+function insertionPoint(queue: readonly Visit[], from: number, seq: number): number {
+  let lo = from
+  let hi = queue.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (queue[mid]!.seq < seq) {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  return lo
 }
 
 /**
