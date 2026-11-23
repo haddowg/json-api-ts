@@ -360,6 +360,20 @@ function serverValues(node: MaterialisedResource): Map<string, ServerValue> {
   return values
 }
 
+/** The server value `node` holds for attribute `k` (see {@link serverValues}), when it holds one. */
+function heldValue(node: MaterialisedResource, k: string): ServerValue | undefined {
+  const record = records.get(targetOf(node))
+  const written = record?.written.get(k)
+  if (written !== undefined) {
+    return written
+  }
+  const raw = attributesOf(node)
+  // Enumerable, as `serverValues` reads the raw attributes through `Object.entries`.
+  return raw !== undefined && Object.prototype.propertyIsEnumerable.call(raw, k)
+    ? { value: raw[k], stamp: record?.born ?? UNKNOWN_STAMP, paths: narrowedPaths(node, k) }
+    : undefined
+}
+
 /** The stamp of the server value `node` holds for attribute `k`, or `undefined` when it holds none. */
 function heldStamp(node: MaterialisedResource, k: string): number | undefined {
   const record = records.get(targetOf(node))
@@ -519,10 +533,15 @@ function consider(
  * Index the server value of every attribute of every resource in `result` by `type:id`, each with
  * the stamp of the response that read it: the result's own (an infinite query's pages each have
  * theirs), or, for an attribute a newer response already wrote onto one of its nodes, that
- * response's. Each node of the result is recorded as born at its result's stamp.
+ * response's. Each node of the result is recorded as born at its result's stamp. Also returns the
+ * nodes visited, by materialised value.
  */
-function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
+function collectIncoming(
+  result: unknown,
+  descriptor: ApiDescriptor,
+): { fresh: Fresh; nodes: Set<object> } {
   const fresh: Fresh = new Map()
+  const nodes = new Set<object>()
   for (const part of partsOf(result)) {
     if (typeof part !== 'object' || part === null) {
       continue
@@ -535,6 +554,7 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
         return
       }
       recordBirth(node, stamp)
+      nodes.add(targetOf(node))
       const key = identityKey(ident.type, ident.id)
       for (const [k, value] of serverValues(node)) {
         // A later occurrence wins a tie: for one response, the copies are the same wire object.
@@ -542,28 +562,39 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
       }
     })
   }
-  return fresh
+  return { fresh, nodes }
 }
 
 /**
  * Raise each attribute in `fresh` to the newest server value any cached copy of its resource holds,
  * so a response arriving after a newer one takes the newer values rather than spreading its own.
- * The copies are the index's, in the order a walk of the cache visits them.
+ * The copies are the index's, in the order a walk of the cache visits them. A copy among
+ * `incoming`, the response's own nodes, holds nothing newer than `fresh` already took from it.
  */
-function raiseToNewest(view: CacheView, fresh: Fresh, wins: ReadonlySet<string> | undefined): void {
+function raiseToNewest(
+  view: CacheView,
+  fresh: Fresh,
+  incoming: ReadonlySet<object>,
+  wins: ReadonlySet<string> | undefined,
+): void {
   for (const [key, resource] of fresh) {
     const { type, id, attributes } = resource
+    const won =
+      wins === undefined
+        ? undefined
+        : new Set([...attributes.keys()].filter((k) => wins.has(fieldKey(type, id, k))))
     for (const query of view.ordered(view.holding(type, id))) {
       for (const visit of view.visits(query, type, id)) {
-        if (!visit.first) {
+        if (!visit.first || incoming.has(targetOf(visit.node))) {
           continue
         }
-        for (const [k, value] of serverValues(visit.node as unknown as MaterialisedResource)) {
-          const current = attributes.get(k)
-          if (current === undefined) {
+        const node = visit.node as unknown as MaterialisedResource
+        for (const [k, current] of attributes) {
+          const value = heldValue(node, k)
+          if (value === undefined) {
             continue
           }
-          if (wins?.has(fieldKey(type, id, k)) === true) {
+          if (won?.has(k) === true) {
             // A write's own response wins over every value cached meanwhile: it keeps its value and
             // takes the newest stamp, so no older read landing later replaces it.
             if (current.incoming && value.stamp > current.stamp) {
@@ -760,7 +791,7 @@ function run(
 ): void {
   // An infinite query's earlier pages are indexed again each time a page is added. Their nodes'
   // records carry any newer value written since, so indexing them again never spreads stale data.
-  const fresh = collectIncoming(result, descriptor)
+  const { fresh, nodes } = collectIncoming(result, descriptor)
   // Relationships first, so a member a slot gains is patched with the newest attributes below.
   const relinked =
     read === undefined
@@ -779,7 +810,7 @@ function run(
   // Taken again: the relationships propagated may have changed what a query holds.
   const view = cacheView(queryClient, scope, descriptor)
   if (fresh.size > 0) {
-    raiseToNewest(view, fresh, wins)
+    raiseToNewest(view, fresh, nodes, wins)
   }
   patchAll(queryClient, scope, view, fresh, relinked)
 }
