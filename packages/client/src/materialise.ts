@@ -206,7 +206,7 @@ const define = (target: object, key: string, value: unknown): void => {
   Object.defineProperty(target, key, { value, enumerable: false, configurable: true })
 }
 
-const defineGetter = (target: object, key: string, get: () => unknown): void => {
+const defineGetter = (target: object, key: string, get: (this: object) => unknown): void => {
   Object.defineProperty(target, key, { get, enumerable: false, configurable: true })
 }
 
@@ -291,6 +291,19 @@ function rawCount(chain: readonly object[], name: string): number | undefined {
   return undefined
 }
 
+/** {@link rawCount} for the chain starting at `target`, without building the chain. */
+function rawCountOf(target: object, name: string): number | undefined {
+  let at: object | undefined = target
+  while (at !== undefined) {
+    const count = RAW_COUNTS.get(at)
+    if (count !== undefined) {
+      return count(name)
+    }
+    at = SOURCES.get(at)
+  }
+  return undefined
+}
+
 /** Define the overlay-backed accessors (`$optimistic`, `$pending`, `$count`) of a resource value. */
 function attachOverlayAccessors(target: object): void {
   defineGetter(target, '$optimistic', () => overlay?.optimistic(chainOf(target)))
@@ -301,9 +314,11 @@ function attachOverlayAccessors(target: object): void {
       overlay?.pending(chainOf(target), name) ?? NO_IDENTIFIERS,
   )
   define(target, '$count', (name: string): number | undefined => {
+    if (overlay === undefined) {
+      return rawCountOf(target, name)
+    }
     const chain = chainOf(target)
-    const raw = rawCount(chain, name)
-    return overlay === undefined ? raw : overlay.count(chain, name, raw)
+    return overlay.count(chain, name, rawCount(chain, name))
   })
 }
 
@@ -740,12 +755,8 @@ function augmentArray(
   defineGetter(arr, '$links', () => links)
   // Read through `this`, as `$page` and `$pending` are, so a copy of the array carrying these
   // accessors (a cache layer's edited membership) asks the overlay about itself.
-  Object.defineProperty(arr, '$meta', {
-    get(this: object): Record<string, unknown> | undefined {
-      return withTotal(doc.meta, this)
-    },
-    enumerable: false,
-    configurable: true,
+  defineGetter(arr, '$meta', function (this: object) {
+    return withTotal(doc.meta, this)
   })
   const paginator =
     paginatorOverride === undefined
@@ -781,13 +792,9 @@ function augmentRelationArray(
   defineGetter(arr, '$meta', () => rel.meta)
   // Read through `this`, so a copy of the array carrying this accessor (a cache layer's edited
   // membership) asks the overlay about itself.
-  Object.defineProperty(arr, '$count', {
-    get(this: object): number | undefined {
-      const raw = relationTotal(rel)
-      return overlay === undefined ? raw : overlay.count([this], undefined, raw)
-    },
-    enumerable: false,
-    configurable: true,
+  defineGetter(arr, '$count', function (this: object) {
+    const raw = relationTotal(rel)
+    return overlay === undefined ? raw : overlay.count([this], undefined, raw)
   })
   attachPage(
     arr,
@@ -833,12 +840,8 @@ function attachPage(
   if (meta !== undefined) page.meta = meta
   // Through `this`, so a copy of the array (a cache layer's edited membership) reports its own
   // total and pending creates.
-  Object.defineProperty(arr, '$page', {
-    get(this: object): Page {
-      return pageWithTotal(page, this)
-    },
-    enumerable: false,
-    configurable: true,
+  defineGetter(arr, '$page', function (this: object) {
+    return pageWithTotal(page, this)
   })
   define(arr, '$pending', function (this: object): readonly PendingCreate[] {
     return overlay?.creates?.([this]) ?? NO_CREATES
