@@ -6,10 +6,11 @@
  *
  * @internal
  */
-import type { ApiDescriptor } from '@haddowg/json-api-client'
+import { type ApiDescriptor, edgeViewOf, identifierViewOf } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
 import { cacheView, describeCached } from './cache-index'
 import { addresses } from './identity'
+import { adoptRecord } from './normalize'
 import { fits, type ViewShape } from './view-shape'
 
 /** Where {@link resolveMember} looks, besides the cache. */
@@ -78,4 +79,40 @@ export function resolveMember(
     }
   }
   return undefined
+}
+
+/**
+ * `edge` as it enters a slot of `shape`: an identifier view, or a per-edge view over the copy
+ * {@link resolveMember} finds (trying `candidates()` first) that keeps only what the shape selects,
+ * holding that copy's server record; `undefined` when no copy fits.
+ *
+ * @internal
+ */
+export function memberViewFor(
+  queryClient: QueryClient,
+  edge: { readonly type: string; readonly id: string; readonly meta?: Record<string, unknown> },
+  shape: ViewShape,
+  descriptor: ApiDescriptor,
+  scope: string | undefined,
+  candidates: () => readonly unknown[],
+): object | undefined {
+  if (shape.kind === 'identifiers') {
+    return identifierViewOf(edge)
+  }
+  const found = resolveMember(queryClient, edge.type, edge.id, shape, descriptor, {
+    scope,
+    candidates: candidates(),
+  })
+  if (typeof found !== 'object' || found === null) {
+    return undefined
+  }
+  const attributes = shape.attributes.get(edge.type)
+  const relations = shape.rendered.get(edge.type)
+  const view = edgeViewOf(
+    found,
+    edge,
+    (key) => attributes?.has(key) === true || relations?.has(key) === true,
+  )
+  adoptRecord(view, found)
+  return view
 }

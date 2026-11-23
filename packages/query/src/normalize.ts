@@ -116,8 +116,8 @@ export function withMembers(source: readonly unknown[], members: readonly unknow
   return out
 }
 
-/** TanStack's cached data for an infinite query: its pages and the params that read them. */
-interface InfiniteValue {
+/** TanStack's cached data for an infinite query: its pages and the params that read them. @internal */
+export interface InfiniteValue {
   pages: unknown[]
   pageParams: unknown[]
 }
@@ -1024,8 +1024,11 @@ export function topClaim(
   return top
 }
 
-/** Show `claim`'s prediction on `node`, recording the node; returns whether its value changed. */
-function showClaim(
+/**
+ * Show `claim`'s prediction on `node`, recording the node; returns whether its value changed.
+ * @internal
+ */
+export function showClaim(
   node: Record<string, unknown>,
   k: string,
   claim: FieldClaim,

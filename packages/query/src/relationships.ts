@@ -36,20 +36,12 @@
  *
  * @internal
  */
-import { type ApiDescriptor, edgeViewOf, identifierViewOf } from '@haddowg/json-api-client'
+import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
-import {
-  adoptRecord,
-  bornOf,
-  partsOf,
-  recordSlot,
-  targetOf,
-  withMembers,
-  writtenSlot,
-} from './normalize'
+import { bornOf, partsOf, recordSlot, targetOf, withMembers, writtenSlot } from './normalize'
 import { addresses, identityKey, identityOf, isRecord } from './identity'
 import { type CacheView, describeCached, touchNode, type Visit } from './cache-index'
-import { resolveMember } from './resolve'
+import { memberViewFor } from './resolve'
 import {
   fits,
   isComplete,
@@ -711,27 +703,7 @@ function memberView(
     id: member.id,
     ...(member.meta === undefined ? {} : { meta: member.meta }),
   }
-  if (shape.kind === 'identifiers') {
-    return identifierViewOf(edge)
-  }
-  const found = resolveMember(
-    context.queryClient,
-    member.type,
-    member.id,
-    shape,
-    context.descriptor,
-    { scope: context.scope, candidates: candidates.filter((candidate) => candidate !== undefined) },
+  return memberViewFor(context.queryClient, edge, shape, context.descriptor, context.scope, () =>
+    candidates.filter((candidate) => candidate !== undefined),
   )
-  if (typeof found !== 'object' || found === null) {
-    return undefined
-  }
-  const attributes = shape.attributes.get(member.type)
-  const relations = shape.rendered.get(member.type)
-  const view = edgeViewOf(
-    found,
-    edge,
-    (key) => attributes?.has(key) === true || relations?.has(key) === true,
-  )
-  adoptRecord(view, found)
-  return view
 }

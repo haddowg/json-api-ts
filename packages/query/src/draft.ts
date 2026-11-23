@@ -37,9 +37,7 @@
 import {
   type ApiDescriptor,
   type CreateInput,
-  edgeViewOf,
   type FilterQuery,
-  identifierViewOf,
   type MaterialisedOverlay,
   type PendingCreate,
   type PendingMember,
@@ -56,7 +54,14 @@ import {
   type WritePivotOf,
 } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
-import { type CacheView, cacheView, describeCached, renameNode, touchNode } from './cache-index'
+import {
+  type CacheView,
+  cacheView,
+  describeCached,
+  renameNode,
+  shapeOfCached,
+  touchNode,
+} from './cache-index'
 import {
   addresses,
   carriesData,
@@ -69,10 +74,10 @@ import type { QueryKey } from './keys'
 import type { UpdateVariables } from './mutate'
 import {
   addClaim,
-  adoptRecord,
   descends,
   type FieldClaim,
   fieldKey,
+  type InfiniteValue,
   isInfiniteValue,
   lineageOf,
   partsOf,
@@ -81,6 +86,7 @@ import {
   recordSlot,
   removeClaim,
   serverValueOf,
+  showClaim,
   type Snapshot,
   targetOf,
   topClaim,
@@ -96,14 +102,14 @@ import {
   type SlotClaim,
   topSlotClaim,
 } from './relationships'
-import { resolveMember } from './resolve'
+import { memberViewFor } from './resolve'
 import {
+  firstPage,
   isComplete,
   isUnfilteredUnsorted,
   type QueryDescription,
   type QueryParams,
   slotShape,
-  viewShape,
   type ViewShape,
   walkShaped,
 } from './view-shape'
@@ -717,10 +723,21 @@ function withoutId(resource: Readonly<Record<string, unknown>>): Readonly<Record
 const toRefs = (values: readonly unknown[]): Ref[] =>
   values.map(toRef).filter((ref): ref is Ref => ref !== undefined)
 
-/** Whether a member list shows the first page: no `prev` link on its `$page`. */
-function firstPage(list: unknown): boolean {
-  const page = (list as { $page?: { links?: { prev?: unknown } } } | undefined)?.$page
-  return typeof page?.links?.prev !== 'string'
+/** The member lists of `query`'s own data: one, or an infinite query's pages in order. */
+const topLocs = (query: Query, data: unknown): Loc[] =>
+  isInfiniteValue(data)
+    ? data.pages.map((_, page) => ({ kind: 'top', query, page }))
+    : [{ kind: 'top', query, page: undefined }]
+
+/** Whether page `at` of `data` is the cached page there, behind any root. */
+const keptPage = (data: InfiniteValue, cached: InfiniteValue, at: number): boolean => {
+  const page = data.pages[at]
+  return (
+    at < cached.pages.length &&
+    typeof page === 'object' &&
+    page !== null &&
+    targetOf(page) === targetOf(cached.pages[at] as object)
+  )
 }
 
 // ── The draft ──────────────────────────────────────────────────────────────────────────────
@@ -804,15 +821,7 @@ class Draft {
         '@haddowg/json-api-query: this optimistic draft has already committed or rolled back.',
       )
     }
-    this.depth += 1
-    try {
-      return fn()
-    } finally {
-      this.depth -= 1
-      if (this.depth === 0) {
-        this.flush()
-      }
-    }
+    return this.publishing(fn)
   }
 
   /** Publish every query staged since the last flush, once each. */
@@ -831,21 +840,16 @@ class Draft {
         // Data this draft replaced isn't the cache's yet: walk what it replaced, and read the pages
         // of an infinite query it kept from the cache index.
         const cached = query.state.data
+        const infinite =
+          isInfiniteValue(data) && isInfiniteValue(cached) ? { data, cached } : undefined
         const kept =
-          isInfiniteValue(data) && isInfiniteValue(cached)
-            ? (view ??= this.view()).partsHolding(query, nodes)
-            : undefined
+          infinite === undefined ? undefined : (view ??= this.view()).partsHolding(query, nodes)
         for (const [at, part] of partsOf(data).entries()) {
           if (typeof part !== 'object' || part === null) {
             continue
           }
-          if (
-            kept !== undefined &&
-            isInfiniteValue(cached) &&
-            at < cached.pages.length &&
-            targetOf(part) === targetOf(cached.pages[at] as object)
-          ) {
-            if (kept.has(at)) {
+          if (infinite !== undefined && keptPage(infinite.data, infinite.cached, at)) {
+            if (kept?.has(at) === true) {
               changed.add(targetOf(part))
             }
             continue
@@ -873,7 +877,7 @@ class Draft {
   }
 
   private stage(query: Query): Staged {
-    this.keys.set(query.queryHash, query.queryKey as QueryKey)
+    this.consider(query)
     return this.stageQuiet(query)
   }
 
@@ -949,7 +953,7 @@ class Draft {
     candidate: Candidate,
     visit: (node: Record<string, unknown>, shape: ViewShape | undefined) => void,
   ): void {
-    const shape = viewShape(candidate.description, this.descriptor)
+    const shape = shapeOfCached(candidate.query, this.descriptor)
     const seen = new Set<object>()
     for (const part of partsOf(this.current(candidate.query))) {
       walkShaped(part, shape, this.descriptor, visit, seen)
@@ -1037,12 +1041,8 @@ class Draft {
     if (!view.current(query)) {
       view.refresh(query)
     }
-    const kept = (page: number): boolean =>
-      page < cached.pages.length &&
-      typeof data.pages[page] === 'object' &&
-      data.pages[page] !== null &&
-      targetOf(data.pages[page] as object) === targetOf(cached.pages[page] as object)
-    const shape = viewShape(candidate.description, this.descriptor)
+    const kept = (page: number): boolean => keptPage(data, cached, page)
+    const shape = shapeOfCached(query, this.descriptor)
     // What the pages this draft replaced reach, for the pages after them.
     const walked = new Map<number, Set<object>>()
     const earlier = (node: object, page: number): boolean =>
@@ -1121,7 +1121,7 @@ class Draft {
       each((node) => {
         this.register(candidate.query, node, mark)
         const slot = rel === undefined ? undefined : node[rel]
-        if (rel !== undefined && Array.isArray(slot)) {
+        if (Array.isArray(slot)) {
           this.register(candidate.query, slot, mark, rel)
         }
         this.stage(candidate.query).nodes.add(targetOf(node))
@@ -1207,28 +1207,10 @@ class Draft {
   private memberFor(ref: Ref, shape: ViewShape): object | undefined {
     const meta = ref.pivot === undefined ? undefined : { pivot: { ...ref.pivot } }
     const edge = { type: ref.type, id: ref.id, ...(meta === undefined ? {} : { meta }) }
-    if (shape.kind === 'identifiers') {
-      return identifierViewOf(edge)
-    }
-    const created = this.created.get(identityKey(ref.type, ref.id))
-    const source =
-      created === undefined ? ref.source : this.hydrate(ref.type, created.completed, shape)
-    const found = resolveMember(this.queryClient, ref.type, ref.id, shape, this.descriptor, {
-      scope: this.scope,
-      candidates: [source],
+    return memberViewFor(this.queryClient, edge, shape, this.descriptor, this.scope, () => {
+      const created = this.created.get(identityKey(ref.type, ref.id))
+      return [created === undefined ? ref.source : this.hydrate(ref.type, created.completed, shape)]
     })
-    if (typeof found !== 'object' || found === null) {
-      return undefined
-    }
-    const attributes = shape.attributes.get(ref.type)
-    const relations = shape.rendered.get(ref.type)
-    const view = edgeViewOf(
-      found,
-      edge,
-      (key) => attributes?.has(key) === true || relations?.has(key) === true,
-    )
-    adoptRecord(view, found)
-    return view
   }
 
   /**
@@ -1272,29 +1254,9 @@ class Draft {
     if (identity === undefined) {
       return undefined
     }
-    const found = resolveMember(
-      this.queryClient,
-      identity.type,
-      identity.id,
-      shape,
-      this.descriptor,
-      { scope: this.scope, candidates: [ref] },
-    )
-    if (typeof found !== 'object' || found === null) {
-      return undefined
-    }
-    if (shape.kind === 'identifiers') {
-      return identifierViewOf(identity)
-    }
-    const attributes = shape.attributes.get(identity.type)
-    const relations = shape.rendered.get(identity.type)
-    const view = edgeViewOf(
-      found,
-      identity,
-      (key) => attributes?.has(key) === true || relations?.has(key) === true,
-    )
-    adoptRecord(view, found)
-    return view
+    return memberViewFor(this.queryClient, identity, shape, this.descriptor, this.scope, () => [
+      ref,
+    ])
   }
 
   /** What {@link Into} sees of `ref` entering a destination of `shape`. */
@@ -1333,15 +1295,12 @@ class Draft {
       ) {
         this.consider(query)
         const data = this.current(query)
-        const shape = viewShape(description, this.descriptor)
+        const shape = shapeOfCached(query, this.descriptor)
         if (cardinality === 'many' && (isInfiniteValue(data) || Array.isArray(data))) {
-          const locs: Loc[] = isInfiniteValue(data)
-            ? data.pages.map((_, page) => ({ kind: 'top', query, page }))
-            : [{ kind: 'top', query, page: undefined }]
           many.push({
             query,
             description,
-            locs,
+            locs: topLocs(query, data),
             shape,
             auto: isUnfilteredUnsorted(description) && isComplete(data),
           })
@@ -1537,20 +1496,12 @@ class Draft {
       for (const { candidate, each } of this.holders(type, id)) {
         each((node, shape) => {
           let touched = false
-          for (const [key, value] of attributes) {
+          for (const [key, claim] of claims) {
             if (!writable(node, key, shape)) {
               continue
             }
             touched = true
-            const claim = claims.get(key)!
-            const target = targetOf(node)
-            const had = Object.hasOwn(node, key)
-            if (!claim.nodes.has(target)) {
-              claim.nodes.set(target, { node, query: candidate.query, had, prior: node[key] })
-            }
-            if (!(had && node[key] === value)) {
-              node[key] = value
-            }
+            showClaim(node, key, claim, candidate.query)
           }
           if (touched) {
             this.patchedKeys.set(candidate.query.queryHash, candidate.query.queryKey as QueryKey)
@@ -1889,14 +1840,14 @@ class Draft {
         if (place === undefined) {
           continue
         }
-        const data = this.current(query)
-        const shape = viewShape(description, this.descriptor)
+        const shape = shapeOfCached(query, this.descriptor)
+        if (shape === undefined) {
+          continue
+        }
         const view: ManyView = {
           query,
           description,
-          locs: isInfiniteValue(data)
-            ? data.pages.map((_, page) => ({ kind: 'top', query, page }))
-            : [{ kind: 'top', query, page: undefined }],
+          locs: topLocs(query, this.current(query)),
           shape,
           auto: false,
         }
@@ -1963,6 +1914,9 @@ class Draft {
     this.op(() => {
       const evicted = { type, id }
       const parents = new Map<string, { type: string; id: string | undefined; rel: string }>()
+      const counted = (parent: string, parentId: string | undefined, rel: string): void => {
+        parents.set(relationIdentityKey(parent, parentId, rel), { type: parent, id: parentId, rel })
+      }
       // Only a query holding the resource has anything to evict.
       const view = this.view()
       const holding = view.holding(type, id)
@@ -1982,14 +1936,10 @@ class Draft {
         let held = false
         // The query's own member list, or its to-one value.
         if (description.collection && (Array.isArray(data) || isInfiniteValue(data))) {
-          const locs: Loc[] = isInfiniteValue(data)
-            ? data.pages.map((_, page) => ({ kind: 'top', query, page }))
-            : [{ kind: 'top', query, page: undefined }]
-          if (this.removeFrom(locs, [evicted]) > 0) {
+          if (this.removeFrom(topLocs(query, data), [evicted]) > 0) {
             held = true
             if (description.rel !== undefined) {
-              const key = relationIdentityKey(description.type, description.id, description.rel)
-              parents.set(key, { type: description.type, id: description.id, rel: description.rel })
+              counted(description.type, description.id, description.rel)
             }
           }
         } else if (description.rel !== undefined && addresses(data, evicted)) {
@@ -2039,9 +1989,7 @@ class Draft {
           const slot = node[rel]
           if (Array.isArray(slot)) {
             this.removeFrom([loc], [evicted])
-            const parentId = node['id'] as string
-            const key = relationIdentityKey(node['type'] as string, parentId, rel)
-            parents.set(key, { type: node['type'] as string, id: parentId, rel })
+            counted(node['type'] as string, node['id'] as string, rel)
           } else {
             this.write(loc, null)
             this.undo.push({ kind: 'linked', loc, prior: slot, wrote: null })
@@ -2132,14 +2080,19 @@ class Draft {
     if (this.closed) {
       return
     }
-    this.close()
     this.run(() => {
-      this.undo.length = 0
-      this.dropClaims()
-      this.releaseSlots(false)
+      this.settle()
       this.clearMarks()
     })
     this.closed = true
+  }
+
+  /** Leave the open drafts and drop the undo state and every prediction and owned relation. */
+  private settle(): void {
+    this.close()
+    this.undo.length = 0
+    this.dropClaims()
+    this.releaseSlots(false)
   }
 
   /** Withdraw every attribute prediction without changing what any node shows. */
@@ -2157,10 +2110,7 @@ class Draft {
       return
     }
     this.confirmed = true
-    this.close()
-    this.undo.length = 0
-    this.dropClaims()
-    this.releaseSlots(false)
+    this.settle()
   }
 
   claimedFields(): ReadonlySet<string> {
@@ -2221,10 +2171,10 @@ class Draft {
   }
 
   /** Run `fn` and publish what it staged, whether or not the draft is still open. */
-  private publishing(fn: () => void): void {
+  private publishing<R>(fn: () => R): R {
     this.depth += 1
     try {
-      fn()
+      return fn()
     } finally {
       this.depth -= 1
       if (this.depth === 0) {
