@@ -10,7 +10,7 @@
 import { type ApiDescriptor, isAccepted } from '@haddowg/json-api-client'
 import { hashKey, type Mutation, MutationCache, type QueryClient } from '@tanstack/query-core'
 import { installedDescriptor } from './install'
-import { lifecycleOf, openDraft, type OptimisticDraft } from './draft'
+import { type DraftHandle, openDraftHandle } from './draft'
 import { keyHasPrefix, type QueryKey } from './keys'
 import {
   applyOptimistic,
@@ -98,7 +98,7 @@ interface Pending {
   /** Set when the write was accepted for later processing (`202`): it invalidates none of its own. */
   skipOwn: boolean
   /** The draft holding its optimistic change. */
-  draft: OptimisticDraft | undefined
+  draft: DraftHandle | undefined
 }
 
 const add = (keys: Map<string, QueryKey>, key: QueryKey): void => {
@@ -236,7 +236,7 @@ export class JsonApiMutationCache extends MutationCache {
             if (fetching.length > 0) {
               await queryClient.cancelQueries({ predicate: (query) => fetching.includes(query) })
             }
-            const draft = openDraft(queryClient, descriptor, {
+            const draft = openDraftHandle(queryClient, descriptor, {
               scope: plan.scope,
               autoPlace,
               // A create's `into` is for its insert alone; every other write's places its adds.
@@ -251,7 +251,7 @@ export class JsonApiMutationCache extends MutationCache {
                 warnIfPlacedNowhere(plan, queryClient, descriptor, draft, hooks, createdId)
               }
             } finally {
-              for (const key of lifecycleOf(draft as never).reconcileKeys()) {
+              for (const key of draft.reconcileKeys()) {
                 add(entry.keys, key)
               }
             }
@@ -273,15 +273,14 @@ export class JsonApiMutationCache extends MutationCache {
           const queryClient = context.client
           const descriptor = descriptorOf(queryClient, plan)
           const draft = entry.draft
-          const lifecycle = draft === undefined ? undefined : lifecycleOf(draft as never)
           if (isAccepted(data)) {
             // Accepted for later processing (D9): the server hasn't done the work, so the
             // optimistic change stays and nothing of this write's is refetched.
             entry.skipOwn = true
-            lifecycle?.confirm()
+            draft?.confirm()
           } else {
-            const wins = lifecycle?.claimedFields()
-            lifecycle?.confirm()
+            const wins = draft?.claimedFields()
+            draft?.confirm()
             if (plan.verb === 'create') {
               const temp = tempIdOf(variables)
               const id = (data as { id?: unknown } | null | undefined)?.id

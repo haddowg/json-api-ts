@@ -7,7 +7,7 @@ import {
 import { InfiniteQueryObserver, type Query, QueryClient } from '@tanstack/query-core'
 import { describe, expect, it, vi } from 'vitest'
 import { cacheView } from './cache-index'
-import { lifecycleOf, openDraft } from './draft'
+import { openDraft, openDraftHandle } from './draft'
 import { installNormalization } from './install'
 import { isInfiniteValue, partsOf } from './normalize'
 import {
@@ -377,15 +377,15 @@ describe('the cache index', () => {
 
   it('follows a temporary id swapped for the server’s', async () => {
     const s = await cached()
-    const draft = openDraft(s.queryClient, descriptor)
+    const draft = openDraftHandle(s.queryClient, descriptor)
     const row = { id: '$tmp:1', title: 'New', artist: null, tracks: [] }
-    draft.insert('albums', row as never, () => 'start')
+    draft.insert('albums', row, () => 'start')
     expectConsistent(s.queryClient)
     const list = s.queryClient.getQueryCache().find({ queryKey: albumsList(s).queryKey })!
     expect(cacheView(s.queryClient, undefined, descriptor).holding('albums', '$tmp:1')).toContain(
       list,
     )
-    lifecycleOf(draft as never).swapId('albums', '$tmp:1', 'srv-1')
+    draft.swapId('albums', '$tmp:1', 'srv-1')
     expectConsistent(s.queryClient)
     const view = cacheView(s.queryClient, undefined, descriptor)
     expect(view.holding('albums', '$tmp:1').size).toBe(0)

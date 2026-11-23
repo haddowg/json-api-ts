@@ -29,7 +29,7 @@ import {
   scopedKey,
   type ScopeSegment,
 } from './keys'
-import { type DraftRef, type Into, lifecycleOf, type OptimisticDraft } from './draft'
+import { type DraftHandle, type DraftRef, type Into, type OptimisticDraft } from './draft'
 import { cacheView } from './cache-index'
 import { peekStamp, stampResult } from './freshness'
 import { identityOf, isRecord } from './identity'
@@ -350,7 +350,7 @@ export function targetIdOf(plan: JsonApiResourcePlan, variables: unknown): strin
 export function applyOptimistic(
   plan: JsonApiMutationPlan,
   variables: unknown,
-  draft: OptimisticDraft,
+  draft: DraftHandle,
   hooks: JsonApiMutationHooks,
   createdId: string | undefined,
 ): boolean {
@@ -405,7 +405,7 @@ function mutationDraft(draft: OptimisticDraft, applyDefault: () => void): Mutati
 function applyPolicy(
   plan: JsonApiMutationPlan,
   variables: unknown,
-  draft: OptimisticDraft,
+  draft: DraftHandle,
   hooks: JsonApiMutationHooks,
   createdId: string | undefined,
 ): void {
@@ -417,7 +417,7 @@ function applyPolicy(
     case 'update': {
       const target = targetIdOf(plan, variables)
       if (target !== undefined) {
-        draft.patch(type, target, (isRecord(variables) ? variables : {}) as never)
+        draft.patch(type, target, isRecord(variables) ? variables : {})
       }
       return
     }
@@ -435,7 +435,7 @@ function applyPolicy(
       const input = withoutTempId(variables)
       const resource = { ...input, id: createdId }
       const completion = (hooks.complete as ((input: unknown) => unknown) | undefined)?.(input)
-      draft.insert(type, resource as never, hooks.into, {
+      draft.insert(type, resource, hooks.into, {
         complete: isRecord(completion) ? completion : undefined,
       })
       if (plan.attachTo !== undefined) {
@@ -476,14 +476,11 @@ export function warnIfPlacedNowhere(
   plan: JsonApiResourcePlan,
   queryClient: QueryClient,
   descriptor: ApiDescriptor,
-  draft: OptimisticDraft,
+  draft: DraftHandle,
   hooks: JsonApiMutationHooks,
   createdId: string,
 ): void {
-  if (
-    globalThis.process?.env?.NODE_ENV === 'production' ||
-    lifecycleOf(draft as never).shows(plan.type, createdId)
-  ) {
+  if (globalThis.process?.env?.NODE_ENV === 'production' || draft.shows(plan.type, createdId)) {
     return
   }
   const lists = queriesIn(queryClient, plan.scope).filter((query) => {
@@ -714,13 +711,11 @@ export function swapTempId(
   queryClient: QueryClient,
   descriptor: ApiDescriptor,
   plan: JsonApiResourcePlan,
-  draft: OptimisticDraft | undefined,
+  draft: DraftHandle | undefined,
   temp: string,
   id: string,
 ): void {
-  if (draft !== undefined) {
-    lifecycleOf(draft as never).swapId(plan.type, temp, id)
-  }
+  draft?.swapId(plan.type, temp, id)
   for (const query of queriesIn(queryClient, plan.scope)) {
     const description = describeQuery(query, descriptor)
     if (description?.type !== plan.type || description.id !== temp) {
