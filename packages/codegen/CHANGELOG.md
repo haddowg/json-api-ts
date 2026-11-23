@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.25.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.24.0...json-api-codegen-v2.25.0) (2026-11-23)
+
+
+### Features
+
+* **codegen:** record server-only and nullable attributes in the descriptor ([7b61236](https://github.com/haddowg/json-api-ts/commit/7b61236d0ffc38004ccaa1b76abd26e518b2ad48))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.29.0
+
 ## [2.24.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.23.0...json-api-codegen-v2.24.0) (2026-11-23)
 
 
