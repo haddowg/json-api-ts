@@ -30,11 +30,10 @@ import {
   type ScopeSegment,
 } from './keys'
 import { type DraftHandle, type DraftRef, type Into, type OptimisticDraft } from './draft'
-import { cacheView } from './cache-index'
+import { cacheView, describeCached } from './cache-index'
 import { peekStamp, stampResult } from './freshness'
 import { identityOf, isRecord } from './identity'
 import { normalizeWith, queriesIn } from './normalize'
-import { describeQuery } from './view-shape'
 
 /** The `meta` key a JSON:API mutation's {@link JsonApiMutationPlan} rides under. */
 export const JSON_API_PLAN = 'jsonApi'
@@ -484,7 +483,7 @@ export function warnIfPlacedNowhere(
     return
   }
   const lists = queriesIn(queryClient, plan.scope).filter((query) => {
-    const description = describeQuery(query, descriptor)
+    const description = describeCached(query, descriptor)
     return (
       description?.operation === 'fetchMany' &&
       description.type === plan.type &&
@@ -530,7 +529,7 @@ export function ownReadKeys(type: string, id: string, scope: string | undefined)
 
 /** Whether a query is one of `type:id`'s own reads. */
 function isOwnRead(query: Query, descriptor: ApiDescriptor, type: string, id: string): boolean {
-  const description = describeQuery(query, descriptor)
+  const description = describeCached(query, descriptor)
   return (
     description !== undefined &&
     description.type === type &&
@@ -605,7 +604,7 @@ export function planKeys(
       }
       const held = holding(queryClient, scope, descriptor, plan.type, id)
       for (const query of queriesIn(queryClient, scope)) {
-        if (!isOwnRead(query, descriptor, plan.type, id) && held.has(query)) {
+        if (held.has(query) && !isOwnRead(query, descriptor, plan.type, id)) {
           keys.push(query.queryKey as QueryKey)
         }
       }
@@ -717,7 +716,7 @@ export function swapTempId(
 ): void {
   draft?.swapId(plan.type, temp, id)
   for (const query of queriesIn(queryClient, plan.scope)) {
-    const description = describeQuery(query, descriptor)
+    const description = describeCached(query, descriptor)
     if (description?.type !== plan.type || description.id !== temp) {
       continue
     }
