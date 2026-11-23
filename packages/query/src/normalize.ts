@@ -640,11 +640,12 @@ function patchVisits(visits: readonly Visit[], fresh: Fresh, at: PatchContext): 
     if (attributes === undefined) {
       continue
     }
+    const claimOf = claimsOn(at.queryClient, at.scope, ident.type, ident.id)
     for (const [k, value] of attributes) {
       const held = heldStamp(node, k)
       const stale =
         held !== undefined && (held > value.stamp || (held === value.stamp && !value.incoming))
-      const claim = topClaim(at.queryClient, at.scope, ident.type, ident.id, k)
+      const claim = claimOf?.(k)
       if (claim !== undefined) {
         // An open draft owns the field (R2): the server value is recorded, for a rollback to
         // restore, and the node keeps showing the prediction.
@@ -905,17 +906,19 @@ export interface FieldClaim {
   readonly adopt: (node: object, query: Query) => void
 }
 
-/** The claims of each QueryClient, by scope, resource and attribute, each list oldest first. */
-const claimRegistry = new WeakMap<QueryClient, Map<string, FieldClaim[]>>()
+/** A resource's claims, by attribute, each list oldest first. */
+type ClaimsByKey = Map<string, FieldClaim[]>
+
+/**
+ * The claims of each QueryClient, by scope, type, then id (`undefined` for a singleton's claims by
+ * type alone). Emptied maps are removed, so a client with no claim has no scopes.
+ */
+const claimRegistry = new WeakMap<
+  QueryClient,
+  Map<string | undefined, Map<string, Map<string | undefined, ClaimsByKey>>>
+>()
 
 let claimSeq = 0
-
-const claimSlot = (
-  scope: string | undefined,
-  type: string,
-  id: string | undefined,
-  key: string,
-): string => JSON.stringify([scope ?? null, type, id ?? null, key])
 
 /**
  * The key a field is named by in {@link normalizeWith}'s `wins`.
@@ -929,14 +932,19 @@ export const fieldKey = (type: string, id: string, attribute: string): string =>
  * @internal
  */
 export function addClaim(queryClient: QueryClient, claim: FieldClaim): void {
-  const slots = claimRegistry.get(queryClient) ?? new Map<string, FieldClaim[]>()
-  claimRegistry.set(queryClient, slots)
-  const slot = claimSlot(claim.scope, claim.type, claim.id, claim.key)
-  const list = (slots.get(slot) ?? []).filter((other) => other !== claim)
+  const scopes = claimRegistry.get(queryClient) ?? new Map()
+  claimRegistry.set(queryClient, scopes)
+  const types = scopes.get(claim.scope) ?? new Map()
+  scopes.set(claim.scope, types)
+  const ids = types.get(claim.type) ?? new Map()
+  types.set(claim.type, ids)
+  const keys: ClaimsByKey = ids.get(claim.id) ?? new Map()
+  ids.set(claim.id, keys)
+  const list = (keys.get(claim.key) ?? []).filter((other) => other !== claim)
   claimSeq += 1
   claim.seq = claimSeq
   list.push(claim)
-  slots.set(slot, list)
+  keys.set(claim.key, list)
 }
 
 /**
@@ -945,17 +953,57 @@ export function addClaim(queryClient: QueryClient, claim: FieldClaim): void {
  * @internal
  */
 export function removeClaim(queryClient: QueryClient, claim: FieldClaim, below = false): void {
-  const slots = claimRegistry.get(queryClient)
-  const slot = claimSlot(claim.scope, claim.type, claim.id, claim.key)
-  const list = slots?.get(slot)
-  if (slots === undefined || list === undefined) {
+  const scopes = claimRegistry.get(queryClient)
+  const types = scopes?.get(claim.scope)
+  const ids = types?.get(claim.type)
+  const keys = ids?.get(claim.id)
+  const list = keys?.get(claim.key)
+  if (
+    scopes === undefined ||
+    types === undefined ||
+    ids === undefined ||
+    keys === undefined ||
+    list === undefined
+  ) {
     return
   }
   const kept = list.filter((other) => other !== claim && !(below && other.seq < claim.seq))
-  if (kept.length === 0) {
-    slots.delete(slot)
-  } else {
-    slots.set(slot, kept)
+  if (kept.length > 0) {
+    keys.set(claim.key, kept)
+    return
+  }
+  keys.delete(claim.key)
+  if (keys.size === 0) {
+    ids.delete(claim.id)
+  }
+  if (ids.size === 0) {
+    types.delete(claim.type)
+  }
+  if (types.size === 0) {
+    scopes.delete(claim.scope)
+  }
+}
+
+/**
+ * The latest claim on each attribute of `type:id` in `scope`, as a lookup by attribute: one naming
+ * the id, or one a singleton made by type alone. `undefined` when the resource has no claim.
+ */
+function claimsOn(
+  queryClient: QueryClient,
+  scope: string | undefined,
+  type: string,
+  id: string | undefined,
+): ((key: string) => FieldClaim | undefined) | undefined {
+  const ids = claimRegistry.get(queryClient)?.get(scope)?.get(type)
+  const named = ids?.get(id)
+  const byType = id === undefined ? undefined : ids?.get(undefined)
+  if (named === undefined && byType === undefined) {
+    return undefined
+  }
+  return (key) => {
+    const a = named?.get(key)?.at(-1)
+    const b = byType?.get(key)?.at(-1)
+    return b !== undefined && (a === undefined || b.seq > a.seq) ? b : a
   }
 }
 
@@ -971,21 +1019,7 @@ export function topClaim(
   id: string | undefined,
   key: string,
 ): FieldClaim | undefined {
-  const slots = claimRegistry.get(queryClient)
-  if (slots === undefined || slots.size === 0) {
-    return undefined
-  }
-  let top: FieldClaim | undefined
-  for (const slot of new Set([
-    claimSlot(scope, type, id, key),
-    claimSlot(scope, type, undefined, key),
-  ])) {
-    const last = slots.get(slot)?.at(-1)
-    if (last !== undefined && (top === undefined || last.seq > top.seq)) {
-      top = last
-    }
-  }
-  return top
+  return claimsOn(queryClient, scope, type, id)?.(key)
 }
 
 /**
