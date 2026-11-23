@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.23.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.22.0...json-api-codegen-v2.23.0) (2026-11-23)
+
+
+### Features
+
+* **codegen:** read generator contract 44 and closed range filters ([6167b8a](https://github.com/haddowg/json-api-ts/commit/6167b8a8fce5e6c21cedcc72e92de33f4e0d3abd))
+
 ## [2.22.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.21.0...json-api-codegen-v2.22.0) (2026-11-21)
 
 
