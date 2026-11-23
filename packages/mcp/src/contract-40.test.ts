@@ -61,7 +61,7 @@ const denyRead = () => ({ 'fetchOne.inboxes': 'denied' as const })
  */
 describe('generator contract 40 (singleton types)', () => {
   it('reads the witness', () => {
-    expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(43)
+    expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(44)
   })
 
   it('gives the singleton tools without an id, and every other tool what it had', () => {
@@ -84,7 +84,7 @@ describe('generator contract 40 (singleton types)', () => {
   it('records no preceding read for a document without a singleton', () => {
     // Core's second witness leaves out every structure only some documents carry, the singleton too.
     const mcp = createJsonApiMcp(fixture('contract-witness-baseline'))
-    expect(mcp.contract).toBe(43)
+    expect(mcp.contract).toBe(44)
     expect(mcp.tools.some((tool) => tool.name.startsWith('inboxes_'))).toBe(false)
     expect(mcp.operations.some((op) => op.reads !== undefined)).toBe(false)
   })

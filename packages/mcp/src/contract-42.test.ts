@@ -68,7 +68,7 @@ const DESCRIPTION =
  */
 describe('generator contract 42 (nested fieldsets)', () => {
   it('reads the witness', () => {
-    expect(createJsonApiMcp(modelOf(selecting)).contract).toBe(43)
+    expect(createJsonApiMcp(modelOf(selecting)).contract).toBe(44)
   })
 
   it('describes the nested fieldset members on each list and get tool that takes the type in fields', () => {
