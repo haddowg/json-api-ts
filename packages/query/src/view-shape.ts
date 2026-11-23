@@ -583,6 +583,15 @@ export function fits(member: unknown, shape: ViewShape, descriptor: ApiDescripto
 
 // ── Completeness and placement ─────────────────────────────────────────────────────────────
 
+/**
+ * Whether a member list shows the first page: no `prev` link on its `$page`.
+ * @internal
+ */
+export function firstPage(list: unknown): boolean {
+  const page = (list as { $page?: { links?: { prev?: unknown } } } | undefined)?.$page
+  return typeof page?.links?.prev !== 'string'
+}
+
 /** Whether a materialised array's `$page` says there is no page after it. */
 function lastPage(value: unknown): boolean {
   if (!Array.isArray(value)) {
