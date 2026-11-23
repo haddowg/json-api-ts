@@ -38,8 +38,8 @@ const booking = {
  * declared resource meta.
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
-  it('reads a document stamped 43', () => {
-    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(43)
+  it('reads the witness', () => {
+    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(44)
   })
 
   it('takes the meta each write declares, required when the document requires it', () => {
