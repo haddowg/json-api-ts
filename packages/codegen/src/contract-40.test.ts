@@ -52,7 +52,7 @@ function typecheck(code: string): string[] {
  */
 describe('generator contract 40 (singleton types)', () => {
   it('reads the witness without a warning', () => {
-    expect(singleton.info?.['x-generator']?.contract).toBe(44)
+    expect(singleton.info?.['x-generator']?.contract).toBe(45)
     expect(checkContract(singleton)).toBeUndefined()
   })
 
@@ -106,7 +106,7 @@ describe('generator contract 40 (singleton types)', () => {
   })
 
   it('marks no type of a document without a singleton', () => {
-    expect(baseline.info?.['x-generator']?.contract).toBe(44)
+    expect(baseline.info?.['x-generator']?.contract).toBe(45)
     const descriptor = buildDescriptor(baseline)
     expect(descriptor['inboxes']).toBeUndefined()
     expect(Object.values(descriptor).some((type) => type.singleton !== undefined)).toBe(false)

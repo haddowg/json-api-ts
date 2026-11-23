@@ -35,9 +35,9 @@ function closedRanges(doc: OpenApiDocument): string[] {
  * shape, so the client it generates doesn't change.
  */
 describe('generator contract 44 (closed range filters)', () => {
-  it('reads a document stamped 44 without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(44)
-    expect(baseline.info?.['x-generator']?.contract).toBe(44)
+  it('reads the witness without a warning', () => {
+    expect(witness.info?.['x-generator']?.contract).toBe(45)
+    expect(baseline.info?.['x-generator']?.contract).toBe(45)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
   })

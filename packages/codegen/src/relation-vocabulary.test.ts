@@ -64,7 +64,13 @@ describe("a monomorphic relation's own sorts and filters (contract witness)", ()
 
   it('records the filters of the related read, which takes `label` as no list and no defaults', () => {
     expect(descriptor['tags']!.listFilters).toEqual(['label'])
-    expect(tags.filterable).toEqual(['color', 'excludeId', 'label'])
+    expect(tags.filterable).toEqual([
+      'articleReleasedOn',
+      'articlesPublishedAt',
+      'color',
+      'excludeId',
+      'label',
+    ])
     expect(tags.listFilters).toBeUndefined()
   })
 
@@ -249,7 +255,13 @@ describe('a relation whose reads take no filter', () => {
 
   it('keeps the filters of a relation whose reads take them', () => {
     expect(relations['sponsors']!.filterable).toEqual(['minRank'])
-    expect(relations['tags']!.filterable).toEqual(['color', 'excludeId', 'label'])
+    expect(relations['tags']!.filterable).toEqual([
+      'articleReleasedOn',
+      'articlesPublishedAt',
+      'color',
+      'excludeId',
+      'label',
+    ])
     expect(relations['author']!.filterable).toBeUndefined()
   })
 

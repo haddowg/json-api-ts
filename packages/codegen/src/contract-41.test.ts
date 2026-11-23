@@ -60,7 +60,7 @@ const COLLECTION_META = {
  */
 describe('generator contract 41 (typed document meta)', () => {
   it('reads a document stamped 41 without a warning', () => {
-    expect(typed.info?.['x-generator']?.contract).toBe(44)
+    expect(typed.info?.['x-generator']?.contract).toBe(45)
     expect(checkContract(typed)).toBeUndefined()
   })
 
@@ -121,7 +121,7 @@ describe('generator contract 41 (typed document meta)', () => {
   })
 
   it('records no meta for a document that declares none', () => {
-    expect(baseline.info?.['x-generator']?.contract).toBe(44)
+    expect(baseline.info?.['x-generator']?.contract).toBe(45)
     const descriptor = buildDescriptor(baseline)
     expect(descriptor['notices']).toBeUndefined()
     for (const type of Object.values(descriptor)) {
