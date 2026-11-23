@@ -14,6 +14,8 @@
  *   back;
  * - **r3**: a read whose to-many linkage changed, propagated to the album's other cached copies;
  * - **relink**: an album list read reordering every album's tracks, relinking each cached copy;
+ * - **large to-many**: a read reordering the tracks of one album holding every track, relinked into
+ *   its cached read and the cached album list;
  * - **open draft**: a read landing while a draft holds a patch and an attach, which the draft
  *   applies again to the landed query;
  * - **markers**: `$optimistic` read on every track of an album with no draft open.
@@ -352,13 +354,43 @@ async function fixture(size: number): Promise<Fixture> {
   }
 }
 
+/** One album holding every track of a catalogue of about `size` resources, cached twice. */
+async function largeToMany(size: number) {
+  const cat = catalogue(size)
+  for (const album of cat.albums) {
+    album.tracks = []
+  }
+  const big = cat.albums[0]!
+  big.tracks = [...cat.tracks.keys()]
+  for (const track of cat.tracks.values()) {
+    track.album = big.id
+  }
+  const { route } = server(cat)
+  const transport = async (req: TransportRequest): Promise<TransportResponse> => ({
+    status: 200,
+    headers: {},
+    body: JSON.stringify(route(new URL(req.url))),
+  })
+  const client = createClient(descriptor, { baseUrl: BASE, transport })
+  const queryClient = new QueryClient({
+    mutationCache: new JsonApiMutationCache(),
+    defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } },
+  })
+  installNormalization(queryClient, descriptor)
+  await queryClient.fetchQuery(getQueryOptions(client, 'albums', big.id, { include: ['tracks'] }))
+  await queryClient.fetchQuery(listQueryOptions(client, 'albums', { include: ['tracks'] }))
+  return { queryClient, big, route }
+}
+
 const ctx = { descriptor, navigate: async () => undefined }
 
 // `BENCH_SIZES=5000` measures one size.
 const SIZES = (globalThis.process?.env?.['BENCH_SIZES'] ?? '50,500,5000').split(',').map(Number)
 const fixtures = new Map<number, Fixture>()
+const large = new Map<number, Awaited<ReturnType<typeof largeToMany>>>()
 for (const size of SIZES) {
   fixtures.set(size, await fixture(size))
+  large.set(size, await largeToMany(size))
 }
 
 const options = { time: 400, warmupTime: 100 }
@@ -462,6 +494,20 @@ for (const size of SIZES) {
         }
         const result = materialise(f.route(listUrl) as never, ctx)
         normalizeRead(f.queryClient, result, descriptor, undefined, undefined)
+      },
+      options,
+    )
+  })
+
+  describe(`large to-many (${label})`, () => {
+    const l = large.get(size)!
+    const bigUrl = new URL(`${BASE}/albums/${l.big.id}`)
+    bench(
+      `a read reordering one album's ${l.big.tracks.length} tracks`,
+      () => {
+        l.big.tracks.reverse()
+        const result = materialise(l.route(bigUrl) as never, ctx)
+        normalizeRead(l.queryClient, result, descriptor, undefined, undefined)
       },
       options,
     )
