@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.29.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.28.1...json-api-mcp-v1.29.0) (2026-11-23)
+
+
+### Features
+
+* **mcp:** read generator contract 44 and closed range filters ([b6e376c](https://github.com/haddowg/json-api-ts/commit/b6e376cd85ef56c3f586efc90509c69206b1ef0b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.23.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.23.0
+
 ## [1.28.1](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.28.0...json-api-mcp-v1.28.1) (2026-11-21)
 
 
