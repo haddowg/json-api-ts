@@ -345,9 +345,10 @@ const induced = new WeakMap<Query, true>()
 /**
  * Propagate the relationships `result` carries to every other cached copy of their resources in
  * the scope (`view`, its index), as the module comment describes. `landed` is the query the read
- * landed in, when known; a query whose data is `result` counts as that query too. Returns, per
- * query, the parts (by materialised value) whose slots changed in place, for the caller to
- * republish, and invalidates the queries whose slot would change but can't be filled.
+ * landed in, when known; a query whose data is `result` counts as that query too. Invalidates the
+ * queries whose slot would change but can't be filled. Returns, per query, the parts (by
+ * materialised value) whose slots changed in place, for the caller to republish, and whether it
+ * invalidated any query.
  * @internal
  */
 export function propagateRelationships(
@@ -357,7 +358,7 @@ export function propagateRelationships(
   scope: string | undefined,
   view: CacheView,
   landed: Query | undefined,
-): Map<Query, Set<object>> {
+): { relinked: Map<Query, Set<object>>; invalidated: boolean } {
   const { queries } = view
   const changed = new Map<Query, Set<object>>()
   const source = typeof result === 'object' && result !== null ? targetOf(result) : undefined
@@ -402,7 +403,7 @@ export function propagateRelationships(
     })
   }
   if (linkages.size === 0) {
-    return changed
+    return { relinked: changed, invalidated: false }
   }
 
   // 2. Raised to the newest linkage any cached copy holds, so an older read spreads nothing stale.
@@ -432,7 +433,7 @@ export function propagateRelationships(
   // index is brought up to date and the walk goes on from that copy, so the copies a slot gains
   // are relinked too and those it loses aren't.
   const invalid = new Set<Query>()
-  const context: BuildContext = { queryClient, descriptor, scope }
+  const context: BuildContext = { queryClient, descriptor, scope, view }
   for (const query of view.ordered(holding)) {
     const data = query.state.data
     if (data === undefined || data === null) {
@@ -558,7 +559,7 @@ export function propagateRelationships(
       invalidate(queryClient, query)
     }
   }
-  return changed
+  return { relinked: changed, invalidated: !quiet && invalid.size > 0 }
 }
 
 /** Where a visit at `seq` goes in `queue`, sorted by walk order from `from`. */
@@ -591,6 +592,7 @@ interface BuildContext {
   readonly queryClient: QueryClient
   readonly descriptor: ApiDescriptor
   readonly scope: string | undefined
+  readonly view: CacheView
 }
 
 /**
@@ -775,7 +777,13 @@ function memberView(
     id: member.id,
     ...(member.meta === undefined ? {} : { meta: member.meta }),
   }
-  return memberViewFor(context.queryClient, edge, shape, context.descriptor, context.scope, () =>
-    candidates.filter((candidate) => candidate !== undefined),
+  return memberViewFor(
+    context.queryClient,
+    edge,
+    shape,
+    context.descriptor,
+    context.scope,
+    () => candidates.filter((candidate) => candidate !== undefined),
+    context.view,
   )
 }

@@ -740,6 +740,12 @@ export interface CacheView {
    */
   refresh(query: Query): ReadonlySet<string> | undefined
   /**
+   * Bring every query of the view up to date, after this package changed their graphs in place
+   * during the view's use: what taking the view again would index, while no query was added or
+   * removed meanwhile.
+   */
+  update(): void
+  /**
    * Every relation slot in `query` holding a member addressing `type:id`, as `[node, rel]`, in the
    * order a walk visits the nodes and, per node, its relations; `undefined` when a member is reached
    * more than once, so the index can't tell every slot holding it.
@@ -905,6 +911,11 @@ export function cacheView(
     },
     refresh(query) {
       return refresh(at, query, descriptor)
+    },
+    update() {
+      for (const query of queries) {
+        refresh(at, query, descriptor)
+      }
     },
     slotsHolding(query, type, id) {
       const indexed = at.queries.get(query)

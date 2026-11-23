@@ -8,7 +8,7 @@
  */
 import { type ApiDescriptor, edgeViewOf, identifierViewOf } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
-import { cacheView, describeCached } from './cache-index'
+import { type CacheView, cacheView, describeCached } from './cache-index'
 import { addresses } from './identity'
 import { adoptRecord } from './normalize'
 import { fits, type ViewShape } from './view-shape'
@@ -22,6 +22,11 @@ export interface ResolveOptions {
    * addressing `type:id` that fits wins.
    */
   candidates?: readonly unknown[] | undefined
+  /**
+   * The scope's cache index, when the caller holds one taken during the same synchronous pass: it is
+   * brought up to date rather than taken again.
+   */
+  view?: CacheView | undefined
 }
 
 /**
@@ -53,7 +58,8 @@ export function resolveMember(
       return candidate
     }
   }
-  const view = cacheView(queryClient, options.scope, descriptor)
+  const view = options.view ?? cacheView(queryClient, options.scope, descriptor)
+  options.view?.update()
   const queries = view
     .ordered(view.holding(type, id))
     .filter((query) => {
@@ -83,8 +89,8 @@ export function resolveMember(
 
 /**
  * `edge` as it enters a slot of `shape`: an identifier view, or a per-edge view over the copy
- * {@link resolveMember} finds (trying `candidates()` first) that keeps only what the shape selects,
- * holding that copy's server record; `undefined` when no copy fits.
+ * {@link resolveMember} finds (trying `candidates()` first, and reading `index` when given) that keeps
+ * only what the shape selects, holding that copy's server record; `undefined` when no copy fits.
  *
  * @internal
  */
@@ -95,6 +101,7 @@ export function memberViewFor(
   descriptor: ApiDescriptor,
   scope: string | undefined,
   candidates: () => readonly unknown[],
+  index?: CacheView,
 ): object | undefined {
   if (shape.kind === 'identifiers') {
     return identifierViewOf(edge)
@@ -102,6 +109,7 @@ export function memberViewFor(
   const found = resolveMember(queryClient, edge.type, edge.id, shape, descriptor, {
     scope,
     candidates: candidates(),
+    view: index,
   })
   if (typeof found !== 'object' || found === null) {
     return undefined
