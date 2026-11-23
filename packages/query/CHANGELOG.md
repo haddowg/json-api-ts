@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.0.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.9.1...json-api-query-v2.0.0) (2026-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **query:** an optimistic create of a type whose clientId is optional no longer sends a generated id. The server assigns the id, the variables carry $tempId instead of id until the write succeeds, and a clientId option supplies the temporary id's suffix rather than the id sent. Put an id in the variables to keep sending one.
+* **query:** applyOptimisticPatch, Snapshot, sameRef and MembershipRef are no longer exported from @haddowg/json-api-query. Open a draft with openDraft and call its patch() and rollback() in place of applyOptimisticPatch and its snapshot's restore(), and compare refs by type and id in place of sameRef.
+* **query:** applyOptimisticMembership, applyOptimisticToOne and the MembershipTransform type are no longer exported; use openDraft(queryClient, descriptor) and its attach, detach, replaceMembers and link operations, which apply the fit rules they couldn't.
+* **query:** mutation options now carry `mutationKey` and `meta` instead of lifecycle callbacks. The `MutationContext` type is gone, and calling `options.mutationFn(variables)` directly without TanStack's context no longer works. `@tanstack/query-core` 5.89 or later is required for its `MutationFunctionContext`.
+* **query:** a skipped read's query key no longer contains the string '$skip'. Code that builds, matches or decodes skipped keys by that string must compare against SKIPPED_SEGMENT by value (or `{ $skip: true }`) instead.
+
+### Features
+
+* **query:** add infinite list and related read factories ([39903eb](https://github.com/haddowg/json-api-ts/commit/39903eb167c958b9f957d72f2e51b7422b714f98))
+* **query:** add the optimistic draft ([a2807c3](https://github.com/haddowg/json-api-ts/commit/a2807c39435dc31aaa9320b34152e6b5e14e5738))
+* **query:** complete optimistic creates and keep the rest as pending entries ([4f2fa69](https://github.com/haddowg/json-api-ts/commit/4f2fa6975816a23b3bc105d9acae94f39e0e9362))
+* **query:** describe cached views and resolve members that fit them ([027be04](https://github.com/haddowg/json-api-ts/commit/027be0456ed078f1817c82af2eb2ec31d00b390e))
+* **query:** generate client ids only where the server requires them ([015edf6](https://github.com/haddowg/json-api-ts/commit/015edf630dc74d20bf0018bd4a7d3f3550a4850f))
+* **query:** give skipped reads an object key segment ([efc7bcb](https://github.com/haddowg/json-api-ts/commit/efc7bcbc40aeed12749a8a0fcedfad5493937367))
+* **query:** guard against server-rendered results losing their accessors ([161f954](https://github.com/haddowg/json-api-ts/commit/161f95462fbd3cb13fe7eb89fd6d31d01c05d55f))
+* **query:** keep optimistic values while their write is pending ([2689511](https://github.com/haddowg/json-api-ts/commit/268951145357c3b0d1a09107f9ae6206c5dd04ef))
+* **query:** let reads update relationships across the cache ([15fdd27](https://github.com/haddowg/json-api-ts/commit/15fdd272ac2e90c55bf8c4fbf1d09348a19aa212))
+* **query:** normalise infinite query pages ([b976f36](https://github.com/haddowg/json-api-ts/commit/b976f361eaee4ab2e46d67f1888f5bee8eb25d96))
+* **query:** reconcile optimistic writes when the last overlapping write settles ([4025dca](https://github.com/haddowg/json-api-ts/commit/4025dcaf851bd26023c1a0c6fde2446d8ed269e0))
+* **query:** run mutation upkeep from a JsonApiMutationCache ([#210](https://github.com/haddowg/json-api-ts/issues/210)) ([ae595ca](https://github.com/haddowg/json-api-ts/commit/ae595ca54a60f968ed56cc7c7e9b19bf3fba22de))
+* **query:** stop exporting the superseded optimistic helpers ([8cd9480](https://github.com/haddowg/json-api-ts/commit/8cd94808077f89ae2c3c428f2ff731fef5837c54))
+* **query:** type a placed member's pivot ([a49b685](https://github.com/haddowg/json-api-ts/commit/a49b6850af5f26ebf44ee801c1efcdf1aabe87aa))
+* **query:** type read keys and errors, and accept skipToken ([8fdf9d0](https://github.com/haddowg/json-api-ts/commit/8fdf9d06710d110bb5085ad3254a26a8827c460e))
+* **query:** type the into callback by the view's filters and sorts ([265b119](https://github.com/haddowg/json-api-ts/commit/265b119c0ad0ba76b43b28e81559cdb87478a819))
+
+
+### Bug Fixes
+
+* **query:** accept skipToken from any copy of query-core ([9724ba7](https://github.com/haddowg/json-api-ts/commit/9724ba71836374d0f65651c5596f98f9b7694fac))
+* **query:** freeze the query descriptions into receives ([3f51b4c](https://github.com/haddowg/json-api-ts/commit/3f51b4c83a6e17bd39fcea4c08185cf4a1b7625b))
+* **query:** judge every client result by when its request started ([4a19147](https://github.com/haddowg/json-api-ts/commit/4a19147ea68bffa97bc89b92610624ae1d45b89f))
+* **query:** keep JSON:API error codes in every query's error type ([02edc4f](https://github.com/haddowg/json-api-ts/commit/02edc4f5a78826b2126bd0a806ae02d365a56d24))
+* **query:** keep server-rendered client results out of dehydration by their data ([3dadaf6](https://github.com/haddowg/json-api-ts/commit/3dadaf6d936a17e01c38b27d131ab79f71e28a45))
+* **query:** leave infinite reads off unpaginated types ([9ead452](https://github.com/haddowg/json-api-ts/commit/9ead4523dc7eec57a96ceafa0a88e0ee6a0f58e9))
+* **query:** let the later request win when responses race ([781745d](https://github.com/haddowg/json-api-ts/commit/781745da9602eca71ef4f7fddb00745ee9153126))
+* **query:** normalise the resources an atomic batch returns ([7a576de](https://github.com/haddowg/json-api-ts/commit/7a576defb87de4d7695267b01d73e326ebac6ff4))
+* **query:** pass TanStack's abort signal to every read ([#208](https://github.com/haddowg/json-api-ts/issues/208)) ([22e64bc](https://github.com/haddowg/json-api-ts/commit/22e64bc627e2dde2cef3853e9fe91cd9442e56ed))
+* **query:** refetch a streamed pending read that resolves without its accessors ([9bd0406](https://github.com/haddowg/json-api-ts/commit/9bd040620c72d0c8e14446c561982fc8445202f4))
+
+
+### Performance Improvements
+
+* **query:** index cached resources by type and id ([0c61aa2](https://github.com/haddowg/json-api-ts/commit/0c61aa2f19d24a64e9245a0999ef7eb0da0d9d40))
+* **query:** keep the relink queue when an update moves few copies ([a3c86c3](https://github.com/haddowg/json-api-ts/commit/a3c86c3dfe3de82bbd4e2f2d2987beb6af95ba72))
+* **query:** key field claims by nested maps and look them up per copy ([c9ed81a](https://github.com/haddowg/json-api-ts/commit/c9ed81a4a90fb1b4898d557252e23ea09b0d83cc))
+* **query:** match relinked members by identity instead of scanning ([39e7454](https://github.com/haddowg/json-api-ts/commit/39e745471582432845609660567b51f8e4858bdd))
+* **query:** read the cache index when replaying a draft into a read ([3eaff4e](https://github.com/haddowg/json-api-ts/commit/3eaff4e9f01ac6c41154528605f4127bf84ae864))
+* **query:** reuse a read's cache view through propagation and patching ([dc809f7](https://github.com/haddowg/json-api-ts/commit/dc809f72ccecaa2eb5ccf524f72ec83eb3801564))
+* **query:** skip the response's own copies when raising to the newest ([ca081e6](https://github.com/haddowg/json-api-ts/commit/ca081e657d12443d84ec2f9237e03e866754f51a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.29.0
+
 ## [1.9.1](https://github.com/haddowg/json-api-ts/compare/json-api-query-v1.9.0...json-api-query-v1.9.1) (2026-11-21)
 
 

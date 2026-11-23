@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.29.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.28.0...json-api-client-v1.29.0) (2026-11-23)
+
+
+### Features
+
+* **client:** add isMaterialised ([c28e4d3](https://github.com/haddowg/json-api-ts/commit/c28e4d3ec4f2fc728c2d28d82dfabb8e2ad6d3b9))
+* **client:** add nextPageParams and prevPageParams ([3e2a362](https://github.com/haddowg/json-api-ts/commit/3e2a362d40e343544a1c5909467ce2a042148393))
+* **client:** describe server-only and nullable attributes ([70c71da](https://github.com/haddowg/json-api-ts/commit/70c71dada627dcf1ee48e92e4d666aabb6e07950))
+* **client:** describe the server's first error in JsonApiError's message ([6368af9](https://github.com/haddowg/json-api-ts/commit/6368af9d94ecf4ad47e4127020f408700e74d7dd))
+* **client:** export the pivot types of a relation ([a4489ed](https://github.com/haddowg/json-api-ts/commit/a4489eddc4afab62c1b0dabe7a8d9e6e7fa69e9a))
+* **client:** give lists pending entries for optimistic creates ([1e4ae00](https://github.com/haddowg/json-api-ts/commit/1e4ae0054bdf966bac21f747b03b880508eea009))
+* **client:** let a cache layer mark and count materialised values ([ded634d](https://github.com/haddowg/json-api-ts/commit/ded634d1796442d44e7713d56932e8fe142eee9e))
+* **client:** stamp each result with the start of its request ([b74dad8](https://github.com/haddowg/json-api-ts/commit/b74dad83b476599779e2e66c40a0784e4f8c771f))
+
+
+### Bug Fixes
+
+* **client:** read page params without iterating URLSearchParams ([1f1d2d3](https://github.com/haddowg/json-api-ts/commit/1f1d2d31308a5f1915211f7011a015addbb7e66c))
+
 ## [1.28.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.27.0...json-api-client-v1.28.0) (2026-11-21)
 
 

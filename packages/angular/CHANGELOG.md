@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.3.0](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.2.26...json-api-angular-v1.3.0) (2026-11-23)
+
+
+### Features
+
+* **angular:** add a TanStack Query entry point ([37ca688](https://github.com/haddowg/json-api-ts/commit/37ca6884d1d5bf675b525ce9f83ac414c88339e6))
+* **angular:** require Node.js 20.19 or later ([64e07e5](https://github.com/haddowg/json-api-ts/commit/64e07e5bffddfdf272726c5360506eff1e4b6688))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.29.0
+  * devDependencies
+    * @haddowg/json-api-query bumped to 2.0.0
+  * peerDependencies
+    * @haddowg/json-api-query bumped to 2.0.0
+
 ## [1.2.26](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.2.25...json-api-angular-v1.2.26) (2026-11-21)
 
 
