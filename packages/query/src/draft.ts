@@ -633,9 +633,9 @@ interface Created {
 const memberData = (source: unknown): Readonly<Record<string, unknown>> | undefined =>
   isRecord(source) && carriesData(source) ? source : undefined
 
-/** Where a member list or a to-one value lives: a query's data (or one page), or a node's slot. */
+/** Where a member list or a to-one value lives: one of a query's parts, or a node's slot. */
 type Loc =
-  | { readonly kind: 'top'; readonly query: Query; readonly page: number | undefined }
+  | { readonly kind: 'top'; readonly query: Query; readonly page: number }
   | {
       readonly kind: 'slot'
       readonly query: Query
@@ -725,9 +725,10 @@ const toRefs = (values: readonly unknown[]): Ref[] =>
 
 /** The member lists of `query`'s own data: one, or an infinite query's pages in order. */
 const topLocs = (query: Query, data: unknown): Loc[] =>
-  isInfiniteValue(data)
-    ? data.pages.map((_, page) => ({ kind: 'top', query, page }))
-    : [{ kind: 'top', query, page: undefined }]
+  partsOf(data).map((_, page) => ({ kind: 'top', query, page }))
+
+/** Whether a query's data is a member list: a collection or an infinite query's pages. */
+const isListData = (data: unknown): boolean => Array.isArray(data) || isInfiniteValue(data)
 
 /** Whether page `at` of `data` is the cached page there, behind any root. */
 const keptPage = (data: InfiniteValue, cached: InfiniteValue, at: number): boolean => {
@@ -906,11 +907,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
     if (loc.kind === 'slot') {
       return loc.node[loc.rel]
     }
-    const data = this.current(loc.query)
-    if (loc.page === undefined) {
-      return data
-    }
-    return isInfiniteValue(data) ? data.pages[loc.page] : undefined
+    return partsOf(this.current(loc.query))[loc.page]
   }
 
   private write(loc: Loc, value: unknown): void {
@@ -921,12 +918,9 @@ class Draft implements OptimisticDraft, DraftLifecycle {
       return
     }
     const entry = this.stage(loc.query)
-    if (loc.page === undefined) {
-      entry.data = value
-      return
-    }
     const data = entry.data
     if (!isInfiniteValue(data)) {
+      entry.data = value
       return
     }
     const pages = [...data.pages]
@@ -1312,7 +1306,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
         this.consider(query)
         const data = this.current(query)
         const shape = shapeOfCached(query, this.descriptor)
-        if (cardinality === 'many' && (isInfiniteValue(data) || Array.isArray(data))) {
+        if (cardinality === 'many' && isListData(data)) {
           many.push({
             query,
             description,
@@ -1320,8 +1314,8 @@ class Draft implements OptimisticDraft, DraftLifecycle {
             shape,
             auto: isUnfilteredUnsorted(description) && isComplete(data),
           })
-        } else if (cardinality === 'one' && !Array.isArray(data) && !isInfiniteValue(data)) {
-          one.push({ query, description, loc: { kind: 'top', query, page: undefined }, shape })
+        } else if (cardinality === 'one' && !isListData(data)) {
+          one.push({ query, description, loc: { kind: 'top', query, page: 0 }, shape })
         }
         continue
       }
@@ -1957,7 +1951,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
         const data = this.current(query)
         let held = false
         // The query's own member list, or its to-one value.
-        if (description.collection && (Array.isArray(data) || isInfiniteValue(data))) {
+        if (description.collection && isListData(data)) {
           if (this.removeFrom(topLocs(query, data), [evicted]) > 0) {
             held = true
             if (description.rel !== undefined) {
@@ -1965,7 +1959,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
             }
           }
         } else if (description.rel !== undefined && addresses(data, evicted)) {
-          const loc: Loc = { kind: 'top', query, page: undefined }
+          const loc: Loc = { kind: 'top', query, page: 0 }
           this.write(loc, null)
           this.undo.push({ kind: 'linked', loc, prior: data, wrote: null })
           held = true
