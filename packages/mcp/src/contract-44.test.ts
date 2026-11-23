@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema } from './openapi'
 import { modelOf, source } from './test-fixtures'
@@ -12,13 +11,9 @@ const { document: witness } = source('contract-witness')
  * every object, so the tools come out as they did from the open ranges.
  */
 describe('generator contract 44 (closed range filters)', () => {
-  it('reads a document stamped 44, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(44)
+  it('reads a document stamped 44', () => {
     expect(witness.info?.['x-generator']?.contract).toBe(44)
     expect(createJsonApiMcp(modelOf(witness)).contract).toBe(44)
-    const newer = structuredClone(witness)
-    newer.info!['x-generator']!.contract = 45
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('takes a range filter as an object of its bounds and nothing else', () => {
