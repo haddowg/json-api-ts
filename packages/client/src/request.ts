@@ -6,6 +6,7 @@ import type {
   TransportRequest,
   TransportResponse,
 } from './transport'
+import { nextRequestStamp, stampDocument } from './request-stamp'
 import { mediaType } from './types'
 
 /**
@@ -275,8 +276,11 @@ export async function execute(
   ctx: JsonApiContext,
   req: JsonApiRequest,
 ): Promise<Document | undefined> {
+  const stamp = nextRequestStamp()
   const res = await send(ctx, req)
-  return parseDocument(res.body)
+  const doc = parseDocument(res.body)
+  stampDocument(doc, stamp)
+  return doc
 }
 
 /** A response's status and headers beside its parsed {@link Document}. */
@@ -284,6 +288,8 @@ export interface ExecutedResponse {
   status: number
   headers: Record<string, string>
   document: Document | undefined
+  /** The stamp taken as the request started; the document carries it too. */
+  stamp: number
 }
 
 /**
@@ -296,12 +302,11 @@ export async function executeResponse(
   req: JsonApiRequest,
   seeOther = false,
 ): Promise<ExecutedResponse> {
+  const stamp = nextRequestStamp()
   const res = await send(ctx, req, undefined, seeOther)
-  return {
-    status: res.status,
-    headers: res.headers,
-    document: res.status === 303 ? undefined : parseDocument(res.body),
-  }
+  const document = res.status === 303 ? undefined : parseDocument(res.body)
+  stampDocument(document, stamp)
+  return { status: res.status, headers: res.headers, document, stamp }
 }
 
 /** How {@link executeRaw} reads a successful response body. */

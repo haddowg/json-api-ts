@@ -7,6 +7,7 @@ import type {
 import { type Page, type ResolvedPaginator, resolvePaginator } from './pagination'
 import { type NestedFieldset, nestedFieldset } from './nested-fieldset'
 import type { Document } from './request'
+import { stampFromDocument } from './request-stamp'
 import type { ResourceIdentifier } from './types'
 import { assertJsonApiDocument, type ResolvedValidator, validateDocument } from './validate'
 
@@ -348,7 +349,7 @@ export function materialise(
   if (typeof value === 'object' && value !== null) {
     MATERIALISED.add(value)
   }
-  return value
+  return stampFromDocument(doc, value)
 }
 
 const MATERIALISED = new WeakSet<object>()

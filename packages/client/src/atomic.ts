@@ -29,8 +29,8 @@
 import type { ApiDescriptor, RequestMetaOperation } from './descriptor'
 import { JsonApiError } from './errors'
 import { materialise, type MaterialiseContext } from './materialise'
-import { execute, type JsonApiContext, type JsonApiRequest } from './request'
-import { nextRequestStamp, stampRequest } from './request-stamp'
+import { executeResponse, type JsonApiContext, type JsonApiRequest } from './request'
+import { stampRequest } from './request-stamp'
 import type {
   AtomicResultOf,
   CreateInput,
@@ -417,9 +417,9 @@ export async function runAtomic(
   }
 
   let doc
-  const stamp = nextRequestStamp()
+  let stamp: number
   try {
-    doc = await execute(request, req)
+    ;({ document: doc, stamp } = await executeResponse(request, req))
   } catch (error) {
     if (error instanceof JsonApiError) {
       throw withRemappedAtomicPaths(

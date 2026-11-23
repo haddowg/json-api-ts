@@ -44,6 +44,28 @@ export function stampRequest<T>(value: T, stamp: number): T {
   return value
 }
 
+const documentStamps = new WeakMap<object, number>()
+
+/**
+ * Record `stamp` on the response document it was parsed from, so whatever is built from the
+ * document can be stamped without the caller carrying the number.
+ * @internal
+ */
+export function stampDocument(doc: object | undefined, stamp: number): void {
+  if (doc !== undefined) {
+    documentStamps.set(doc, stamp)
+  }
+}
+
+/**
+ * Stamp `value` with the request stamp of `doc`, when `doc` carries one. Returns `value`.
+ * @internal
+ */
+export function stampFromDocument<T>(doc: object | undefined, value: T): T {
+  const stamp = doc === undefined ? undefined : documentStamps.get(doc)
+  return stamp === undefined ? value : stampRequest(value, stamp)
+}
+
 /**
  * The stamp of the request `value` was materialised from: a top-level result the client returned.
  * `undefined` for anything else, such as a plain copy of a result, a nested resource, or data the

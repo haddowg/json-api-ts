@@ -4,7 +4,6 @@ import {
   type ExecutedResponse,
   type JsonApiContext,
 } from './request'
-import { nextRequestStamp, stampRequest } from './request-stamp'
 
 /** Options for waiting on an accepted write: `wait` on the call, or {@link Accepted.$poll}. */
 export interface PollOptions {
@@ -170,19 +169,16 @@ async function poll(
     }
     // A Retry-After past the deadline still gets one last poll at the deadline.
     await sleep(Math.min(delay, remaining), signal)
-    // The result is stamped with the start of the request that answered with it (see ./request-stamp.ts).
-    const stamp = nextRequestStamp()
     const res = await get(contentLocation, true)
     if (res.status === 303) {
       const location = header(res.headers, 'Location')
       if (location === undefined) {
         throw new Error(`The job at ${contentLocation} answered 303 without a Location.`)
       }
-      const located = nextRequestStamp()
-      return stampRequest(target.complete((await get(location, false)).document), located)
+      return target.complete((await get(location, false)).document)
     }
     if (!holdsJob(res.document)) {
-      return stampRequest(target.complete(res.document), stamp)
+      return target.complete(res.document)
     }
     const retryAfter = parseRetryAfter(header(res.headers, 'Retry-After')) ?? acceptedRetryAfter
     delay = (retryAfter ?? DEFAULT_INTERVAL / 1000) * 1000
