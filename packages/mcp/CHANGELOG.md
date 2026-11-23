@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.30.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.29.0...json-api-mcp-v1.30.0) (2026-11-23)
+
+
+### Features
+
+* **mcp:** read generator contract 45 and date formats on filter values ([16b0692](https://github.com/haddowg/json-api-ts/commit/16b06926635f1525cea2e2b19f4ae103b08f5c37))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.24.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.24.0
+
 ## [1.29.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.28.1...json-api-mcp-v1.29.0) (2026-11-23)
 
 
