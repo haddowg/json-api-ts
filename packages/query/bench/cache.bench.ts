@@ -12,7 +12,11 @@
  *   hydrated slot it enters, rolled back;
  * - **delete**: an optimistic `evict` of a track from every list, page and slot holding it, rolled
  *   back;
- * - **r3**: a read whose to-many linkage changed, propagated to the album's other cached copies.
+ * - **r3**: a read whose to-many linkage changed, propagated to the album's other cached copies;
+ * - **relink**: an album list read reordering every album's tracks, relinking each cached copy;
+ * - **open draft**: a read landing while a draft holds a patch and an attach, which the draft
+ *   applies again to the landed query;
+ * - **markers**: `$optimistic` read on every track of an album with no draft open.
  *
  * Not part of the test suite: `npx vitest bench --project packages packages/query/bench`.
  */
@@ -25,7 +29,7 @@ import {
 } from '@haddowg/json-api-client'
 import { type Query, QueryClient } from '@tanstack/query-core'
 import { bench, describe } from 'vitest'
-import { openDraft } from '../src/draft'
+import { openDraft, reapplyDrafts } from '../src/draft'
 import { installNormalization } from '../src/install'
 import { JsonApiMutationCache } from '../src/mutation-cache'
 import { normalizeRead } from '../src/normalize'
@@ -365,6 +369,7 @@ for (const size of SIZES) {
   const b0 = f.cat.albums[0]!
   const url = new URL(`${BASE}/albums/b0?include=tracks,artist`)
   const plainUrl = new URL(`${BASE}/albums/b0`)
+  const listUrl = new URL(`${BASE}/albums`)
   // A track album b0 holds, cached in the album list, the infinite list, b0's reads and a playlist.
   const tracked = b0.tracks[0]!
   // A track of another album, fully cached (its own read), to attach to b0.
@@ -443,6 +448,60 @@ for (const size of SIZES) {
         const result = materialise(f.route(plainUrl) as never, ctx)
         f.plainAlbum.setState({ data: result })
         normalizeRead(f.queryClient, result, descriptor, undefined, f.plainAlbum)
+      },
+      options,
+    )
+  })
+
+  describe(`relink (${label})`, () => {
+    bench(
+      "a list read reordering every album's tracks",
+      () => {
+        for (const album of f.cat.albums) {
+          album.tracks.reverse()
+        }
+        const result = materialise(f.route(listUrl) as never, ctx)
+        normalizeRead(f.queryClient, result, descriptor, undefined, undefined)
+      },
+      options,
+    )
+  })
+
+  describe(`open draft (${label})`, () => {
+    let draft: ReturnType<typeof openDraft> | undefined
+    bench(
+      'a read landing under a patch and an attach',
+      () => {
+        flip += 1
+        b0.title = `Album 0 #${flip}`
+        const result = materialise(f.route(url) as never, ctx)
+        f.richAlbum.setState({ data: result })
+        normalizeRead(f.queryClient, result, descriptor, undefined, f.richAlbum)
+        reapplyDrafts(f.queryClient, undefined, f.richAlbum)
+      },
+      {
+        ...options,
+        setup: () => {
+          draft = openDraft(f.queryClient, descriptor)
+          draft.patch('tracks', tracked, { title: 'Pending' } as never)
+          draft.attach('albums', 'b0', 'tracks', [{ type: 'tracks', id: other }] as never)
+        },
+        teardown: () => {
+          draft?.rollback()
+          draft = undefined
+        },
+      },
+    )
+  })
+
+  describe(`markers (${label})`, () => {
+    bench(
+      '$optimistic on every track of an album, no draft open',
+      () => {
+        const album = f.richAlbum.state.data as { tracks: readonly { $optimistic: unknown }[] }
+        for (const track of album.tracks) {
+          void track.$optimistic
+        }
       },
       options,
     )
