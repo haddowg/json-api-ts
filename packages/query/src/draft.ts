@@ -70,7 +70,7 @@ import {
   isRecord,
   relationIdentityKey,
 } from './identity'
-import type { QueryKey } from './keys'
+import { type QueryKey, scopeOf } from './keys'
 import type { UpdateVariables } from './mutate'
 import {
   addClaim,
@@ -773,6 +773,8 @@ class Draft implements OptimisticDraft, DraftLifecycle {
   private replaying = false
   /** While replaying, the one query the draft edits. */
   private only: Query | undefined
+  /** While replaying, the cache index, kept current for {@link only} alone. */
+  private replayView: CacheView | undefined
   private confirmed = false
 
   constructor(
@@ -935,10 +937,9 @@ class Draft implements OptimisticDraft, DraftLifecycle {
   /** The cached queries of the scope this draft can read, with their descriptions. */
   private candidates(): Candidate[] {
     const out: Candidate[] = []
-    for (const query of queriesIn(this.queryClient, this.scope)) {
-      if (this.only !== undefined && query !== this.only) {
-        continue
-      }
+    for (const query of this.only === undefined
+      ? queriesIn(this.queryClient, this.scope)
+      : this.replayed(this.only)) {
       const description = describeCached(query, this.descriptor)
       // A to-one read may hold `null`; a query that holds nothing yet has nothing to edit.
       if (description !== undefined && !description.skipped && this.current(query) !== undefined) {
@@ -946,6 +947,12 @@ class Draft implements OptimisticDraft, DraftLifecycle {
       }
     }
     return out
+  }
+
+  /** `query`, the one a replay edits, while it is a cached query of the scope. */
+  private replayed(query: Query): Query[] {
+    const cached = this.queryClient.getQueryCache().get(query.queryHash) === query
+    return cached && scopeOf(query.queryKey) === this.scope ? [query] : []
   }
 
   /** Visit every resource in a candidate's data with the shape of the slot it sits in. */
@@ -962,17 +969,26 @@ class Draft implements OptimisticDraft, DraftLifecycle {
 
   /** The scope's cache index, brought up to date. */
   private view(): CacheView {
-    return cacheView(this.queryClient, this.scope, this.descriptor)
+    const { replayView: view, only } = this
+    if (view === undefined || only === undefined) {
+      return cacheView(this.queryClient, this.scope, this.descriptor)
+    }
+    // A replay reads no query but the one it edits.
+    if (this.replayed(only).length > 0 && !view.current(only)) {
+      view.refresh(only)
+    }
+    return view
   }
 
   /**
    * Whether `query` is walked rather than read from the cache index: its data as this draft sees it
-   * is data the draft staged in place of the cache's, or the draft is replaying into it alone.
+   * is data the draft staged in place of the cache's, or the draft is replaying into an infinite
+   * query, which one walk visits across pages differently from the index's walk of each page.
    */
   private walksDirectly(query: Query): boolean {
     return (
-      this.only !== undefined ||
-      (this.staged.has(query) && this.staged.get(query)?.data !== query.state.data)
+      (this.staged.has(query) && this.staged.get(query)?.data !== query.state.data) ||
+      (this.only !== undefined && isInfiniteValue(query.state.data))
     )
   }
 
@@ -2145,6 +2161,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
     const log = [...this.log]
     this.only = query
     this.replaying = true
+    this.replayView = cacheView(this.queryClient, this.scope, this.descriptor)
     try {
       this.run(() => {
         for (const entry of log) {
@@ -2154,6 +2171,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
     } finally {
       this.only = undefined
       this.replaying = false
+      this.replayView = undefined
     }
   }
 
