@@ -16,6 +16,14 @@
 /** The read operations a key can address (mirrors the client's per-operation path templates). */
 export type ReadOperation = 'fetchMany' | 'fetchOne' | 'fetchRelated' | 'fetchRelationship'
 
+/** Every {@link ReadOperation}. @internal */
+export const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
+  'fetchMany',
+  'fetchOne',
+  'fetchRelated',
+  'fetchRelationship',
+])
+
 /**
  * A normalised query-parameter value: JSON-ish, with object keys sorted recursively so equal
  * params produce an identical (deeply-equal, stably-ordered) value regardless of authoring order.

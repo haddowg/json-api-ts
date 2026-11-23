@@ -18,6 +18,7 @@ import {
   isScopeSegment,
   isSkippedSegment,
   type QueryKey,
+  READ_OPERATIONS,
   type ReadOperation,
 } from './keys'
 import { carriesData, identityOf, isRecord } from './identity'
@@ -70,13 +71,6 @@ export interface QueryDescription {
   /** Whether the view's data is a collection (a list, or a to-many relation's read). */
   readonly collection: boolean
 }
-
-const READ_OPERATIONS: ReadonlySet<string> = new Set([
-  'fetchMany',
-  'fetchOne',
-  'fetchRelated',
-  'fetchRelationship',
-])
 
 /** A relation of `type` a read can address: declared, and not write-only. */
 function readableRelation(

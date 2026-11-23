@@ -28,7 +28,7 @@
  */
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
-import { type CacheView, cacheView, shapeOfCached, type Visit } from './cache-index'
+import { type CacheView, cacheView, type Visit } from './cache-index'
 import { identityKey, identityOf, isRecord } from './identity'
 import { peekStamp, stampNow, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { scopeOf } from './keys'
@@ -159,40 +159,14 @@ export function reroot(value: object): object {
 }
 
 /**
- * Publish a query's patched data again under a new root reference. The root is a transparent
- * proxy of the materialised value, so its accessors, its array-ness and the graph below it are the
- * same objects, and a later patch or rollback of those objects shows through it. An infinite
- * query's data is rebuilt as a new `{ ...data, pages }` in which each page among `touched` is
- * republished that way and every other page keeps its identity. The state is set directly rather
- * than through `setQueryData`, whose structural sharing would hand the old root back because
- * nothing differs by value, and which would clear the query's `isInvalidated` and re-run
- * normalisation as a fresh success.
- */
-function republish(query: Query, touched: readonly unknown[]): void {
-  const data = query.state.data
-  if (typeof data !== 'object' || data === null) {
-    return
-  }
-  if (!isInfiniteValue(data)) {
-    query.setState({ data: reroot(data) })
-    return
-  }
-  const changed = new Set(
-    touched.flatMap((part) => (typeof part === 'object' && part !== null ? [targetOf(part)] : [])),
-  )
-  const pages = data.pages.map((page) =>
-    typeof page === 'object' && page !== null && changed.has(targetOf(page)) ? reroot(page) : page,
-  )
-  query.setState({ data: { ...data, pages } })
-}
-
-/**
  * Publish a query's edited data once: `data` is what the query should now hold (its cached data, or
  * an edit of it whose arrays and pages are new), and `changed` the parts (by their materialised
- * value) whose objects were edited in place and so need a new root. A part that is already a new
- * object is published as it is; an infinite query's untouched pages keep their identity. Nothing is
- * set when nothing changed. Like {@link republish}, it sets the state directly, so the query keeps
- * its `isInvalidated` flag and isn't normalised as a fresh success.
+ * value) whose objects were edited in place and so need a new root (see {@link reroot}), through
+ * which a later patch or rollback of the same objects shows. A part that is already a new object is
+ * published as it is; an infinite query's untouched pages keep their identity. Nothing is set when
+ * nothing changed. The state is set directly rather than through `setQueryData`, whose structural
+ * sharing would hand the old root back because nothing differs by value, and which would clear the
+ * query's `isInvalidated` and re-run normalisation as a fresh success.
  * @internal
  */
 export function publishData(query: Query, data: unknown, changed: ReadonlySet<object>): void {
@@ -231,12 +205,10 @@ export function isMaterialisedData(data: unknown): boolean {
   if (isMaterialised(originOf(data))) {
     return true
   }
-  const pages = (data as { pages?: unknown }).pages
   return (
-    Array.isArray(pages) &&
-    Array.isArray((data as { pageParams?: unknown }).pageParams) &&
-    pages.length > 0 &&
-    pages.every((page) =>
+    isInfiniteValue(data) &&
+    data.pages.length > 0 &&
+    data.pages.every((page) =>
       isMaterialised(typeof page === 'object' && page !== null ? originOf(page) : page),
     )
   )
@@ -625,14 +597,6 @@ export function writable(node: object, k: string, shape: ViewShape | undefined):
 }
 
 /**
- * The shape a cached query's data promises at its top level, when its key decodes.
- * @internal
- */
-export function shapeOfQuery(query: Query, descriptor: ApiDescriptor): ViewShape | undefined {
-  return shapeOfCached(query, descriptor)
-}
-
-/**
  * Write one attribute's newest server value onto a node and record it, merging a value its read
  * narrowed into the cached one. Returns whether the node's value changed.
  */
@@ -860,7 +824,7 @@ export function queriesIn(queryClient: QueryClient, scope: string | undefined): 
  * Patch the cached queries holding a resource in `fresh` with its newest server values. We
  * republish only the queries that {@link patchVisits} actually mutated, or whose relation slots a
  * read relinked (`relinked`, by query, the parts holding them), under a new root (see
- * {@link republish}), so their observers notify once. Untouched queries keep their data reference,
+ * {@link publishData}), so their observers notify once. Untouched queries keep their data reference,
  * and every query keeps its `isInvalidated` flag, so a patch never undoes the invalidation a create
  * or delete made.
  */
@@ -902,7 +866,7 @@ function patchAll(
       )
     })
     if (touched.length > 0) {
-      republish(query, touched)
+      publishData(query, data, new Set(touched.map((part) => targetOf(part as object))))
     }
   }
 }

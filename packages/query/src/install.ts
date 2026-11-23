@@ -11,19 +11,12 @@
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import { defaultShouldDehydrateQuery, type Query, type QueryClient } from '@tanstack/query-core'
-import { type ReadOperation, scopeOf } from './keys'
+import { READ_OPERATIONS, scopeOf } from './keys'
 import { isMaterialisedData, normalizeRead, stampHydrated, stampWritten } from './normalize'
 import { jsonApiRetry } from './read'
 import type { ScopeOption } from './scope'
 import { planOf } from './upkeep'
 import { reapplyDrafts } from './draft'
-
-const READ_OPERATIONS: ReadonlySet<unknown> = new Set<ReadOperation>([
-  'fetchMany',
-  'fetchOne',
-  'fetchRelated',
-  'fetchRelationship',
-])
 
 /**
  * True when a key has the binding's shape: `[type, readOperation, …]`, or the same led by a

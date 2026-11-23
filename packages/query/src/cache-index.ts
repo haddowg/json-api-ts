@@ -236,13 +236,15 @@ export function shapeOfCached(query: Query, descriptor: ApiDescriptor): ViewShap
 
 // ── Indexing ───────────────────────────────────────────────────────────────────────────────
 
+/** The parts of a query's data, none when it holds nothing. */
+const partsOfData = (data: unknown): readonly unknown[] =>
+  data === undefined || data === null ? [] : partsOf(data)
+
 /** The materialised value behind each part of `data`. */
 const partTargets = (data: unknown): unknown[] =>
-  data === undefined || data === null
-    ? []
-    : partsOf(data).map((part) =>
-        typeof part === 'object' && part !== null ? targetOf(part) : part,
-      )
+  partsOfData(data).map((part) =>
+    typeof part === 'object' && part !== null ? targetOf(part) : part,
+  )
 
 /** Whether `data` reads through to the same parts `indexed` was built from. */
 function sameParts(indexed: QueryIndex, data: unknown): boolean {
@@ -339,7 +341,7 @@ function build(query: Query, descriptor: ApiDescriptor): QueryIndex {
   const byType: QueryIndex['byType'] = new Map()
   const tops: Visit[] = []
   const shared = new Set<object>()
-  const parts = data === undefined || data === null ? [] : partsOf(data)
+  const parts = partsOfData(data)
   const reached = new Set<object>()
   const relations = relationNames(descriptor)
   parts.forEach((part, at) => {
@@ -421,7 +423,7 @@ function replaceVisits(
  * changed, or `undefined` when the query must be indexed again whole.
  */
 function repart(indexed: QueryIndex, data: unknown): Set<string> | undefined {
-  const parts = data === undefined || data === null ? [] : partsOf(data)
+  const parts = partsOfData(data)
   const targets = partTargets(data)
   const changed = new Set<number>()
   for (let at = 0; at < Math.max(parts.length, indexed.parts.length); at++) {
