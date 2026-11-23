@@ -15,7 +15,7 @@ import { type FilterSpec, listFilterMatcher } from './filters'
 import { fieldsOfUrl } from './nested-fieldset'
 import { readActionLocation } from './location'
 import { materialise, type MaterialiseContext, relatedPaginator } from './materialise'
-import { nextRequestStamp, stampRequest } from './request-stamp'
+import { stampFromDocument } from './request-stamp'
 import { resolvePaginator } from './pagination'
 import {
   type Document,
@@ -152,7 +152,6 @@ async function run(
     negotiateProfiles(ctx, type, params, req, relationForCount, operation)
     applyRelatedQuery(ctx, renderedType(ctx, type, operation, vars['rel']), params, req)
   }
-  const stamp = nextRequestStamp()
   const doc = await execute(ctx.request, req)
   // Resolve the strategy that answers from the endpoint's paginator and the `page` sent, so an
   // EMPTY page still reports the real `$page.kind` and a menu read reports the arm it picked.
@@ -173,15 +172,12 @@ async function run(
     paginator === undefined ? undefined : resolvePaginator(paginator, query?.page)
   return doc === undefined
     ? undefined
-    : stampRequest(
-        materialise(
-          doc,
-          withFields(ctx.materialise, query?.fields),
-          linkage,
-          primaryType,
-          paginatorOverride,
-        ),
-        stamp,
+    : materialise(
+        doc,
+        withFields(ctx.materialise, query?.fields),
+        linkage,
+        primaryType,
+        paginatorOverride,
       )
 }
 
@@ -390,7 +386,6 @@ function answerAccepted(
   res: ExecutedResponse,
   complete: (doc: Document | undefined) => unknown,
   wait: PollOptions | undefined,
-  stamp: number,
 ): unknown {
   const value = toAccepted(
     {
@@ -399,7 +394,7 @@ function answerAccepted(
       job: (doc) =>
         doc === undefined || !('data' in doc)
           ? (doc?.meta ?? {})
-          : stampRequest(materialise(doc, ctx.materialise), stamp),
+          : materialise(doc, ctx.materialise),
       complete,
     },
     res,
@@ -438,7 +433,6 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
     req.signal = spec.wait.signal
   }
   let res
-  const stamp = nextRequestStamp()
   try {
     res = await executeResponse(ctx.request, req)
   } catch (error) {
@@ -447,16 +441,24 @@ async function runWrite(ctx: ClientContext, spec: WriteSpec): Promise<unknown> {
     }
     throw error
   }
+  // A meta-only result is not materialised, so it takes the document's stamp here.
   const complete = (doc: Document | undefined) =>
-    doc === undefined
-      ? undefined
-      : spec.metaOnly === true && !('data' in doc)
-        ? doc.meta
-        : materialise(doc, withFields(ctx.materialise, spec.query?.fields), spec.linkage ?? false)
+    stampFromDocument(
+      doc,
+      doc === undefined
+        ? undefined
+        : spec.metaOnly === true && !('data' in doc)
+          ? doc.meta
+          : materialise(
+              doc,
+              withFields(ctx.materialise, spec.query?.fields),
+              spec.linkage ?? false,
+            ),
+    )
   if (res.status === 202 && spec.accepted !== undefined) {
-    return answerAccepted(ctx, spec.accepted, res, complete, spec.wait, stamp)
+    return answerAccepted(ctx, spec.accepted, res, complete, spec.wait)
   }
-  return stampRequest(complete(res.document), stamp)
+  return complete(res.document)
 }
 
 /**
@@ -559,9 +561,9 @@ async function runAction(
       const text = await executeRaw(ctx.request, req, 'text')
       return raw.kind === 'json' && text !== undefined ? (JSON.parse(text) as unknown) : text
     }
-    const stamp = nextRequestStamp()
     const res = await executeResponse(ctx.request, req)
-    const complete = (doc: Document | undefined) => actionValue(ctx, action, doc)
+    const complete = (doc: Document | undefined) =>
+      stampFromDocument(doc, actionValue(ctx, action, doc))
     if (res.status === 202 && action.accepted !== undefined) {
       const wait = waitOptions(options.wait)
       const signal = wait?.signal ?? options.signal
@@ -571,10 +573,9 @@ async function runAction(
         res,
         complete,
         wait === undefined || signal === undefined ? wait : { ...wait, signal },
-        stamp,
       )
     }
-    return stampRequest(complete(res.document), stamp)
+    return complete(res.document)
   } catch (error) {
     if (remap !== undefined && error instanceof JsonApiError) {
       throw remap(error)
@@ -1048,7 +1049,6 @@ export function createClient<
     materialise: {
       descriptor,
       navigate: async (url, linkage = false, paginator, signal) => {
-        const stamp = nextRequestStamp()
         const doc = await execute(request, {
           method: 'GET',
           path: url,
@@ -1057,15 +1057,12 @@ export function createClient<
         })
         return doc === undefined
           ? undefined
-          : stampRequest(
-              materialise(
-                doc,
-                withFields(ctx.materialise, fieldsOfUrl(url)),
-                linkage,
-                undefined,
-                paginator,
-              ),
-              stamp,
+          : materialise(
+              doc,
+              withFields(ctx.materialise, fieldsOfUrl(url)),
+              linkage,
+              undefined,
+              paginator,
             )
       },
       ...(validator !== undefined ? { validate: validator } : {}),
