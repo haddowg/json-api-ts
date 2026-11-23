@@ -9,6 +9,7 @@
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { QueryClient } from '@tanstack/query-core'
 import { cacheView, describeCached } from './cache-index'
+import { addresses } from './identity'
 import { fits, type ViewShape } from './view-shape'
 
 /** Where {@link resolveMember} looks, besides the cache. */
@@ -21,13 +22,6 @@ export interface ResolveOptions {
    */
   candidates?: readonly unknown[] | undefined
 }
-
-/** Whether a value addresses `type:id`. */
-const addresses = (value: unknown, type: string, id: string): boolean =>
-  typeof value === 'object' &&
-  value !== null &&
-  (value as { type?: unknown }).type === type &&
-  (value as { id?: unknown }).id === id
 
 /**
  * The copy of `type:id` that fits `shape`, or `undefined` when none does.
@@ -54,7 +48,7 @@ export function resolveMember(
   options: ResolveOptions = {},
 ): unknown {
   for (const candidate of options.candidates ?? []) {
-    if (addresses(candidate, type, id) && fits(candidate, shape, descriptor)) {
+    if (addresses(candidate, { type, id }) && fits(candidate, shape, descriptor)) {
       return candidate
     }
   }

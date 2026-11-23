@@ -57,6 +57,14 @@ import {
 } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { type CacheView, cacheView, describeCached, renameNode, touchNode } from './cache-index'
+import {
+  addresses,
+  carriesData,
+  identityKey,
+  identityOf,
+  isRecord,
+  relationIdentityKey,
+} from './identity'
 import type { QueryKey } from './keys'
 import type { UpdateVariables } from './mutate'
 import {
@@ -616,17 +624,9 @@ interface Created {
   readonly completed: Readonly<Record<string, unknown>>
 }
 
-/** The identity keys a ref carries besides any member data (and every `$` accessor). */
-const IDENTITY_KEYS: ReadonlySet<string> = new Set(['type', 'id', 'lid', 'meta'])
-
 /** What a caller's ref carries beyond its identifier, as a deferred member's `member`, if any. */
-function memberData(source: unknown): Readonly<Record<string, unknown>> | undefined {
-  if (!isRecord(source)) {
-    return undefined
-  }
-  const carries = Object.keys(source).some((key) => !IDENTITY_KEYS.has(key) && !key.startsWith('$'))
-  return carries ? source : undefined
-}
+const memberData = (source: unknown): Readonly<Record<string, unknown>> | undefined =>
+  isRecord(source) && carriesData(source) ? source : undefined
 
 /** Where a member list or a to-one value lives: a query's data (or one page), or a node's slot. */
 type Loc =
@@ -693,25 +693,6 @@ interface Staged {
   readonly nodes: Set<object>
   /** Parts (a list, or an infinite query's page) whose accessors changed, to publish anew. */
   readonly parts: Set<object>
-}
-
-const keyOf = (type: string, id: string | undefined): string => `${type}:${id ?? ''}`
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-/** The `{ type, id }` a value carries, when both are strings. */
-function identityOf(value: unknown): { type: string; id: string } | undefined {
-  if (!isRecord(value)) {
-    return undefined
-  }
-  const { type, id } = value
-  return typeof type === 'string' && typeof id === 'string' ? { type, id } : undefined
-}
-
-const addresses = (value: unknown, ref: { type: string; id: string }): boolean => {
-  const identity = identityOf(value)
-  return identity !== undefined && identity.type === ref.type && identity.id === ref.id
 }
 
 /** A caller's ref as a {@link Ref}, or `undefined` when it carries no cache identity. */
@@ -1096,7 +1077,7 @@ class Draft {
   // ── Markers ──
 
   private markFor(type: string, id: string | undefined): Mark {
-    const key = keyOf(type, id)
+    const key = identityKey(type, id)
     let mark = this.marks.get(key)
     if (mark === undefined) {
       mark = { type, id, pending: new Map(), counts: new Map() }
@@ -1152,9 +1133,9 @@ class Draft {
   private defer(type: string, id: string | undefined, rel: string, ref: Ref): void {
     const mark = this.markFor(type, id)
     const members = mark.pending.get(rel) ?? new Map<string, PendingMember>()
-    const created = this.created.get(keyOf(ref.type, ref.id))
+    const created = this.created.get(identityKey(ref.type, ref.id))
     const member = created === undefined ? memberData(ref.source) : memberData(created.input)
-    members.set(keyOf(ref.type, ref.id), {
+    members.set(identityKey(ref.type, ref.id), {
       type: ref.type,
       id: ref.id,
       ...(member === undefined ? {} : { member }),
@@ -1230,7 +1211,7 @@ class Draft {
     if (shape.kind === 'identifiers') {
       return identifierViewOf(edge)
     }
-    const created = this.created.get(keyOf(ref.type, ref.id))
+    const created = this.created.get(identityKey(ref.type, ref.id))
     const source =
       created === undefined ? ref.source : this.hydrate(ref.type, created.completed, shape)
     const found = resolveMember(this.queryClient, ref.type, ref.id, shape, this.descriptor, {
@@ -1320,7 +1301,7 @@ class Draft {
   /** What {@link Into} sees of `ref` entering a destination of `shape`. */
   private preview(ref: Ref, shape: ViewShape): { member: DraftMember; value: object | undefined } {
     const value = this.memberFor(ref, shape)
-    const created = this.created.get(keyOf(ref.type, ref.id))
+    const created = this.created.get(identityKey(ref.type, ref.id))
     const source = created === undefined ? ref.source : { ...created.completed, type: ref.type }
     const member = (value ??
       (isRecord(source)
@@ -1622,7 +1603,7 @@ class Draft {
    * for a rollback rather than shown (A7 R2).
    */
   private own(type: string, id: string | undefined, rel: string): void {
-    const key = `${keyOf(type, id)}:${rel}`
+    const key = relationIdentityKey(type, id, rel)
     if (this.owned.has(key)) {
       return
     }
@@ -1863,7 +1844,7 @@ class Draft {
       produced,
       order: list.flatMap((member) => {
         const identity = identityOf(member)
-        return identity === undefined ? [] : [keyOf(identity.type, identity.id)]
+        return identity === undefined ? [] : [identityKey(identity.type, identity.id)]
       }),
     })
     for (const member of added) {
@@ -1896,7 +1877,7 @@ class Draft {
       if (ref === undefined || !isRecord(resource)) {
         return
       }
-      this.created.set(keyOf(type, ref.id), {
+      this.created.set(identityKey(type, ref.id), {
         input: resource,
         completed: this.completeRow(type, resource, options.complete),
       })
@@ -1934,7 +1915,12 @@ class Draft {
           // The completed row still doesn't fit: a pending entry where `into` placed it.
           const at: PendingPlacement =
             placement === 'start' || placement === 'end' ? placement : position.index
-          entries.set(keyOf(type, ref.id), { type, id: ref.id, at, input: withoutId(resource) })
+          entries.set(identityKey(type, ref.id), {
+            type,
+            id: ref.id,
+            at,
+            input: withoutId(resource),
+          })
         } else {
           this.insertAt(view, position, value)
           this.register(query, value, this.markFor(type, ref.id))
@@ -2003,7 +1989,7 @@ class Draft {
           if (this.removeFrom(locs, [evicted]) > 0) {
             held = true
             if (description.rel !== undefined) {
-              const key = `${keyOf(description.type, description.id)}:${description.rel}`
+              const key = relationIdentityKey(description.type, description.id, description.rel)
               parents.set(key, { type: description.type, id: description.id, rel: description.rel })
             }
           }
@@ -2055,7 +2041,7 @@ class Draft {
           if (Array.isArray(slot)) {
             this.removeFrom([loc], [evicted])
             const parentId = node['id'] as string
-            const key = `${keyOf(node['type'] as string, parentId)}:${rel}`
+            const key = relationIdentityKey(node['type'] as string, parentId, rel)
             parents.set(key, { type: node['type'] as string, id: parentId, rel })
           } else {
             this.write(loc, null)
@@ -2253,8 +2239,8 @@ class Draft {
    * recorded it.
    */
   private renamePending(type: string, from: string, to: string): void {
-    const before = keyOf(type, from)
-    const after = keyOf(type, to)
+    const before = identityKey(type, from)
+    const after = identityKey(type, to)
     for (const mark of this.marks.values()) {
       for (const members of mark.pending.values()) {
         const found = members.get(before)
@@ -2284,7 +2270,7 @@ class Draft {
   }
 
   shows(type: string, id: string): boolean {
-    const key = keyOf(type, id)
+    const key = identityKey(type, id)
     if (this.marks.has(key)) {
       return true
     }
@@ -2355,7 +2341,9 @@ class Draft {
         const rank = (member: unknown): number => {
           const identity = identityOf(member)
           const at =
-            identity === undefined ? -1 : step.order.indexOf(keyOf(identity.type, identity.id))
+            identity === undefined
+              ? -1
+              : step.order.indexOf(identityKey(identity.type, identity.id))
           return at < 0 ? step.order.length : at
         }
         const members = list

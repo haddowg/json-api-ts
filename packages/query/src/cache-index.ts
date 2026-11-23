@@ -43,6 +43,7 @@
  */
 import type { ApiDescriptor } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
+import { identityKey, splitIdentityKey } from './identity'
 import { scopeOf } from './keys'
 import { isInfiniteValue, partsOf, targetOf } from './normalize'
 import {
@@ -480,8 +481,6 @@ const visitsOfObject = (indexed: QueryIndex, node: object): Visit[] => {
   return (indexed.byType.get(type)?.get(id) ?? []).filter((visit) => visit.node === node)
 }
 
-const keyOf = (type: string, id: string): string => JSON.stringify([type, id])
-
 /**
  * Replace the visits `drop` selects with `added`, in each `type:id` list either touches, returning
  * the `type:id`s whose lists changed.
@@ -494,10 +493,10 @@ function replaceVisits(
 ): Set<string> {
   const lists = new Map<string, { type: string; id: string; added: Visit[] }>()
   for (const visit of removed) {
-    lists.set(keyOf(visit.type, visit.id), { type: visit.type, id: visit.id, added: [] })
+    lists.set(identityKey(visit.type, visit.id), { type: visit.type, id: visit.id, added: [] })
   }
   for (const visit of added) {
-    const key = keyOf(visit.type, visit.id)
+    const key = identityKey(visit.type, visit.id)
     const entry = lists.get(key) ?? { type: visit.type, id: visit.id, added: [] }
     lists.set(key, entry)
     entry.added.push(visit)
@@ -739,7 +738,7 @@ function hold(
 /** Bring `scope`'s record of `query` up to date with the `type:id`s whose copies changed. */
 function holdKeys(scope: ScopeIndex, indexed: QueryIndex, keys: ReadonlySet<string>): void {
   for (const key of keys) {
-    const [type, id] = JSON.parse(key) as [string, string]
+    const [type, id] = splitIdentityKey(key)
     const held = indexed.byType.get(type)?.has(id) === true
     let ids = scope.holding.get(type)
     if (held) {

@@ -20,6 +20,7 @@ import {
   type QueryKey,
   type ReadOperation,
 } from './keys'
+import { carriesData, identityOf, isRecord } from './identity'
 import { isInfiniteValue } from './normalize'
 
 // ── Decoding a cached query ────────────────────────────────────────────────────────────────
@@ -76,9 +77,6 @@ const READ_OPERATIONS: ReadonlySet<string> = new Set([
   'fetchRelated',
   'fetchRelationship',
 ])
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** A relation of `type` a read can address: declared, and not write-only. */
 function readableRelation(
@@ -451,17 +449,6 @@ export function walkShaped(
 
 // ── Fit ────────────────────────────────────────────────────────────────────────────────────
 
-/** The `{ type, id }` a member carries, when both are strings. */
-function identityOf(member: unknown): { type: string; id: string } | undefined {
-  if (!isRecord(member)) {
-    return undefined
-  }
-  const { type, id } = member
-  return typeof type === 'string' && typeof id === 'string' ? { type, id } : undefined
-}
-
-const IDENTIFIER_KEYS: ReadonlySet<string> = new Set(['type', 'id', 'lid', 'meta'])
-
 /**
  * Whether a member is a resource rather than a bare identifier: a materialised resource (it
  * carries `$raw`), or a plain object holding a key beyond `type`, `id`, `lid`, `meta` and the
@@ -472,7 +459,7 @@ function isResource(member: Record<string, unknown>): boolean {
   if ((member as { $raw?: unknown }).$raw !== undefined) {
     return true
   }
-  return Object.keys(member).some((key) => !IDENTIFIER_KEYS.has(key) && !key.startsWith('$'))
+  return carriesData(member)
 }
 
 const hasOwnEnumerable = (target: object, key: string): boolean =>

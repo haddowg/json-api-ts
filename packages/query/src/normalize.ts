@@ -29,15 +29,14 @@
 import { isMaterialised, type ApiDescriptor, type NestedFieldset } from '@haddowg/json-api-client'
 import type { Query, QueryClient } from '@tanstack/query-core'
 import { type CacheView, cacheView, shapeOfCached, type Visit } from './cache-index'
+import { identityKey, identityOf, isRecord } from './identity'
 import { peekStamp, stampNow, stampOf, stampResult, stampUnknown, UNKNOWN_STAMP } from './freshness'
 import { scopeOf } from './keys'
 import { propagateRelationships, type ServerSlot } from './relationships'
 import type { ViewShape } from './view-shape'
 
-/** A `type:id` cache key for a resource. */
+/** A `type:id` cache key for a resource ({@link identityKey}). */
 type ResourceKey = string
-
-const resourceKey = (type: string, id: string): ResourceKey => `${type}:${id}`
 
 /** The materialised value each republished root reads through to. */
 const roots = new WeakMap<object, object>()
@@ -135,7 +134,7 @@ export function isInfiniteValue(value: unknown): value is InfiniteValue {
     !Array.isArray(value) &&
     Array.isArray((value as { pages?: unknown }).pages) &&
     Array.isArray((value as { pageParams?: unknown }).pageParams) &&
-    identity(value as MaterialisedResource) === undefined
+    identityOf(value) === undefined
   )
 }
 
@@ -242,9 +241,6 @@ export function isMaterialisedData(data: unknown): boolean {
     )
   )
 }
-
-const isObject = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /**
  * The raw JSON:API resource object a materialised resource exposes via its non-enumerable
@@ -403,15 +399,6 @@ function heldStamp(node: MaterialisedResource, k: string): number | undefined {
   return raw !== undefined && Object.hasOwn(raw, k) ? (record?.born ?? UNKNOWN_STAMP) : undefined
 }
 
-/** A materialised resource's `type`+`id`, when it is a real resource (string type + id). */
-function identity(node: MaterialisedResource): { type: string; id: string } | undefined {
-  const { type, id } = node
-  if (typeof type === 'string' && typeof id === 'string') {
-    return { type, id }
-  }
-  return undefined
-}
-
 /**
  * The attributes a node was materialised with, read from its `$raw.attributes` (the wire split of
  * attributes from relations). Returns `undefined` when the node carries no `$raw` or no
@@ -420,7 +407,7 @@ function identity(node: MaterialisedResource): { type: string; id: string } | un
  */
 function attributesOf(node: MaterialisedResource): Record<string, unknown> | undefined {
   const attrs = node.$raw?.attributes
-  return isObject(attrs) ? attrs : undefined
+  return isRecord(attrs) ? attrs : undefined
 }
 
 /**
@@ -446,7 +433,7 @@ export function walkResources(
     }
     return
   }
-  if (!isObject(value)) {
+  if (!isRecord(value)) {
     return
   }
   if (seen.has(value)) {
@@ -455,7 +442,7 @@ export function walkResources(
   seen.add(value)
 
   const node = value as unknown as MaterialisedResource
-  const ident = identity(node)
+  const ident = identityOf(node)
   if (ident === undefined) {
     // An infinite query's data: every page is a read result of its own.
     if (isInfiniteValue(value)) {
@@ -545,7 +532,7 @@ function mergedSelection(cached: unknown, fresh: unknown, paths: readonly string
     })
     return out
   }
-  if (!isObject(cached) || !isObject(fresh)) {
+  if (!isRecord(cached) || !isRecord(fresh)) {
     return cached
   }
   return mergedValue(cached, fresh, paths)
@@ -628,12 +615,12 @@ function collectIncoming(result: unknown, descriptor: ApiDescriptor): Fresh {
     }
     const stamp = stampOf(targetOf(part))
     walkResources(part, descriptor, (node) => {
-      const ident = identity(node)
+      const ident = identityOf(node)
       if (ident === undefined) {
         return
       }
       recordBirth(node, stamp)
-      const key = resourceKey(ident.type, ident.id)
+      const key = identityKey(ident.type, ident.id)
       for (const [k, value] of serverValues(node)) {
         // A later occurrence wins a tie: for one response, the copies are the same wire object.
         consider(fresh, key, ident, k, { ...value, incoming: true }, true)
@@ -738,11 +725,11 @@ function patchVisits(visits: readonly Visit[], fresh: Fresh, at: PatchContext): 
   let changed = false
   for (const { node: visited, shape: slot } of visits) {
     const node = visited as unknown as MaterialisedResource
-    const ident = identity(node)
+    const ident = identityOf(node)
     if (ident === undefined) {
       continue
     }
-    const attributes = fresh.get(resourceKey(ident.type, ident.id))?.attributes
+    const attributes = fresh.get(identityKey(ident.type, ident.id))?.attributes
     if (attributes === undefined) {
       continue
     }
