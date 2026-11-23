@@ -745,7 +745,7 @@ const keptPage = (data: InfiniteValue, cached: InfiniteValue, at: number): boole
 /** The drafts open on each QueryClient: neither committed, rolled back nor confirmed. */
 const openDrafts = new WeakMap<QueryClient, Set<Draft>>()
 
-class Draft {
+class Draft implements OptimisticDraft, DraftLifecycle {
   readonly scope: string | undefined
   private readonly autoPlace: boolean
   private readonly into: Into | undefined
@@ -1820,10 +1820,16 @@ class Draft {
     return count
   }
 
-  insert(type: string, resource: unknown, into?: Into, options: InsertOptions = {}): void {
+  insert<T extends string>(
+    type: T,
+    resource: unknown,
+    into?: InsertInto<ApiDescriptor, T>,
+    options: InsertOptions = {},
+  ): void {
     this.op(() => {
       const ref = toRef(isRecord(resource) ? { ...resource, type } : undefined)
-      const place = into ?? this.into
+      // The rows `place` is shown are all of type `T`, as `InsertInto` promises.
+      const place = (into as Into | undefined) ?? this.into
       if (ref === undefined || !isRecord(resource)) {
         return
       }
@@ -2350,15 +2356,34 @@ export function openDraft<D extends ApiDescriptor, W = unknown>(
   descriptor: D,
   options: DraftOptions<D> = {},
 ): OptimisticDraft<D, W> {
-  if (!overlayInstalled) {
-    setMaterialisedOverlay(overlay)
-    overlayInstalled = true
-  }
-  return new Draft(
+  return openDraftHandle(
     queryClient,
     descriptor,
     options as unknown as DraftOptions,
   ) as unknown as OptimisticDraft<D, W>
+}
+
+/**
+ * An open draft as the mutation lifecycle holds it: every operation, loosely typed, and the
+ * lifecycle's own steps.
+ * @internal
+ */
+export type DraftHandle = Draft
+
+/**
+ * {@link openDraft}, returning the {@link DraftHandle}.
+ * @internal
+ */
+export function openDraftHandle(
+  queryClient: QueryClient,
+  descriptor: ApiDescriptor,
+  options: DraftOptions = {},
+): DraftHandle {
+  if (!overlayInstalled) {
+    setMaterialisedOverlay(overlay)
+    overlayInstalled = true
+  }
+  return new Draft(queryClient, descriptor, options)
 }
 
 /**
@@ -2388,13 +2413,6 @@ export interface DraftLifecycle {
   /** Whether the draft shows `type:id` anywhere: a member, a deferred member or a pending create. */
   shows(type: string, id: string): boolean
 }
-
-/**
- * `draft`'s lifecycle steps.
- * @internal
- */
-export const lifecycleOf = (draft: OptimisticDraft<never, never>): DraftLifecycle =>
-  draft as unknown as DraftLifecycle
 
 /**
  * Run every open draft's operations again on `query`, whose data a read just replaced, so what the
@@ -2427,8 +2445,8 @@ export function applyOptimisticPatch(
   descriptor: ApiDescriptor,
   scope?: string,
 ): Snapshot {
-  const draft = openDraft(queryClient, descriptor, { scope, markers: false })
-  draft.patch(type, id, attributes as never)
+  const draft = openDraftHandle(queryClient, descriptor, { scope, markers: false })
+  draft.patch(type, id, attributes)
   return {
     restore() {
       draft.rollback()
