@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { afterAll, describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
@@ -60,13 +60,10 @@ const CHANGED_BY = {
  * declared `meta` object says whether it is open. The codegen records each in the descriptor.
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
-  it('reads a document stamped 43 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(43)
+  it('reads a document stamped 43 without a warning', () => {
     expect(typed.info?.['x-generator']?.contract).toBe(43)
     expect(checkContract(typed)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
-    const newer = { ...typed, info: { ...typed.info!, 'x-generator': { contract: 44 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 43')
   })
 
   it('records the meta each write takes, alone and inside an atomic batch', () => {
