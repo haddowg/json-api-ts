@@ -36,8 +36,8 @@ function closedRanges(doc: OpenApiDocument): string[] {
  */
 describe('generator contract 44 (closed range filters)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(45)
-    expect(baseline.info?.['x-generator']?.contract).toBe(45)
+    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(baseline.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
   })

@@ -61,7 +61,7 @@ const CHANGED_BY = {
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
   it('reads the witness without a warning', () => {
-    expect(typed.info?.['x-generator']?.contract).toBe(45)
+    expect(typed.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(typed)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
   })
@@ -189,7 +189,7 @@ describe('generator contract 43 (typed request and resource object meta)', () =>
   })
 
   it('reads the baseline with its pivots closed as it reads them open', () => {
-    expect(baseline.info?.['x-generator']?.contract).toBe(45)
+    expect(baseline.info?.['x-generator']?.contract).toBe(46)
     const open = structuredClone(baseline)
     const schemas = open.components!.schemas!
     for (const name of ['ArticlesTagsPivot', 'ArticlesTagsWritePivot']) {
