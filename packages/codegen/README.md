@@ -128,8 +128,8 @@ The output module exports:
   (e.g. `AlbumStatus`), named shapes (e.g. `Reviewer`), and action input/output types.
 - `Links` — the typed declared links of each type that declares any.
 - `ErrorCodes` / `ErrorCode` / `ErrorCodeByStatus` / `ErrorCodeByOperation` / `ErrorMetaByCode` /
-  `hasErrorCode` / `findError` — the server's documented error codes, the codes only some
-  operations raise, each code's typed `meta`, and a guard and finder bound to them.
+  `hasErrorCode` / `findError` — the server's documented error codes, the codes each operation
+  raises, each code's typed `meta`, and a guard and finder bound to them.
 - `pageLimits` / `relatedPageLimits` — the page defaults and page-size caps of each collection and
   each related collection.
 - `pageKinds` / `relatedPageKinds` — the pagination strategies each collection and related

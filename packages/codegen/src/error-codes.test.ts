@@ -158,11 +158,14 @@ describe('readErrorCatalogue', () => {
     ])
   })
 
-  it('maps each operation to the codes its narrowed responses add', () => {
-    expect([...catalogue.byOperation]).toEqual([['update.articles', ['ARTICLE_LOCKED']]])
+  it('maps each operation to every code its error documents offer', () => {
+    expect([...catalogue.byOperation]).toEqual([
+      ['delete.articles', ['RESOURCE_ID_CONFLICT']],
+      ['update.articles', ['ARTICLE_LOCKED', 'RESOURCE_ID_CONFLICT']],
+    ])
   })
 
-  it("scopes all of an operation document's codes when its status has no shared document", () => {
+  it("reads an operation document's codes when its status has no shared document", () => {
     const schemas = { ...doc.components!.schemas }
     delete schemas['ErrorDocument409']
     const responses = { ...doc.components!.responses }
@@ -284,11 +287,12 @@ describe('emitErrorCodes', () => {
     )
   })
 
-  it('emits the codes only some operations raise, by operation id', () => {
+  it('emits every code each operation raises, by operation id', () => {
     expect(source).toContain(
       [
         'export interface ErrorCodeByOperation {',
-        '  "update.articles": "ARTICLE_LOCKED"',
+        '  "delete.articles": "RESOURCE_ID_CONFLICT"',
+        '  "update.articles": "ARTICLE_LOCKED" | "RESOURCE_ID_CONFLICT"',
         '}',
       ].join('\n'),
     )
@@ -372,9 +376,9 @@ describe('error codes in the generated client (music-catalog fixture)', () => {
     )
   })
 
-  it('threads ErrorCode into the bound client factory', () => {
+  it('threads ErrorCode and ErrorCodeByOperation into the bound client factory', () => {
     expect(source).toContain(
-      'createClientRuntime<typeof resourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>(',
+      'createClientRuntime<\n    typeof resourceMap,\n    Attributes,\n    WriteAttributes,\n    ActionTypes,\n    ErrorCode,\n    Links,\n    ErrorCodeByOperation\n  >(',
     )
   })
 })

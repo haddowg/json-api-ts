@@ -32,8 +32,8 @@ export interface ErrorCatalogue {
    */
   byStatus: Map<number, string[]>
   /**
-   * Per operation id, the codes only that operation and others like it raise, sorted: the
-   * scoped codes its own error documents add to the shared ones.
+   * Per operation id, every code the operation can raise, sorted: the codes of each error
+   * document it answers with.
    */
   byOperation: Map<string, string[]>
 }
@@ -77,11 +77,6 @@ function exampleDetail(doc: OpenApiDocument, code: string): unknown[] {
 function sortCodes(codes: Iterable<string>): string[] {
   // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
   return [...codes].sort()
-}
-
-/** Whether a component name is a shared error document: `ErrorDocument` or `ErrorDocument<NNN>`. */
-function isSharedDocument(name: string): boolean {
-  return /^ErrorDocument(\d{3})?$/.test(name)
 }
 
 /** One error response of one operation: its status and the error document its schema names. */
@@ -215,33 +210,22 @@ export function readErrorCatalogue(doc: OpenApiDocument): ErrorCatalogue {
     byStatus: new Map(
       [...byStatus].sort(([a], [b]) => a - b).map(([status, set]) => [status, sortCodes(set)]),
     ),
-    byOperation: scopedCodesByOperation(answered, byDocument),
+    byOperation: codesByOperation(answered, byDocument),
   }
 }
 
-/**
- * The codes each operation's own error documents add to the shared ones. An operation answering
- * a status with a document other than `ErrorDocument` or `ErrorDocument<NNN>` offers that
- * status's shared codes plus its scoped ones, so its scoped codes are the document's codes less
- * the shared `ErrorDocument<NNN>` codes.
- */
-function scopedCodesByOperation(
+/** Every code each operation can raise: the codes of each error document it answers with. */
+function codesByOperation(
   answered: OperationErrorDocument[],
   byDocument: Map<string, Set<string>>,
 ): Map<string, string[]> {
   const byOperation = new Map<string, Set<string>>()
-  for (const { operationId, status, document } of answered) {
-    if (isSharedDocument(document)) {
-      continue
-    }
-    const shared = byDocument.get(`ErrorDocument${status}`) ?? new Set<string>()
-    const scoped = byOperation.get(operationId) ?? new Set<string>()
+  for (const { operationId, document } of answered) {
+    const codes = byOperation.get(operationId) ?? new Set<string>()
     for (const code of byDocument.get(document) ?? []) {
-      if (!shared.has(code)) {
-        scoped.add(code)
-      }
+      codes.add(code)
     }
-    byOperation.set(operationId, scoped)
+    byOperation.set(operationId, codes)
   }
   return new Map(
     // oxlint-disable-next-line no-array-sort -- sorting a freshly-created array
@@ -287,7 +271,7 @@ function codeDoc(entry: DocumentedErrorCode, indent: string): string | undefined
  * Emit `ErrorCodes`, a const object keyed by every documented code with its TSDoc on the key
  * (editors show TSDoc on an object key, not on a string-literal union member), the `ErrorCode`
  * union derived from it, `ErrorCodeByStatus`, the codes each status's error documents offer,
- * `ErrorCodeByOperation`, the codes only some operations raise, `ErrorMetaByCode`, each code's
+ * `ErrorCodeByOperation`, every code each operation can raise, `ErrorMetaByCode`, each code's
  * declared `meta` typed by `tsType`, and the guard and finder bound to them. A document with no
  * code catalogue gets an empty `ErrorCodes` and `ErrorCode = string`, so the bound guard still
  * takes any code.
@@ -351,8 +335,8 @@ export function emitErrorCodes(
   })
   const byOperation = [
     '/**',
-    ' * The error codes only some operations raise, by operation id: what each adds to the codes its',
-    ' * status documents for every operation.',
+    ' * Every error code each operation can raise, by operation id. An operation that is not listed',
+    ' * documents no error responses.',
     ' */',
     operationLines.length === 0
       ? 'export interface ErrorCodeByOperation {}'

@@ -6,6 +6,7 @@ import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument } from './openapi'
 import {
+  type ErrorCode,
   type ErrorCodeByOperation,
   type ErrorMetaByCode,
   findError,
@@ -37,12 +38,12 @@ describe('generator contract 24 (error shapes, scoped codes, typed meta)', () =>
     )
   })
 
-  it('names the codes only some operations raise', () => {
+  it('names the codes each operation raises', () => {
     expectTypeOf<
       Extract<ErrorCodeByOperation['update.articles'], 'ARTICLE_LOCKED'>
     >().toEqualTypeOf<'ARTICLE_LOCKED'>()
-    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<
-      'ARTICLE_LOCKED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND'
+    expectTypeOf<'ARTICLE_LOCKED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND'>().toMatchTypeOf<
+      ErrorCodeByOperation['delete.articles']
     >()
   })
 
@@ -50,7 +51,7 @@ describe('generator contract 24 (error shapes, scoped codes, typed meta)', () =>
     expectTypeOf<ErrorMetaByCode['INSUFFICIENT_SCOPE']['missingScopes']>().toEqualTypeOf<
       [string, ...string[]]
     >()
-    const err = new JsonApiError(403, [
+    const err = new JsonApiError<ErrorCode>(403, [
       {
         status: '403',
         code: 'INSUFFICIENT_SCOPE',
