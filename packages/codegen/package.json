@@ -54,5 +54,8 @@
   "dependencies": {
     "@haddowg/json-api-client": "workspace:^",
     "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "zod": "^4.6.7"
   }
 }

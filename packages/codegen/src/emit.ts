@@ -75,12 +75,18 @@ export function detectVerbCollisions(descriptor: ApiDescriptor): VerbCollision[]
   return collisions
 }
 
-function refName(ref: string): string | undefined {
+export function refName(ref: string): string | undefined {
   return ref.startsWith(REF_PREFIX) ? ref.slice(REF_PREFIX.length) : undefined
 }
 
-function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
+export function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
+}
+
+/** A schema's JSON types as a list: `type: 'string'` is `['string']`, no `type` is `[]`. */
+export function schemaTypes(schema: SchemaObject): string[] {
+  const type = schema.type
+  return typeof type === 'string' ? [type] : [...(type ?? [])]
 }
 
 /** An enum value as a TS literal type: a string quoted, a number, boolean or `null` as it is. */
@@ -114,6 +120,53 @@ function foreignMembers(branch: SchemaObject, branches: readonly SchemaObject[])
     }
   }
   return [...foreign]
+}
+
+/** Map each declared wire type back to the `Base` of its resource schema. */
+export function indexBases(schemas: Readonly<Record<string, SchemaObject>>): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const [name, schema] of Object.entries(schemas)) {
+    if (!name.endsWith('Resource') || name.endsWith('ResourceIdentifier')) {
+      continue
+    }
+    const typeProp = schema.properties?.['type']
+    if (isSchema(typeProp) && typeof typeProp.const === 'string') {
+      out.set(typeProp.const, name.slice(0, -'Resource'.length))
+    }
+  }
+  return out
+}
+
+/** One write's attribute component, as the generated write types and Zod schemas read it. */
+export interface WriteComponent {
+  readonly properties: SchemaObject['properties']
+  /** The property keys, sorted: the document gives no other order for write fields. */
+  readonly fields: readonly string[]
+  /** The attributes the write requires: the component's `required` on create, none on update. */
+  readonly required: ReadonlySet<string>
+}
+
+/** The `<Base>CreateAttributes` and `<Base>UpdateAttributes` components of a type, for each the document has. */
+export function writeComponents(
+  schemas: Readonly<Record<string, SchemaObject>>,
+  base: string | undefined,
+): { create?: WriteComponent; update?: WriteComponent } {
+  const out: { create?: WriteComponent; update?: WriteComponent } = {}
+  if (base === undefined) {
+    return out
+  }
+  for (const write of ['create', 'update'] as const) {
+    const component = schemas[`${base}${write === 'create' ? 'Create' : 'Update'}Attributes`]
+    if (component !== undefined) {
+      out[write] = {
+        properties: component.properties,
+        // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
+        fields: Object.keys(component.properties ?? {}).sort(),
+        required: new Set(write === 'create' ? (component.required ?? []) : []),
+      }
+    }
+  }
+  return out
 }
 
 /** A `{ … }` object literal of pre-rendered entry lines, or `{}` when there are none. */
@@ -163,7 +216,7 @@ function pascalCase(value: string): string {
 }
 
 /** The identifier stem for a wire type's interfaces, `Type`-prefixed when it would start with a digit. */
-function typeStem(type: string): string {
+export function typeStem(type: string): string {
   const pascal = pascalCase(type)
   return /^[A-Za-z]/.test(pascal) ? pascal : `Type${pascal}`
 }
@@ -708,7 +761,7 @@ export class Emitter {
   ) {
     this.doc = unwrapRefs(source)
     this.schemas = this.doc.components?.schemas ?? {}
-    this.baseByType = this.indexBases()
+    this.baseByType = indexBases(this.schemas)
     this.provenance = deriveProvenance(source)
     this.takenNames = new Set(MODULE_NAMES)
     this.namedShapes = readsNamedComponents(this.doc)
@@ -1040,21 +1093,6 @@ export class Emitter {
     return doc === undefined ? declaration : `${doc}\n${declaration}`
   }
 
-  /** Map each declared wire type back to the `Base` of its resource schema. */
-  private indexBases(): Map<string, string> {
-    const out = new Map<string, string>()
-    for (const [name, schema] of Object.entries(this.schemas)) {
-      if (!name.endsWith('Resource') || name.endsWith('ResourceIdentifier')) {
-        continue
-      }
-      const typeProp = schema.properties?.['type']
-      if (isSchema(typeProp) && typeof typeProp.const === 'string') {
-        out.set(typeProp.const, name.slice(0, -'Resource'.length))
-      }
-    }
-    return out
-  }
-
   emit(): string {
     // Resolve enums first so the alias block (which depends on `usedEnums`) is populated.
     const interfaces = Object.keys(this.descriptor).map((type) => this.attributeInterface(type))
@@ -1236,36 +1274,21 @@ export class Emitter {
    * every field optional. A read-only type (no create/update component) contributes nothing.
    */
   private writeAttributeInterfaces(type: string): string[] {
-    const base = this.baseByType.get(type)
-    if (base === undefined) {
-      return []
-    }
     const pascal = typeStem(type)
-    const out: string[] = []
-
-    const create = this.schemas[`${base}CreateAttributes`]
-    if (create !== undefined) {
-      const required = new Set(create.required ?? [])
-      // Sort the schema's own property keys (no descriptor to order write fields).
-      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
-      const fields = Object.keys(create.properties ?? {}).sort()
-      out.push(
-        this.renderInterface(`${pascal}CreateAttributes`, create.properties, fields, (field) =>
-          required.has(field),
-        ),
-      )
-    }
-
-    const update = this.schemas[`${base}UpdateAttributes`]
-    if (update !== undefined) {
-      // oxlint-disable-next-line no-array-sort -- sorting a freshly-created key array
-      const fields = Object.keys(update.properties ?? {}).sort()
-      out.push(
-        this.renderInterface(`${pascal}UpdateAttributes`, update.properties, fields, () => false),
-      )
-    }
-
-    return out
+    const writes = writeComponents(this.schemas, this.baseByType.get(type))
+    return (['create', 'update'] as const).flatMap((write) => {
+      const component = writes[write]
+      return component === undefined
+        ? []
+        : [
+            this.renderInterface(
+              `${pascal}${write === 'create' ? 'Create' : 'Update'}Attributes`,
+              component.properties,
+              component.fields,
+              (field) => component.required.has(field),
+            ),
+          ]
+    })
   }
 
   /**
@@ -1810,7 +1833,7 @@ export class Emitter {
       return nullable ? `${rest.join(' | ')} | null` : rest.join(' | ')
     }
 
-    const types = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : []
+    const types = schemaTypes(schema)
     if (types.length === 1 && types[0] === 'null') {
       return 'null'
     }
@@ -2002,18 +2025,16 @@ export class Emitter {
   private writeAttributesMap(): string {
     const lines: string[] = []
     for (const type of Object.keys(this.descriptor)) {
-      const base = this.baseByType.get(type)
-      const hasCreate = base !== undefined && this.schemas[`${base}CreateAttributes`] !== undefined
-      const hasUpdate = base !== undefined && this.schemas[`${base}UpdateAttributes`] !== undefined
-      if (!hasCreate && !hasUpdate) {
+      const writes = writeComponents(this.schemas, this.baseByType.get(type))
+      if (writes.create === undefined && writes.update === undefined) {
         continue
       }
       const pascal = typeStem(type)
       const members: string[] = []
-      if (hasCreate) {
+      if (writes.create !== undefined) {
         members.push(`create: ${pascal}CreateAttributes`)
       }
-      if (hasUpdate) {
+      if (writes.update !== undefined) {
         members.push(`update: ${pascal}UpdateAttributes`)
       }
       lines.push(`  ${propertyKey(type)}: { ${members.join('; ')} }`)

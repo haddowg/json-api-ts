@@ -38,17 +38,18 @@ Anything the server marks deprecated gets `@deprecated` TSDoc, so editors strike
 ## CLI
 
 ```bash
-json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--examples] [--check]
+json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--examples] [--zod] [--check]
 ```
 
-| Flag         | Required | Description                                                                           |
-| ------------ | -------- | ------------------------------------------------------------------------------------- |
-| `--input`    | yes      | OpenAPI document source — an http(s) URL or a local file path (JSON or YAML).         |
-| `--output`   | yes      | Output file for the generated client (e.g. `src/api/music.gen.ts`).                   |
-| `--server`   | no       | Server name to target. Metadata-only — the served document is already per-server.     |
-| `--schemas`  | no       | JSON Schema source (URL or path) for the validation seam. Omit to skip schema output. |
-| `--examples` | no       | Also write the operations' worked examples to a sibling `.examples.gen.ts` module.    |
-| `--check`    | no       | Drift gate — regenerate in memory and exit non-zero if the committed output differs.  |
+| Flag         | Required | Description                                                                               |
+| ------------ | -------- | ----------------------------------------------------------------------------------------- |
+| `--input`    | yes      | OpenAPI document source — an http(s) URL or a local file path (JSON or YAML).             |
+| `--output`   | yes      | Output file for the generated client (e.g. `src/api/music.gen.ts`).                       |
+| `--server`   | no       | Server name to target. Metadata-only — the served document is already per-server.         |
+| `--schemas`  | no       | JSON Schema source (URL or path) for the validation seam. Omit to skip schema output.     |
+| `--examples` | no       | Also write the operations' worked examples to a sibling `.examples.gen.ts` module.        |
+| `--zod`      | no       | Also write Zod schemas for each writable type's create and update input to `.zod.gen.ts`. |
+| `--check`    | no       | Drift gate — regenerate in memory and exit non-zero if the committed output differs.      |
 
 Example — generate against a served API, with the validation schemas:
 
@@ -65,6 +66,8 @@ This writes:
 - `src/api/music.schemas.gen.ts` — the per-type JSON Schema map (only with `--schemas`).
 - `src/api/music.examples.gen.ts` — each operation's worked examples (only with `--examples`, and
   only when the document declares some).
+- `src/api/music.zod.gen.ts`: Zod schemas for each writable type's create and update input (only
+  with `--zod`).
 
 The schema artifact path is derived from `--output`: a `.gen.ts` suffix becomes `.schemas.gen.ts`,
 a plain `.ts` becomes `.schemas.ts`.
@@ -144,6 +147,16 @@ import { schemas } from './api/music.schemas.gen'
 const client = createClient({ baseUrl: 'https://music.example' })
 ```
 
+With `--zod`, `music.zod.gen.ts` exports `albumsCreateSchema`, `albumsUpdateSchema` and so on for
+each writable type, plus `inputSchemas`, which maps each wire type to its `{ create, update }`
+schemas. Each one checks the flat input the client's `create` or `update` takes: the attributes
+with their declared constraints, one optional key per relation, `id` by the client-id policy, and
+`$meta`. A parsed value can go straight to the client, and each issue's `path` is the input key,
+such as `['releaseInfo', 'label']`. The module imports `{ z } from 'zod'`, so install `zod` 4.3 or
+later in the app. Zod 4 implements Standard Schema, so form libraries take the schemas as
+validators. See the [codegen docs](https://haddowg.github.io/json-api-ts/codegen/#zod-input-schemas)
+for how each JSON Schema keyword maps.
+
 ### Verb / relation collisions
 
 If a type has a relation named like a reserved verb on the resource handle (`get`, `update`,
@@ -178,9 +191,9 @@ if (!result.ok) process.exit(1)
 ```
 
 Lower-level building blocks are also exported for advanced use: `readDocument` / `readSchemas`,
-`buildDescriptor`, `buildExamples`, `emit`, `emitSchemas`, `emitExamples`, `readErrorCatalogue`,
-`emitErrorCodes`, `checkContract`, `detectVerbCollisions`, `schemasOutputPath`,
-`examplesOutputPath`, and the provenance helpers `deriveProvenance` / `provenanceLines` /
+`buildDescriptor`, `buildExamples`, `emit`, `emitSchemas`, `emitExamples`, `emitZod`,
+`readErrorCatalogue`, `emitErrorCodes`, `checkContract`, `detectVerbCollisions`,
+`schemasOutputPath`, `examplesOutputPath`, `zodOutputPath`, and the provenance helpers `deriveProvenance` / `provenanceLines` /
 `hashJson`. `generateFiles(config)` generates like `generate` and returns the paths it wrote.
 
 ## License

@@ -51,14 +51,22 @@ export function hashJson(value: unknown): string {
  * content hash of the whole document.
  */
 export function deriveProvenance(doc: OpenApiDocument): Provenance {
-  const title = doc.info?.title ?? 'unknown'
-  const version = doc.info?.version ?? 'unknown'
-  return {
-    source: `${title} ${version}`,
-    server: doc.servers?.[0]?.url,
-    hash: hashJson(doc),
+  let provenance = derived.get(doc)
+  if (provenance === undefined) {
+    const title = doc.info?.title ?? 'unknown'
+    const version = doc.info?.version ?? 'unknown'
+    provenance = {
+      source: `${title} ${version}`,
+      server: doc.servers?.[0]?.url,
+      hash: hashJson(doc),
+    }
+    derived.set(doc, provenance)
   }
+  return provenance
 }
+
+// Each artifact of one render stamps the same document, so hash it once.
+const derived = new WeakMap<OpenApiDocument, Provenance>()
 
 /**
  * Render the provenance record as the JSDoc header lines stamped into a generated artifact

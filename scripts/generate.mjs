@@ -12,8 +12,9 @@
 // It runs the built CLIs, so build `@haddowg/json-api-codegen` and `@haddowg/json-api-mcp`
 // first; `pnpm generate` does both.
 import { spawnSync } from 'node:child_process'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 const require = createRequire(import.meta.url)
 const document = (specifier) => require.resolve(specifier)
@@ -24,6 +25,35 @@ const MUSIC_CATALOG = {
 }
 const CONTRACT_WITNESS = { input: document('@haddowg/json-api-witness/contract-witness.json') }
 
+// The witness with articles' write relationships narrowed so that, between them, they take every
+// rule the client's write inputs read: required on create, no null on one write or both, and a
+// non-empty list on one write or both. The Zod drift test checks the schemas generated from it.
+function writeRulesDocument() {
+  const doc = JSON.parse(readFileSync(CONTRACT_WITNESS.input, 'utf8'))
+  const relationships = (write) =>
+    doc.components.schemas[`Articles${write}Request`].properties.data.properties.relationships
+  const narrow = (write, name, data) => {
+    const props = relationships(write).properties
+    props[name] = { allOf: [props[name], { properties: { data } }] }
+  }
+  const requireOnCreate = (name) => {
+    const create = relationships('Create')
+    create.required = [...(create.required ?? []), name]
+  }
+  requireOnCreate('author')
+  narrow('Create', 'author', { type: 'object' })
+  narrow('Update', 'author', { type: 'object' })
+  narrow('Update', 'editor', { type: 'object' })
+  narrow('Update', 'contributors', { minItems: 1 })
+  requireOnCreate('gallery')
+  narrow('Create', 'sponsors', { minItems: 1 })
+  narrow('Update', 'sponsors', { minItems: 1 })
+  const path = 'packages/codegen/test/generated/write-rules.openapi.json'
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`)
+  return path
+}
+
 // `reviewed` outputs are the ones the generated-output report diffs. The example apps' clients
 // are the reference client without `--examples`, so diffing them too would only repeat it.
 const CLIENTS = [
@@ -31,12 +61,19 @@ const CLIENTS = [
     ...MUSIC_CATALOG,
     output: 'packages/codegen/test/generated/music-catalog.client.gen.ts',
     examples: true,
+    zod: true,
     reviewed: true,
   },
   {
     ...CONTRACT_WITNESS,
     output: 'packages/codegen/test/generated/contract-witness.client.gen.ts',
+    zod: true,
     reviewed: true,
+  },
+  {
+    input: writeRulesDocument(),
+    output: 'packages/codegen/test/generated/write-rules.client.gen.ts',
+    zod: true,
   },
   { ...MUSIC_CATALOG, output: 'packages/example/src/generated/music-catalog.gen.ts' },
   { ...MUSIC_CATALOG, output: 'examples/spotify-clone/src/generated/music-catalog.gen.ts' },
@@ -76,13 +113,16 @@ const run = (args) => {
   }
 }
 
-for (const { input, schemas, output, examples } of selected(CLIENTS)) {
+for (const { input, schemas, output, examples, zod } of selected(CLIENTS)) {
   const args = ['packages/codegen/dist/cli.mjs', '--input', input, '--output', destination(output)]
   if (schemas !== undefined) {
     args.push('--schemas', schemas)
   }
   if (examples) {
     args.push('--examples')
+  }
+  if (zod) {
+    args.push('--zod')
   }
   if (check) {
     args.push('--check')
