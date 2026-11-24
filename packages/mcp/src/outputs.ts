@@ -755,7 +755,10 @@ function locationData(mediaType: string): JsonSchema {
       url: { type: 'string', format: 'uri-reference', description: 'The URL.' },
       type: {
         type: 'string',
-        description: `The media type the URL serves. The action declares \`${mediaType}\`.`,
+        description:
+          mediaType.split(';')[0]!.trim().toLowerCase() === 'application/octet-stream'
+            ? "The URL's actual media type. The action declares `application/octet-stream`, so the type isn't known in advance."
+            : `The media type the URL serves. The action declares \`${mediaType}\`.`,
       },
       expiresAt: {
         type: 'string',
