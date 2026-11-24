@@ -97,8 +97,10 @@ describe('generator contract 17 (actions that answer with a URL)', () => {
       "       * Returns a URL serving `text/csv` as an `ActionLocation`. The client doesn't follow it.",
     )
     expect(source).toContain(
-      'May return a URL serving `application/octet-stream` instead, as an `ActionLocation`.',
+      "May return a URL whose media type isn't known in advance instead, as an `ActionLocation`,",
     )
+    expect(source).toContain("whose `type` carries the URL's actual media type.")
+    expect(source).not.toContain('serving `application/octet-stream`')
   })
 
   it('falls back to application/octet-stream when the schema fixes no type', () => {

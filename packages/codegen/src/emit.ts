@@ -448,10 +448,22 @@ function locationDoc(action: ActionDescriptor): string | undefined {
   if (action.location === undefined) {
     return undefined
   }
+  if (isOctetStream(action.location.mediaType)) {
+    const varying = "a URL whose media type isn't known in advance"
+    const typed = "an `ActionLocation`, whose `type` carries the URL's actual media type"
+    return action.output === 'location'
+      ? `Returns ${varying} as ${typed}. The client doesn't follow it.`
+      : `May return ${varying} instead, as ${typed}. The client doesn't follow it.`
+  }
   const serving = `a URL serving \`${action.location.mediaType}\``
   return action.output === 'location'
     ? `Returns ${serving} as an \`ActionLocation\`. The client doesn't follow it.`
     : `May return ${serving} instead, as an \`ActionLocation\`. The client doesn't follow it.`
+}
+
+/** Whether a declared media type is `application/octet-stream`, the type of a URL that varies. */
+function isOctetStream(mediaType: string): boolean {
+  return mediaType.split(';')[0]!.trim().toLowerCase() === 'application/octet-stream'
 }
 
 /** The sentence naming the OAuth scopes an operation needs (generator contract 16). */
