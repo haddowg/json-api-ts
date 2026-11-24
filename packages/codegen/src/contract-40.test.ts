@@ -52,7 +52,7 @@ function typecheck(code: string): string[] {
  */
 describe('generator contract 40 (singleton types)', () => {
   it('reads the witness without a warning', () => {
-    expect(singleton.info?.['x-generator']?.contract).toBe(46)
+    expect(singleton.info?.['x-generator']?.contract).toBe(47)
     expect(checkContract(singleton)).toBeUndefined()
   })
 

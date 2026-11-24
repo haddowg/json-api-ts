@@ -70,7 +70,7 @@ const SECTION_PATHS = [
 
 describe('generator contract 42 (nested fieldsets)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
     expect(checkContract(witness)).toBeUndefined()
   })
 

@@ -85,9 +85,9 @@ const sorted = (codes: Iterable<string>) => [...codes].sort()
  */
 describe('generator contract 36 (error codes offered where the runtime raises them)', () => {
   it('reads the witness and both catalog servers without a warning', () => {
-    // Each comes from a core release at 46.
+    // Only the witness declares an octet-stream location, so the catalog servers stay at 46.
     for (const [doc, contract] of [
-      [witness, 46],
+      [witness, 47],
       [catalog, 46],
       [admin, 46],
     ] as const) {

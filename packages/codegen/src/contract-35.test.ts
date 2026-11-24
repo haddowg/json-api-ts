@@ -21,7 +21,7 @@ const COUNTABLE = 'https://haddowg.github.io/json-api/profiles/countable/'
  */
 describe('generator contract 35 (single-resource counts, gated error codes)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
     expect(checkContract(witness)).toBeUndefined()
   })
 

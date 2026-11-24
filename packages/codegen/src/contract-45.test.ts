@@ -40,7 +40,7 @@ function datedFilters(doc: OpenApiDocument): string[] {
  */
 describe('generator contract 45 (date formats on filter values)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
     expect(baseline.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()

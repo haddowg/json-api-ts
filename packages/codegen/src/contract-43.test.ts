@@ -61,7 +61,7 @@ const CHANGED_BY = {
  */
 describe('generator contract 43 (typed request and resource object meta)', () => {
   it('reads the witness without a warning', () => {
-    expect(typed.info?.['x-generator']?.contract).toBe(46)
+    expect(typed.info?.['x-generator']?.contract).toBe(47)
     expect(checkContract(typed)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
   })

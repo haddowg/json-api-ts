@@ -28,7 +28,7 @@ const writeRelationships = (doc: OpenApiDocument, request: string): SchemaObject
  */
 describe('generator contract 46 (required writes)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
     expect(baseline.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()

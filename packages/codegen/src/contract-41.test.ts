@@ -60,7 +60,7 @@ const COLLECTION_META = {
  */
 describe('generator contract 41 (typed document meta)', () => {
   it('reads a document stamped 41 without a warning', () => {
-    expect(typed.info?.['x-generator']?.contract).toBe(46)
+    expect(typed.info?.['x-generator']?.contract).toBe(47)
     expect(checkContract(typed)).toBeUndefined()
   })
 
