@@ -142,6 +142,18 @@ export interface RelationDescriptor {
    */
   writeOnly?: boolean
   /**
+   * `true` when a create must send this relation, as the create request's
+   * `relationships.required` lists it. A create input then requires it. Absent means optional,
+   * as every relation is on an update.
+   */
+  requiredOnCreate?: boolean
+  /**
+   * The writes that refuse `null` for this to-one, as a required relation that is not nullable
+   * does: `create`, `update` or both. A write input in one of them takes a reference, never
+   * `null`. Absent means every write takes `null`, which clears the relation.
+   */
+  nonNullOn?: readonly ('create' | 'update')[]
+  /**
    * The relation's segment in its related and relationship paths, when it differs from the
    * relation's name (`/articles/{id}/published-by` for `publisher`). Absent means the name.
    */

@@ -326,7 +326,9 @@ export async function runAtomic(
   materialiseCtx: MaterialiseContext,
   descriptor: ApiDescriptor,
   path: string,
-  build: (tx: AtomicRecorder<ApiDescriptor, unknown>) => readonly AtomicHandle[] | void,
+  // A recorder over a loose descriptor isn't assignable from one over the caller's, whose
+  // required relations differ per type, so the implementation takes the callback untyped.
+  build: (tx: never) => readonly AtomicHandle[] | void,
 ): Promise<AtomicResult[] | readonly (AtomicResult | undefined)[]> {
   const operations: AtomicOperation[] = []
   /** The wire type of each op, by index — drives the error-pointer remap. */
@@ -405,7 +407,9 @@ export async function runAtomic(
 
   // The callback always drives the recorder side effect (collecting ops in order); its RETURN
   // VALUE — when it's a tuple of handles — selects the typed positional result per handle.
-  const returned = build(recorder)
+  const returned = (
+    build as (tx: AtomicRecorder<ApiDescriptor, unknown>) => readonly AtomicHandle[] | void
+  )(recorder)
 
   const req: JsonApiRequest = {
     method: 'POST',
