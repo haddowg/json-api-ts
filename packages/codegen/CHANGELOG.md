@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.26.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.25.0...json-api-codegen-v2.26.0) (2026-11-24)
+
+
+### Features
+
+* **codegen:** read generator contract 46 and narrowed write relationships ([4b0f0e4](https://github.com/haddowg/json-api-ts/commit/4b0f0e42c9b73a67b158fc93e5f2c9d593a147fd))
+* **codegen:** record required relations and to-one null refusal ([f4e3bc9](https://github.com/haddowg/json-api-ts/commit/f4e3bc926c8fd3d82964a628460d7479dd81daf1))
+* **codegen:** record the writes that refuse an empty to-many ([7a8df68](https://github.com/haddowg/json-api-ts/commit/7a8df682b29e52ed52f1fc83254170f24d5c28c6))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.30.0
+
 ## [2.25.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.24.0...json-api-codegen-v2.25.0) (2026-11-23)
 
 
