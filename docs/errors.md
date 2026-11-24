@@ -206,6 +206,39 @@ The paths are checked against the input type, so `fe.first('titel')` fails to co
 
 Each entry in `fe.issues`, `fe.fields` and `fe.form` is a Standard Schema issue: a `message` (the `detail`, else the `title`, else the `code`) and a `path` of segments, `['orderedTracks', 0, '$pivot', 'position']`. Form libraries that accept Standard Schema issues take them as they are. Each also carries the `key` string, the `code`, the `opIndex` in an atomic batch, and the original error object. For an atomic batch, `fe.op(1)` keeps only the second operation's errors.
 
+### React forms
+
+React Hook Form keys a field by its path joined with dots, so `issue.path.join('.')` gives `orderedTracks.0.$pivot.position`:
+
+```ts
+const fe = fieldErrors(create.error)
+for (const issue of fe?.issues ?? []) {
+  if (issue.path.length > 0) setError(issue.path.join('.') as FieldPath<AlbumInput>, { type: 'server', message: issue.message })
+}
+```
+
+TanStack Form keys a field the way the runtime does, so `issue.key` is its name. Return the errors from the form's `onSubmitAsync` validator:
+
+```ts
+validators: {
+  onSubmitAsync: async ({ value }) => {
+    try {
+      await client.albums.create(value)
+      return undefined
+    } catch (error) {
+      const fe = fieldErrors<AlbumInput>(error)
+      if (fe === undefined) throw error
+      return {
+        form: fe.form[0]?.message,
+        fields: Object.fromEntries(Object.entries(fe.fields).map(([key, [first]]) => [key, first?.message])),
+      }
+    }
+  },
+}
+```
+
+For Angular, see [forms](angular.md#forms).
+
 ## `StructuralGuardError` — a violated wire shape
 
 Distinct from `JsonApiError` (an application error the server *reported*) is `StructuralGuardError`, thrown by the always-on light structural guards when a 2xx response is not a JSON:API document, or a `data`/`included` member is not a resource object carrying `type` + `id`. It signals that the wire shape the runtime relies on was violated — a broken server or a proxy that mangled the body — not something your input caused. The opt-in per-field [validator](validation.md) throws its own engine's error type, never this one.
