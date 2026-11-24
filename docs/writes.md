@@ -219,6 +219,8 @@ An [atomic batch](atomic-operations.md) checks each create and update the same w
 
 The client checks input but never changes it. A schema that trims or fills in defaults has no effect on what it sends.
 
+The `writes` group of [example.test.ts](../packages/example/src/example.test.ts) runs this end to end: a draft checked with `albumsCreateSchema` as you type, rejected by the client before sending, then a server 422 read through the same `fieldErrors()` call.
+
 ## See it in the example app
 
 - The tested writes group in [example.test.ts](../packages/example/src/example.test.ts) (`describe('writes', …)`) covers create → 201, partial update, `204` delete, and the `byPath()` remap — every snippet on this page is drawn from it.
