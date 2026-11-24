@@ -8,13 +8,16 @@ import { fixture, source } from './test-fixtures'
  * the query families it offers, and `relatedQuery` isn't one of them, so no tool takes it.
  */
 describe('generator contract 37 (relatedQuery wherever resources of one type answer)', () => {
-  it.each(['contract-witness', 'music-catalog'] as const)('reads the %s document', (name) => {
+  it.each([
+    ['contract-witness', 47],
+    ['music-catalog', 46],
+  ] as const)('reads the %s document', (name, contract) => {
     const { document } = source(name)
-    expect(document.info?.['x-generator']?.contract).toBe(46)
+    expect(document.info?.['x-generator']?.contract).toBe(contract)
     const components = Object.keys(document.components?.parameters ?? {})
     expect(components.some((component) => component.endsWith('RelatedQuery'))).toBe(true)
     expect(components).not.toContain('relatedQuery')
-    expect(createJsonApiMcp(fixture(name)).contract).toBe(46)
+    expect(createJsonApiMcp(fixture(name)).contract).toBe(contract)
   })
 
   it('offers relatedQuery on no tool', () => {

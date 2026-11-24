@@ -12,8 +12,8 @@ const { document: witness } = source('contract-witness')
  */
 describe('generator contract 44 (closed range filters)', () => {
   it('reads the witness', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
-    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
+    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(47)
   })
 
   it('takes a range filter as an object of its bounds and nothing else', () => {

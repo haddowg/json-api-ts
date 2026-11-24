@@ -61,7 +61,7 @@ const denyRead = () => ({ 'fetchOne.inboxes': 'denied' as const })
  */
 describe('generator contract 40 (singleton types)', () => {
   it('reads the witness', () => {
-    expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(46)
+    expect(createJsonApiMcp(modelOf(singleton)).contract).toBe(47)
   })
 
   it('gives the singleton tools without an id, and every other tool what it had', () => {
