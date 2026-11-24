@@ -39,9 +39,9 @@ function datedFilters(doc: OpenApiDocument): string[] {
  * already do. The codegen reads no filter value shape, so the client it generates doesn't change.
  */
 describe('generator contract 45 (date formats on filter values)', () => {
-  it('reads a document stamped 45 without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(45)
-    expect(baseline.info?.['x-generator']?.contract).toBe(45)
+  it('reads the witness without a warning', () => {
+    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(baseline.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
   })

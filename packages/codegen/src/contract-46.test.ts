@@ -3,78 +3,81 @@ import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
 import { checkContract, MAXIMUM_CONTRACT } from './contract'
 import { emit } from './emit'
-import type { OpenApiDocument } from './openapi'
+import type { OpenApiDocument, SchemaObject } from './openapi'
 import { documentPath } from '../test/documents'
-import { boundedWriteOnly, requiredWrites } from '../test/required-writes'
 
 const load = (name: 'contract-witness.json' | 'contract-witness-baseline.json') =>
   JSON.parse(readFileSync(documentPath(name), 'utf8')) as OpenApiDocument
-const pinned = load('contract-witness.json')
-const pinnedBaseline = load('contract-witness-baseline.json')
-const witness = requiredWrites(pinned)
-const baseline = requiredWrites(pinnedBaseline)
+const witness = load('contract-witness.json')
+const baseline = load('contract-witness-baseline.json')
 
-/** The generated client, but for the hash of the document it came from. */
-const client = (doc: OpenApiDocument): string =>
-  emit(doc, buildDescriptor(doc)).replace(/Spec hash: +\w+/, 'Spec hash')
+/** A write request's `relationships` object, as the document projects it. */
+const writeRelationships = (doc: OpenApiDocument, request: string): SchemaObject =>
+  (doc.components!.schemas![request]!.properties!['data'] as SchemaObject).properties![
+    'relationships'
+  ] as SchemaObject
 
 /**
  * A create requires its `attributes` when an attribute is required on create and its
  * `relationships` when a relation is, listing each such relation in `relationships.required`. A
  * write narrows a required relation's shared relationship object beside its reference in an
  * `allOf`: `minItems: 1` on a to-many, and no `null` on a to-one. The codegen reads the reference
- * through the `allOf`, and records which relations a create must send and which to-ones a write
- * refuses `null` for, so the client types their write inputs.
+ * through the `allOf`, and records which relations a create must send, which to-ones a write
+ * refuses `null` for and which to-manies it refuses an empty list for, so the client types their
+ * write inputs.
  */
 describe('generator contract 46 (required writes)', () => {
-  it('reads a document stamped 46 without a warning, and warns past it', () => {
+  it('reads the witness without a warning, and warns past it', () => {
     expect(MAXIMUM_CONTRACT).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(baseline.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
     const newer = { ...witness, info: { ...witness.info!, 'x-generator': { contract: 47 } } }
     expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 46')
   })
 
-  it('records the relations a create must send and the to-ones a write refuses null for', () => {
-    for (const [narrowed, plain] of [
-      [witness, pinned],
-      [baseline, pinnedBaseline],
-    ] as const) {
-      const described = buildDescriptor(narrowed)
-      expect(described['people']!.relations['company']).toEqual({
-        ...buildDescriptor(plain)['people']!.relations['company'],
-        requiredOnCreate: true,
-        nonNullOn: ['create', 'update'],
+  it('reads the narrowed writes of people.company and tags.articles', () => {
+    for (const doc of [witness, baseline]) {
+      expect(writeRelationships(doc, 'PeopleCreateRequest').properties!['company']).toEqual({
+        allOf: [
+          { $ref: '#/components/schemas/PeopleCompanyRelationship' },
+          { properties: { data: { type: 'object' } } },
+        ],
       })
-      expect(described['tags']!.relations['articles']).toEqual({
-        ...buildDescriptor(plain)['tags']!.relations['articles'],
-        requiredOnCreate: true,
-        nonEmptyOn: ['create'],
-      })
-      // Nothing else moves.
-      const plainly = buildDescriptor(plain)
-      expect(described).toEqual({
-        ...plainly,
-        people: {
-          ...plainly['people']!,
-          relations: {
-            ...plainly['people']!.relations,
-            company: described['people']!.relations['company'],
-          },
-        },
-        tags: {
-          ...plainly['tags']!,
-          relations: {
-            ...plainly['tags']!.relations,
-            articles: described['tags']!.relations['articles'],
-          },
-        },
+      expect(writeRelationships(doc, 'TagsCreateRequest').properties!['articles']).toEqual({
+        allOf: [
+          { $ref: '#/components/schemas/TagsArticlesRelationship' },
+          { properties: { data: { minItems: 1 } } },
+        ],
       })
     }
   })
 
+  it('records the relations a create must send and the writes refusing null or an empty list', () => {
+    for (const doc of [witness, baseline]) {
+      const described = buildDescriptor(doc)
+      expect(described['people']!.relations['company']).toMatchObject({
+        cardinality: 'one',
+        types: ['companies'],
+        requiredOnCreate: true,
+        nonNullOn: ['create', 'update'],
+      })
+      expect(described['tags']!.relations['articles']).toMatchObject({
+        cardinality: 'many',
+        types: ['articles'],
+        requiredOnCreate: true,
+        nonEmptyOn: ['create'],
+      })
+      // A relation no write requires carries none of the flags.
+      for (const flag of ['requiredOnCreate', 'nonNullOn', 'nonEmptyOn']) {
+        expect(described['articles']!.relations['author']).not.toHaveProperty(flag)
+      }
+    }
+  })
+
   it('writes the flags into the generated descriptor', () => {
-    const source = client(witness)
+    const source = emit(witness, buildDescriptor(witness))
     const company = source.slice(
       source.indexOf('\n      company: {', source.indexOf('\n  people: {')),
     )
@@ -83,11 +86,24 @@ describe('generator contract 46 (required writes)', () => {
     )
   })
 
+  // The witness narrows no write-only relation, so this narrows its write-only `watchers` in both
+  // write bodies, as a write-only to-many with item bounds is, and checks the codegen still finds it.
   it('keeps a write-only relation whose writes both narrow it', () => {
-    const bounded = boundedWriteOnly(witness)
+    const bounded = structuredClone(witness)
+    for (const request of ['ArticlesCreateRequest', 'ArticlesUpdateRequest']) {
+      const properties = writeRelationships(bounded, request).properties as Record<
+        string,
+        SchemaObject
+      >
+      const { writeOnly, ...reference } = properties['watchers']!
+      properties['watchers'] = {
+        allOf: [reference, { properties: { data: { minItems: 1 } } }],
+        ...(writeOnly === undefined ? {} : { writeOnly }),
+      }
+    }
     const relations = buildDescriptor(bounded)['articles']!.relations
     expect(relations['watchers']).toEqual({
-      ...buildDescriptor(pinned)['articles']!.relations['watchers'],
+      ...buildDescriptor(witness)['articles']!.relations['watchers'],
       nonEmptyOn: ['create', 'update'],
     })
     expect(relations['watchers']!.writeOnly).toBe(true)

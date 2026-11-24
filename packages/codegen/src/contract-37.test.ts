@@ -78,11 +78,11 @@ function marked(descriptor: ApiDescriptor): Map<string, string> {
  */
 describe('generator contract 37 (relatedQuery wherever resources of one type answer)', () => {
   it('reads the witness and both catalog servers without a warning', () => {
-    // Each comes from a core release at 45.
+    // Each comes from a core release at 46.
     for (const [doc, contract] of [
-      [witness, 45],
-      [catalog, 45],
-      [admin, 45],
+      [witness, 46],
+      [catalog, 46],
+      [admin, 46],
     ] as const) {
       expect(doc.info?.['x-generator']?.contract).toBe(contract)
       expect(checkContract(doc)).toBeUndefined()

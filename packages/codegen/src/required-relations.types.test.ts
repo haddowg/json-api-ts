@@ -5,37 +5,11 @@ import type {
   UpdateInput,
 } from '@haddowg/json-api-client'
 import { describe, expectTypeOf, it } from 'vitest'
-import type {
-  ResourceMap as PinnedMap,
-  WriteAttributes,
-} from '../test/generated/contract-witness.client.gen'
+import type { ResourceMap, WriteAttributes } from '../test/generated/contract-witness.client.gen'
 
-type Relations<T extends keyof PinnedMap> = PinnedMap[T]['relations']
-
-/**
- * The descriptor the codegen builds from the contract-46 graft of the pinned witness (see
- * `contract-46.test.ts`): `people.company` required on create and refusing `null` on create and
- * update, `tags.articles` required on create and refusing an empty list there. It goes once the pins move to a core release at 46
- * and the generated witness client carries them itself.
- */
-type Map = Omit<PinnedMap, 'people' | 'tags'> & {
-  people: Omit<PinnedMap['people'], 'relations'> & {
-    relations: Omit<Relations<'people'>, 'company'> & {
-      company: Relations<'people'>['company'] & {
-        requiredOnCreate: true
-        nonNullOn: readonly ['create', 'update']
-      }
-    }
-  }
-  tags: Omit<PinnedMap['tags'], 'relations'> & {
-    relations: Omit<Relations<'tags'>, 'articles'> & {
-      articles: Relations<'tags'>['articles'] & {
-        requiredOnCreate: true
-        nonEmptyOn: readonly ['create']
-      }
-    }
-  }
-}
+// The witness requires `people.company` on create and refuses `null` for it on create and update,
+// and requires `tags.articles` on create, refusing an empty list there.
+type Map = ResourceMap
 
 /** Whether input `I` must carry key `K`. */
 type Requires<I, K extends keyof I> = {} extends Pick<I, K> ? false : true
@@ -112,12 +86,13 @@ describe('required relations on write inputs', () => {
     void [tagAdd, missing]
   })
 
-  it('keeps a descriptor without the flags as it was', () => {
-    type Person = CreateInput<PinnedMap, WriteAttributes, 'people'>
-    expectTypeOf<Requires<Person, 'company'>>().toEqualTypeOf<false>()
-    expectTypeOf<TakesNull<Person, 'company'>>().toEqualTypeOf<true>()
+  it('keeps a relation without the flags as it was', () => {
+    // An article's author is neither required nor refused null by any write.
+    type Article = CreateInput<Map, WriteAttributes, 'articles'>
+    expectTypeOf<Requires<Article, 'author'>>().toEqualTypeOf<false>()
+    expectTypeOf<TakesNull<Article, 'author'>>().toEqualTypeOf<true>()
     expectTypeOf<
-      Requires<CreateInput<PinnedMap, WriteAttributes, 'tags'>, 'articles'>
-    >().toEqualTypeOf<false>()
+      TakesNull<UpdateInput<Map, WriteAttributes, 'articles'>, 'author'>
+    >().toEqualTypeOf<true>()
   })
 })
