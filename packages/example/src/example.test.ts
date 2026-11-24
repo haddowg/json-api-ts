@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import {
+  fieldErrors,
   type JsonApiError,
   type JsonApiErrorObject,
   loadAll,
@@ -352,6 +353,32 @@ describe('writes', () => {
     expect(error.isUnprocessable()).toBe(true)
     // The server pointer `/data/attributes/title` is remapped to the flat input key `title`.
     expect(error.byPath()['title']?.[0]?.detail).toBe('must not be blank')
+  })
+
+  it('sorts a 422 into field errors with fieldErrors()', async () => {
+    const { transport } = mockTransport({
+      [`POST ${BASE}/albums`]: JSON.stringify({
+        errors: [
+          {
+            status: '422',
+            title: 'Invalid attribute',
+            detail: 'must not be blank',
+            source: { pointer: '/data/attributes/title' },
+          },
+          { status: '422', detail: 'Rate limit window exceeded', source: { header: 'X-Quota' } },
+        ],
+      }),
+    })
+    const failing: typeof transport = async (req) => ({ ...(await transport(req)), status: 422 })
+    const client = createClient({ baseUrl: BASE, transport: failing })
+
+    type AlbumInput = Parameters<typeof client.albums.create>[0]
+    const caught = await client.albums.create({ title: '' }).catch((e: unknown) => e)
+    const fe = fieldErrors<AlbumInput>(caught)
+
+    expect(fe?.first('title')).toBe('must not be blank')
+    expect(fe?.fields['title']?.[0]?.path).toEqual(['title'])
+    expect(fe?.form.map((issue) => issue.message)).toEqual(['Rate limit window exceeded'])
   })
 })
 

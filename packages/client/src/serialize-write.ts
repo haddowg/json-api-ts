@@ -11,6 +11,7 @@
  */
 import type { ApiDescriptor } from './descriptor'
 import { JsonApiError, type JsonApiErrorObject } from './errors'
+import { joinInputPath } from './input-path'
 
 /** Per-edge writable pivot data, supplied on a to-many member as the `$pivot` key. */
 const PIVOT_KEY = '$pivot'
@@ -26,7 +27,12 @@ const DOCUMENT_META_KEY = '$documentMeta'
 
 /** The flat path of a pointer into the request document's top-level `meta`, else `undefined`. */
 function documentMetaPath(segments: readonly string[]): string | undefined {
-  return segments[0] === 'meta' ? [DOCUMENT_META_KEY, ...segments.slice(1)].join('.') : undefined
+  return segments[0] === 'meta' ? pointerPath([DOCUMENT_META_KEY, ...segments.slice(1)]) : undefined
+}
+
+/** Pointer segments as a flat input path, a numeric segment indexing an array: `tags[0]`. */
+function pointerPath(segments: readonly string[]): string {
+  return joinInputPath(segments.map((s) => (/^\d+$/.test(s) ? Number(s) : s)))
 }
 
 /** The reserved input keys never routed to attributes/relationships. */
@@ -262,11 +268,11 @@ export function remapPointer(descriptor: ApiDescriptor, type: string, pointer: s
     return documentMetaPath(segments) ?? pointer
   }
   if (segments[1] === 'meta') {
-    return [META_KEY, ...segments.slice(2)].join('.')
+    return pointerPath([META_KEY, ...segments.slice(2)])
   }
 
   if (segments[1] === 'attributes') {
-    return remapAttribute(segments.slice(2))
+    return pointerPath(segments.slice(2))
   }
   if (segments[1] === 'id') {
     return 'id'
@@ -276,11 +282,6 @@ export function remapPointer(descriptor: ApiDescriptor, type: string, pointer: s
   }
 
   return pointer
-}
-
-/** `[releaseInfo, label]` -> `releaseInfo.label`; a bare `[title]` -> `title`. */
-function remapAttribute(rest: readonly string[]): string {
-  return rest.join('.')
 }
 
 /**
@@ -301,25 +302,25 @@ function remapRelationship(
   }
   const hasPivot = relations[name]?.pivot === true
 
-  let path = name
+  const path: (string | number)[] = [name]
   for (let i = 1; i < rest.length; i++) {
     const seg = rest[i]!
     if (seg === 'data') {
       continue
     }
     if (/^\d+$/.test(seg)) {
-      path += `[${seg}]`
+      path.push(Number(seg))
     } else if (seg === 'meta' && hasPivot && rest[i + 1] === 'pivot') {
       // Pivot values nest under `meta.pivot` — collapse the
       // `meta/pivot` pair to `$pivot`; the offending field follows.
-      path += '.$pivot'
+      path.push('$pivot')
       i++
     } else {
-      path += `.${seg}`
+      path.push(seg)
     }
   }
 
-  return path
+  return joinInputPath(path)
 }
 
 /**
