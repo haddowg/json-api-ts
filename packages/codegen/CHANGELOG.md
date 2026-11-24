@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.27.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.26.0...json-api-codegen-v2.27.0) (2026-11-24)
+
+
+### Features
+
+* **codegen:** read generator contract 47 and an open location type ([f49e7cf](https://github.com/haddowg/json-api-ts/commit/f49e7cfb17abaee825ff4fea2f21eff20923afa1))
+
+
+### Bug Fixes
+
+* **codegen:** say an octet-stream location type isn't known in advance ([48f105a](https://github.com/haddowg/json-api-ts/commit/48f105a1dff8347ad66d6b241a7f3fc245dfc8d5))
+
 ## [2.26.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.25.0...json-api-codegen-v2.26.0) (2026-11-24)
 
 

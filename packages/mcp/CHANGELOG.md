@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.32.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.31.0...json-api-mcp-v1.32.0) (2026-11-24)
+
+
+### Features
+
+* **mcp:** read generator contract 47 and an open location type ([3af646f](https://github.com/haddowg/json-api-ts/commit/3af646f3ace28770758b159c43e84d48a96e3a45))
+
+
+### Bug Fixes
+
+* **mcp:** say an octet-stream location type isn't known in advance ([259f8b3](https://github.com/haddowg/json-api-ts/commit/259f8b36f7c4dab7f225f32d73bcbbe317f17768))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.27.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.27.0
+
 ## [1.31.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.30.1...json-api-mcp-v1.31.0) (2026-11-24)
 
 
