@@ -469,6 +469,22 @@ constraint changes the type: an array with `minItems` of 1 or more is a non-empt
 tuple, `[T, ...T[]]`, on reads and writes alike, so a create can't send an empty
 list the server would reject.
 
+### Required relations
+
+A relation the create request lists in `relationships.required` is marked
+`requiredOnCreate: true` in the descriptor, and a create input then requires it, on
+`create`, an atomic `tx.create` and a query create mutation alike. A to-one whose write
+narrows its linkage to refuse `null`, as a required relation that isn't nullable has, is
+marked with the writes that refuse it, as `nonNullOn: ['create', 'update']` or either one,
+and the matching input takes a reference but never `null`. An update never requires a
+relation. A descriptor without either flag, such as one generated from an older document,
+types every relation as optional and every to-one as taking `null`.
+
+```ts
+await client.people.create({ name: 'Ada' })                   // type error: `company` is required
+await client.people.id('1').update({ company: null })          // type error: it can't be cleared
+```
+
 ### Write-only relations
 
 A write-only relation is one the create and update bodies accept but no response
@@ -834,7 +850,9 @@ document's structure:
   `types` array, whether it is a `pivot` (`belongsToMany`) relation (with its
   [`readPivot` and `writePivot`](#pivot-fields)), its declared
   [`identifierMeta`](#identifier-meta), whether it is
-  [`writeOnly`](#write-only-relations), its `uriField` when its paths use a
+  [`writeOnly`](#write-only-relations), whether a create must send it
+  (`requiredOnCreate`) and the writes refusing `null` for it (`nonNullOn`, see
+  [required relations](#required-relations)), its `uriField` when its paths use a
   segment other than its name, `polymorphic: true` when its linkage is a union of
   types, even of one (read `isPolymorphic(relation)`, which falls back to counting
   `types` in an older descriptor), and the derived `mutations` capability (`add`/`remove`/`replace` for
