@@ -1,13 +1,14 @@
 import { type CodesOf, errorText, type JsonApiErrorOf } from './error-shared'
 import { JsonApiError, type JsonApiErrorObject } from './errors'
-import { splitInputPath } from './input-path'
+import { joinInputPath, splitInputPath } from './input-path'
+import { InputValidationError, type StandardSchemaIssue } from './input-validation'
 
 /** One segment of a Standard Schema issue path: a key, or an array index. */
 export type PathSegment = string | number
 
 /**
- * One server error shaped as a Standard Schema issue (`message` plus `path` segments), so a form
- * library that takes Standard Schema issues takes it as is.
+ * One error shaped as a Standard Schema issue (`message` plus `path` segments), so a form library
+ * that takes Standard Schema issues takes it as is.
  */
 export interface FieldError<C extends string = string> {
   /** The error's `detail`, else its `title`, else its `code`. */
@@ -19,11 +20,11 @@ export interface FieldError<C extends string = string> {
   readonly code?: C | (string & {})
   /** The failing operation's index in an atomic batch. */
   readonly opIndex?: number
-  /** The error object as the server sent it, with its remapped `path`. */
-  readonly error: JsonApiErrorObject<C>
+  /** The error object as the server sent it, with its remapped `path`. Absent for an {@link InputValidationError}'s issue. */
+  readonly error?: JsonApiErrorObject<C>
 }
 
-/** The server's errors for a form, split into the inputs they point at and the rest. */
+/** A write's errors for a form, split into the inputs they point at and the rest. */
 export interface FieldErrors<I = unknown, C extends string = string> {
   /** Errors on an input, grouped by its path. */
   readonly fields: Readonly<Record<string, readonly FieldError<C>[]>>
@@ -93,13 +94,17 @@ type MemberPaths<V, D extends number> = [V] extends [Scalar]
 
 /**
  * The 4xx `error`'s errors keyed by the write input they point at, or `undefined` when `error`
- * is not a 4xx {@link JsonApiError} or none of its errors points at an input. Pass the input type
- * when `error` carries none: `fieldErrors<Parameters<typeof client.albums.create>[0]>(caught)`.
+ * is not a 4xx {@link JsonApiError} or none of its errors points at an input. An
+ * {@link InputValidationError} gives its issues the same way. Pass the input type when `error`
+ * carries none: `fieldErrors<Parameters<typeof client.albums.create>[0]>(caught)`.
  */
 export function fieldErrors<I = never, E = unknown>(
   error: E,
 ): FieldErrors<[I] extends [never] ? InputOf<E> : I, CodesOf<E>> | undefined
 export function fieldErrors(error: unknown): FieldErrors | undefined {
+  if (error instanceof InputValidationError) {
+    return group(error.issues.map((issue) => fromIssue(issue, error.opIndex)))
+  }
   if (!(error instanceof JsonApiError) || !error.is4xx()) {
     return undefined
   }
@@ -138,4 +143,13 @@ function toFieldError<C extends string>(error: JsonApiErrorObject<C>): FieldErro
     ...(error.opIndex === undefined ? {} : { opIndex: error.opIndex }),
     error,
   }
+}
+
+function fromIssue(issue: StandardSchemaIssue, opIndex: number | undefined): FieldError {
+  const path = (issue.path ?? []).map((segment) => {
+    const key = typeof segment === 'object' ? segment.key : segment
+    return typeof key === 'number' ? key : String(key)
+  })
+  const key = joinInputPath(path)
+  return { message: issue.message, path, key, ...(opIndex === undefined ? {} : { opIndex }) }
 }

@@ -51,6 +51,7 @@ import {
 import { fetchTransport, type JsonApiTransport } from './transport'
 import { JSON_API_MEDIA_TYPE } from './types'
 import { resolveValidator, type ValidationOption } from './validate'
+import { type InputSchemas, withInputCheck } from './input-validation'
 
 /**
  * The `fetch` headers init type. `@types/node` declares the global `RequestInit` (used
@@ -89,6 +90,12 @@ export interface ClientOptions {
    * validation engine (e.g. ajv) is brought by the caller; the client never depends on one.
    */
   validate?: ValidationOption
+  /**
+   * Schemas to check each create's and update's input against before sending it, by wire type.
+   * An input that fails rejects with an {@link InputValidationError} and sends nothing. Pass the
+   * `inputSchemas` that `json-api-codegen --zod` generates, or your own Standard Schemas.
+   */
+  validateInput?: InputSchemas
 }
 
 /** The ambient runtime context every read shares: transport seam + descriptor + materialise glue. */
@@ -96,6 +103,7 @@ interface ClientContext {
   readonly request: JsonApiContext
   readonly materialise: MaterialiseContext
   readonly descriptor: ApiDescriptor
+  readonly inputSchemas?: InputSchemas
 }
 
 /** Substitute `{key}` placeholders in a path template (`/albums/{id}/{rel}` -> `/albums/1/tracks`). */
@@ -899,17 +907,20 @@ function runUpdate(
   patch: Record<string, unknown>,
   opts: WriteOpts | undefined,
 ): Promise<unknown> {
-  return runWrite(ctx, {
-    type,
-    operation: 'update',
-    vars,
-    method: 'PATCH',
-    body: withTopLevelMeta(toDocument(ctx.descriptor, type, patch, { id }), opts?.meta),
-    query: writeQuery(opts),
-    remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
-    accepted: ctx.descriptor[type]?.accepted?.update,
-    wait: waitOptions(opts?.wait),
-  })
+  // The body is built inside `write`, so input the schema rejects never reaches toDocument().
+  return withInputCheck(ctx.inputSchemas, { type, operation: 'update', input: patch }, () =>
+    runWrite(ctx, {
+      type,
+      operation: 'update',
+      vars,
+      method: 'PATCH',
+      body: withTopLevelMeta(toDocument(ctx.descriptor, type, patch, { id }), opts?.meta),
+      query: writeQuery(opts),
+      remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+      accepted: ctx.descriptor[type]?.accepted?.update,
+      wait: waitOptions(opts?.wait),
+    }),
+  )
 }
 
 /**
@@ -1001,17 +1012,19 @@ function typeAccessor(
     get: (id: string, query?: ReadQuery) =>
       run(ctx, type, 'fetchOne', { id }, query) as Promise<never>,
     create: (input: Record<string, unknown>, opts?: WriteOpts) =>
-      runWrite(ctx, {
-        type,
-        operation: 'create',
-        vars: {},
-        method: 'POST',
-        body: withTopLevelMeta(toDocument(ctx.descriptor, type, input), opts?.meta),
-        query: writeQuery(opts),
-        remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
-        accepted: ctx.descriptor[type]?.accepted?.create,
-        wait: waitOptions(opts?.wait),
-      }) as Promise<never>,
+      withInputCheck(ctx.inputSchemas, { type, operation: 'create', input }, () =>
+        runWrite(ctx, {
+          type,
+          operation: 'create',
+          vars: {},
+          method: 'POST',
+          body: withTopLevelMeta(toDocument(ctx.descriptor, type, input), opts?.meta),
+          query: writeQuery(opts),
+          remap: (error) => withRemappedPaths(error, ctx.descriptor, type),
+          accepted: ctx.descriptor[type]?.accepted?.create,
+          wait: waitOptions(opts?.wait),
+        }),
+      ) as Promise<never>,
     id: (id: string) => resourceHandle(ctx, type, id),
     actions: actionsAccessor(ctx, type, 'collection', {}),
   } as unknown as TypeAccessor<ApiDescriptor, unknown, unknown, string>
@@ -1047,6 +1060,7 @@ export function createClient<
   const ctx: ClientContext = {
     request,
     descriptor,
+    ...(options.validateInput !== undefined ? { inputSchemas: options.validateInput } : {}),
     materialise: {
       descriptor,
       navigate: async (url, linkage = false, paginator, signal) => {
@@ -1085,6 +1099,7 @@ export function createClient<
       descriptor,
       atomicDescriptor.path,
       build as (tx: AtomicRecorder<D, W>) => void,
+      ctx.inputSchemas,
     )
   }
 
