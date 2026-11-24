@@ -5,7 +5,8 @@ import type { CreateInput, UpdateInput } from './result-types'
 
 // A descriptor shaped like codegen output from a document listing required relations: a create
 // must name the `owner`, who is never cleared, and at least the `watchers` key; the `reviewer`
-// is required but nullable, and the `editor` refuses `null` only on an update.
+// is required but nullable, and the `editor` refuses `null` only on an update. The `labels` may
+// not be emptied on an update.
 const map = {
   tasks: {
     attributes: { title: 'string' },
@@ -39,6 +40,13 @@ const map = {
         requiredOnCreate: true,
         mutations: { add: true, remove: true, replace: true },
       },
+      labels: {
+        cardinality: 'many',
+        types: ['users'],
+        pivot: false,
+        nonEmptyOn: ['update'],
+        mutations: { add: true, remove: true, replace: true },
+      },
     },
     paths: { create: '/tasks', update: '/tasks/{id}' },
     paginator: 'page',
@@ -67,7 +75,7 @@ describe('required relations', () => {
       title: 'Ship',
       owner: user,
       reviewer: null,
-      watchers: [],
+      watchers: [user],
     }
     // @ts-expect-error the owner, reviewer and watchers are required
     const missing: CreateInput<Map, WriteAttributes, 'tasks'> = { title: 'Ship' }
@@ -87,7 +95,7 @@ describe('required relations', () => {
       // @ts-expect-error the owner can't be null on a create
       owner: null,
       reviewer: null,
-      watchers: [],
+      watchers: [user],
       editor: null,
     }
     // @ts-expect-error nor on an update
@@ -101,6 +109,36 @@ describe('required relations', () => {
       owner: null,
     }
     void [create, update, editor, atomic]
+  })
+
+  it('take a non-empty list where an empty one is refused', () => {
+    const create: CreateInput<Map, WriteAttributes, 'tasks'> = {
+      title: 'Ship',
+      owner: user,
+      reviewer: null,
+      // @ts-expect-error a create must name at least one watcher
+      watchers: [],
+      labels: [],
+    }
+    const add: AtomicCreateInput<Map, WriteAttributes, 'tasks'> = {
+      type: 'tasks',
+      title: 'Ship',
+      owner: user,
+      reviewer: null,
+      // @ts-expect-error an atomic add must name at least one too
+      watchers: [],
+    }
+    const update: UpdateInput<Map, WriteAttributes, 'tasks'> = { watchers: [] }
+    // @ts-expect-error the labels can't be emptied on an update
+    const labels: UpdateInput<Map, WriteAttributes, 'tasks'> = { labels: [] }
+    const atomic: AtomicUpdateInput<Map, WriteAttributes, 'tasks'> = {
+      type: 'tasks',
+      id: '1',
+      // @ts-expect-error nor on an atomic update
+      labels: [],
+    }
+    const some: UpdateInput<Map, WriteAttributes, 'tasks'> = { labels: [user] }
+    void [create, add, update, labels, atomic, some]
   })
 
   it('stay optional on an update', () => {

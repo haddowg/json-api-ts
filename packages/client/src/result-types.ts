@@ -1721,10 +1721,36 @@ type RefusesNull<
   : false
 
 /**
+ * Whether to-many relation `R` of type `T` refuses an empty linkage in write `C`: per its
+ * `nonEmptyOn`, or on a create for a relation a create must send.
+ */
+type RefusesEmpty<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  C extends WriteContext,
+> = D[T]['relations'][R] extends { nonEmptyOn: readonly (infer On)[] }
+  ? C extends On
+    ? true
+    : RequiredOnCreate<D, T, R, C>
+  : RequiredOnCreate<D, T, R, C>
+
+type RequiredOnCreate<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  C extends WriteContext,
+> = C extends 'create'
+  ? D[T]['relations'][R] extends { requiredOnCreate: true }
+    ? true
+    : false
+  : false
+
+/**
  * The relationship VALUE accepted in a create/update input slot, by cardinality:
  * to-one accepts a single ref or `null` (clear), unless the relation refuses `null` in write
- * `C`; to-many accepts an array of refs, each with an optional `$pivot` typed from the
- * relation's `writePivot`.
+ * `C`; to-many accepts an array of refs, non-empty where the relation refuses an empty one in
+ * write `C`, each with an optional `$pivot` typed from the relation's `writePivot`.
  */
 type RelationInput<
   D extends ApiDescriptor,
@@ -1733,7 +1759,9 @@ type RelationInput<
   C extends WriteContext,
 > =
   IsMany<D, T, R> extends true
-    ? readonly WriteRef<D, T, R>[]
+    ? RefusesEmpty<D, T, R, C> extends true
+      ? readonly [WriteRef<D, T, R>, ...WriteRef<D, T, R>[]]
+      : readonly WriteRef<D, T, R>[]
     : RefusesNull<D, T, R, C> extends true
       ? LinkageRefOf<RelatedType<D, T, R>>
       : LinkageRefOf<RelatedType<D, T, R>> | null
