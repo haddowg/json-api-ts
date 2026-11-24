@@ -31,7 +31,7 @@ expect(created.id).toBe('10')
 expect(created.title).toBe('Kid A')
 ```
 
-The input is typed against the generated create-attributes interface for the type (`AlbumsCreateAttributes` in the example) — required fields are required, enums are narrowed (`status` is the `AlbumStatus` union), and an unknown key is a type error. Any key the descriptor knows to be a **relation** is routed to `data.relationships` instead of `data.attributes`; writing relationships alongside attributes has its own page — see [relationship mutation](relationship-mutation.md). A [write-only relation](codegen.md#write-only-relations), one the server accepts but never renders, is settable here like any other, though it never appears on the result.
+The input is typed against the generated create-attributes interface for the type (`AlbumsCreateAttributes` in the example) — required fields are required, enums are narrowed (`status` is the `AlbumStatus` union), and an unknown key is a type error. Any key the descriptor knows to be a **relation** is routed to `data.relationships` instead of `data.attributes`; writing relationships alongside attributes has its own page — see [relationship mutation](relationship-mutation.md). A [write-only relation](codegen.md#write-only-relations), one the server accepts but never renders, is settable here like any other, though it never appears on the result. A relation a create must send is a required key, and a required to-one that isn't nullable takes no `null` on the writes that refuse it; see [required relations](codegen.md#required-relations).
 
 ### The client-id policy
 

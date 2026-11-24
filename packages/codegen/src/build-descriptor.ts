@@ -65,6 +65,31 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
 }
 
+/** What the create and update bodies say about one relationship they accept. */
+interface WriteRelationship {
+  /** The relationship component the bodies reference. */
+  ref: string
+  writeOnly: boolean
+  /** Whether the create body lists it in `relationships.required`. */
+  requiredOnCreate: boolean
+  /** The bodies whose narrowing types its linkage without `null`. */
+  nonNullOn: ('create' | 'update')[]
+}
+
+/**
+ * Whether a write narrows a relationship's linkage to refuse `null`: an `allOf` entry after the
+ * reference typing `data` without `null`.
+ */
+function refusesNull(schema: SchemaObject): boolean {
+  return (schema.allOf ?? []).slice(1).some((part) => {
+    const data = part.properties?.['data']
+    if (!isSchema(data) || data.type === undefined) {
+      return false
+    }
+    return Array.isArray(data.type) ? !data.type.includes('null') : data.type !== 'null'
+  })
+}
+
 /**
  * The component a write schema references: its own `$ref`, or the first entry's when a write
  * narrows the shared shape beside it in an `allOf`, such as a to-many's item bounds or a required
@@ -819,6 +844,13 @@ export class DescriptorBuilder {
         return
       }
       const descriptor: RelationDescriptor = { ...parsed }
+      const write = writes.get(name)
+      if (write?.requiredOnCreate === true) {
+        descriptor.requiredOnCreate = true
+      }
+      if (descriptor.cardinality === 'one' && write !== undefined && write.nonNullOn.length > 0) {
+        descriptor.nonNullOn = write.nonNullOn
+      }
       if (writeOnly) {
         delete descriptor.readPivot
         delete descriptor.identifierMeta
@@ -857,19 +889,31 @@ export class DescriptorBuilder {
    * The relationships the create and update bodies accept: each one's component `$ref` and
    * whether the body marks it `writeOnly`.
    */
-  private writeRelationships(base: string): Map<string, { ref: string; writeOnly: boolean }> {
-    const out = new Map<string, { ref: string; writeOnly: boolean }>()
-    for (const request of [`${base}CreateRequest`, `${base}UpdateRequest`]) {
+  private writeRelationships(base: string): Map<string, WriteRelationship> {
+    const out = new Map<string, WriteRelationship>()
+    for (const [write, request] of [
+      ['create', `${base}CreateRequest`],
+      ['update', `${base}UpdateRequest`],
+    ] as const) {
       const data = this.schemas[request]?.properties?.['data']
       const relationships = isSchema(data) ? data.properties?.['relationships'] : undefined
       const props = isSchema(relationships) ? (relationships.properties ?? {}) : {}
+      const required = isSchema(relationships) ? (relationships.required ?? []) : []
       for (const [name, prop] of Object.entries(props)) {
         const ref = writeRef(prop)
         if (!isSchema(prop) || ref === undefined) {
           continue
         }
-        const writeOnly = prop['writeOnly'] === true || out.get(name)?.writeOnly === true
-        out.set(name, { ref: out.get(name)?.ref ?? ref, writeOnly })
+        const found = out.get(name)
+        out.set(name, {
+          ref: found?.ref ?? ref,
+          writeOnly: prop['writeOnly'] === true || found?.writeOnly === true,
+          requiredOnCreate:
+            found?.requiredOnCreate === true || (write === 'create' && required.includes(name)),
+          nonNullOn: refusesNull(prop)
+            ? [...(found?.nonNullOn ?? []), write]
+            : (found?.nonNullOn ?? []),
+        })
       }
     }
     return out
