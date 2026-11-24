@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument, SchemaObject } from './openapi'
 import { documentPath } from '../test/documents'
@@ -27,14 +27,11 @@ const writeRelationships = (doc: OpenApiDocument, request: string): SchemaObject
  * write inputs.
  */
 describe('generator contract 46 (required writes)', () => {
-  it('reads the witness without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(46)
+  it('reads the witness without a warning', () => {
     expect(witness.info?.['x-generator']?.contract).toBe(46)
     expect(baseline.info?.['x-generator']?.contract).toBe(46)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
-    const newer = { ...witness, info: { ...witness.info!, 'x-generator': { contract: 47 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 46')
   })
 
   it('reads the narrowed writes of people.company and tags.articles', () => {
