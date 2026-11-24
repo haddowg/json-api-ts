@@ -739,6 +739,30 @@ function withRequestMeta(
  * The writable `meta.pivot` a write request's relationship takes on each member: the pivot node of
  * its linkage identifiers' `allOf`, or `undefined` when its members carry none.
  */
+/**
+ * A write's relationship object: the shared one it references, and what the write narrows its
+ * `data` to. A write narrowing the shared shape, with a to-many's item bounds or a required
+ * to-one's refusal of `null`, puts the reference first in an `allOf` and the narrowing after it.
+ */
+function writeRelationship(
+  doc: OpenApiDocument,
+  raw: unknown,
+): { relationship: JsonSchema | undefined; data: JsonSchema[] } {
+  const node = deref<JsonSchema>(doc, raw as JsonSchema)
+  const parts = Array.isArray(node?.['allOf']) ? (node['allOf'] as JsonSchema[]) : undefined
+  if (parts === undefined) {
+    return { relationship: node, data: [] }
+  }
+  const data = parts.slice(1).flatMap((part) => {
+    const props = deref<JsonSchema>(doc, part)?.['properties']
+    const narrowed = isObject(props)
+      ? deref<JsonSchema>(doc, props['data'] as JsonSchema)
+      : undefined
+    return narrowed === undefined ? [] : [narrowed]
+  })
+  return { relationship: deref<JsonSchema>(doc, parts[0]), data }
+}
+
 function writePivotSchema(doc: OpenApiDocument, relationship: unknown): JsonSchema | undefined {
   const rel = deref<JsonSchema>(doc, relationship as JsonSchema)
   const data = deref<JsonSchema>(
@@ -853,16 +877,19 @@ function writeInput(
     if (relation === undefined || name in properties) {
       continue
     }
-    const relSchema = deref<JsonSchema>(doc, raw as JsonSchema)
+    const { relationship: relSchema, data: narrowings } = writeRelationship(doc, raw)
     const linkage = isObject(relSchema?.['properties'])
       ? relSchema['properties']['data']
       : undefined
+    // A narrowing typing the linkage refuses whatever type it leaves out, `null` included.
     const linkageAllowsNull =
-      relation.cardinality === 'one' && JSON.stringify(deref(doc, linkage) ?? {}).includes('"null"')
+      relation.cardinality === 'one' &&
+      JSON.stringify(deref(doc, linkage) ?? {}).includes('"null"') &&
+      narrowings.every((narrowed) => narrowed['type'] === undefined || allowsNull(narrowed))
     const isRequired = mode !== 'update' && relRequired.has(name)
     const pivotNode =
       isPolymorphic(relation) && relation.cardinality === 'many'
-        ? writePivotSchema(doc, raw)
+        ? writePivotSchema(doc, relSchema)
         : undefined
     const pivot = pivotNode === undefined ? undefined : toPortable(doc, pivotNode, [], 2)
     const argument = relationArgument(name, relation, linkageAllowsNull, pivot?.schema)

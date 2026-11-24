@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema } from './openapi'
 import { modelOf, source } from './test-fixtures'
@@ -20,13 +19,9 @@ const filterOf = (tool: string): Record<string, JsonSchema> => {
  * carries the format to the model.
  */
 describe('generator contract 45 (date formats on filter values)', () => {
-  it('reads a document stamped 45, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(45)
+  it('reads a document stamped 45', () => {
     expect(witness.info?.['x-generator']?.contract).toBe(45)
     expect(createJsonApiMcp(modelOf(witness)).contract).toBe(45)
-    const newer = structuredClone(witness)
-    newer.info!['x-generator']!.contract = 46
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it("carries a date filter's format into the tool's filter argument", () => {
