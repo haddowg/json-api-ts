@@ -18,8 +18,8 @@ importers:
         specifier: 2.23.1
         version: 2.23.1
       '@haddowg/json-api-witness':
-        specifier: 2.24.1
-        version: 2.24.1
+        specifier: 2.26.0
+        version: 2.26.0
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.0
@@ -798,8 +798,8 @@ packages:
   '@haddowg/json-api-symfony-specs@2.23.1':
     resolution: {integrity: sha512-pRDQ8w1F7ZWN/t06aYzbNJuC9De3jv7OBBmzWF7iq1wobC0U5NnMNh8yGPs9G7eaYObh56gwX3MxRXxFSupvOw==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-symfony-specs/2.23.1/a81eb6f571a27769bdb183cfea344ff361aefed1}
 
-  '@haddowg/json-api-witness@2.24.1':
-    resolution: {integrity: sha512-aBPMOIzg+znPiwj0Ia90sipR3GgFhKMzEolRg0GAAiW+MMpMoKP4VkjTlEhkn2Db2BlENdz4xrHO83OamYrD5g==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-witness/2.24.1/588c3bc1f4df20084a3608a3f22af16dfd5eff84}
+  '@haddowg/json-api-witness@2.26.0':
+    resolution: {integrity: sha512-qVGFBIpodeAyxYovvYj2lHmC/SJS7EpMpeeFjioho2np1g1W5/X4wQfQIjCB5dz/pUGjES23/trltOpQMgYgCw==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-witness/2.26.0/5a46bd342483dd5b8a2694740e187b84224e2a56}
 
   '@harperfast/extended-iterable@1.0.5':
     resolution: {integrity: sha512-4ScXlphaKEa49RpHmqwATq9QI9aUTdWVYDlJkzxhsD7ShJP+pHCYLznMO9n/wREY8jPjRZ59wLJY6HM5yB5Gkw==}
@@ -4376,7 +4376,7 @@ snapshots:
 
   '@haddowg/json-api-symfony-specs@2.23.1': {}
 
-  '@haddowg/json-api-witness@2.24.1': {}
+  '@haddowg/json-api-witness@2.26.0': {}
 
   '@harperfast/extended-iterable@1.0.5':
     optional: true
