@@ -1705,27 +1705,67 @@ export type LinkageRef<TType extends string> =
 /** A linkage ref distributed over a (possibly polymorphic) union of related types. */
 type LinkageRefOf<TType extends string> = TType extends string ? LinkageRef<TType> : never
 
-/**
- * The relationship VALUE accepted in a create/update input slot, by cardinality:
- * to-one accepts a single ref or `null` (clear); to-many accepts an array of refs, each with an
- * optional `$pivot` typed from the relation's `writePivot`.
- */
-type RelationInput<D extends ApiDescriptor, T extends TypeName<D>, R extends RelationName<D, T>> =
-  IsMany<D, T, R> extends true
-    ? readonly WriteRef<D, T, R>[]
-    : LinkageRefOf<RelatedType<D, T, R>> | null
+/** A create or an update, the writes a relation's `requiredOnCreate` and `nonNullOn` name. */
+type WriteContext = 'create' | 'update'
+
+/** Whether relation `R` of type `T` refuses `null` in write `C`, per its `nonNullOn`. */
+type RefusesNull<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  C extends WriteContext,
+> = D[T]['relations'][R] extends { nonNullOn: readonly (infer On)[] }
+  ? C extends On
+    ? true
+    : false
+  : false
 
 /**
- * The relationship slots of type `T` as optional write input keys (one per declared relation,
- * write-only ones included).
+ * The relationship VALUE accepted in a create/update input slot, by cardinality:
+ * to-one accepts a single ref or `null` (clear), unless the relation refuses `null` in write
+ * `C`; to-many accepts an array of refs, each with an optional `$pivot` typed from the
+ * relation's `writePivot`.
  */
-type RelationInputs<D extends ApiDescriptor, T extends TypeName<D>> = {
+type RelationInput<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+  C extends WriteContext,
+> =
+  IsMany<D, T, R> extends true
+    ? readonly WriteRef<D, T, R>[]
+    : RefusesNull<D, T, R, C> extends true
+      ? LinkageRefOf<RelatedType<D, T, R>>
+      : LinkageRefOf<RelatedType<D, T, R>> | null
+
+/** Whether write `C` must send relation `R`: only a create, and only one `requiredOnCreate`. */
+type RequiresRelation<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R,
+  C extends WriteContext,
+> = C extends 'create'
+  ? D[T]['relations'][R & keyof D[T]['relations']] extends { requiredOnCreate: true }
+    ? R
+    : never
+  : never
+
+/**
+ * The relationship slots of type `T` as write input keys for write `C` (one per declared
+ * relation, write-only ones included): required for a relation the write must send, optional
+ * otherwise.
+ */
+type RelationInputs<D extends ApiDescriptor, T extends TypeName<D>, C extends WriteContext> = {
   // Mapped over the descriptor's own keys so each member keeps the JSDoc the codegen writes there.
-  -readonly [R in keyof D[T]['relations'] as Extract<R, string>]?: RelationInput<
-    D,
-    T,
-    Extract<R, string>
-  >
+  -readonly [R in keyof D[T]['relations'] as Extract<
+    RequiresRelation<D, T, R, C>,
+    string
+  >]-?: RelationInput<D, T, Extract<R, string>, C>
+} & {
+  -readonly [R in keyof D[T]['relations'] as Exclude<
+    Extract<R, string>,
+    RequiresRelation<D, T, R, C>
+  >]?: RelationInput<D, T, Extract<R, string>, C>
 }
 
 /** The `{ create; update }` write-attribute pair for type `T` (or an open pair when `T` is absent from `W`). */
@@ -1760,7 +1800,7 @@ export type CreateInput<
   T extends TypeName<D>,
   Op extends 'create' | 'atomicCreate' = 'create',
 > = CreateAttributesOf<W, T> &
-  RelationInputs<D, T> &
+  RelationInputs<D, T, 'create'> &
   CreateId<D, T> & {
     /** The resource object's `meta`, sent as `data.meta`. */
     $meta?: ResourceWriteMeta<D, T, Op>
@@ -1776,7 +1816,7 @@ export type UpdateInput<
   T extends TypeName<D>,
   Op extends 'update' | 'atomicUpdate' = 'update',
 > = UpdateAttributesOf<W, T> &
-  RelationInputs<D, T> & {
+  RelationInputs<D, T, 'update'> & {
     /** The resource object's `meta`, sent as `data.meta`. */
     $meta?: ResourceWriteMeta<D, T, Op>
   }
