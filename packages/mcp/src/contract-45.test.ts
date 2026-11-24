@@ -19,9 +19,9 @@ const filterOf = (tool: string): Record<string, JsonSchema> => {
  * carries the format to the model.
  */
 describe('generator contract 45 (date formats on filter values)', () => {
-  it('reads a document stamped 45', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(45)
-    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(45)
+  it('reads the witness', () => {
+    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(46)
   })
 
   it("carries a date filter's format into the tool's filter argument", () => {
