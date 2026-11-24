@@ -66,7 +66,7 @@ describe('generator contract 21 (structured list elements)', () => {
   const mcp = createJsonApiMcp(fixture('contract-witness'))
 
   it('reads the witness', () => {
-    expect(mcp.contract).toBe(45)
+    expect(mcp.contract).toBe(46)
   })
 
   it.each(['articles_create', 'articles_update'])(

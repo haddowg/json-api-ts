@@ -35,7 +35,7 @@ async function call(name: string, args: Record<string, unknown>, json: unknown, 
  */
 describe('generator contract 41 (typed document meta)', () => {
   it('reads a document stamped 41', () => {
-    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(45)
+    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(46)
   })
 
   it('types the collection meta it declares, page and total beside them', () => {
@@ -125,7 +125,7 @@ describe('generator contract 41 (typed document meta)', () => {
   it('adds no meta sentence to a document that declares none', () => {
     // Core's second witness leaves out every structure only some documents carry, typed meta too.
     const mcp = createJsonApiMcp(fixture('contract-witness-baseline'))
-    expect(mcp.contract).toBe(45)
+    expect(mcp.contract).toBe(46)
     expect(mcp.tools.some((entry) => entry.description?.includes("The result's `meta`"))).toBe(
       false,
     )
