@@ -154,6 +154,13 @@ export interface RelationDescriptor {
    */
   nonNullOn?: readonly ('create' | 'update')[]
   /**
+   * The writes that refuse an empty linkage for this to-many, as a required relation's do, or
+   * one bounded by `minItems` of 1 or more: `create`, `update` or both. A write input in one of
+   * them takes a non-empty list. A create also takes one for a relation {@link requiredOnCreate}
+   * marks. Absent means every write takes `[]`.
+   */
+  nonEmptyOn?: readonly ('create' | 'update')[]
+  /**
    * The relation's segment in its related and relationship paths, when it differs from the
    * relation's name (`/articles/{id}/published-by` for `publisher`). Absent means the name.
    */
