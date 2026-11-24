@@ -1,0 +1,67 @@
+import { readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import { buildDescriptor } from './build-descriptor'
+import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { emit } from './emit'
+import type { OpenApiDocument, SchemaObject } from './openapi'
+import { documentPath } from '../test/documents'
+
+const witness = JSON.parse(
+  readFileSync(documentPath('contract-witness.json'), 'utf8'),
+) as OpenApiDocument
+
+/** The `links.location.type` narrowing of an action's location document. */
+function locationType(doc: OpenApiDocument, path: string): SchemaObject {
+  const schema = doc.paths![path]!.get!.responses!['200']!.content!['application/vnd.api+json']!
+    .schema as SchemaObject
+  const location = (schema.oneOf ?? [schema]).find((arm) => arm.allOf !== undefined)!
+  const links = location.allOf![1]!.properties!['links'] as SchemaObject
+  return (links.properties!['location'] as SchemaObject).properties!['type'] as SchemaObject
+}
+
+/**
+ * The witness as a server projects it now: an action declaring `application/octet-stream` leaves
+ * its location's `type` open, with the declared type as its example, and the document is stamped
+ * 47. No core release carries 47 yet, so this grafts that change onto the pinned witness.
+ */
+function varying(doc: OpenApiDocument): OpenApiDocument {
+  const copy = structuredClone(doc)
+  const type = locationType(copy, '/articles/{id}/-actions/revision') as Record<string, unknown>
+  delete type['const']
+  type['examples'] = ['application/octet-stream']
+  copy.info!['x-generator'] = { contract: 47 }
+  return copy
+}
+
+/**
+ * An action whose URL's media type varies declares `application/octet-stream`, and its location
+ * document's `type` is any string rather than a `const`. The codegen reads that as the declared
+ * octet-stream type, as it read the `const` before, and the client types the URL's `type` as a
+ * string either way.
+ */
+describe('generator contract 47 (a location type that varies)', () => {
+  const doc = varying(witness)
+
+  it('reads the document without a warning, and warns past it', () => {
+    expect(MAXIMUM_CONTRACT).toBe(47)
+    expect(locationType(doc, '/articles/{id}/-actions/revision')).toEqual({
+      type: 'string',
+      examples: ['application/octet-stream'],
+    })
+    expect(checkContract(doc)).toBeUndefined()
+    const newer = { ...doc, info: { ...doc.info!, 'x-generator': { contract: 48 } } }
+    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 47')
+  })
+
+  it('records the declared media type of an open and a fixed location type', () => {
+    const actions = buildDescriptor(doc)['articles']!.actions!
+    expect(actions['revision']!.location).toEqual({ mediaType: 'application/octet-stream' })
+    expect(actions['download']!.location).toEqual({ mediaType: 'text/csv' })
+  })
+
+  it('generates the same client as from the fixed type, but for the spec hash', () => {
+    const client = (from: OpenApiDocument) =>
+      emit(from, buildDescriptor(from)).replace(/Spec hash: +\w+/, '')
+    expect(client(doc)).toBe(client(witness))
+  })
+})
