@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.30.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.29.0...json-api-client-v1.30.0) (2026-11-24)
+
+
+### Features
+
+* **client:** type a to-many that refuses an empty list as a non-empty tuple ([127884e](https://github.com/haddowg/json-api-ts/commit/127884e0920f919f468dc74ec1eb8056a6e0fa81))
+* **client:** type required relations on create and update inputs ([a3b4147](https://github.com/haddowg/json-api-ts/commit/a3b4147163b8b8d1e9103602f844135e267a801f))
+
 ## [1.29.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.28.0...json-api-client-v1.29.0) (2026-11-23)
 
 
