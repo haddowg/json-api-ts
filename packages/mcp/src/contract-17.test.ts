@@ -108,6 +108,12 @@ describe('generator contract 17', () => {
         { type: 'null' },
       ])
       expect(data(output.anyOf[1]!)['required']).toEqual(['url', 'type'])
+      // An octet-stream action's URL has a type known only from the answer.
+      expect((data(output.anyOf[1]!)['properties'] as Record<string, JsonSchema>)['type']).toEqual({
+        type: 'string',
+        description:
+          "The URL's actual media type. The action declares `application/octet-stream`, so the type isn't known in advance.",
+      })
       expect(Object.keys(output['$defs'] as object)).toContain('articles')
     })
 
