@@ -15,7 +15,7 @@ type Relations<T extends keyof PinnedMap> = PinnedMap[T]['relations']
 /**
  * The descriptor the codegen builds from the contract-46 graft of the pinned witness (see
  * `contract-46.test.ts`): `people.company` required on create and refusing `null` on create and
- * update, `tags.articles` required on create. It goes once the pins move to a core release at 46
+ * update, `tags.articles` required on create and refusing an empty list there. It goes once the pins move to a core release at 46
  * and the generated witness client carries them itself.
  */
 type Map = Omit<PinnedMap, 'people' | 'tags'> & {
@@ -29,7 +29,10 @@ type Map = Omit<PinnedMap, 'people' | 'tags'> & {
   }
   tags: Omit<PinnedMap['tags'], 'relations'> & {
     relations: Omit<Relations<'tags'>, 'articles'> & {
-      articles: Relations<'tags'>['articles'] & { requiredOnCreate: true }
+      articles: Relations<'tags'>['articles'] & {
+        requiredOnCreate: true
+        nonEmptyOn: readonly ['create']
+      }
     }
   }
 }
@@ -64,6 +67,21 @@ describe('required relations on write inputs', () => {
   it('refuses null for a required to-one that is not nullable', () => {
     expectTypeOf<TakesNull<PersonCreate, 'company'>>().toEqualTypeOf<false>()
     expectTypeOf<TakesNull<PersonUpdate, 'company'>>().toEqualTypeOf<false>()
+  })
+
+  it('takes a non-empty list for a required to-many', () => {
+    // @ts-expect-error a tag's create must name at least one article
+    const empty: TagCreate = { id: 'tag-1', label: 'php', articles: [] }
+    const add: AtomicCreateInput<Map, WriteAttributes, 'tags'> = {
+      type: 'tags',
+      id: 'tag-1',
+      label: 'php',
+      // @ts-expect-error an atomic add must name at least one too
+      articles: [],
+    }
+    // An update may empty it: it is required on create only.
+    const update: TagUpdate = { articles: [] }
+    void [empty, add, update]
   })
 
   it('leaves every relation optional on an update', () => {
