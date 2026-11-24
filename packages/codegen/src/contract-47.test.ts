@@ -20,48 +20,33 @@ function locationType(doc: OpenApiDocument, path: string): SchemaObject {
 }
 
 /**
- * The witness as a server projects it now: an action declaring `application/octet-stream` leaves
- * its location's `type` open, with the declared type as its example, and the document is stamped
- * 47. No core release carries 47 yet, so this grafts that change onto the pinned witness.
- */
-function varying(doc: OpenApiDocument): OpenApiDocument {
-  const copy = structuredClone(doc)
-  const type = locationType(copy, '/articles/{id}/-actions/revision') as Record<string, unknown>
-  delete type['const']
-  type['examples'] = ['application/octet-stream']
-  copy.info!['x-generator'] = { contract: 47 }
-  return copy
-}
-
-/**
  * An action whose URL's media type varies declares `application/octet-stream`, and its location
  * document's `type` is any string rather than a `const`. The codegen reads that as the declared
  * octet-stream type, as it read the `const` before, and the client types the URL's `type` as a
  * string either way.
  */
 describe('generator contract 47 (a location type that varies)', () => {
-  const doc = varying(witness)
-
   it('reads the document without a warning, and warns past it', () => {
     expect(MAXIMUM_CONTRACT).toBe(47)
-    expect(locationType(doc, '/articles/{id}/-actions/revision')).toEqual({
+    expect(witness.info!['x-generator']).toEqual({ contract: 47 })
+    expect(locationType(witness, '/articles/{id}/-actions/revision')).toEqual({
       type: 'string',
       examples: ['application/octet-stream'],
     })
-    expect(checkContract(doc)).toBeUndefined()
-    const newer = { ...doc, info: { ...doc.info!, 'x-generator': { contract: 48 } } }
+    expect(checkContract(witness)).toBeUndefined()
+    const newer = { ...witness, info: { ...witness.info!, 'x-generator': { contract: 48 } } }
     expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 47')
   })
 
   it('records the declared media type of an open and a fixed location type', () => {
-    const actions = buildDescriptor(doc)['articles']!.actions!
+    const actions = buildDescriptor(witness)['articles']!.actions!
     expect(actions['revision']!.location).toEqual({ mediaType: 'application/octet-stream' })
     expect(actions['download']!.location).toEqual({ mediaType: 'text/csv' })
   })
 
-  it('generates the same client as from the fixed type, but for the spec hash', () => {
-    const client = (from: OpenApiDocument) =>
-      emit(from, buildDescriptor(from)).replace(/Spec hash: +\w+/, '')
-    expect(client(doc)).toBe(client(witness))
+  it('emits the declared media type as the open location of the action', () => {
+    expect(emit(witness, buildDescriptor(witness))).toMatch(
+      /-actions\/revision",[^}]*location: \{\s*mediaType: "application\/octet-stream"\s*\}/,
+    )
   })
 })

@@ -44,7 +44,7 @@ function clientAnswering(body: unknown) {
 
 describe('generator contract 14 (declared links)', () => {
   it('reads the witness without a warning', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
     expect(checkContract(witness)).toBeUndefined()
   })
 
