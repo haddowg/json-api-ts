@@ -65,6 +65,22 @@ function isSchema(value: SchemaOrBool | undefined): value is SchemaObject {
   return typeof value === 'object' && value !== null
 }
 
+/**
+ * The component a write schema references: its own `$ref`, or the first entry's when a write
+ * narrows the shared shape beside it in an `allOf`, such as a to-many's item bounds or a required
+ * to-one's refusal of `null`.
+ */
+function writeRef(schema: SchemaOrBool | undefined): string | undefined {
+  if (!isSchema(schema)) {
+    return undefined
+  }
+  if (typeof schema.$ref === 'string') {
+    return schema.$ref
+  }
+  const first = schema.allOf?.[0]
+  return isSchema(first) && typeof first.$ref === 'string' ? first.$ref : undefined
+}
+
 /** The operationId prefixes of a relation's related read and its relationship endpoint. */
 const RELATED_OPERATION = 'fetchRelated'
 const RELATIONSHIP_OPERATIONS = [
@@ -848,11 +864,12 @@ export class DescriptorBuilder {
       const relationships = isSchema(data) ? data.properties?.['relationships'] : undefined
       const props = isSchema(relationships) ? (relationships.properties ?? {}) : {}
       for (const [name, prop] of Object.entries(props)) {
-        if (!isSchema(prop) || typeof prop.$ref !== 'string') {
+        const ref = writeRef(prop)
+        if (!isSchema(prop) || ref === undefined) {
           continue
         }
         const writeOnly = prop['writeOnly'] === true || out.get(name)?.writeOnly === true
-        out.set(name, { ref: out.get(name)?.ref ?? prop.$ref, writeOnly })
+        out.set(name, { ref: out.get(name)?.ref ?? ref, writeOnly })
       }
     }
     return out
@@ -2044,7 +2061,7 @@ export class DescriptorBuilder {
   /** The shared request document an operation's JSON:API body refs, through any narrowing of its `meta`. */
   private requestBodyRef(op: OperationObject | undefined): string | undefined {
     return this.sharedDocumentRef(
-      op?.requestBody?.content?.['application/vnd.api+json']?.schema?.$ref,
+      writeRef(op?.requestBody?.content?.['application/vnd.api+json']?.schema),
     )
   }
 

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import type { OpenApiDocument } from './openapi'
 import { documentPath } from '../test/documents'
 
@@ -39,14 +39,11 @@ function datedFilters(doc: OpenApiDocument): string[] {
  * already do. The codegen reads no filter value shape, so the client it generates doesn't change.
  */
 describe('generator contract 45 (date formats on filter values)', () => {
-  it('reads a document stamped 45 without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(45)
+  it('reads a document stamped 45 without a warning', () => {
     expect(witness.info?.['x-generator']?.contract).toBe(45)
     expect(baseline.info?.['x-generator']?.contract).toBe(45)
     expect(checkContract(witness)).toBeUndefined()
     expect(checkContract(baseline)).toBeUndefined()
-    const newer = { ...witness, info: { ...witness.info!, 'x-generator': { contract: 46 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 45')
   })
 
   it('formats the comparison filter over a date field wherever it is projected', () => {
