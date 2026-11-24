@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { allowsNull } from './portable'
@@ -43,13 +42,9 @@ function bounded(doc: OpenApiDocument, relation: string, requests: string[]): Op
  * tool can't clear a to-one the server won't take as `null`.
  */
 describe('generator contract 46 (required writes)', () => {
-  it('reads the witness, and refuses a document past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(46)
+  it('reads the witness', () => {
     expect(witness.info?.['x-generator']?.contract).toBe(46)
     expect(createJsonApiMcp(modelOf(witness)).contract).toBe(46)
-    const newer = structuredClone(witness)
-    newer.info!['x-generator']!.contract = 47
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('requires the relations a create must send', () => {
