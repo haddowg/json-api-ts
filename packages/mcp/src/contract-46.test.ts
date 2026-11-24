@@ -43,8 +43,8 @@ function bounded(doc: OpenApiDocument, relation: string, requests: string[]): Op
  */
 describe('generator contract 46 (required writes)', () => {
   it('reads the witness', () => {
-    expect(witness.info?.['x-generator']?.contract).toBe(46)
-    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(46)
+    expect(witness.info?.['x-generator']?.contract).toBe(47)
+    expect(createJsonApiMcp(modelOf(witness)).contract).toBe(47)
   })
 
   it('requires the relations a create must send', () => {

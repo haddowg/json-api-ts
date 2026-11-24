@@ -35,7 +35,7 @@ async function call(name: string, args: Record<string, unknown>, json: unknown, 
  */
 describe('generator contract 41 (typed document meta)', () => {
   it('reads a document stamped 41', () => {
-    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(46)
+    expect(createJsonApiMcp(modelOf(typed)).contract).toBe(47)
   })
 
   it('types the collection meta it declares, page and total beside them', () => {

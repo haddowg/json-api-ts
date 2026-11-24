@@ -9,9 +9,12 @@ import { fixture, source } from './test-fixtures'
  * documents never reach the tools.
  */
 describe('generator contract 36 (error codes offered where the runtime raises them)', () => {
-  it.each(['contract-witness', 'music-catalog'] as const)('reads the %s document', (name) => {
-    expect(source(name).document.info?.['x-generator']?.contract).toBe(46)
-    expect(createJsonApiMcp(fixture(name)).contract).toBe(46)
+  it.each([
+    ['contract-witness', 47],
+    ['music-catalog', 46],
+  ] as const)('reads the %s document', (name, contract) => {
+    expect(source(name).document.info?.['x-generator']?.contract).toBe(contract)
+    expect(createJsonApiMcp(fixture(name)).contract).toBe(contract)
   })
 
   it('builds the same tools whichever error documents an operation answers with', () => {
