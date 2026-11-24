@@ -119,7 +119,7 @@ queryClient.setQueryData(albumOptions.queryKey, (old) => old)
 
 ### Typed errors and retries
 
-TanStack types a query's `error` from a typed callback in its options, so each factory's options type declares an optional `retry` typed with what a read rejects with: `ReadError<ErrorCode>`, `ErrorCode` being the generated client's error-code union. It is a `JsonApiError<ErrorCode>`, a `StructuralGuardError` (`ReadGuardError`), or any other `Error` (`ReadFailure`), and it keeps all three wherever TypeScript reduces a union, as in an infinite query's `error`. Narrow it with `instanceof JsonApiError` or `instanceof StructuralGuardError`, or on `error.status`, a `number` on a `JsonApiError` only. The options never set `retry`, so the `retry` your QueryClient is configured with still applies.
+TanStack types a query's `error` from a typed callback in its options, so each factory's options type declares an optional `retry` typed with what a read rejects with: a `ReadError` typed by the codes that read's operation raises. A `reads.albums.get(id)` fails with `ReadError<ErrorCodeByOperation['fetchOne.albums']>`, so `hasErrorCode` takes only the codes a fetch of one album can raise. A client generated before `ErrorCodeByOperation` reached the client type falls back to `ReadError<ErrorCode>`, every documented code. It is a `JsonApiError`, a `StructuralGuardError` (`ReadGuardError`), or any other `Error` (`ReadFailure`), and it keeps all three wherever TypeScript reduces a union, as in an infinite query's `error`. Narrow it with `instanceof JsonApiError` or `instanceof StructuralGuardError`, or on `error.status`, a `number` on a `JsonApiError` only. The options never set `retry`, so the `retry` your QueryClient is configured with still applies.
 
 This runs under `pnpm test` in [example.test.ts](../packages/example/src/example.test.ts) (the `TanStack Query bindings` group). It reads an album the server answers with a `404`, through a `QueryObserver` standing in for `useQuery`:
 
@@ -128,11 +128,14 @@ import { hasErrorCode } from '../generated/music-catalog.gen'
 
 // What `useQuery(reads.albums.get('404'))` holds once the read settles.
 const albumQuery = await new QueryObserver(queryClient, reads.albums.get('404')).refetch()
-expectTypeOf(albumQuery.error).toEqualTypeOf<ReadError<ErrorCode> | null>()
+type FetchOneCode = ErrorCodeByOperation['fetchOne.albums']
+expectTypeOf(albumQuery.error).toEqualTypeOf<ReadError<FetchOneCode> | null>()
 if (hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')) {
-  const errors: JsonApiErrorObject<ErrorCode>[] = albumQuery.error.errors
+  const errors: JsonApiErrorObject<FetchOneCode>[] = albumQuery.error.errors
   expect(errors[0]?.code).toBe('RESOURCE_NOT_FOUND')
 }
+// @ts-expect-error a read never fails validation
+hasErrorCode(albumQuery.error, 'VALIDATION_FAILED')
 ```
 
 See [errors.md](errors.md) for `hasErrorCode` and the other helpers.
@@ -251,6 +254,14 @@ rename.mutate({ name: 'Fresh title' })
 
 const create = useMutation(writes.albums.create())
 const remove = useMutation(writes.albums.id(id).delete())
+```
+
+A mutation's `error` is typed by its operation too, and a create's or update's carries the write's input, so [`fieldErrors()`](errors.md#fielderrors-errors-for-a-form) types the paths without a type argument:
+
+```ts
+const fe = fieldErrors(create.error)
+fe?.first('title') // the server's message for the title field
+fe?.first('titel') // compile error: not a field of the create's input
 ```
 
 A write declaring its request `meta` takes it as the factory's `meta` option, required when a member is. Give it as an object, or as a function of the call's variables when each call sends its own, such as an idempotency key:

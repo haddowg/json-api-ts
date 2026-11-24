@@ -18,7 +18,7 @@
  */
 import {
   type ApiDescriptor,
-  type Client,
+  type ErrorCodeCarrier,
   type Collection,
   type CollectionMeta,
   type FieldsMap,
@@ -150,6 +150,14 @@ export type ReadFailure = Error & {
  * `error.status`, which is a `number` on a {@link JsonApiError} only. Any `Error` is assignable to it.
  */
 export type ReadError<C extends string = string> = JsonApiError<C> | ReadGuardError | ReadFailure
+
+/**
+ * The error of operation `Op`, such as `'fetchOne.albums'`: a {@link ReadError} typed by the codes
+ * the per-operation map `O` lists for it, else `E`.
+ */
+export type OperationError<E, O, Op extends string> = Op extends keyof O
+  ? ReadError<Extract<O[Op], string>>
+  : E
 
 /**
  * A typed TanStack `retry` callback. The read options declare it, optional and never set, so TanStack
@@ -376,20 +384,15 @@ interface SingletonReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
 }
 
 /**
- * The key the client carries its error-code union under. The client keeps the symbol private (a
- * type-only member, read back with `ErrorCodeOf`), so it is recovered from the `Client` type.
- */
-type ErrorCodesKey = Extract<keyof Client<{}>, symbol>
-
-/**
  * A client narrowed to its per-type accessors (drops the `atomic` member, which reads don't use),
- * plus the error-code union `C` it carries, which the factories infer to type `error`.
+ * plus the error codes it carries, which the factories infer to type `error`: `C`, every code,
+ * and `O`, the codes each operation raises.
  */
-type TypedClient<D extends ApiDescriptor, A, C extends string = string> = {
+type TypedClient<D extends ApiDescriptor, A, C extends string = string, O = unknown> = {
   [T in TypeName<D>]: D[T] extends { singleton: true }
     ? SingletonReads<D, A, T>
     : TypeReads<D, A, T>
-} & { readonly [K in ErrorCodesKey]?: C }
+} & ErrorCodeCarrier<C, O>
 
 /** A collection type's read accessor. */
 interface TypeReads<D extends ApiDescriptor, A, T extends TypeName<D>> {
@@ -641,11 +644,15 @@ export function listQueryOptions<
   const Pg extends ListPageParams<D, T> | undefined = undefined,
   const Cnt extends readonly CountToken<D, T>[] = [],
   C extends string = string,
+  O = Record<never, never>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ReadError<C>>
+): QueryOptions<
+  ListResult<D, A, T, Inc, F, Pg, Cnt>,
+  OperationError<ReadError<C>, O, `fetchCollection.${T}`>
+>
 export function listQueryOptions<
   D extends ApiDescriptor,
   A,
@@ -655,11 +662,15 @@ export function listQueryOptions<
   const Pg extends ListPageParams<D, T> | undefined = undefined,
   const Cnt extends readonly CountToken<D, T>[] = [],
   C extends string = string,
+  O = Record<never, never>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
-): SkippableQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ReadError<C>>
+): SkippableQueryOptions<
+  ListResult<D, A, T, Inc, F, Pg, Cnt>,
+  OperationError<ReadError<C>, O, `fetchCollection.${T}`>
+>
 export function listQueryOptions<D extends ApiDescriptor, A>(
   client: TypedClient<D, A>,
   type: TypeName<D>,
@@ -685,19 +696,28 @@ export function getQueryOptions<
   const F extends FieldsMap<D> = {},
   const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   C extends string = string,
+  O = Record<never, never>,
   I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   id: I,
   query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-): ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, ReadError<C>, I> {
+): ReadOptions<
+  FetchOneResult<D, A, T, Inc, F, Cnt>,
+  OperationError<ReadError<C>, O, `fetchOne.${T}`>,
+  I
+> {
   return getOptions(
     client,
     type,
     id as string | undefined | SkipToken,
     query as object | undefined,
-  ) as ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, ReadError<C>, I>
+  ) as ReadOptions<
+    FetchOneResult<D, A, T, Inc, F, Cnt>,
+    OperationError<ReadError<C>, O, `fetchOne.${T}`>,
+    I
+  >
 }
 
 /**
@@ -716,14 +736,19 @@ export function relationshipQueryOptions<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
   I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   id: I,
   rel: R,
   query?: TypedRelationReadQuery<D, T, R>,
-): ReadOptions<LinkageResult<D, A, T, R>, ReadError<C>, I> {
+): ReadOptions<
+  LinkageResult<D, A, T, R>,
+  OperationError<ReadError<C>, O, `fetchRelationship.${T}.${R}`>,
+  I
+> {
   return relationOptions(
     client,
     type,
@@ -731,7 +756,11 @@ export function relationshipQueryOptions<
     id as string | undefined | SkipToken,
     rel,
     query,
-  ) as ReadOptions<LinkageResult<D, A, T, R>, ReadError<C>, I>
+  ) as ReadOptions<
+    LinkageResult<D, A, T, R>,
+    OperationError<ReadError<C>, O, `fetchRelationship.${T}.${R}`>,
+    I
+  >
 }
 
 /**
@@ -748,14 +777,19 @@ export function relatedQueryOptions<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
   I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   id: I,
   rel: R,
   query?: TypedRelatedReadQuery<D, T, R>,
-): ReadOptions<RelatedResult<D, A, T, R>, ReadError<C>, I> {
+): ReadOptions<
+  RelatedResult<D, A, T, R>,
+  OperationError<ReadError<C>, O, `fetchRelated.${T}.${R}`>,
+  I
+> {
   return relationOptions(
     client,
     type,
@@ -763,7 +797,11 @@ export function relatedQueryOptions<
     id as string | undefined | SkipToken,
     rel,
     query as RelationReadQuery | undefined,
-  ) as ReadOptions<RelatedResult<D, A, T, R>, ReadError<C>, I>
+  ) as ReadOptions<
+    RelatedResult<D, A, T, R>,
+    OperationError<ReadError<C>, O, `fetchRelated.${T}.${R}`>,
+    I
+  >
 }
 
 /**
@@ -784,11 +822,16 @@ export function infiniteListQueryOptions<
   const Pg extends ListPageParams<D, T> | undefined = undefined,
   const Cnt extends readonly CountToken<D, T>[] = [],
   C extends string = string,
+  O = Record<never, never>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-): InfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, ReadError<C>>
+): InfiniteQueryOptions<
+  ListResult<D, A, T, Inc, F, Pg, Cnt>,
+  ListPageParam<D, T>,
+  OperationError<ReadError<C>, O, `fetchCollection.${T}`>
+>
 export function infiniteListQueryOptions<
   D extends ApiDescriptor,
   A,
@@ -798,14 +841,15 @@ export function infiniteListQueryOptions<
   const Pg extends ListPageParams<D, T> | undefined = undefined,
   const Cnt extends readonly CountToken<D, T>[] = [],
   C extends string = string,
+  O = Record<never, never>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
 ): SkippableInfiniteQueryOptions<
   ListResult<D, A, T, Inc, F, Pg, Cnt>,
   ListPageParam<D, T>,
-  ReadError<C>
+  OperationError<ReadError<C>, O, `fetchCollection.${T}`>
 >
 export function infiniteListQueryOptions<D extends ApiDescriptor, A>(
   client: TypedClient<D, A>,
@@ -832,21 +876,32 @@ export function infiniteRelatedQueryOptions<
   T extends TypeName<D>,
   R extends PaginatedRelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
   I extends ResourceId<D, T> | SkipToken = ResourceId<D, T>,
 >(
-  client: TypedClient<D, A, C>,
+  client: TypedClient<D, A, C, O>,
   type: T,
   id: I,
   rel: R,
   query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
-): InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, ReadError<C>, I> {
+): InfiniteReadOptions<
+  RelatedResult<D, A, T, R>,
+  RelatedPageParam<D, T, R>,
+  OperationError<ReadError<C>, O, `fetchRelated.${T}.${R}`>,
+  I
+> {
   return infiniteRelatedOptions(
     client,
     type,
     id as string | undefined | SkipToken,
     rel,
     query as RelationReadQuery | undefined,
-  ) as InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, ReadError<C>, I>
+  ) as InfiniteReadOptions<
+    RelatedResult<D, A, T, R>,
+    RelatedPageParam<D, T, R>,
+    OperationError<ReadError<C>, O, `fetchRelated.${T}.${R}`>,
+    I
+  >
 }
 
 // ── Bound per-type API (sugar over the standalone factories) ──────────────────────────────
@@ -861,8 +916,9 @@ export type TypeQueryApi<
   A,
   T extends TypeName<D>,
   E = ReadError,
-> = TypeReadQueryApi<D, A, T, E> &
-  ([D[T]['paginator']] extends ['none'] ? {} : InfiniteListQueryApi<D, A, T, E>)
+  O = Record<never, never>,
+> = TypeReadQueryApi<D, A, T, E, O> &
+  ([D[T]['paginator']] extends ['none'] ? {} : InfiniteListQueryApi<D, A, T, E, O>)
 
 /** The read-option factories every collection type has; see {@link TypeQueryApi}. */
 export interface TypeReadQueryApi<
@@ -870,6 +926,7 @@ export interface TypeReadQueryApi<
   A,
   T extends TypeName<D>,
   E = ReadError,
+  O = Record<never, never>,
 > {
   list<
     const Inc extends readonly IncludePath<D, T>[] = [],
@@ -878,7 +935,10 @@ export interface TypeReadQueryApi<
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-  ): QueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, E>
+  ): QueryOptions<
+    ListResult<D, A, T, Inc, F, Pg, Cnt>,
+    OperationError<E, O, `fetchCollection.${T}`>
+  >
   list<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -886,7 +946,10 @@ export interface TypeReadQueryApi<
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
-  ): SkippableQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, E>
+  ): SkippableQueryOptions<
+    ListResult<D, A, T, Inc, F, Pg, Cnt>,
+    OperationError<E, O, `fetchCollection.${T}`>
+  >
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -895,23 +958,28 @@ export interface TypeReadQueryApi<
   >(
     id: I,
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, E, I>
+  ): ReadOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, OperationError<E, O, `fetchOne.${T}`>, I>
   relationship<R extends RelationName<D, T>, I extends string | SkipToken = string>(
     id: I,
     rel: R,
     query?: TypedRelationReadQuery<D, T, R>,
-  ): ReadOptions<LinkageResult<D, A, T, R>, E, I>
+  ): ReadOptions<LinkageResult<D, A, T, R>, OperationError<E, O, `fetchRelationship.${T}.${R}`>, I>
   related<R extends RelationName<D, T>, I extends string | SkipToken = string>(
     id: I,
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R>,
-  ): ReadOptions<RelatedResult<D, A, T, R>, E, I>
+  ): ReadOptions<RelatedResult<D, A, T, R>, OperationError<E, O, `fetchRelated.${T}.${R}`>, I>
   /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
   relatedInfinite<R extends PaginatedRelationName<D, T>, I extends string | SkipToken = string>(
     id: I,
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
-  ): InfiniteReadOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E, I>
+  ): InfiniteReadOptions<
+    RelatedResult<D, A, T, R>,
+    RelatedPageParam<D, T, R>,
+    OperationError<E, O, `fetchRelated.${T}.${R}`>,
+    I
+  >
 }
 
 /** The infinite list read of a type whose collection paginates; see {@link TypeQueryApi}. */
@@ -920,6 +988,7 @@ export interface InfiniteListQueryApi<
   A,
   T extends TypeName<D>,
   E = ReadError,
+  O = Record<never, never>,
 > {
   /** The infinite list read; see {@link infiniteListQueryOptions}. */
   infinite<
@@ -929,7 +998,11 @@ export interface InfiniteListQueryApi<
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query?: TypedReadQuery<D, T, Inc, F, Pg, Cnt>,
-  ): InfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, E>
+  ): InfiniteQueryOptions<
+    ListResult<D, A, T, Inc, F, Pg, Cnt>,
+    ListPageParam<D, T>,
+    OperationError<E, O, `fetchCollection.${T}`>
+  >
   infinite<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
@@ -937,7 +1010,11 @@ export interface InfiniteListQueryApi<
     const Cnt extends readonly CountToken<D, T>[] = [],
   >(
     query: TypedReadQuery<D, T, Inc, F, Pg, Cnt> | SkipToken,
-  ): SkippableInfiniteQueryOptions<ListResult<D, A, T, Inc, F, Pg, Cnt>, ListPageParam<D, T>, E>
+  ): SkippableInfiniteQueryOptions<
+    ListResult<D, A, T, Inc, F, Pg, Cnt>,
+    ListPageParam<D, T>,
+    OperationError<E, O, `fetchCollection.${T}`>
+  >
 }
 
 /**
@@ -949,6 +1026,7 @@ export interface SingletonQueryApi<
   A,
   T extends TypeName<D>,
   E = ReadError,
+  O = Record<never, never>,
 > {
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
@@ -956,49 +1034,72 @@ export interface SingletonQueryApi<
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query?: SingleReadQuery<D, T, Inc, F, Cnt>,
-  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, E>
+  ): QueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, OperationError<E, O, `fetchOne.${T}`>>
   get<
     const Inc extends readonly IncludePath<D, T>[] = [],
     const F extends FieldsMap<D> = {},
     const Cnt extends readonly ResourceCountToken<D, T, 'fetchOne'>[] = [],
   >(
     query: SingleReadQuery<D, T, Inc, F, Cnt> | SkipToken,
-  ): SkippableQueryOptions<FetchOneResult<D, A, T, Inc, F, Cnt>, E>
+  ): SkippableQueryOptions<
+    FetchOneResult<D, A, T, Inc, F, Cnt>,
+    OperationError<E, O, `fetchOne.${T}`>
+  >
   relationship<R extends RelationName<D, T>>(
     rel: R,
     query?: TypedRelationReadQuery<D, T, R>,
-  ): QueryOptions<LinkageResult<D, A, T, R>, E>
+  ): QueryOptions<LinkageResult<D, A, T, R>, OperationError<E, O, `fetchRelationship.${T}.${R}`>>
   relationship<R extends RelationName<D, T>>(
     rel: R,
     query: TypedRelationReadQuery<D, T, R> | SkipToken,
-  ): SkippableQueryOptions<LinkageResult<D, A, T, R>, E>
+  ): SkippableQueryOptions<
+    LinkageResult<D, A, T, R>,
+    OperationError<E, O, `fetchRelationship.${T}.${R}`>
+  >
   related<R extends RelationName<D, T>>(
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R>,
-  ): QueryOptions<RelatedResult<D, A, T, R>, E>
+  ): QueryOptions<RelatedResult<D, A, T, R>, OperationError<E, O, `fetchRelated.${T}.${R}`>>
   related<R extends RelationName<D, T>>(
     rel: R,
     query: TypedRelatedReadQuery<D, T, R> | SkipToken,
-  ): SkippableQueryOptions<RelatedResult<D, A, T, R>, E>
+  ): SkippableQueryOptions<
+    RelatedResult<D, A, T, R>,
+    OperationError<E, O, `fetchRelated.${T}.${R}`>
+  >
   /** The infinite related read of a to-many relation; see {@link infiniteRelatedQueryOptions}. */
   relatedInfinite<R extends PaginatedRelationName<D, T>>(
     rel: R,
     query?: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>>,
-  ): InfiniteQueryOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E>
+  ): InfiniteQueryOptions<
+    RelatedResult<D, A, T, R>,
+    RelatedPageParam<D, T, R>,
+    OperationError<E, O, `fetchRelated.${T}.${R}`>
+  >
   relatedInfinite<R extends PaginatedRelationName<D, T>>(
     rel: R,
     query: TypedRelatedReadQuery<D, T, R, RelationPageParams<D, T, R>> | SkipToken,
-  ): SkippableInfiniteQueryOptions<RelatedResult<D, A, T, R>, RelatedPageParam<D, T, R>, E>
+  ): SkippableInfiniteQueryOptions<
+    RelatedResult<D, A, T, R>,
+    RelatedPageParam<D, T, R>,
+    OperationError<E, O, `fetchRelated.${T}.${R}`>
+  >
 }
 
 /**
  * The bound query API: one {@link TypeQueryApi} per wire type (`api.albums.list(...)`), or a
- * {@link SingletonQueryApi} for a singleton type. `C` is the client's error-code union.
+ * {@link SingletonQueryApi} for a singleton type. `C` is the client's error-code union and `O` the
+ * codes each operation raises.
  */
-export type QueryApi<D extends ApiDescriptor, A, C extends string = string> = {
+export type QueryApi<
+  D extends ApiDescriptor,
+  A,
+  C extends string = string,
+  O = Record<never, never>,
+> = {
   [T in TypeName<D>]: D[T] extends { singleton: true }
-    ? SingletonQueryApi<D, A, T, ReadError<C>>
-    : TypeQueryApi<D, A, T, ReadError<C>>
+    ? SingletonQueryApi<D, A, T, ReadError<C>, O>
+    : TypeQueryApi<D, A, T, ReadError<C>, O>
 }
 
 /**
@@ -1011,17 +1112,22 @@ export type QueryApi<D extends ApiDescriptor, A, C extends string = string> = {
  * led by `{ $scope }`, so the server's queries are normalised only by the descriptor installed for
  * that scope. The standalone factories take {@link withScope} instead.
  */
-export function createQueryApi<D extends ApiDescriptor, A, C extends string = string>(
-  client: TypedClient<D, A, C>,
-  options: ScopeOption = {},
-): QueryApi<D, A, C> {
+export function createQueryApi<
+  D extends ApiDescriptor,
+  A,
+  C extends string = string,
+  O = Record<never, never>,
+>(client: TypedClient<D, A, C, O>, options: ScopeOption = {}): QueryApi<D, A, C, O> {
   return scopeApi(unscopedQueryApi(client), options.scope)
 }
 
 /** The bound read API, unscoped. */
-function unscopedQueryApi<D extends ApiDescriptor, A, C extends string = string>(
-  client: TypedClient<D, A, C>,
-): QueryApi<D, A, C> {
+function unscopedQueryApi<
+  D extends ApiDescriptor,
+  A,
+  C extends string = string,
+  O = Record<never, never>,
+>(client: TypedClient<D, A, C, O>): QueryApi<D, A, C, O> {
   const cache = new Map<string, LooseTypeQueryApi | LooseSingletonQueryApi>()
   return new Proxy(Object.create(null) as object, {
     get(_target, prop) {
@@ -1040,7 +1146,7 @@ function unscopedQueryApi<D extends ApiDescriptor, A, C extends string = string>
       }
       return api
     },
-  }) as QueryApi<D, A, C>
+  }) as QueryApi<D, A, C, O>
 }
 
 type LooseOptions = SkippableQueryOptions<unknown, unknown>

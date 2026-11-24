@@ -54,7 +54,7 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 // `Attributes`/`WriteAttributes`/`ResourceMap` are the generated type maps.
 import {
   createClient,
-  type ErrorCode,
+  type ErrorCodeByOperation,
   hasErrorCode,
   resourceMap,
 } from './generated/music-catalog.gen'
@@ -722,12 +722,16 @@ describe('TanStack Query bindings', () => {
 
     // What `useQuery(reads.albums.get('404'))` holds once the read settles.
     const albumQuery = await new QueryObserver(queryClient, reads.albums.get('404')).refetch()
-    expectTypeOf(albumQuery.error).toEqualTypeOf<ReadError<ErrorCode> | null>()
+    // Typed by the codes `fetchOne.albums` raises.
+    type FetchOneCode = ErrorCodeByOperation['fetchOne.albums']
+    expectTypeOf(albumQuery.error).toEqualTypeOf<ReadError<FetchOneCode> | null>()
     expect(hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')).toBe(true)
     if (hasErrorCode(albumQuery.error, 'RESOURCE_NOT_FOUND')) {
-      const errors: JsonApiErrorObject<ErrorCode>[] = albumQuery.error.errors
+      const errors: JsonApiErrorObject<FetchOneCode>[] = albumQuery.error.errors
       expect(errors[0]?.code).toBe('RESOURCE_NOT_FOUND')
     }
+    // @ts-expect-error a read never fails validation
+    hasErrorCode(albumQuery.error, 'VALIDATION_FAILED')
 
     teardown()
   })
