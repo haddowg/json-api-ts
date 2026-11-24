@@ -49,6 +49,7 @@ describe('generator contract 46 (required writes)', () => {
       expect(described['tags']!.relations['articles']).toEqual({
         ...buildDescriptor(plain)['tags']!.relations['articles'],
         requiredOnCreate: true,
+        nonEmptyOn: ['create'],
       })
       // Nothing else moves.
       const plainly = buildDescriptor(plain)
@@ -85,9 +86,10 @@ describe('generator contract 46 (required writes)', () => {
   it('keeps a write-only relation whose writes both narrow it', () => {
     const bounded = boundedWriteOnly(witness)
     const relations = buildDescriptor(bounded)['articles']!.relations
-    expect(relations['watchers']).toEqual(
-      buildDescriptor(pinned)['articles']!.relations['watchers'],
-    )
+    expect(relations['watchers']).toEqual({
+      ...buildDescriptor(pinned)['articles']!.relations['watchers'],
+      nonEmptyOn: ['create', 'update'],
+    })
     expect(relations['watchers']!.writeOnly).toBe(true)
   })
 })

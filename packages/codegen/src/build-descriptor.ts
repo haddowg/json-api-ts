@@ -74,6 +74,19 @@ interface WriteRelationship {
   requiredOnCreate: boolean
   /** The bodies whose narrowing types its linkage without `null`. */
   nonNullOn: ('create' | 'update')[]
+  /** The bodies whose narrowing gives its linkage `minItems` of 1 or more. */
+  nonEmptyOn: ('create' | 'update')[]
+}
+
+/**
+ * Whether a write narrows a relationship's linkage to refuse an empty list: an `allOf` entry
+ * after the reference giving `data` a `minItems` of 1 or more.
+ */
+function refusesEmpty(schema: SchemaObject): boolean {
+  return (schema.allOf ?? []).slice(1).some((part) => {
+    const data = part.properties?.['data']
+    return isSchema(data) && typeof data.minItems === 'number' && data.minItems >= 1
+  })
 }
 
 /**
@@ -851,6 +864,9 @@ export class DescriptorBuilder {
       if (descriptor.cardinality === 'one' && write !== undefined && write.nonNullOn.length > 0) {
         descriptor.nonNullOn = write.nonNullOn
       }
+      if (descriptor.cardinality === 'many' && write !== undefined && write.nonEmptyOn.length > 0) {
+        descriptor.nonEmptyOn = write.nonEmptyOn
+      }
       if (writeOnly) {
         delete descriptor.readPivot
         delete descriptor.identifierMeta
@@ -913,6 +929,9 @@ export class DescriptorBuilder {
           nonNullOn: refusesNull(prop)
             ? [...(found?.nonNullOn ?? []), write]
             : (found?.nonNullOn ?? []),
+          nonEmptyOn: refusesEmpty(prop)
+            ? [...(found?.nonEmptyOn ?? []), write]
+            : (found?.nonEmptyOn ?? []),
         })
       }
     }

@@ -476,7 +476,10 @@ A relation the create request lists in `relationships.required` is marked
 `create`, an atomic `tx.create` and a query create mutation alike. A to-one whose write
 narrows its linkage to refuse `null`, as a required relation that isn't nullable has, is
 marked with the writes that refuse it, as `nonNullOn: ['create', 'update']` or either one,
-and the matching input takes a reference but never `null`. An update never requires a
+and the matching input takes a reference but never `null`. A to-many whose write gives its
+linkage `minItems` of 1 or more, as a required relation's does, is marked with those writes as
+`nonEmptyOn`, and the matching input is a non-empty tuple, as a list attribute with `minItems`
+is; a create also takes one for a relation a create must send. An update never requires a
 relation. A descriptor without either flag, such as one generated from an older document,
 types every relation as optional and every to-one as taking `null`.
 
@@ -851,7 +854,8 @@ document's structure:
   [`readPivot` and `writePivot`](#pivot-fields)), its declared
   [`identifierMeta`](#identifier-meta), whether it is
   [`writeOnly`](#write-only-relations), whether a create must send it
-  (`requiredOnCreate`) and the writes refusing `null` for it (`nonNullOn`, see
+  (`requiredOnCreate`), the writes refusing `null` for it (`nonNullOn`) or an empty list
+  (`nonEmptyOn`, see
   [required relations](#required-relations)), its `uriField` when its paths use a
   segment other than its name, `polymorphic: true` when its linkage is a union of
   types, even of one (read `isPolymorphic(relation)`, which falls back to counting
