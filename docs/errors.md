@@ -50,9 +50,9 @@ A status says what class of thing went wrong. The `code` says which thing. A `ha
 - `ErrorCodes`, a const object with a key per documented code. Hover a key, or pick one from completion, to read what the code means.
 - `ErrorCode`, the union of every documented code.
 - `ErrorCodeByStatus`, the codes each status's error document lists, e.g. `ErrorCodeByStatus[403]`.
-- `ErrorCodeByOperation`, the codes only some operations raise, by operation id.
+- `ErrorCodeByOperation`, every code each operation can raise, by operation id, e.g. `ErrorCodeByOperation['create.albums']`.
 - `ErrorMetaByCode`, the `meta` each code declares.
-- `hasErrorCode(err, code)`, a type guard that only accepts a code from `ErrorCode`.
+- `hasErrorCode(err, code)`, a type guard that only accepts a code from `ErrorCode`, or from the codes `err`'s type carries when it has them.
 - `findError(err, code)`, the first error object carrying the code, with its `meta` typed.
 
 ```ts
@@ -110,7 +110,18 @@ if (hasErrorCode(error, 'LEGACY_ACCOUNT_LOCKED')) {
 
 Reaching for it is a visible decision at the call site, which is the point. A typo in a documented code is the bug the bound guard catches, and a loose overload would let it straight back in.
 
-The generated `createClient` also carries `ErrorCode` on the client type, so bindings that only see the client can type the errors they surface. The [Angular](angular.md#errors) bindings do this, so a query's `error()`, the `jsonApiError` pipe and a resource's `jsonApiError()` all carry `ErrorCode`. Your own wrapper can read the union back off a client type with `ErrorCodeOf<typeof client>`, which is `string` for a client that carries none. A `catch` clause can't be typed in TypeScript, so outside those bindings the guard is how a caught error gets its codes.
+The generated `createClient` also carries `ErrorCode` on the client type, so bindings that only see the client can type the errors they surface. The [Angular](angular.md#errors) bindings do this, so a query's `error()`, the `jsonApiError` pipe and a resource's `jsonApiError()` all carry `ErrorCode`. Your own wrapper can read the union back off a client type with `ErrorCodeOf<typeof client>`, which is `string` for a client that carries none.
+
+The client type carries `ErrorCodeByOperation` too. `OperationErrorCodeOf<typeof client, 'create.albums'>` is every code that create can raise, or the whole `ErrorCode` union for an operation the map doesn't list. When an error's type carries an operation's codes, the bound guard and finder take only those:
+
+```ts
+declare const error: JsonApiError<OperationErrorCodeOf<typeof client, 'delete.albums'>>
+
+hasErrorCode(error, 'RESOURCE_NOT_FOUND') // fine: a delete can raise it
+hasErrorCode(error, 'VALIDATION_FAILED') // compile error: a delete never raises it
+```
+
+An error typed `unknown`, as in a `catch`, takes every documented code. A `catch` clause can't be typed in TypeScript, so outside those bindings the guard is how a caught error gets its codes.
 
 ## `byPath()` — map a 422 back to your input
 
