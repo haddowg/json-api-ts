@@ -1041,3 +1041,82 @@ describe('typing', () => {
     expect(typeof check).toBe('function')
   })
 })
+
+// ── A pivot rendered on every member ───────────────────────────────────────────────────────
+
+/** The catalogue's descriptor with album tracks marked as rendering `meta.pivot` on every member. */
+const renderedPivot = {
+  ...descriptor,
+  albums: {
+    ...descriptor.albums,
+    relations: {
+      ...descriptor.albums.relations,
+      tracks: {
+        ...descriptor.albums.relations.tracks,
+        pivot: true,
+        readPivot: { fields: { position: 'integer' } },
+        pivotRendered: true,
+      },
+    },
+  },
+} as const satisfies ApiDescriptor
+
+describe('a pending member of a relation rendering its pivot on every member', () => {
+  it('carries an empty pivot when the operation sent none', async () => {
+    const { client, queryClient } = catalogue()
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    const get = getQueryOptions(client, 'albums', '1')
+    await queryClient.fetchQuery(linkage)
+    await queryClient.fetchQuery(get)
+
+    openDraft(queryClient, renderedPivot).attach('albums', '1', 'tracks', [ref('t3')])
+
+    const member = (dataOf(queryClient, linkage) as Rows)[2]!
+    expect({ ...member }).toEqual({ type: 'tracks', id: 't3', meta: { pivot: {} } })
+    expect(member.$pivot).toEqual({})
+    expect(member.$optimistic).toBe('pending')
+    const slot = (dataOf(queryClient, get) as Row & { tracks: Rows }).tracks[2]!
+    expect(slot.$pivot).toEqual({})
+  })
+
+  it('carries the pivot values the operation sent, in an included slot too', async () => {
+    const { client, queryClient } = catalogue()
+    const get = getQueryOptions(client, 'albums', '1', { include: ['tracks'] })
+    await queryClient.fetchQuery(get)
+    await queryClient.fetchQuery(listQueryOptions(client, 'tracks'))
+
+    openDraft(queryClient, renderedPivot).attach('albums', '1', 'tracks', [
+      ref('t3', { $pivot: { position: 3 } }),
+    ])
+
+    const added = (dataOf(queryClient, get) as Row & { tracks: Rows }).tracks[2]!
+    expect(added['title']).toBe('Song 2')
+    expect(added.$pivot).toEqual({ position: 3 })
+  })
+
+  it('carries an empty pivot on a member a replace brings in', async () => {
+    const { client, queryClient } = catalogue()
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    await queryClient.fetchQuery(linkage)
+
+    openDraft(queryClient, renderedPivot).replaceMembers('albums', '1', 'tracks', [
+      ref('t1'),
+      ref('t4'),
+    ])
+
+    const members = dataOf(queryClient, linkage) as Rows
+    expect(ids(members)).toEqual(['t1', 't4'])
+    expect(members[1]!.$pivot).toEqual({})
+    expect(members[1]!.$optimistic).toBe('pending')
+  })
+
+  it('leaves a relation without the mark as it was', async () => {
+    const { client, queryClient } = catalogue()
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    await queryClient.fetchQuery(linkage)
+
+    openDraft(queryClient, descriptor).attach('albums', '1', 'tracks', [ref('t3')])
+
+    expect((dataOf(queryClient, linkage) as Rows)[2]!.$pivot).toBeUndefined()
+  })
+})
