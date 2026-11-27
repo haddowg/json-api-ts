@@ -189,12 +189,14 @@ describe('generator contract 48 (a pivot rendered on every linkage member)', () 
       '  const nights: number | null = rooms[0]!.$pivot.nights',
       "  const article = await api.articles.get('a-1')",
       '  const linked: number = article.tags[0]!.$edge.meta.pivot.position',
+      '  const slot: number = article.tags[0]!.$pivot.position',
+      '  const tagged: boolean | null = article.tags[0]!.$pivot.primary',
       "  const related = await api.articles.id('a-1').tags.related()",
       '  // @ts-expect-error -- a related resource object may come without its pivot.',
       '  void related[0]!.$pivot.position',
       "  await api.articles.id('a-1').tags.add([{ type: 'tags', id: 't-1' }])",
       "  await api.articles.id('a-1').tags.add([{ type: 'tags', id: 't-1', $pivot: { position: 1 } }])",
-      '  void [rank, since, position, addedVia, nights, linked]',
+      '  void [rank, since, position, addedVia, nights, linked, slot, tagged]',
       '}',
     ]
     const source = emit(doc, buildDescriptor(doc))
