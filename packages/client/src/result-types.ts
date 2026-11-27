@@ -407,6 +407,8 @@ type PivotRendered<
  *
  * (Excluded to-many stays a `Collection`: linkage may still be present, and a lazy
  * to-many materialises as an augmented array regardless — only its members differ.)
+ *
+ * Each member's `$pivot` is typed from the relation's `readPivot`, as on the relationship endpoint.
  */
 type RelationValue<
   D extends ApiDescriptor,
@@ -423,7 +425,7 @@ type RelationValue<
           A,
           RelatedType<D, T, R>,
           F,
-          Record<string, unknown>,
+          PivotFieldsOf<D, T, R>,
           EdgeMetaOf<D, T, R>,
           PivotRendered<D, T, R>
         >,
@@ -434,7 +436,7 @@ type RelationValue<
         A,
         RelatedType<D, T, R>,
         F,
-        Record<string, unknown>,
+        PivotFieldsOf<D, T, R>,
         EdgeMetaOf<D, T, R>,
         PivotRendered<D, T, R>
       > | null
@@ -442,7 +444,7 @@ type RelationValue<
     ? RelationCollection<
         Identifier<
           RelatedType<D, T, R>,
-          Record<string, unknown>,
+          PivotFieldsOf<D, T, R>,
           EdgeMetaOf<D, T, R>,
           PivotRendered<D, T, R>
         >,
@@ -451,7 +453,7 @@ type RelationValue<
     :
         | Identifier<
             RelatedType<D, T, R>,
-            Record<string, unknown>,
+            PivotFieldsOf<D, T, R>,
             EdgeMetaOf<D, T, R>,
             PivotRendered<D, T, R>
           >

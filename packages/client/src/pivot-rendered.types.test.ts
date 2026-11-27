@@ -14,7 +14,7 @@ const map = {
         cardinality: 'many',
         types: ['tracks'],
         pivot: true,
-        readPivot: { fields: { position: 'integer' } },
+        readPivot: { fields: { note: 'string', position: 'integer' }, required: ['position'] },
         pivotRendered: true,
         writePivot: { fields: { position: 'integer' }, required: [] },
         mutations: { add: true, remove: true, replace: true },
@@ -82,11 +82,24 @@ describe('a pivot rendered on every linkage member', () => {
   })
 
   it("types the resource's own linkage members as present, included or not", () => {
-    expectTypeOf<Playlist['tracks'][number]['$pivot']>().toEqualTypeOf<Record<string, unknown>>()
+    expectTypeOf<Playlist['tracks'][number]['$pivot']['position']>().toEqualTypeOf<number>()
     type Linked = Playlist['tracks'][number]['$edge']['meta']['pivot']
     expectTypeOf<Linked['position']>().toEqualTypeOf<number>()
     type Hydrated = Included['tagged'][number]['$edge']['meta']['pivot']
     expectTypeOf<Hydrated['weight']>().toEqualTypeOf<number>()
+  })
+
+  it("types the resource's own slot pivot from the relation's pivot fields", () => {
+    type Pivot = Playlist['tracks'][number]['$pivot']
+    expectTypeOf<Pivot['position']>().toEqualTypeOf<number>()
+    expectTypeOf<Pivot['note']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<{ readonly position: 1 }>().toExtend<Pivot>()
+    expectTypeOf<{ readonly note: 'x' }>().not.toExtend<Pivot>()
+    expectTypeOf<Included['tracks'][number]['$pivot']['position']>().toEqualTypeOf<number>()
+    expectTypeOf<Included['tagged'][number]['$pivot']['weight']>().toEqualTypeOf<number>()
+    type Unmarked = NonNullable<Playlist['legacy'][number]['$pivot']>
+    expectTypeOf<Unmarked['position']>().toEqualTypeOf<number>()
+    expectTypeOf<undefined>().toExtend<Playlist['legacy'][number]['$pivot']>()
   })
 
   it('leaves a relation that does not say optional', () => {

@@ -149,6 +149,8 @@ Where the server's response identifiers require `meta.pivot`, the descriptor mar
 `pivotRendered`, and every member of its linkage carries it: the relationship endpoint's members
 and the members of the resource's own relationship, included or not. Their `$pivot`, `$edge` and
 `$edge.meta.pivot` are then typed as always present, so `member.$pivot.position` needs no `?.`.
+A member of the resource's own relationship types `$pivot` from the relation's pivot fields too,
+as the relationship endpoint does, optional where the relation isn't marked.
 A member of `.related()` is a resource object rather than linkage, so its `$pivot` stays optional.
 
 The [spotify-clone](../examples/spotify-clone/src/api/playlist-tracks.ts) app shows the
