@@ -15,8 +15,8 @@ importers:
         specifier: ^0.18.0
         version: 0.18.4
       '@haddowg/json-api-symfony-specs':
-        specifier: 2.24.0
-        version: 2.24.0
+        specifier: 2.25.0
+        version: 2.25.0
       '@haddowg/json-api-witness':
         specifier: 2.27.0
         version: 2.27.0
@@ -795,8 +795,8 @@ packages:
     resolution: {integrity: sha512-GmzA9ckNokPypTg10pgpeHNQe7ph+iIKKmhKu3Ob9ANkswreCx7R3cKmY781K8QK3AqVL3xVh9A42JvIAbkkSA==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  '@haddowg/json-api-symfony-specs@2.24.0':
-    resolution: {integrity: sha512-AS/5TmF/LbeaNMIxg5NPAYQGIoEcZVL9C0EsBtPOHijjI3KwhZRB2RxHTCwV1os5xLyT93X6OLpruVe6TYkc9A==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-symfony-specs/2.24.0/3bd37c6c0c99abcf8fb5827a68578463fa27142e}
+  '@haddowg/json-api-symfony-specs@2.25.0':
+    resolution: {integrity: sha512-BtcMzhMvP4Nlc2pqWNxAVGn2K+9hb0XnGhi1GCbJAv7bOGCr/bTfQca+Qt/Tn5uaWyqLxJrSsX2GC9esrgBM5A==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-symfony-specs/2.25.0/c81fa26894a8d7e7e15732e92587f6112bc8bd04}
 
   '@haddowg/json-api-witness@2.27.0':
     resolution: {integrity: sha512-V+BYB6YSgkDxmOk2TcsuuoH7N67AzK0zCUtBLBon3qDIB5irgiPk6glNodKJfY3dDxyIsLg9/byEnSFUwHWdoQ==, tarball: https://npm.pkg.github.com/download/@haddowg/json-api-witness/2.27.0/702d95027fea60028497a1eeadaf99f7f7dcc26f}
@@ -4374,7 +4374,7 @@ snapshots:
 
   '@gar/promise-retry@1.0.3': {}
 
-  '@haddowg/json-api-symfony-specs@2.24.0': {}
+  '@haddowg/json-api-symfony-specs@2.25.0': {}
 
   '@haddowg/json-api-witness@2.27.0': {}
 
