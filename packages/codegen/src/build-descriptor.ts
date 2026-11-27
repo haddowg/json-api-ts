@@ -869,6 +869,7 @@ export class DescriptorBuilder {
       }
       if (writeOnly) {
         delete descriptor.readPivot
+        delete descriptor.pivotRendered
         delete descriptor.identifierMeta
         descriptor.writeOnly = true
       }
@@ -1543,6 +1544,7 @@ export class DescriptorBuilder {
         if (merged.identifierMeta === undefined && entry.identifierMeta !== undefined) {
           merged.identifierMeta = entry.identifierMeta
         }
+        merged.pivotRendered ||= entry.pivotRendered === true
       }
       return merged.types.length === 0 ? undefined : this.relationOf('one', merged)
     }
@@ -1579,6 +1581,7 @@ export class DescriptorBuilder {
         ...base,
         ...(meta.pivot === undefined ? {} : { pivot: meta.pivot }),
         ...(meta.identifierMeta === undefined ? {} : { identifierMeta: meta.identifierMeta }),
+        ...(pivotRequiredIn(schema.allOf, this.schemas) ? { pivotRendered: true } : {}),
       }
     }
     const union = this.unionTypes(schema)
@@ -1594,6 +1597,9 @@ export class DescriptorBuilder {
     const readPivot = pivot ? this.pivotDescriptor(entry.pivot, 'read') : undefined
     if (readPivot !== undefined) {
       relation.readPivot = readPivot
+    }
+    if (pivot && entry.pivotRendered === true) {
+      relation.pivotRendered = true
     }
     const identifierMeta = this.pivotDescriptor(entry.identifierMeta, 'read', 'identifierMeta')
     if (identifierMeta !== undefined) {
@@ -2143,6 +2149,8 @@ interface LinkageEntry {
   pivot?: SchemaObject
   /** The `$ref` to the `<Type><Rel>IdentifierMeta` component typing the declared meta members. */
   identifierMeta?: SchemaObject
+  /** Whether the identifier requires `meta` and its `pivot`. */
+  pivotRendered?: boolean
 }
 
 /**
@@ -2195,6 +2203,36 @@ function metaNodes(
     }
   }
   return out
+}
+
+/**
+ * Whether the `allOf` narrowing an identifier requires its `meta`, and that `meta` its `pivot`:
+ * listed in the narrowing's own `required`, or in the declared identifier meta it refs.
+ */
+function pivotRequiredIn(
+  allOf: readonly SchemaObject[],
+  schemas: Readonly<Record<string, SchemaObject>>,
+): boolean {
+  const narrowing = allOf.find((entry) => isSchema(entry.properties?.['meta']))
+  const meta = narrowing?.properties?.['meta']
+  return (
+    narrowing?.required?.includes('meta') === true && isSchema(meta) && requiresPivot(meta, schemas)
+  )
+}
+
+/** Whether an identifier's `meta` schema requires `pivot`, through a `$ref` or an `allOf` too. */
+function requiresPivot(
+  meta: SchemaObject,
+  schemas: Readonly<Record<string, SchemaObject>>,
+): boolean {
+  if (meta.required?.includes('pivot') === true) {
+    return true
+  }
+  const target = typeof meta.$ref === 'string' ? schemas[refName(meta.$ref) ?? ''] : undefined
+  if (target !== undefined && requiresPivot(target, schemas)) {
+    return true
+  }
+  return (meta.allOf ?? []).some((part) => requiresPivot(part, schemas))
 }
 
 /** The `meta.pivot` schema node of a pivot `allOf` entry list, if any. */
