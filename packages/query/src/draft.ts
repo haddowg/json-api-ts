@@ -1210,6 +1210,24 @@ class Draft implements OptimisticDraft, DraftLifecycle {
   // ── Members ──
 
   /**
+   * `ref` as it enters relation `rel` of `type`: where the relation renders `meta.pivot` on every
+   * member, it carries the pivot values the operation sent, or an empty pivot when it sent none,
+   * so a pending member has the `$pivot` its slot's type promises.
+   */
+  private rendered<R extends Ref | undefined>(type: string, rel: string, ref: R): R {
+    if (ref === undefined || ref.pivot !== undefined) {
+      return ref
+    }
+    return this.descriptor[type]?.relations[rel]?.pivotRendered === true
+      ? ({ ...ref, pivot: {} } as R)
+      : ref
+  }
+
+  private renderedAll(type: string, rel: string, refs: readonly Ref[]): Ref[] {
+    return refs.map((ref) => this.rendered(type, rel, ref))
+  }
+
+  /**
    * The value `ref` enters a destination of `shape` as: an identifier view, or a per-edge view of
    * the copy that fits (the caller's, else the richest cached), keeping only the members the shape
    * selects; `undefined` when no copy fits.
@@ -1621,7 +1639,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
   ): void {
     this.op(() => {
       this.own(type, id, rel)
-      const next = ref === null ? null : toRef(ref)
+      const next = ref === null ? null : this.rendered(type, rel, toRef(ref))
       if (next === undefined) {
         return
       }
@@ -1668,7 +1686,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
     this.op(() => {
       this.own(type, id, rel)
       const options = typeof at === 'string' ? { at } : at
-      const added = toRefs(refs)
+      const added = this.renderedAll(type, rel, toRefs(refs))
       const { many } = this.gather(type, id, rel)
       const members = added.filter((ref) => !many.some((view) => this.holds(view, ref)))
       for (const view of many) {
@@ -1734,7 +1752,7 @@ class Draft implements OptimisticDraft, DraftLifecycle {
   ): void {
     this.op(() => {
       this.own(type, id, rel)
-      const next = toRefs(refs)
+      const next = this.renderedAll(type, rel, toRefs(refs))
       const { many } = this.gather(type, id, rel)
       const counted = this.countOf(type, id, rel)
       for (const view of many) {
