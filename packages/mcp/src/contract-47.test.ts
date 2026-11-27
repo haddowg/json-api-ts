@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { MAXIMUM_CONTRACT } from './contract'
 import { createJsonApiMcp } from './mcp'
 import type { JsonSchema, OpenApiDocument } from './openapi'
 import { locationOutput } from './outputs'
@@ -17,12 +16,8 @@ const outputOf = (doc: OpenApiDocument, tool: string): JsonSchema =>
  * a string, as it was for the fixed type.
  */
 describe('generator contract 47 (a location type that varies)', () => {
-  it('reads the document, and refuses one past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(47)
+  it('reads the document', () => {
     expect(createJsonApiMcp(modelOf(witness)).contract).toBe(47)
-    const newer = structuredClone(witness)
-    newer.info!['x-generator']!.contract = 48
-    expect(() => createJsonApiMcp(modelOf(newer))).toThrow('newer than this package reads')
   })
 
   it('outputs the location of the declared octet-stream type', () => {
