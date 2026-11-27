@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { buildDescriptor } from './build-descriptor'
-import { checkContract, MAXIMUM_CONTRACT } from './contract'
+import { checkContract } from './contract'
 import { emit } from './emit'
 import type { OpenApiDocument, SchemaObject } from './openapi'
 import { documentPath } from '../test/documents'
@@ -26,16 +26,13 @@ function locationType(doc: OpenApiDocument, path: string): SchemaObject {
  * string either way.
  */
 describe('generator contract 47 (a location type that varies)', () => {
-  it('reads the document without a warning, and warns past it', () => {
-    expect(MAXIMUM_CONTRACT).toBe(47)
+  it('reads the document without a warning', () => {
     expect(witness.info!['x-generator']).toEqual({ contract: 47 })
     expect(locationType(witness, '/articles/{id}/-actions/revision')).toEqual({
       type: 'string',
       examples: ['application/octet-stream'],
     })
     expect(checkContract(witness)).toBeUndefined()
-    const newer = { ...witness, info: { ...witness.info!, 'x-generator': { contract: 48 } } }
-    expect(checkContract(newer as OpenApiDocument)).toContain('reads up to 47')
   })
 
   it('records the declared media type of an open and a fixed location type', () => {

@@ -61,7 +61,7 @@ document with no JSON:API resource types at all, which generates an empty client
 
 The document's `info.x-generator.contract` is a compatibility number the projector
 stamps, which moves only when the document's structure does. This codegen reads
-contracts 24 to 47. An older document is refused, because it describes its error codes in a form
+contracts 24 to 48. An older document is refused, because it describes its error codes in a form
 this codegen no longer reads: generate it with an older codegen release. A document with no
 contract is read as it is, and a newer one generates with a warning that the client may
 miss what the server added. What each server release added is in
@@ -522,6 +522,7 @@ orderedTracks: {
     fields: { addedAt: "date-time", position: "integer", weight: "integer" },
     nullable: ["weight"],
   },
+  pivotRendered: true,
   writePivot: {
     fields: { position: "integer", weight: "integer" },
     required: ["position"],
@@ -540,6 +541,13 @@ $pivot?: { readonly addedAt: string; readonly position: number; readonly weight:
 // write: .add(), .replace(), create and update
 $pivot?: { readonly position: number; readonly weight?: number }
 ```
+
+`pivotRendered` is `true` when the response linkage identifiers require `meta` and its
+`pivot`, inline or through the declared identifier meta the `meta` refs. Every member of the
+relationship endpoint's linkage and of the resource's own relationship then has its
+`$pivot`, `$edge` and `$edge.meta.pivot`, typed without `?`. The request identifiers leave
+both optional, so a write's `$pivot` stays optional, and a member of `.related()` is a
+resource object, not linkage, so its `$pivot` stays optional too.
 
 An older document has one shared pivot schema. The codegen treats every field as
 rendered on reads, and drops the fields marked `readOnly` from writes.
