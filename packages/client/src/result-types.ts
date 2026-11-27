@@ -86,14 +86,19 @@ export type RelationCollection<T, P = Page> = Collection<T, P> & RelationArrayEn
  * `$edge` (this membership's edge meta/links) and `$pivot` (typed sugar over
  * `$edge.meta.pivot`). `$pivot` is graceful: present iff the endpoint rendered
  * `meta.pivot` (relationship/related endpoints), `undefined` otherwise. `Meta` types
- * `$edge.meta` where the linkage renders the relation's declared identifier meta.
+ * `$edge.meta` where the linkage renders the relation's declared identifier meta. `Rendered` is
+ * `true` for a member of a linkage that renders `meta.pivot` on every member, whose `$edge`,
+ * `$edge.meta` and `$pivot` are then always present.
  */
 export interface EdgeMembers<
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
+  Rendered extends boolean = false,
 > {
-  readonly $edge: Edge<Meta> | undefined
-  readonly $pivot: Pivot | undefined
+  readonly $edge: Rendered extends true
+    ? Edge<Meta> & { readonly meta: Meta }
+    : Edge<Meta> | undefined
+  readonly $pivot: Rendered extends true ? Pivot : Pivot | undefined
   /**
    * `'pending'` while a cache layer (an optimistic draft in `@haddowg/json-api-query`) holds an
    * unconfirmed change to this member, else `undefined`.
@@ -334,13 +339,14 @@ type RelationPage<
 /**
  * The bare resource-identifier shape a non-included (but linked) relation takes,
  * carrying the per-edge `$edge`/`$pivot` accessors the runtime attaches to every
- * materialised related value.
+ * materialised related value. `Rendered` marks them always present, as {@link EdgeMembers} says.
  */
 export type IdentifierMember<
   TType extends string,
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
-> = ResourceIdentifier<TType> & EdgeMembers<Pivot, Meta>
+  Rendered extends boolean = false,
+> = ResourceIdentifier<TType> & EdgeMembers<Pivot, Meta, Rendered>
 
 /**
  * A hydrated related resource: a per-edge VIEW — the full `ResourceObjectView` of the
@@ -348,7 +354,7 @@ export type IdentifierMember<
  * identifiers (no nested-include narrowing in the read API today). The fieldset map `F`
  * threads through so a sparse fieldset on the included type narrows its attributes/relations.
  * `Pivot` types the per-edge `$pivot` (a `belongsToMany` relation's `meta.pivot`), and `Meta` the
- * per-edge `$edge.meta`.
+ * per-edge `$edge.meta`. `Rendered` marks them always present, as {@link EdgeMembers} says.
  */
 export type HydratedMember<
   D extends ApiDescriptor,
@@ -357,7 +363,8 @@ export type HydratedMember<
   F = unknown,
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
-> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot, Meta>
+  Rendered extends boolean = false,
+> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot, Meta, Rendered>
 
 /** A hydrated related value distributes over a polymorphic union of related types. */
 type Hydrated<
@@ -367,14 +374,26 @@ type Hydrated<
   F = unknown,
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
-> = TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot, Meta> : never
+  Rendered extends boolean = false,
+> = TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot, Meta, Rendered> : never
 
 /** An identifier related value distributes over a polymorphic union of related types. */
 type Identifier<
   TType extends string,
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
-> = TType extends string ? IdentifierMember<TType, Pivot, Meta> : never
+  Rendered extends boolean = false,
+> = TType extends string ? IdentifierMember<TType, Pivot, Meta, Rendered> : never
+
+/**
+ * `true` when relation `R` renders `meta.pivot` on every member of its linkage, as the
+ * descriptor's `pivotRendered` says.
+ */
+type PivotRendered<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { pivotRendered: true } ? true : false
 
 /**
  * The static value of one relation slot, resolved by cardinality and whether the
@@ -399,17 +418,43 @@ type RelationValue<
 > = R extends Inc
   ? IsMany<D, T, R> extends true
     ? RelationCollection<
-        Hydrated<D, A, RelatedType<D, T, R>, F, Record<string, unknown>, EdgeMetaOf<D, T, R>>,
+        Hydrated<
+          D,
+          A,
+          RelatedType<D, T, R>,
+          F,
+          Record<string, unknown>,
+          EdgeMetaOf<D, T, R>,
+          PivotRendered<D, T, R>
+        >,
         RelationPage<D, T, R>
       >
-    : Hydrated<D, A, RelatedType<D, T, R>, F, Record<string, unknown>, EdgeMetaOf<D, T, R>> | null
+    : Hydrated<
+        D,
+        A,
+        RelatedType<D, T, R>,
+        F,
+        Record<string, unknown>,
+        EdgeMetaOf<D, T, R>,
+        PivotRendered<D, T, R>
+      > | null
   : IsMany<D, T, R> extends true
     ? RelationCollection<
-        Identifier<RelatedType<D, T, R>, Record<string, unknown>, EdgeMetaOf<D, T, R>>,
+        Identifier<
+          RelatedType<D, T, R>,
+          Record<string, unknown>,
+          EdgeMetaOf<D, T, R>,
+          PivotRendered<D, T, R>
+        >,
         RelationPage<D, T, R>
       >
     :
-        | Identifier<RelatedType<D, T, R>, Record<string, unknown>, EdgeMetaOf<D, T, R>>
+        | Identifier<
+            RelatedType<D, T, R>,
+            Record<string, unknown>,
+            EdgeMetaOf<D, T, R>,
+            PivotRendered<D, T, R>
+          >
         | null
         | undefined
 
@@ -1143,7 +1188,7 @@ export type PivotFieldsOf<
  * `identifierMeta` declares, typed like a pivot, with the relation's `pivot` beside them. An
  * identifier meta that says whether it is open takes only those, and the undeclared members it
  * opens to; one that doesn't say is an open record. A relation declaring none keeps the open
- * record.
+ * record, with its typed `pivot` where it renders one on every member.
  */
 type EdgeMetaOf<
   D extends ApiDescriptor,
@@ -1153,16 +1198,23 @@ type EdgeMetaOf<
   ? P extends { additional: false | { format: unknown } }
     ? PivotObject<P> & EdgePivot<D, T, R> & AdditionalMembers<P, PivotFieldsOf<D, T, R>>
     : PivotObject<P> & Record<string, unknown>
-  : Record<string, unknown>
+  : D[T]['relations'][R] extends { pivotRendered: true }
+    ? Record<string, unknown> & EdgePivot<D, T, R>
+    : Record<string, unknown>
 
-/** The `pivot` a pivot relation's identifier meta carries beside its declared members. */
+/**
+ * The `pivot` a pivot relation's identifier meta carries beside its declared members, always
+ * present where the relation renders it on every member.
+ */
 type EdgePivot<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
-> = D[T]['relations'][R] extends { pivot: true }
-  ? { readonly pivot?: PivotFieldsOf<D, T, R> }
-  : unknown
+> = D[T]['relations'][R] extends { pivotRendered: true }
+  ? { readonly pivot: PivotFieldsOf<D, T, R> }
+  : D[T]['relations'][R] extends { pivot: true }
+    ? { readonly pivot?: PivotFieldsOf<D, T, R> }
+    : unknown
 
 /**
  * The typed `meta.pivot` a request may send on each member of relation `R`, from the descriptor's
@@ -1449,10 +1501,20 @@ type LinkageValue<
 > =
   IsMany<D, T, R> extends true
     ? Collection<
-        Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>, EdgeMetaOf<D, T, R>>,
+        Identifier<
+          RelatedType<D, T, R>,
+          PivotFieldsOf<D, T, R>,
+          EdgeMetaOf<D, T, R>,
+          PivotRendered<D, T, R>
+        >,
         RelationPage<D, T, R, Q>
       >
-    : Identifier<RelatedType<D, T, R>, PivotFieldsOf<D, T, R>, EdgeMetaOf<D, T, R>> | null
+    : Identifier<
+        RelatedType<D, T, R>,
+        PivotFieldsOf<D, T, R>,
+        EdgeMetaOf<D, T, R>,
+        PivotRendered<D, T, R>
+      > | null
 
 /**
  * The query relation `R`'s relationship read takes, its `sort` and `filter` narrowed to what the

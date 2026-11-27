@@ -145,6 +145,12 @@ is `{ addedAt: string; position: number; weight: number | null }`, so `member.$p
 is a `number`, not `unknown`. It is **graceful**: present only when the endpoint actually rendered
 `meta.pivot` (the relationship / related endpoints do), `undefined` otherwise.
 
+Where the server's response identifiers require `meta.pivot`, the descriptor marks the relation
+`pivotRendered`, and every member of its linkage carries it: the relationship endpoint's members
+and the members of the resource's own relationship, included or not. Their `$pivot`, `$edge` and
+`$edge.meta.pivot` are then typed as always present, so `member.$pivot.position` needs no `?.`.
+A member of `.related()` is a resource object rather than linkage, so its `$pivot` stays optional.
+
 The [spotify-clone](../examples/spotify-clone/src/api/playlist-tracks.ts) app shows the
 write side: it sends the writable pivot fields back on a to-many membership ref
 (`{ ...track, $pivot: { position, weight } }`) to reorder a playlist. That `$pivot` is

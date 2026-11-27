@@ -126,6 +126,13 @@ export interface RelationDescriptor {
   /** The `meta.pivot` a response renders on each member (`<Type><Rel>Pivot`). */
   readPivot?: PivotDescriptor
   /**
+   * `true` when a response renders `meta.pivot` on every member of the relation's linkage, as its
+   * response identifiers require `meta` and its `pivot`. A linkage member's `$pivot` and `$edge`
+   * are then always present. Absent means a member may come without them. A request never has to
+   * send a pivot.
+   */
+  pivotRendered?: boolean
+  /**
    * The `meta.pivot` a request may send on each member (`<Type><Rel>WritePivot`): a create,
    * update or atomic body, or a relationship mutation.
    */
