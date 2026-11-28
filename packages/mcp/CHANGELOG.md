@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.33.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.32.0...json-api-mcp-v1.33.0) (2026-11-28)
+
+
+### Features
+
+* **mcp:** read generator contract 48 ([feac383](https://github.com/haddowg/json-api-ts/commit/feac3830d9b0f49f46926ffa44525c22b9b19f8d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.31.0
+  * devDependencies
+    * @haddowg/json-api-codegen bumped to 2.28.0
+  * peerDependencies
+    * @haddowg/json-api-codegen bumped to 2.28.0
+
 ## [1.32.0](https://github.com/haddowg/json-api-ts/compare/json-api-mcp-v1.31.0...json-api-mcp-v1.32.0) (2026-11-24)
 
 

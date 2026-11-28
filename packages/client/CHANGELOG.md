@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.31.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.30.0...json-api-client-v1.31.0) (2026-11-28)
+
+
+### Features
+
+* **client:** add fieldErrors() for showing write errors on a form ([#222](https://github.com/haddowg/json-api-ts/issues/222)) ([0f1f5e5](https://github.com/haddowg/json-api-ts/commit/0f1f5e5c1af1a3420cf0809821f6a0911bdab8e4))
+* **client:** check write input against a schema before sending it ([#227](https://github.com/haddowg/json-api-ts/issues/227)) ([2fa1634](https://github.com/haddowg/json-api-ts/commit/2fa163477d78ef1e28a5b37119af106cf1b57a47))
+* **client:** type a linkage pivot as present where the server renders it ([43b5653](https://github.com/haddowg/json-api-ts/commit/43b5653ff44c10e45e3886379ae5e05fd62be447))
+* **client:** type a pending member's pivot apart from a confirmed one's ([d90112c](https://github.com/haddowg/json-api-ts/commit/d90112c420fe53499dfb2377c6f598977e40aec8))
+* **client:** type a relation slot's $pivot from the relation's pivot fields ([97d1e2c](https://github.com/haddowg/json-api-ts/commit/97d1e2c34af804d947fb4f6e99d5920fa294e8d5))
+* type each error code by the operation that raised it ([#223](https://github.com/haddowg/json-api-ts/issues/223)) ([833ce03](https://github.com/haddowg/json-api-ts/commit/833ce03b08966abdd32026db64faab9cd475e2f0))
+
 ## [1.30.0](https://github.com/haddowg/json-api-ts/compare/json-api-client-v1.29.0...json-api-client-v1.30.0) (2026-11-24)
 
 

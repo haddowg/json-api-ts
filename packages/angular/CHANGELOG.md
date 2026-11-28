@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.0](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.3.1...json-api-angular-v1.4.0) (2026-11-28)
+
+
+### Features
+
+* **angular:** add form helpers for showing a write's errors ([#225](https://github.com/haddowg/json-api-ts/issues/225)) ([cde5c27](https://github.com/haddowg/json-api-ts/commit/cde5c270d44d96b4936aeab44db52474e1bbafd2))
+* type query and Angular errors by operation ([#224](https://github.com/haddowg/json-api-ts/issues/224)) ([c352463](https://github.com/haddowg/json-api-ts/commit/c3524634b0013bdceb35e2b28920cea50b8b5bce))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.31.0
+  * devDependencies
+    * @haddowg/json-api-query bumped to 2.1.0
+  * peerDependencies
+    * @haddowg/json-api-query bumped to 2.1.0
+
 ## [1.3.1](https://github.com/haddowg/json-api-ts/compare/json-api-angular-v1.3.0...json-api-angular-v1.3.1) (2026-11-24)
 
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.1.0](https://github.com/haddowg/json-api-ts/compare/json-api-query-v2.0.1...json-api-query-v2.1.0) (2026-11-28)
+
+
+### Features
+
+* **query:** type a loaded member a write holds pending apart in placement ([21f1baf](https://github.com/haddowg/json-api-ts/commit/21f1baf5886725c6692c72d584e1fecd59bac10c))
+* type query and Angular errors by operation ([#224](https://github.com/haddowg/json-api-ts/issues/224)) ([c352463](https://github.com/haddowg/json-api-ts/commit/c3524634b0013bdceb35e2b28920cea50b8b5bce))
+
+
+### Bug Fixes
+
+* **query:** give a pending member the pivot its relation always renders ([08d9e5f](https://github.com/haddowg/json-api-ts/commit/08d9e5f056dfcbef7f3c4c2c5ae9d4d3c219de9b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.31.0
+
 ## [2.0.1](https://github.com/haddowg/json-api-ts/compare/json-api-query-v2.0.0...json-api-query-v2.0.1) (2026-11-24)
 
 
