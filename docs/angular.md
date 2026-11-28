@@ -256,6 +256,56 @@ A create's or update's error carries the write's input, so `fieldErrors(rename.e
 
 When you configure no `retry`, reads don't retry a `4xx` or a response that isn't a JSON:API document. See [typed errors and retries](tanstack-query.md#typed-errors-and-retries).
 
+### Forms
+
+`@haddowg/json-api-angular/forms` puts a write's errors on a Reactive Form. `applyServerErrors(form, fieldErrors(error))` sets a `server` error holding the message on the control each error's path names: `title`, `releaseInfo.label`, or `orderedTracks[0].$pivot.position` through the `orderedTracks` `FormArray`. It marks the control touched, and the control's next validation clears the error. Errors on no input, and errors whose path names no control, go on the form's own `server` error and come back from the call, for a banner:
+
+```ts
+import { applyServerErrors } from '@haddowg/json-api-angular/forms'
+import { fieldErrors } from '@haddowg/json-api-client'
+
+readonly create = injectMutation(() => this.writes.albums.create())
+
+save(): void {
+  this.create.mutate(this.form.getRawValue(), {
+    onError: (error) => {
+      this.unplaced = applyServerErrors(this.form, fieldErrors(error))
+    },
+  })
+}
+```
+
+```html
+@if (form.controls.title.errors?.['server']; as message) {
+  <p class="error">{{ message }}</p>
+}
+```
+
+[Formly](https://formly.dev) builds a Reactive Form, so `applyServerErrors` works on its form as it is. Formly only shows an error it has a message for, so register one for `server` that shows the error's value:
+
+```ts
+FormlyModule.forRoot({
+  validationMessages: [{ name: 'server', message: (error: unknown) => String(error) }],
+})
+```
+
+`@haddowg/json-api-angular/forms/signals` does the same for Signal Forms, which Angular 21 marks experimental, so this entry point may change with them. A `submit()` action returns `serverErrors(form, fieldErrors(error))`, and Signal Forms put each error on the field its path names:
+
+```ts
+import { serverErrors } from '@haddowg/json-api-angular/forms/signals'
+
+submit(this.album, async () => {
+  try {
+    await this.client.albums.create(this.model())
+    return undefined
+  } catch (error) {
+    return serverErrors(this.album, fieldErrors(error))
+  }
+})
+```
+
+Both need `@angular/forms`, an optional peer of this package. The tests in [src/forms](../packages/angular/src/forms) run each of these, a rendered Formly form included.
+
 ### Several servers
 
 An app that talks to two servers provides two clients, the second under its own token, and gives each a `provideJsonApiQuery`. They share one `QueryClient`, each in its own [scope](tanstack-query.md#several-servers), so the same type on both servers never meets in the cache. From [provide.test.ts](../packages/angular/src/query/provide.test.ts):

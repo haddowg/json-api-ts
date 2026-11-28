@@ -42,6 +42,26 @@
         "types": "./dist/query/index.d.cts",
         "default": "./dist/query/index.cjs"
       }
+    },
+    "./forms": {
+      "import": {
+        "types": "./dist/forms/index.d.mts",
+        "default": "./dist/forms/index.mjs"
+      },
+      "require": {
+        "types": "./dist/forms/index.d.cts",
+        "default": "./dist/forms/index.cjs"
+      }
+    },
+    "./forms/signals": {
+      "import": {
+        "types": "./dist/forms/signals/index.d.mts",
+        "default": "./dist/forms/signals/index.mjs"
+      },
+      "require": {
+        "types": "./dist/forms/signals/index.d.cts",
+        "default": "./dist/forms/signals/index.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -51,6 +71,12 @@
     "*": {
       "query": [
         "./dist/query/index.d.cts"
+      ],
+      "forms": [
+        "./dist/forms/index.d.cts"
+      ],
+      "forms/signals": [
+        "./dist/forms/signals/index.d.cts"
       ]
     }
   },
@@ -76,10 +102,14 @@
   "peerDependencies": {
     "@angular/common": "^20.0.0 || ^21.0.0 || ^22.0.0",
     "@angular/core": "^20.0.0 || ^21.0.0 || ^22.0.0",
+    "@angular/forms": "^20.0.0 || ^21.0.0 || ^22.0.0",
     "@haddowg/json-api-query": "workspace:^",
     "@tanstack/angular-query": "^5.108.1"
   },
   "peerDependenciesMeta": {
+    "@angular/forms": {
+      "optional": true
+    },
     "@haddowg/json-api-query": {
       "optional": true
     },
@@ -91,10 +121,12 @@
     "@angular/common": "^21.0.0",
     "@angular/compiler": "^21.0.0",
     "@angular/core": "^21.0.0",
+    "@angular/forms": "^21.0.0",
     "@angular/platform-browser": "^21.0.0",
     "@haddowg/json-api-query": "workspace:^",
+    "@ngx-formly/core": "~10.0.1",
+    "@tanstack/angular-query": "^5.108.1",
     "jsdom": "^25.0.0",
-    "rxjs": "^7.8.0",
-    "@tanstack/angular-query": "^5.108.1"
+    "rxjs": "^7.8.0"
   }
 }
