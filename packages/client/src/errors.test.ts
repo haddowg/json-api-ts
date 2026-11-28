@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { ApiDescriptor } from './descriptor'
 import {
+  StructuralGuardError,
   type ErrorCodeGuard,
   type ErrorFinder,
   findError,
@@ -8,7 +9,7 @@ import {
   JsonApiError,
   type JsonApiErrorObject,
 } from './errors'
-import type { Client, ErrorCodeOf } from './result-types'
+import type { Client, ErrorCodeOf, OperationErrorCodeOf } from './result-types'
 
 describe('JsonApiError', () => {
   it('exposes expressive status matchers', () => {
@@ -127,6 +128,22 @@ describe('hasErrorCode', () => {
     // The unbound guard is the escape hatch for an undocumented code.
     expectTypeOf(hasErrorCode).parameter(1).toEqualTypeOf<string>()
   })
+
+  it('takes only the codes a typed error carries', () => {
+    const bound = hasErrorCode as ErrorCodeGuard<Code>
+    const typed = err as JsonApiError<'ACCESS_DENIED'> | StructuralGuardError | null
+
+    expect(bound(typed, 'ACCESS_DENIED')).toBe(true)
+    if (bound(typed, 'ACCESS_DENIED')) {
+      expectTypeOf(typed.errors[0]!.code).toEqualTypeOf<
+        'ACCESS_DENIED' | (string & {}) | undefined
+      >()
+    }
+    // @ts-expect-error documented, but not a code this error carries
+    bound(typed, 'PASSWORD_EXPIRED')
+    // An untyped error takes every documented code.
+    bound(new JsonApiError(403, []), 'PASSWORD_EXPIRED')
+  })
 })
 
 describe('error-code typing', () => {
@@ -148,6 +165,19 @@ describe('error-code typing', () => {
     expectTypeOf<ErrorCodeOf<Client<D>>>().toEqualTypeOf<string>()
     expectTypeOf<ErrorCodeOf<unknown>>().toEqualTypeOf<string>()
     expectTypeOf<ErrorCodeOf<{ albums: unknown }>>().toEqualTypeOf<string>()
+  })
+
+  it("reads an operation's codes off a client type, else every code it carries", () => {
+    type D = ApiDescriptor
+    type ByOperation = { 'create.albums': 'ACCESS_DENIED'; 'delete.albums': never }
+    type Typed = Client<D, unknown, unknown, unknown, Code, {}, ByOperation>
+    expectTypeOf<OperationErrorCodeOf<Typed, 'create.albums'>>().toEqualTypeOf<'ACCESS_DENIED'>()
+    expectTypeOf<OperationErrorCodeOf<Typed, 'delete.albums'>>().toEqualTypeOf<never>()
+    expectTypeOf<OperationErrorCodeOf<Typed, 'update.albums'>>().toEqualTypeOf<Code>()
+    expectTypeOf<
+      OperationErrorCodeOf<Client<D, unknown, unknown, unknown, Code>, 'create.albums'>
+    >().toEqualTypeOf<Code>()
+    expectTypeOf<OperationErrorCodeOf<unknown, 'create.albums'>>().toEqualTypeOf<string>()
   })
 })
 
@@ -187,5 +217,7 @@ describe('findError', () => {
     }
     // @ts-expect-error a misspelt code is not in the union
     bound(err, 'ACCES_DENIED')
+    // @ts-expect-error documented, but not a code this error carries
+    bound(err as JsonApiError<'ACCESS_DENIED'>, 'RESOURCE_NOT_FOUND')
   })
 })

@@ -2792,7 +2792,8 @@ export interface TypeAccessor<
  * generated `WriteAttributes` map (per-type `{ create; update }` attribute pairs) and `Act`
  * the generated per-action body-type map; both thread through to the write/action surfaces and
  * default so read-only / codegen-less callers compile. `E` is the server's documented
- * error-code union, carried at the type level only (read it back with `ErrorCodeOf`).
+ * error-code union and `O` the codes each operation raises, keyed by operation id, both carried
+ * at the type level only (read them back with `ErrorCodeOf` and `OperationErrorCodeOf`).
  */
 export type Client<
   D extends ApiDescriptor,
@@ -2801,6 +2802,7 @@ export type Client<
   Act = DefaultActionTypes,
   E extends string = string,
   L = Record<never, never>,
+  O = Record<never, never>,
 > = {
   // Mapped over the descriptor's own keys so each member keeps the JSDoc the codegen writes there.
   -readonly [T in keyof D as Extract<T, string>]: D[T] extends { singleton: true }
@@ -2830,15 +2832,41 @@ export type Client<
   >
   // Here rather than in its own intersection member, which stops json-api-query inferring `D`.
   readonly [errorCodes]?: E
+  // A string key: json-api-query 2.0 reads every symbol key of a client as its code union.
+  readonly '~errorCodesByOperation'?: O
 }
 
 // Type-only key: never assigned, so it costs nothing at runtime.
 declare const errorCodes: unique symbol
 
+/**
+ * The type-only members a client carries its error codes in: `E`, every documented code, and
+ * `O`, the codes each operation raises. Intersect it into a type that stands in for a client.
+ */
+export interface ErrorCodeCarrier<E extends string = string, O = Record<never, never>> {
+  readonly [errorCodes]?: E
+  readonly '~errorCodesByOperation'?: O
+}
+
 /** The error-code union a client type carries, or `string` for one that carries none. */
 export type ErrorCodeOf<T> = T extends { readonly [errorCodes]?: infer C extends string }
   ? C
   : string
+
+/**
+ * The codes operation `Op` raises on a client type, such as `'create.albums'`. Every code the
+ * client carries when it lists none for `Op`.
+ */
+export type OperationErrorCodeOf<T, Op extends string> = T extends {
+  readonly '~errorCodesByOperation'?: infer O
+}
+  ? OperationCodes<ErrorCodeOf<T>, O, Op>
+  : ErrorCodeOf<T>
+
+/** The codes operation `Op` raises per `O`, a generated `ErrorCodeByOperation`, else `C`. */
+export type OperationCodes<C extends string, O, Op extends string> = Op extends keyof O
+  ? Extract<O[Op], string>
+  : C
 
 /**
  * The fallback attribute map when a caller doesn't supply the generated `Attributes`

@@ -1,4 +1,4 @@
-import { errorText } from './error-shared'
+import { type CodesOf, errorText, type JsonApiErrorOf } from './error-shared'
 
 /**
  * A single JSON:API error object (spec: error objects).
@@ -158,11 +158,27 @@ export function hasErrorCode(err: unknown, code: string): err is JsonApiError {
 }
 
 /**
- * {@link hasErrorCode} restricted to one server's documented codes. A generated client binds it:
+ * The codes `hasErrorCode` and `findError` take for an error typed `E`: the codes of the
+ * {@link JsonApiError} it holds, such as a query's `error` typed by the operation that raised it,
+ * else `C`, every code the server documents.
+ */
+export type ErrorCodesFor<E, C extends string> = string extends CodesOf<E, C> ? C : CodesOf<E, C>
+
+/**
+ * {@link hasErrorCode} restricted to one server's documented codes, or to the codes `err`'s type
+ * carries. A generated client binds it:
  * `export const hasErrorCode = hasErrorCodeRuntime as ErrorCodeGuard<ErrorCode>`. The cast is
  * needed because `JsonApiError<string>` doesn't assign to `JsonApiError<ErrorCode>`.
  */
-export type ErrorCodeGuard<C extends string> = (err: unknown, code: C) => err is JsonApiError<C>
+export type ErrorCodeGuard<C extends string> = <E>(
+  err: E,
+  code: ErrorCodesFor<E, C>,
+) => err is E & GuardedError<E, ErrorCodesFor<E, C>>
+
+/** What a matched guard narrows `E` to: its {@link JsonApiError} members, or one carrying `K`. */
+type GuardedError<E, K extends string> = [JsonApiErrorOf<E>] extends [never]
+  ? JsonApiError<K>
+  : JsonApiErrorOf<E>
 
 /**
  * An error object carrying the documented code `K`, its `meta` typed when the server declares
@@ -183,11 +199,11 @@ export function findError(err: unknown, code: string): JsonApiErrorObject | unde
 }
 
 /**
- * {@link findError} restricted to one server's documented codes, with each code's declared
- * `meta`. A generated client binds it:
+ * {@link findError} restricted to one server's documented codes and their declared `meta`, or to
+ * the codes `err`'s type carries. A generated client binds it:
  * `export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByCode>`.
  */
-export type ErrorFinder<C extends string, M = {}> = <K extends C>(
-  err: unknown,
+export type ErrorFinder<C extends string, M = {}> = <E, K extends ErrorCodesFor<E, C>>(
+  err: E,
   code: K,
 ) => CodedErrorObject<K, M> | undefined

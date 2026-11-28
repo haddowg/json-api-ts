@@ -308,8 +308,8 @@ runtime's needs, and all the real machinery lives in the generic
 - **`Links`** — each type that declares links, mapped to its `…Links` interface. See
   [below](#declared-links).
 - **`ErrorCode` / `ErrorCodeByStatus` / `ErrorCodeByOperation` / `ErrorMetaByCode` /
-  `hasErrorCode` / `findError`** — the server's documented error codes, the codes only some
-  operations raise, each code's typed `meta`, and a guard and finder bound to them. See
+  `hasErrorCode` / `findError`** — the server's documented error codes, the codes each
+  operation raises, each code's typed `meta`, and a guard and finder bound to them. See
   [below](#error-codes).
 - **`pageLimits` / `relatedPageLimits`** — the page defaults and caps of each
   collection and each related collection. See [below](#page-defaults-and-caps).
@@ -738,7 +738,8 @@ export interface ErrorCodeByStatus {
 }
 
 export interface ErrorCodeByOperation {
-  "update.articles": "ARTICLE_LOCKED"
+  "fetchOne.articles": "ACCESS_DENIED" | "RESOURCE_NOT_FOUND"
+  "update.articles": "ACCESS_DENIED" | "ARTICLE_LOCKED" | "RESOURCE_NOT_FOUND"
 }
 
 export interface ErrorMetaByCode {
@@ -760,10 +761,12 @@ export const findError = findErrorRuntime as ErrorFinder<ErrorCode, ErrorMetaByC
   operation answers with a document of its own, to its codes, including the codes only some
   operations raise at it. A status whose documents offer only the generic `Error` maps to
   `never`.
-- `ErrorCodeByOperation` maps each operation id with an error document of its own to the codes
-  it adds to the ones every operation raises: the document's codes less the shared
-  `ErrorDocument<NNN>` ones, or all of them where the status has no shared document. The generated client exports no type per operation document, so a
-  server renaming one changes nothing a client imports.
+- `ErrorCodeByOperation` maps each operation id to every code it can raise: the codes of each
+  error document it answers with, shared or its own. An operation that answers with no error
+  document isn't listed. The generated client exports no type per operation document, so a
+  server renaming one changes nothing a client imports. The client type carries the map, so the
+  [query](tanstack-query.md) and [Angular](angular.md) bindings type each error by the
+  operation that raised it.
 - `ErrorMetaByCode` types the `meta` each code declares. A code whose `meta` is optional
   types as `… | undefined`.
 - `hasErrorCode` only accepts an `ErrorCode`, so a misspelt code fails to compile, and

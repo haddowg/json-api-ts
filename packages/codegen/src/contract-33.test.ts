@@ -66,7 +66,7 @@ describe('generator contract 33 (error documents named for the operation)', () =
     )
   })
 
-  it('maps each operation to the codes its own documents add to the shared ones', () => {
+  it('maps each operation to its own codes and the shared ones', () => {
     const payment = ['PAYMENT_REQUIRED', 'SUBSCRIPTION_EXPIRED']
     const raising = (code: string) =>
       [...catalogue.byOperation].filter(([, codes]) => codes.includes(code)).map(([id]) => id)
@@ -84,12 +84,17 @@ describe('generator contract 33 (error documents named for the operation)', () =
         'create.tags',
       ])
     }
-    expect(catalogue.byOperation.get('delete.articles')).toEqual([
-      'ARTICLE_LOCKED',
-      'INSUFFICIENT_SCOPE',
-      'RESOURCE_NOT_FOUND',
-    ])
-    expect(catalogue.byOperation.get('action.articles.export.post')).toEqual(payment)
+    expect(catalogue.byOperation.get('delete.articles')).toEqual(
+      expect.arrayContaining([
+        'ARTICLE_LOCKED',
+        'AUTHENTICATION_REQUIRED',
+        'INSUFFICIENT_SCOPE',
+        'RESOURCE_NOT_FOUND',
+      ]),
+    )
+    expect(catalogue.byOperation.get('action.articles.export.post')).toEqual(
+      expect.arrayContaining(payment),
+    )
   })
 
   it('files each operation document under the status that answers with it', () => {
@@ -100,9 +105,9 @@ describe('generator contract 33 (error documents named for the operation)', () =
     )
   })
 
-  it('types the scoped codes in the generated client', () => {
-    expectTypeOf<ErrorCodeByOperation['delete.articles']>().toEqualTypeOf<
-      'ARTICLE_LOCKED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND'
+  it("types each operation's codes in the generated client", () => {
+    expectTypeOf<'ARTICLE_LOCKED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND'>().toMatchTypeOf<
+      ErrorCodeByOperation['delete.articles']
     >()
     expectTypeOf<
       Extract<ErrorCodeByOperation['update.articles'], 'ARTICLE_LOCKED'>
@@ -110,9 +115,12 @@ describe('generator contract 33 (error documents named for the operation)', () =
     expectTypeOf<
       Extract<ErrorCodeByOperation['addRelationship.articles.tags'], `${string}_EXPIRED`>
     >().toEqualTypeOf<'SUBSCRIPTION_EXPIRED'>()
-    expectTypeOf<ErrorCodeByOperation['action.articles.export.post']>().toEqualTypeOf<
-      'PAYMENT_REQUIRED' | 'SUBSCRIPTION_EXPIRED'
-    >()
+    expectTypeOf<
+      Extract<
+        ErrorCodeByOperation['action.articles.export.post'],
+        `${string}_REQUIRED` | `${string}_EXPIRED`
+      >
+    >().toEqualTypeOf<'AUTHENTICATION_REQUIRED' | 'PAYMENT_REQUIRED' | 'SUBSCRIPTION_EXPIRED'>()
     expectTypeOf<ErrorCodeByStatus[402]>().toEqualTypeOf<
       'PAYMENT_REQUIRED' | 'SUBSCRIPTION_EXPIRED'
     >()
@@ -121,7 +129,9 @@ describe('generator contract 33 (error documents named for the operation)', () =
   it('emits no type for an operation document', () => {
     const source = emit(witness, buildDescriptor(witness))
     expect(source).not.toMatch(/\bArticlesUpdate409\b/)
-    expect(source).toContain('  "delete.articles": "ARTICLE_LOCKED"')
+    expect(source).toMatch(
+      /^ {2}"delete\.articles":\n(?: {4}\| "[A-Z_]+"\n)*? {4}\| "ARTICLE_LOCKED"$/m,
+    )
   })
 })
 
@@ -175,11 +185,12 @@ describe('an operation document reached by reference', () => {
   } as unknown as OpenApiDocument
   const catalogue = readErrorCatalogue(doc)
 
-  it('reads an inline response and a response component alike, skipping the shared document', () => {
+  it('reads an inline response and a response component alike', () => {
     expect([...catalogue.byOperation]).toEqual([
       ['create.tags', ['PAYMENT_REQUIRED']],
-      ['delete.articles', ['ARTICLE_ARCHIVED']],
-      ['update.articles', ['ARTICLE_LOCKED']],
+      ['delete.articles', ['ARTICLE_ARCHIVED', 'RESOURCE_ID_CONFLICT']],
+      ['fetchOne.articles', ['RESOURCE_ID_CONFLICT']],
+      ['update.articles', ['ARTICLE_LOCKED', 'RESOURCE_ID_CONFLICT']],
     ])
   })
 

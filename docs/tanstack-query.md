@@ -44,7 +44,7 @@ export const writes = createMutationApi(queryClient, client, resourceMap)
 That is exactly how the example app bootstraps its data layer — see [client.ts](../examples/spotify-clone/src/api/client.ts).
 
 !!! note "Action-agnostic at the query boundary"
-    The factories read only a client's resource accessors and its error codes, never its custom-action types (actions aren't cacheable resources), so the generated client passes straight through, as above. If your setup needs to name the client's type, for a context or a prop, keep every `Client` parameter, the generated `ErrorCode` included, or `error` falls back to any string code: `Client<ResourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>`, which is the generated `createClient`'s return type.
+    The factories read only a client's resource accessors and its error codes, never its custom-action types (actions aren't cacheable resources), so the generated client passes straight through, as above. If your setup needs to name the client's type, for a context or a prop, keep every `Client` parameter, the generated `ErrorCode` and `ErrorCodeByOperation` included, or `error` falls back to any string code: `Client<ResourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links, ErrorCodeByOperation>`, which is the generated `createClient`'s return type.
 
 ## A basic query
 

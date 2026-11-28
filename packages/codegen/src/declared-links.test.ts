@@ -124,7 +124,7 @@ describe('generator contract 14 (declared links)', () => {
     expect(source).toContain(
       'export interface Links {\n  credits: CreditsLinks\n  images: ImagesLinks\n}',
     )
-    expect(source).toContain('ActionTypes, ErrorCode, Links>(')
+    expect(source).toContain('    ErrorCode,\n    Links,\n')
   })
 
   it('emits an empty links map and no import when no type declares a link', () => {
