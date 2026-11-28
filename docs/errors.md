@@ -38,7 +38,7 @@ The matchers read straight off `status`:
 
 Each entry in `error.errors` is a JSON:API error object — `status`, `code`, `title`, `detail`, `source`, `meta` — exactly as the server sent it, so you can surface a `detail` message or branch on an application `code`.
 
-The error's `message` starts from `JSON:API request failed with status <status>`, then appends the first error object's `title` (else its `detail`) after a colon when it has one, then ` (and <N> more)` when the document carries further errors: `JSON:API request failed with status 404: Not Found`, or `JSON:API request failed with status 422: must not be blank (and 2 more)`. The wording matches the PHP client's.
+The error's `message` starts from `JSON:API request failed with status <status>`, then appends the first error object's `detail` (else its `title`) after a colon when it has one, then ` (and <N> more)` when the document carries further errors: `JSON:API request failed with status 404: No album 999.`, or `JSON:API request failed with status 422: must not be blank (and 2 more)`. The detail comes first because it names the problem, where a title such as `Invalid attribute` only names its kind.
 
 !!! note "`isValidationError()` is `isUnprocessable()`"
     They are aliases — 422 is the JSON:API validation status. Use whichever reads better at the call site.
@@ -139,6 +139,7 @@ The remapping is descriptor-aware, so it follows the same nesting your input use
 | `/data/attributes/title` | `title` |
 | `/data/relationships/artist/data` | `artist` |
 | `/data/attributes/releaseInfo/label` | `releaseInfo.label` |
+| `/data/attributes/tags/0` | `tags[0]` |
 | `/data/relationships/orderedTracks/data/0/meta/pivot/position` | `orderedTracks[0].$pivot.position` |
 | `/data/meta/source` | `$meta.source` |
 | `/meta/idempotencyKey` | `$documentMeta.idempotencyKey` |
@@ -174,13 +175,33 @@ The remapping applies uniformly across write surfaces: resource [writes](writes.
 
     An atomic batch is all-or-nothing, so a single failed op rejects the whole `client.atomic(...)` call. See [atomic-operations](atomic-operations.md) for the batch model and how `opIndex` lines up with the positional result tuple.
 
+## `fieldErrors()`: errors for a form
+
+`fieldErrors(error)` sorts a write's errors into the inputs they point at and the rest, ready to show beside each field:
+
+```ts
+type AlbumInput = Parameters<typeof client.albums.create>[0]
+const fe = fieldErrors<AlbumInput>(caught)
+if (fe) {
+  fe.first('title') // 'must not be blank'
+  fe.messages('orderedTracks[0].$pivot.position') // every message on that input
+  fe.form // errors on no input: a header, a query parameter, `/data/type`, or no source
+}
+```
+
+It returns `undefined` unless `error` is a 4xx `JsonApiError` with at least one error on an input, so `if (fe)` is the check that the form has something to show. A 409 for a taken slug comes through. A 409 for a type mismatch doesn't.
+
+The paths are checked against the input type, so `fe.first('titel')` fails to compile. Pass the input as a type argument. Without one, any string goes.
+
+Each entry in `fe.issues`, `fe.fields` and `fe.form` is a Standard Schema issue: a `message` (the `detail`, else the `title`, else the `code`) and a `path` of segments, `['orderedTracks', 0, '$pivot', 'position']`. Form libraries that accept Standard Schema issues take them as they are. Each also carries the `key` string, the `code`, the `opIndex` in an atomic batch, and the original error object. For an atomic batch, `fe.op(1)` keeps only the second operation's errors.
+
 ## `StructuralGuardError` — a violated wire shape
 
 Distinct from `JsonApiError` (an application error the server *reported*) is `StructuralGuardError`, thrown by the always-on light structural guards when a 2xx response is not a JSON:API document, or a `data`/`included` member is not a resource object carrying `type` + `id`. It signals that the wire shape the runtime relies on was violated — a broken server or a proxy that mangled the body — not something your input caused. The opt-in per-field [validator](validation.md) throws its own engine's error type, never this one.
 
 ## See it in the example app
 
-- The tested 422 `byPath()` snippet lives in the `writes` group of [example.test.ts](../packages/example/src/example.test.ts) — every line runs under `pnpm test`.
+- The tested 422 `byPath()` and `fieldErrors()` snippets live in the `writes` group of [example.test.ts](../packages/example/src/example.test.ts) — every line runs under `pnpm test`.
 - The error type surface, matchers, `byPath()` grouping and `hasErrorCode` are defined in [errors.ts](../packages/client/src/errors.ts).
 - The generated `ErrorCodes`, `ErrorCode`, `ErrorCodeByStatus`, `ErrorCodeByOperation`, `ErrorMetaByCode` and the bound `hasErrorCode` and `findError` sit near the end of [music-catalog.client.gen.ts](../packages/codegen/test/generated/music-catalog.client.gen.ts).
 

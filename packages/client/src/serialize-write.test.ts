@@ -180,6 +180,15 @@ describe('remapPointer', () => {
     )
   })
 
+  it('indexes an array attribute or meta member with brackets', () => {
+    expect(remapPointer(descriptor, 'albums', '/data/attributes/tags/0')).toBe('tags[0]')
+    expect(remapPointer(descriptor, 'albums', '/data/attributes/credits/1/role')).toBe(
+      'credits[1].role',
+    )
+    expect(remapPointer(descriptor, 'albums', '/data/meta/sources/2')).toBe('$meta.sources[2]')
+    expect(remapPointer(descriptor, 'albums', '/meta/batch/0')).toBe('$documentMeta.batch[0]')
+  })
+
   it('remaps a pivot-array relationship pointer to [n].$pivot.field', () => {
     // Pivot values nest under `meta.pivot` — the exact wire shape from json-api-symfony
     // DoctrinePivotWriteTest (whole-resource write).

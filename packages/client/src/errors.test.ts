@@ -35,14 +35,17 @@ describe('JsonApiError', () => {
   describe('message', () => {
     const generic = 'JSON:API request failed with status 422'
 
-    it('appends the first error title, which wins over its detail', () => {
+    it('appends the first error detail, which wins over its title', () => {
       const err = new JsonApiError(404, [{ title: 'Not Found', detail: 'No album 999.' }])
-      expect(err.message).toBe('JSON:API request failed with status 404: Not Found')
+      expect(err.message).toBe('JSON:API request failed with status 404: No album 999.')
     })
 
-    it('appends the first error detail when it has no title', () => {
-      expect(new JsonApiError(422, [{ detail: 'must not be blank' }]).message).toBe(
-        `${generic}: must not be blank`,
+    it('appends the first error title when it has no detail', () => {
+      expect(new JsonApiError(404, [{ title: 'Not Found' }]).message).toBe(
+        'JSON:API request failed with status 404: Not Found',
+      )
+      expect(new JsonApiError(404, [{ title: 'Not Found', detail: '' }]).message).toBe(
+        'JSON:API request failed with status 404: Not Found',
       )
     })
 
@@ -56,7 +59,7 @@ describe('JsonApiError', () => {
       expect(err.message).toBe(`${generic}: Invalid (and 2 more)`)
     })
 
-    it('counts the further errors when the first has no title', () => {
+    it('counts the further errors whatever the first error carries', () => {
       expect(new JsonApiError(422, [{ detail: 'a' }, { detail: 'b' }]).message).toBe(
         `${generic}: a (and 1 more)`,
       )

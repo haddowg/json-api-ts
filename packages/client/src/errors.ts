@@ -1,3 +1,5 @@
+import { errorText } from './error-shared'
+
 /**
  * A single JSON:API error object (spec: error objects).
  *
@@ -43,14 +45,14 @@ export class StructuralGuardError extends Error {
 
 /**
  * The default {@link JsonApiError} message: the generic status line, then the first error object's
- * `title` (else its `detail`) when it has one, then `" (and N more)"` for the further error
- * objects. The wording matches the PHP client's.
+ * `detail` (else its `title`) when it has one, then `" (and N more)"` for the further error
+ * objects.
  */
 function describeErrors(status: number, errors: readonly JsonApiErrorObject[]): string {
   let message = `JSON:API request failed with status ${status}`
   const first = errors[0]
-  const words = first === undefined ? undefined : (first.title ?? first.detail)
-  if (typeof words === 'string' && words !== '') {
+  const words = errorText(first)
+  if (words !== undefined) {
     message += `: ${words}`
   }
   if (errors.length > 1) {
