@@ -47,6 +47,7 @@ import type {
   UpdateInput,
   WritableRelationName,
 } from './result-types'
+import { type InputCheck, type InputSchemas, inputFailure } from './input-validation'
 import { toDocument, toRelationshipDocument, withRemappedAtomicPaths } from './serialize-write'
 import type { LocalIdentifier, ResourceIdentifier } from './types'
 import { ATOMIC_EXT } from './types'
@@ -320,6 +321,7 @@ export function runAtomic<D extends ApiDescriptor, A, W, const Ops>(
   descriptor: D,
   path: string,
   build: (tx: AtomicRecorder<D, W>) => Ops,
+  inputSchemas?: InputSchemas,
 ): Promise<Ops extends readonly AtomicHandle[] ? AtomicResults<D, A, Ops> : AtomicResult[]>
 export async function runAtomic(
   request: JsonApiContext,
@@ -329,8 +331,11 @@ export async function runAtomic(
   // A recorder over a loose descriptor isn't assignable from one over the caller's, whose
   // required relations differ per type, so the implementation takes the callback untyped.
   build: (tx: never) => readonly AtomicHandle[] | void,
+  inputSchemas?: InputSchemas,
 ): Promise<AtomicResult[] | readonly (AtomicResult | undefined)[]> {
   const operations: AtomicOperation[] = []
+  /** Each create and update input, checked against `inputSchemas` before the batch is sent. */
+  const checks: InputCheck[] = []
   /** The wire type of each op, by index — drives the error-pointer remap. */
   const typeByOp: string[] = []
   /** The relation each relationship op writes, by index, which its pointers are remapped under. */
@@ -364,6 +369,8 @@ export async function runAtomic(
       const opIndex = operations.length
       const lid = lidFor(opIndex)
       const data = atomicResourceData(descriptor, input, { lid })
+      const { type: _type, ...fields } = input
+      checks.push({ type: input.type, operation: 'create', input: fields, opIndex })
       operations.push(withOperationMeta({ op: 'add', data }, opts))
       typeByOp.push(input.type)
       return { type: input.type, lid, kind: 'create', opIndex }
@@ -373,6 +380,15 @@ export async function runAtomic(
       const identity: AtomicIdentity =
         input.id !== undefined ? { id: input.id } : { lid: input.lid }
       const data = atomicResourceData(descriptor, input, identity)
+      const { type: _type, lid: _lid, ...fields } = input as Record<string, unknown>
+      // A singleton's update schema checks its id; any other type's checks the patch alone.
+      const { id: _id, ...patch } = fields
+      checks.push({
+        type: input.type,
+        operation: 'update',
+        input: descriptor[input.type]?.singleton === true ? fields : patch,
+        opIndex,
+      })
       operations.push(
         withOperationMeta({ op: 'update', ref: { type: input.type, ...identity }, data }, opts),
       )
@@ -410,6 +426,14 @@ export async function runAtomic(
   const returned = (
     build as (tx: AtomicRecorder<ApiDescriptor, unknown>) => readonly AtomicHandle[] | void
   )(recorder)
+
+  // In batch order, so the first failing operation rejects the batch.
+  for (const check of checks) {
+    const failure = await inputFailure(inputSchemas, check)
+    if (failure !== undefined) {
+      throw failure
+    }
+  }
 
   const req: JsonApiRequest = {
     method: 'POST',

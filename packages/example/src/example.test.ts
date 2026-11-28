@@ -27,6 +27,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import {
   fieldErrors,
+  InputValidationError,
   type JsonApiError,
   type JsonApiErrorObject,
   loadAll,
@@ -58,6 +59,7 @@ import {
   hasErrorCode,
   resourceMap,
 } from './generated/music-catalog.gen'
+import { albumsCreateSchema, inputSchemas } from './generated/music-catalog.zod.gen'
 import { schemas } from './generated/music-catalog.schemas.gen'
 
 /**
@@ -379,6 +381,39 @@ describe('writes', () => {
     expect(fe?.first('title')).toBe('must not be blank')
     expect(fe?.fields['title']?.[0]?.path).toEqual(['title'])
     expect(fe?.form.map((issue) => issue.message)).toEqual(['Rate limit window exceeded'])
+  })
+
+  it('checks a form as you type with the generated schema, then shows the server 422 the same way', async () => {
+    const { transport, requests } = mockTransport({
+      [`POST ${BASE}/albums`]: JSON.stringify({
+        errors: [
+          {
+            status: '422',
+            detail: 'An album with this title already exists.',
+            source: { pointer: '/data/attributes/title' },
+          },
+        ],
+      }),
+    })
+    const failing: typeof transport = async (req) => ({ ...(await transport(req)), status: 422 })
+    const client = createClient({ baseUrl: BASE, transport: failing, validateInput: inputSchemas })
+
+    // As you type: check the draft against the same schema the client checks before sending.
+    const draft = { title: '' }
+    const typed = albumsCreateSchema.safeParse(draft)
+    expect(typed.success).toBe(false)
+    expect(typed.error?.issues[0]?.path).toEqual(['title'])
+
+    // Submitting the draft as it is fails in the client, and sends nothing.
+    const early = await client.albums.create(draft).catch((e: unknown) => e)
+    expect(early).toBeInstanceOf(InputValidationError)
+    expect(requests).toHaveLength(0)
+    expect(fieldErrors(early)?.fields['title']).toHaveLength(1)
+
+    // A valid draft goes to the server, whose 422 reads through the same fieldErrors() call.
+    const late = await client.albums.create({ title: 'OK Computer' }).catch((e: unknown) => e)
+    expect(requests).toHaveLength(1)
+    expect(fieldErrors(late)?.first('title')).toBe('An album with this title already exists.')
   })
 })
 

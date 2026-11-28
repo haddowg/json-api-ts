@@ -202,6 +202,25 @@ The remapping is descriptor-aware, so it understands nesting: a nested map attri
 !!! warning "Server-side validation, not client-side"
     A `422` comes from the API validating your write (the server's [validation](validation.md) rules). The client does **not** run those checks before sending — it trusts the types and lets the server be the authority. The opt-in client-side [validation seam](validation.md) validates *wire responses*, not your write input.
 
+## Check input before sending it
+
+`createClient({ validateInput })` checks each create's and update's input against a schema before sending it. Input that fails rejects with an `InputValidationError` and sends no request. Its `issues` are the schema's, and [`fieldErrors()`](errors.md#fielderrors-errors-for-a-form) sorts them into field errors the same way it sorts a server's 422, so one error handler covers both.
+
+```ts
+import { createClient } from './api/music.gen'
+import { inputSchemas } from './api/music.zod.gen'
+
+const client = createClient({ baseUrl, validateInput: inputSchemas })
+```
+
+`validateInput` maps each wire type to its `create` and `update` schemas. Any [Standard Schema](https://standardschema.dev) works there, so Zod, Valibot and ArkType all fit. [`json-api-codegen --zod`](codegen.md) generates the map from the server's document. A write with no schema is sent unchecked. An update is checked without its `id`.
+
+An [atomic batch](atomic-operations.md) checks each create and update the same way before it posts anything, in batch order. The first operation that fails rejects the batch with an `InputValidationError` whose `opIndex` names it, so `fieldErrors(error).op(i)` finds its issues as it finds a server's.
+
+The client checks input but never changes it. A schema that trims or fills in defaults has no effect on what it sends.
+
+The `writes` group of [example.test.ts](../packages/example/src/example.test.ts) runs this end to end: a draft checked with `albumsCreateSchema` as you type, rejected by the client before sending, then a server 422 read through the same `fieldErrors()` call.
+
 ## See it in the example app
 
 - The tested writes group in [example.test.ts](../packages/example/src/example.test.ts) (`describe('writes', …)`) covers create → 201, partial update, `204` delete, and the `byPath()` remap — every snippet on this page is drawn from it.

@@ -75,7 +75,7 @@ const CLIENTS = [
     output: 'packages/codegen/test/generated/write-rules.client.gen.ts',
     zod: true,
   },
-  { ...MUSIC_CATALOG, output: 'packages/example/src/generated/music-catalog.gen.ts' },
+  { ...MUSIC_CATALOG, output: 'packages/example/src/generated/music-catalog.gen.ts', zod: true },
   { ...MUSIC_CATALOG, output: 'examples/spotify-clone/src/generated/music-catalog.gen.ts' },
   { ...MUSIC_CATALOG, output: 'examples/angular-catalog/src/generated/music-catalog.gen.ts' },
 ]
