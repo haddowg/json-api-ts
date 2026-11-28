@@ -153,6 +153,29 @@ A member of the resource's own relationship types `$pivot` from the relation's p
 as the relationship endpoint does, optional where the relation isn't marked.
 A member of `.related()` is a resource object rather than linkage, so its `$pivot` stays optional.
 
+A member an [optimistic write](optimistic-updates.md) is still adding holds only the pivot values
+that write sent. A field no write can send, such as a read-only `addedAt` the server stamps on
+attach, isn't there until the response arrives, and neither is a field the write could have sent
+but left out. So on a marked relation whose read pivot requires a field the write pivot doesn't, a
+member is typed in two shapes told apart by `$optimistic`. While it is `'pending'`, only the fields
+the write pivot requires stay required in `$pivot` and `$edge.meta.pivot`, and every other field is
+optional. Once `$optimistic` isn't `'pending'`, the member has the full pivot:
+
+```ts
+for (const track of playlist.orderedTracks) {
+  track.$pivot.position            // number, either way
+  if (track.$optimistic === 'pending') {
+    track.$pivot.addedAt           // string | undefined: not stamped yet
+  } else {
+    track.$pivot.addedAt           // string
+  }
+}
+```
+
+Read a server-set field without checking `$optimistic` and its type includes `undefined`.
+`PendingPivotOf<D, T, R>` names the pending member's pivot. A relation whose write pivot requires
+every field its read pivot requires types a pending member as it types any other.
+
 The [spotify-clone](../examples/spotify-clone/src/api/playlist-tracks.ts) app shows the
 write side: it sends the writable pivot fields back on a to-many membership ref
 (`{ ...track, $pivot: { position, weight } }`) to reorder a playlist. That `$pivot` is

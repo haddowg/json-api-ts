@@ -89,21 +89,55 @@ export type RelationCollection<T, P = Page> = Collection<T, P> & RelationArrayEn
  * `$edge.meta` where the linkage renders the relation's declared identifier meta. `Rendered` is
  * `true` for a member of a linkage that renders `meta.pivot` on every member, whose `$edge`,
  * `$edge.meta` and `$pivot` are then always present.
+ *
+ * `Pending` is the pivot and edge meta a pending optimistic member carries, when they differ from
+ * a confirmed one's: such a member holds only the pivot values its write sent, so every field the
+ * write pivot doesn't require is optional. The type is then a union on `$optimistic`, and checking that it
+ * isn't `'pending'` gives the confirmed member's types.
  */
-export interface EdgeMembers<
+export type EdgeMembers<
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
   Rendered extends boolean = false,
-> {
+  Pending extends PendingEdge = never,
+> = [Pending] extends [never]
+  ? EdgeAccessors<Pivot, Meta, Rendered, 'pending' | undefined>
+  :
+      | EdgeAccessors<Pivot, Meta, Rendered, undefined>
+      | EdgeAccessors<Pending['pivot'], Pending['meta'], Rendered, 'pending'>
+
+/** The pivot and edge meta of a pending optimistic member, as {@link EdgeMembers} takes them. */
+export interface PendingEdge {
+  readonly pivot: unknown
+  readonly meta: Record<string, unknown>
+}
+
+/** The accessors {@link EdgeMembers} describes, for one value of `$optimistic`. */
+type EdgeAccessors<
+  Pivot,
+  Meta extends Record<string, unknown>,
+  Rendered extends boolean,
+  Optimistic extends 'pending' | undefined,
+> = {
   readonly $edge: Rendered extends true
     ? Edge<Meta> & { readonly meta: Meta }
     : Edge<Meta> | undefined
   readonly $pivot: Rendered extends true ? Pivot : Pivot | undefined
+} & ([Optimistic] extends ['pending'] ? PendingMarker : OptimisticMarker<Optimistic>)
+
+/** The `$optimistic` of a member a pending write holds. */
+interface PendingMarker {
+  /** `'pending'`: a cache layer holds an unconfirmed change to this member. */
+  readonly $optimistic: 'pending'
+}
+
+/** The `$optimistic` of a member that may or may not be pending. */
+interface OptimisticMarker<Optimistic extends 'pending' | undefined> {
   /**
    * `'pending'` while a cache layer (an optimistic draft in `@haddowg/json-api-query`) holds an
    * unconfirmed change to this member, else `undefined`.
    */
-  readonly $optimistic?: 'pending' | undefined
+  readonly $optimistic?: Optimistic
 }
 
 /**
@@ -346,7 +380,8 @@ export type IdentifierMember<
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
   Rendered extends boolean = false,
-> = ResourceIdentifier<TType> & EdgeMembers<Pivot, Meta, Rendered>
+  Pending extends PendingEdge = never,
+> = ResourceIdentifier<TType> & EdgeMembers<Pivot, Meta, Rendered, Pending>
 
 /**
  * A hydrated related resource: a per-edge VIEW — the full `ResourceObjectView` of the
@@ -364,7 +399,8 @@ export type HydratedMember<
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
   Rendered extends boolean = false,
-> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot, Meta, Rendered>
+  Pending extends PendingEdge = never,
+> = ResourceObjectView<D, A, TType, never, F> & EdgeMembers<Pivot, Meta, Rendered, Pending>
 
 /** A hydrated related value distributes over a polymorphic union of related types. */
 type Hydrated<
@@ -375,7 +411,9 @@ type Hydrated<
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
   Rendered extends boolean = false,
-> = TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot, Meta, Rendered> : never
+  Pending extends PendingEdge = never,
+> =
+  TType extends TypeName<D> ? HydratedMember<D, A, TType, F, Pivot, Meta, Rendered, Pending> : never
 
 /** An identifier related value distributes over a polymorphic union of related types. */
 type Identifier<
@@ -383,7 +421,8 @@ type Identifier<
   Pivot = Record<string, unknown>,
   Meta extends Record<string, unknown> = Record<string, unknown>,
   Rendered extends boolean = false,
-> = TType extends string ? IdentifierMember<TType, Pivot, Meta, Rendered> : never
+  Pending extends PendingEdge = never,
+> = TType extends string ? IdentifierMember<TType, Pivot, Meta, Rendered, Pending> : never
 
 /**
  * `true` when relation `R` renders `meta.pivot` on every member of its linkage, as the
@@ -427,7 +466,8 @@ type RelationValue<
           F,
           PivotFieldsOf<D, T, R>,
           EdgeMetaOf<D, T, R>,
-          PivotRendered<D, T, R>
+          PivotRendered<D, T, R>,
+          PendingEdgeOf<D, T, R>
         >,
         RelationPage<D, T, R>
       >
@@ -438,7 +478,8 @@ type RelationValue<
         F,
         PivotFieldsOf<D, T, R>,
         EdgeMetaOf<D, T, R>,
-        PivotRendered<D, T, R>
+        PivotRendered<D, T, R>,
+        PendingEdgeOf<D, T, R>
       > | null
   : IsMany<D, T, R> extends true
     ? RelationCollection<
@@ -446,7 +487,8 @@ type RelationValue<
           RelatedType<D, T, R>,
           PivotFieldsOf<D, T, R>,
           EdgeMetaOf<D, T, R>,
-          PivotRendered<D, T, R>
+          PivotRendered<D, T, R>,
+          PendingEdgeOf<D, T, R>
         >,
         RelationPage<D, T, R>
       >
@@ -455,7 +497,8 @@ type RelationValue<
             RelatedType<D, T, R>,
             PivotFieldsOf<D, T, R>,
             EdgeMetaOf<D, T, R>,
-            PivotRendered<D, T, R>
+            PivotRendered<D, T, R>,
+            PendingEdgeOf<D, T, R>
           >
         | null
         | undefined
@@ -1196,12 +1239,13 @@ type EdgeMetaOf<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
+  Pivot = PivotFieldsOf<D, T, R>,
 > = D[T]['relations'][R] extends { identifierMeta: infer P }
   ? P extends { additional: false | { format: unknown } }
-    ? PivotObject<P> & EdgePivot<D, T, R> & AdditionalMembers<P, PivotFieldsOf<D, T, R>>
+    ? PivotObject<P> & EdgePivot<D, T, R, Pivot> & AdditionalMembers<P, Pivot>
     : PivotObject<P> & Record<string, unknown>
   : D[T]['relations'][R] extends { pivotRendered: true }
-    ? Record<string, unknown> & EdgePivot<D, T, R>
+    ? Record<string, unknown> & EdgePivot<D, T, R, Pivot>
     : Record<string, unknown>
 
 /**
@@ -1212,11 +1256,76 @@ type EdgePivot<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
+  Pivot = PivotFieldsOf<D, T, R>,
 > = D[T]['relations'][R] extends { pivotRendered: true }
-  ? { readonly pivot: PivotFieldsOf<D, T, R> }
+  ? { readonly pivot: Pivot }
   : D[T]['relations'][R] extends { pivot: true }
-    ? { readonly pivot?: PivotFieldsOf<D, T, R> }
+    ? { readonly pivot?: Pivot }
     : unknown
+
+/** The fields relation `R`'s `writePivot` requires every write to send. */
+type WriteRequiredPivotField<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { writePivot: infer W } ? RequiredPivotField<W> : never
+
+/**
+ * The fields of relation `R`'s read pivot that every response renders but a write needn't send:
+ * the ones only the server sets, such as a timestamp it stamps on attach, and the ones a write
+ * may leave out.
+ */
+type UnsentPivotField<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { readPivot: infer P }
+  ? Exclude<RequiredPivotField<P>, WriteRequiredPivotField<D, T, R>>
+  : never
+
+/**
+ * The typed `meta.pivot` a pending optimistic member of relation `R` carries. It holds only what
+ * the write sent, so a field is required only where the read renders it and the write pivot
+ * requires it, and every other field is optional. Equal to {@link PivotFieldsOf} where the write
+ * pivot requires every field the read requires.
+ */
+export type PendingPivotOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { readPivot: infer P }
+  ? {
+      readonly [K in PivotFieldNames<P> as K extends UnsentPivotField<D, T, R>
+        ? never
+        : K extends RequiredPivotField<P>
+          ? K
+          : never]: PivotValue<P, K>
+    } & {
+      readonly [K in PivotFieldNames<P> as K extends UnsentPivotField<D, T, R>
+        ? K
+        : K extends RequiredPivotField<P>
+          ? never
+          : K]?: PivotValue<P, K>
+    } & AdditionalMembers<P>
+  : PivotFieldsOf<D, T, R>
+
+/**
+ * The {@link PendingEdge} of the linkage members of relation `R`, where the relation renders its
+ * pivot on every member and requires a field of it that the write pivot doesn't. `never` otherwise:
+ * a pending member then types like a confirmed one.
+ */
+type PendingEdgeOf<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> = D[T]['relations'][R] extends { pivotRendered: true }
+  ? [UnsentPivotField<D, T, R>] extends [never]
+    ? never
+    : {
+        readonly pivot: PendingPivotOf<D, T, R>
+        readonly meta: EdgeMetaOf<D, T, R, PendingPivotOf<D, T, R>>
+      }
+  : never
 
 /**
  * The typed `meta.pivot` a request may send on each member of relation `R`, from the descriptor's
@@ -1493,13 +1602,15 @@ type RelatedValue<
  * A linkage VALUE for relation `R` (the `/relationships/{rel}` endpoint, identifiers only):
  * a `Collection` of identifier members for to-many, a single identifier (or `null`) for to-one.
  * Each member's `$pivot` is typed from the relation's `readPivot`, and its `$edge.meta` from its
- * `identifierMeta`.
+ * `identifierMeta`. `Settled` is `true` for linkage no cache layer can hold pending, such as an
+ * atomic result, whose members are typed only as confirmed.
  */
 type LinkageValue<
   D extends ApiDescriptor,
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   Q = undefined,
+  Settled extends boolean = false,
 > =
   IsMany<D, T, R> extends true
     ? Collection<
@@ -1507,7 +1618,8 @@ type LinkageValue<
           RelatedType<D, T, R>,
           PivotFieldsOf<D, T, R>,
           EdgeMetaOf<D, T, R>,
-          PivotRendered<D, T, R>
+          PivotRendered<D, T, R>,
+          Settled extends true ? never : PendingEdgeOf<D, T, R>
         >,
         RelationPage<D, T, R, Q>
       >
@@ -1515,7 +1627,8 @@ type LinkageValue<
         RelatedType<D, T, R>,
         PivotFieldsOf<D, T, R>,
         EdgeMetaOf<D, T, R>,
-        PivotRendered<D, T, R>
+        PivotRendered<D, T, R>,
+        Settled extends true ? never : PendingEdgeOf<D, T, R>
       > | null
 
 /**
@@ -2145,8 +2258,9 @@ export type UpdateMethod<
  *   `meta`);
  * - an {@link AtomicDeleteHandle} -> `undefined` (a remove carries no data);
  * - an {@link AtomicRelationshipHandle} for relation `R` of `T` -> the `AtomicResult` wrapping the
- *   linkage the server answered with, as the relationship accessor's verbs return it, or
- *   `undefined` data when it answered with an empty result.
+ *   linkage the server answered with, typed as the relationship endpoint's (a pivot the relation
+ *   renders on every member is present), or `undefined` data when it answered with an empty
+ *   result. A result comes straight from the server, so no member of it is pending.
  *
  * Drives the per-op positional typing of {@link AtomicResults} (the callback's returned tuple of
  * handles maps to a tuple of these).
@@ -2156,7 +2270,7 @@ export type AtomicResultOf<D extends ApiDescriptor, A, Handle> = Handle extends 
   : Handle extends AtomicRelationshipHandle<infer T, infer R>
     ? T extends TypeName<D>
       ? R extends RelationName<D, T>
-        ? AtomicResult<LinkageValue<D, T, R> | undefined>
+        ? AtomicResult<LinkageValue<D, T, R, undefined, true> | undefined>
         : never
       : never
     : Handle extends AtomicCreateHandle<infer T>
