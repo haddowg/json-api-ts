@@ -41,6 +41,7 @@ import {
   type MaterialisedOverlay,
   type PendingCreate,
   type PendingMember,
+  type PendingPivotOf,
   type PendingPlacement,
   type PivotFieldsOf,
   type RelatedQueryParam,
@@ -141,19 +142,31 @@ export type DraftRef = {
  * rendered, and a ref may be added without one); `never` where there is no pivot (an insert, or a
  * relation without one), which leaves `$pivot` `undefined`. Over the base descriptor it is a loose
  * record that may be absent.
+ *
+ * `PendingPivot` is the `$pivot` of a loaded member a write still holds pending, where it differs
+ * from `Pivot`: the member is then a union on `$optimistic`, and checking that it isn't `'pending'`
+ * gives `Pivot`, as on the client's own members.
  */
 export type DraftMember<
   TType extends string = string,
   Pivot = Readonly<Record<string, unknown>> | undefined,
+  PendingPivot = never,
 > = {
   readonly type: TType
   readonly id: string
   readonly [key: string]: unknown
-} & ([Pivot] extends [never]
+} & ([PendingPivot] extends [never]
+  ? PivotSlot<Pivot>
+  :
+      | (PivotSlot<Pivot> & { readonly $optimistic?: undefined })
+      | (PivotSlot<PendingPivot> & { readonly $optimistic: 'pending' }))
+
+/** The `$pivot` member of a {@link DraftMember} whose pivot is `Pivot`. */
+type PivotSlot<Pivot> = [Pivot] extends [never]
   ? { readonly $pivot?: undefined }
   : undefined extends Pivot
     ? { readonly $pivot?: Pivot }
-    : { readonly $pivot: Pivot })
+    : { readonly $pivot: Pivot }
 
 /** Whether relation `R` of type `T` carries pivot data on its members. */
 type HasPivot<
@@ -181,6 +194,27 @@ export type DraftPivot<
     ? Readonly<Record<string, unknown>> | undefined
     : HasPivot<D, T, R> extends true
       ? Side | undefined
+      : never
+
+/**
+ * The `$pivot` a loaded {@link DraftMember} of relation `R` carries while a write holds it pending:
+ * only the pivot the write sent, so every field the write pivot doesn't require is optional, or
+ * `undefined`. `never` where that types the same as a confirmed member's pivot, and over the base
+ * descriptor.
+ *
+ * @internal
+ */
+export type DraftPendingPivot<
+  D extends ApiDescriptor,
+  T extends TypeName<D>,
+  R extends RelationName<D, T>,
+> =
+  string extends TypeName<D>
+    ? never
+    : HasPivot<D, T, R> extends true
+      ? PendingPivotOf<D, T, R> extends PivotFieldsOf<D, T, R>
+        ? never
+        : PendingPivotOf<D, T, R> | undefined
       : never
 
 /**
@@ -328,6 +362,8 @@ export type Into<
  * The {@link Into} an operation on relation `R` of type `T` takes. On a relation with a pivot, the
  * entering member's `$pivot` is the write pivot the caller sent (`WritePivotOf`), and each loaded
  * member's the read pivot its document rendered (`PivotFieldsOf`), either `undefined` when absent.
+ * A loaded member a write still holds pending has only the pivot that write sent
+ * (`PendingPivotOf`), told apart by `$optimistic`.
  */
 export type RelationInto<
   D extends ApiDescriptor,
@@ -337,7 +373,11 @@ export type RelationInto<
   D,
   DraftQuery<D>,
   DraftMember<RelatedTypeName<D, T, R>, DraftPivot<D, T, R, WritePivotOf<D, T, R>>>,
-  DraftMember<RelatedTypeName<D, T, R>, DraftPivot<D, T, R, PivotFieldsOf<D, T, R>>>
+  DraftMember<
+    RelatedTypeName<D, T, R>,
+    DraftPivot<D, T, R, PivotFieldsOf<D, T, R>>,
+    DraftPendingPivot<D, T, R>
+  >
 >
 
 /** The {@link Into} an insert of type `T` takes: list rows carry no `$pivot`. */
