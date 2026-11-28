@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.28.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.27.0...json-api-codegen-v2.28.0) (2026-11-28)
+
+
+### Features
+
+* **codegen:** generate Zod schemas for write inputs with --zod ([#226](https://github.com/haddowg/json-api-ts/issues/226)) ([1bd8029](https://github.com/haddowg/json-api-ts/commit/1bd80292310cece06be17c5fa3ea9f092ecba0c0))
+* **codegen:** read generator contract 48 and mark a rendered linkage pivot ([a2d8b26](https://github.com/haddowg/json-api-ts/commit/a2d8b2686aceba64f479cff243feac5798e96023))
+* type each error code by the operation that raised it ([#223](https://github.com/haddowg/json-api-ts/issues/223)) ([833ce03](https://github.com/haddowg/json-api-ts/commit/833ce03b08966abdd32026db64faab9cd475e2f0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @haddowg/json-api-client bumped to 1.31.0
+
 ## [2.27.0](https://github.com/haddowg/json-api-ts/compare/json-api-codegen-v2.26.0...json-api-codegen-v2.27.0) (2026-11-24)
 
 
