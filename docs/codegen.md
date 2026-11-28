@@ -47,6 +47,7 @@ YAML** from either.
 | `--output`  | yes      | Output file for the generated client, e.g. `src/api/music.gen.ts`.           |
 | `--schemas` | no       | JSON Schema source (URL or path) for the [validation](validation.md) seam.   |
 | `--examples` | no      | Also write the operations' worked examples to a sibling module. See [below](#operation-examples). |
+| `--zod`     | no       | Also write Zod schemas for each writable type's create and update input. See [below](#zod-input-schemas). |
 | `--server`  | no       | Target server name. Metadata-only — the served document is already per-server. |
 | `--check`   | no       | Drift gate — regenerate in memory and fail if the committed output is stale. |
 
@@ -280,6 +281,100 @@ status. A document with no examples writes no module and warns that it has none.
 default because it is several times the size of the client and an app that only
 calls the API has no use for it.
 
+### Zod input schemas
+
+Add `--zod` to also write [Zod](https://zod.dev) schemas for each writable type's
+create and update input to a sibling module, named the way the schema module is:
+`music.gen.ts` gets `music.zod.gen.ts`. They let a form check its values before the
+client sends them.
+
+```bash
+json-api-codegen \
+  --input https://music.example/docs.json \
+  --output src/api/music.gen.ts \
+  --zod
+```
+
+The module imports `{ z } from 'zod'`, and the codegen doesn't install it. Add `zod`
+4.3 or later to the app; the schemas use `z.exactOptional`, which 4.3 added.
+
+It exports `<type>CreateSchema` for each type with create attributes and
+`<type>UpdateSchema` for each type with update attributes, named from the type's
+interface stem (`albumsCreateSchema`, `catalogExportsUpdateSchema`). `inputSchemas`
+maps each writable wire type to the ones it has, so a singleton, which can't be
+created, has only `update`:
+
+```ts
+export const inputSchemas = {
+  accounts: { update: accountsUpdateSchema },
+  albums: { create: albumsCreateSchema, update: albumsUpdateSchema },
+  // …
+} as const
+```
+
+Each schema checks the flat input `client.<type>.create(input)` or
+`.update(patch)` takes, key for key:
+
+- The attributes, with the constraints the document declares. A create attribute is
+  required when the create attributes schema requires it. Every update attribute is
+  optional.
+- One key per relation, required on create for a relation `requiredOnCreate` marks and
+  optional otherwise. A to-one takes a `{ type, id }` or `{ type, lid }` reference, or
+  `null` unless the write is in its `nonNullOn`. A to-many takes a list of references,
+  each of which may carry `$pivot`, and the list must be non-empty where the write is in
+  its `nonEmptyOn` or the relation is required on create. The reference's `type` must be
+  one of the relation's types; the rest of a reference is only checked loosely.
+- `id` on create, required, optional or rejected by the type's client-id policy. A
+  singleton's update requires it too.
+- An optional `$meta`, with the members the type declares for that write.
+
+The parsed value has the type the client's write takes, so it goes straight to the
+call. Each issue's `path` is the flat input key, such as `['title']` or
+`['releaseInfo', 'label']`:
+
+```ts
+import { albumsCreateSchema } from './api/music.zod.gen'
+
+const result = albumsCreateSchema.safeParse(values)
+if (result.success) {
+  await client.albums.create(result.data)
+} else {
+  console.log(result.error.issues.map((issue) => issue.path))
+}
+```
+
+Zod 4 implements Standard Schema, so React Hook Form, TanStack Form and Angular
+signal forms take these schemas as validators without an adapter.
+
+An optional key uses `z.exactOptional`. It can be left out but not set to
+`undefined`, as the client's types read with `exactOptionalPropertyTypes`. A form that
+keeps unset fields as `undefined` has to drop them before it validates.
+
+The attribute schemas map to Zod like this:
+
+| JSON Schema | Zod |
+| --- | --- |
+| `type` | `z.string()`, `z.number()`, `z.int()`, `z.boolean()`, `z.null()`. A list of types is a `z.union`, and `null` in it adds `.nullable()`. |
+| `minLength`, `maxLength`, `pattern` | `.min()`, `.max()`, `.regex()` |
+| `format` | `email`, `uri`, `uuid`, `date-time`, `date`, `time`, `duration`, `ipv4` and `ipv6` start from `z.email()`, `z.url()`, `z.uuid()`, `z.iso.datetime({ offset: true })`, `z.iso.date()`, `z.iso.time()`, `z.iso.duration()`, `z.ipv4()` and `z.ipv6()`. |
+| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf` | `.gte()`, `.lte()`, `.gt()`, `.lt()`, `.multipleOf()` |
+| `enum`, `const` | `z.enum()` for strings, `z.literal()` otherwise |
+| `items`, `maxItems`, `uniqueItems` | `z.array()`, `.max()`, and a refinement for unique items |
+| `minItems` of 1 or more | `nonEmpty(item)`, a `z.tuple([item], item)` helper the module declares, for the `[T, ...T[]]` the client types it as, with `z.minLength()` above 1 |
+| `properties`, `required`, `additionalProperties` | `z.strictObject()` when `additionalProperties` is `false`, `.catchall()` or `z.record()` when it is a schema, and `z.looseObject()` otherwise. A member not in `required` is `z.exactOptional()`. |
+| `minProperties`, `maxProperties` | a refinement on the key count |
+| `oneOf` with a `discriminator` | `z.discriminatedUnion()`, and `.nullable()` for a `null` branch |
+| any other `oneOf`, `anyOf` | `z.union()` |
+| `allOf` | `z.intersection()` |
+| `$ref` | the component, expanded in place |
+
+A keyword not in the table, such as `not` or `patternProperties`, a `format` not
+listed, and a `pattern` JavaScript can't compile are left out of the schema, and the
+codegen warns about each one. Annotations such as `description` and `default` are
+ignored. Zod doesn't make `oneOf` exclusive, so a value that matches two branches
+passes. `$meta` and `$pivot` members are checked by type and listed values only,
+from the descriptor, without the length or range constraints.
+
 ### Multiple servers
 
 The backend serves **one document per server** (a `default` and an `admin` server
@@ -318,7 +413,7 @@ runtime's needs, and all the real machinery lives in the generic
 
 With `--schemas`, the sibling module exports `schemas` — the per-type JSON Schema
 2020-12 map. With `--examples`, another exports `examples`, each operation's
-worked examples.
+worked examples. With `--zod`, another exports the [Zod input schemas](#zod-input-schemas).
 
 ```ts
 import { createClient, type ResourceMap, resourceMap } from './api/music.gen'
@@ -995,6 +1090,7 @@ The server-level Atomic Operations capability is emitted separately as an
       output: 'src/api/music.gen.ts',
       schemas: 'https://music.example/schemas.json', // optional
       examples: true,                                // optional
+      zod: true,                                     // optional
       server: 'default',                             // optional, metadata-only
     }
 
@@ -1005,8 +1101,8 @@ The server-level Atomic Operations capability is emitted separately as an
 
     Lower-level building blocks are exported too — `readDocument` / `readSchemas`,
     `buildDescriptor`, `buildExamples` / `operationExamples`, `emit` / `emitSchemas` /
-    `emitExamples`, `readErrorCatalogue` / `emitErrorCodes`, `detectVerbCollisions`,
-    `schemasOutputPath` / `examplesOutputPath`, the provenance helpers
+    `emitExamples` / `emitZod`, `readErrorCatalogue` / `emitErrorCodes`, `detectVerbCollisions`,
+    `schemasOutputPath` / `examplesOutputPath` / `zodOutputPath`, the provenance helpers
     `deriveProvenance` / `provenanceLines` / `hashJson`, and `checkContract` with
     `MINIMUM_CONTRACT` / `MAXIMUM_CONTRACT`, which throws for a document older than
     the codegen reads and returns a warning for a newer one.
@@ -1047,8 +1143,8 @@ then shows exactly how the wire contract moved.
 ### Drift checking (`--check`)
 
 `--check` regenerates every artifact **in memory** and compares it against the
-committed `--output` (and its schema and examples siblings when `--schemas` and
-`--examples` are set) **without
+committed `--output` (and its schema, examples and Zod siblings when `--schemas`,
+`--examples` and `--zod` are set) **without
 writing anything**. It prints a per-artifact `ok`/`DRIFT` line and exits non-zero
 if any committed file is missing or out of date:
 

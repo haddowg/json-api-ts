@@ -39,6 +39,10 @@ describe('parseArgs', () => {
     })
   })
 
+  it('parses --zod as a valueless boolean flag', () => {
+    expect(parseArgs(['--zod', '--input', 'a.json'])).toEqual({ zod: true, input: 'a.json' })
+  })
+
   it('ignores unknown flags and a trailing flag with no value', () => {
     expect(parseArgs(['--bogus', 'x', '--input'])).toEqual({})
   })
@@ -129,6 +133,26 @@ describe('run', () => {
     const examples = await readFile(path, 'utf8')
     expect(examples).toContain('export const examples: ApiExamples = {')
     expect(examples).toContain('"title": "Abbey Road"')
+  })
+
+  it('writes the Zod input schemas beside the client when --zod is supplied', async () => {
+    const output = join(dir, 'with-zod.gen.ts')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(
+      await run([
+        '--input',
+        fixturePath('music-catalog.openapi.json'),
+        '--output',
+        output,
+        '--zod',
+      ]),
+    ).toBe(0)
+    const path = join(dir, 'with-zod.zod.gen.ts')
+    expect(error).toHaveBeenCalledWith(`wrote ${path}`)
+    const zod = await readFile(path, 'utf8')
+    expect(zod).toContain("import { z } from 'zod'")
+    expect(zod).toContain('export const albumsCreateSchema = z.object({')
+    expect(zod).toContain('export const inputSchemas = {')
   })
 
   it('writes no examples module, and says so, when the document declares none', async () => {

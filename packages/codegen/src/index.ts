@@ -19,6 +19,7 @@ import { checkContract } from './contract'
 import { detectVerbCollisions, emit } from './emit'
 import { emitExamples } from './emit-examples'
 import { emitSchemas } from './emit-schemas'
+import { emitZod } from './emit-zod'
 import { readDocument, readSchemas } from './reader'
 
 export { buildAtomic, buildDescriptor, DescriptorBuilder } from './build-descriptor'
@@ -30,6 +31,8 @@ export type { DocumentedErrorCode, ErrorCatalogue } from './error-codes'
 export type { VerbCollision } from './emit'
 export { emitExamples } from './emit-examples'
 export { emitSchemas } from './emit-schemas'
+export { emitZod, ZodMapper, zodSchemaName } from './emit-zod'
+export type { ZodWarn } from './emit-zod'
 export type * from './openapi'
 export { deriveProvenance, hashJson, provenanceLines } from './provenance'
 export type { Provenance } from './provenance'
@@ -50,6 +53,11 @@ export interface CodegenConfig {
    * module, `<output>.examples.gen.ts`. Nothing is written when the document has none.
    */
   examples?: boolean
+  /**
+   * Also write Zod v4 schemas for each writable type's create and update input to a sibling
+   * module, `<output>.zod.gen.ts`. The module imports `zod`, which the consumer installs.
+   */
+  zod?: boolean
   /**
    * Drift-check mode: regenerate in-memory and compare against the committed `output`
    * (and its schema artifact when `schemas` is set) instead of writing. Nothing is
@@ -72,29 +80,33 @@ export interface CheckResult {
   artifacts: ArtifactDrift[]
 }
 
+/** The artifact path beside a client output path with `infix` before its `.gen.ts`/`.ts` suffix. */
+function siblingPath(output: string, infix: string): string {
+  if (output.endsWith('.gen.ts')) {
+    return `${output.slice(0, -'.gen.ts'.length)}.${infix}.gen.ts`
+  }
+  if (output.endsWith('.ts')) {
+    return `${output.slice(0, -'.ts'.length)}.${infix}.ts`
+  }
+  return `${output}.${infix}`
+}
+
 /**
  * The schema-artifact path beside a client output path: `client.gen.ts` -> `client.schemas.gen.ts`
  * (any `.gen.ts`/`.ts` suffix is preserved; a suffix-less path just gains `.schemas`).
  */
 export function schemasOutputPath(output: string): string {
-  if (output.endsWith('.gen.ts')) {
-    return `${output.slice(0, -'.gen.ts'.length)}.schemas.gen.ts`
-  }
-  if (output.endsWith('.ts')) {
-    return `${output.slice(0, -'.ts'.length)}.schemas.ts`
-  }
-  return `${output}.schemas`
+  return siblingPath(output, 'schemas')
 }
 
 /** The examples-artifact path beside a client output path, named as {@link schemasOutputPath} names its. */
 export function examplesOutputPath(output: string): string {
-  if (output.endsWith('.gen.ts')) {
-    return `${output.slice(0, -'.gen.ts'.length)}.examples.gen.ts`
-  }
-  if (output.endsWith('.ts')) {
-    return `${output.slice(0, -'.ts'.length)}.examples.ts`
-  }
-  return `${output}.examples`
+  return siblingPath(output, 'examples')
+}
+
+/** The Zod-artifact path beside a client output path, named as {@link schemasOutputPath} names its. */
+export function zodOutputPath(output: string): string {
+  return siblingPath(output, 'zod')
 }
 
 /** One rendered artifact: its target path and the freshly generated content. */
@@ -106,7 +118,7 @@ interface RenderedArtifact {
 /**
  * Read the source spec(s), build the descriptor and render every generated artifact in
  * memory (the client source first, then the schema artifact when `config.schemas` is set and
- * the examples artifact when `config.examples` is)
+ * the examples artifact when `config.examples` is, then the Zod artifact when `config.zod` is)
  * — the shared core of {@link generate} (which writes them) and {@link check} (which
  * compares them). Verb-collision warnings are emitted here so both paths surface them.
  */
@@ -153,6 +165,10 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
     }
   }
 
+  if (config.zod === true) {
+    artifacts.push({ path: zodOutputPath(config.output), content: emitZod(doc, descriptor) })
+  }
+
   return artifacts
 }
 
@@ -163,7 +179,8 @@ async function render(config: CodegenConfig): Promise<RenderedArtifact[]> {
  * When `config.schemas` is set, also read the bundle's JSON Schema bundle and write a
  * separate per-type schema artifact (`<output>.schemas.gen.ts`) beside the client, wiring
  * the opt-in validation seam. The main client output is unchanged either way.
- * `config.examples` writes the operation examples the same way.
+ * `config.examples` writes the operation examples the same way, and `config.zod` the Zod input
+ * schemas.
  *
  * `config.server` is metadata-only for now: the served document is already per-server,
  * so the caller selects the server by pointing `input` at the right document.

@@ -4,12 +4,12 @@ import { fileURLToPath } from 'node:url'
 import { check, generateFiles, type CodegenConfig } from './index'
 
 export const USAGE =
-  'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--examples] [--check]'
+  'Usage: json-api-codegen --input <url|file> --output <file> [--server <name>] [--schemas <url|file>] [--examples] [--zod] [--check]'
 
 /**
  * Thin CLI wrapper. Real arg parsing + `japi.config.ts` discovery land with the
  * generator itself; this stub establishes the bin entry and the shape of invocation.
- * `--check` (drift gate) and `--examples` are boolean flags with no value.
+ * `--check` (drift gate), `--examples` and `--zod` are boolean flags with no value.
  */
 export function parseArgs(argv: string[]): Partial<CodegenConfig> {
   const config: Partial<CodegenConfig> = {}
@@ -21,6 +21,10 @@ export function parseArgs(argv: string[]): Partial<CodegenConfig> {
     }
     if (arg === '--examples') {
       config.examples = true
+      continue
+    }
+    if (arg === '--zod') {
+      config.zod = true
       continue
     }
     const next = argv[i + 1]
