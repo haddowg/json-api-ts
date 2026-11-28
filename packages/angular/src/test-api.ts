@@ -72,11 +72,22 @@ export const createMusicClient = (options: ClientOptions) =>
 /** The admin server documents error codes, as a generated client would carry them. */
 export type AdminErrorCode = 'ACCESS_DENIED' | 'RESOURCE_NOT_FOUND'
 
+/** The codes each admin operation raises, as a generated `ErrorCodeByOperation` maps them. */
+export interface AdminErrorCodeByOperation {
+  'fetchOne.albums': 'RESOURCE_NOT_FOUND'
+  'update.albums': 'ACCESS_DENIED' | 'RESOURCE_NOT_FOUND'
+}
+
 export const createAdminClient = (options: ClientOptions) =>
-  createClient<typeof descriptor, Attributes, WriteAttributes, DefaultActionTypes, AdminErrorCode>(
-    descriptor,
-    options,
-  )
+  createClient<
+    typeof descriptor,
+    Attributes,
+    WriteAttributes,
+    DefaultActionTypes,
+    AdminErrorCode,
+    Record<never, never>,
+    AdminErrorCodeByOperation
+  >(descriptor, options)
 
 export type MusicClient = ReturnType<typeof createMusicClient>
 export type MusicDescriptor = typeof descriptor

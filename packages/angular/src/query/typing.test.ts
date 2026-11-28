@@ -2,7 +2,7 @@
 // functions below are never called (the inject functions need an injection context); `tsc` checks
 // their assertions.
 import { signal } from '@angular/core'
-import type { JsonApiError } from '@haddowg/json-api-client'
+import { fieldErrors, type JsonApiError, type OperationErrorCodeOf } from '@haddowg/json-api-client'
 import {
   createMutationApi,
   createQueryApi,
@@ -76,13 +76,17 @@ function narrowedQuery(): void {
   }
   expectTypeOf(album.error()).toEqualTypeOf<ReadError | null>()
 
-  // Another server's client carries its own codes into error() and the error pipe's result.
+  // Another server's client carries its own codes into error() and the error pipe's result,
+  // narrowed to the codes the read's operation raises.
   const admin = injectJsonApiReads(ADMIN)
   const adminAlbum = injectQuery(() => admin.albums.get(id()))
-  expectTypeOf(adminAlbum.error()).toEqualTypeOf<ReadError<AdminErrorCode> | null>()
+  expectTypeOf(adminAlbum.error()).toEqualTypeOf<ReadError<'RESOURCE_NOT_FOUND'> | null>()
   expectTypeOf(asJsonApiError(adminAlbum.error())).toEqualTypeOf<
-    JsonApiError<AdminErrorCode> | undefined
+    JsonApiError<'RESOURCE_NOT_FOUND'> | undefined
   >()
+  // An operation the map doesn't list keeps every code the client carries.
+  const adminAlbums = injectQuery(() => admin.albums.list())
+  expectTypeOf(adminAlbums.error()).toEqualTypeOf<ReadError<AdminErrorCode> | null>()
 }
 
 function infiniteQuery(): void {
@@ -117,14 +121,22 @@ function spreadMutation(): void {
   expectTypeOf<Variables['title']>().toEqualTypeOf<string | undefined>()
   expectTypeOf<Variables['steps']>().toEqualTypeOf<Step[] | undefined>()
   expectTypeOf(rename.data()?.title).toEqualTypeOf<string | undefined>()
-  expectTypeOf(rename.error()).toEqualTypeOf<MutationError | null>()
+  expectTypeOf(rename.error()).toExtend<MutationError | null>()
+  // The write's error carries its input, so fieldErrors() checks paths against it.
+  fieldErrors(rename.error())?.first('title')
+  // @ts-expect-error not a field of the update's input
+  fieldErrors(rename.error())?.first('titel')
 
   // Another server's client carries its own codes into a write's error() too.
   const adminWrites = injectJsonApiWrites(ADMIN)
   const adminRename = injectMutation(() => adminWrites.albums.id(id()).update())
-  expectTypeOf(adminRename.error()).toEqualTypeOf<MutationError<AdminErrorCode> | null>()
+  expectTypeOf(adminRename.error()).toExtend<MutationError<AdminErrorCode> | null>()
+  // Typed by the codes the update raises, not every code the server documents.
   expectTypeOf(asJsonApiError(adminRename.error())).toEqualTypeOf<
-    JsonApiError<AdminErrorCode> | undefined
+    JsonApiError<OperationErrorCodeOf<AdminClient, 'update.albums'>> | undefined
+  >()
+  expectTypeOf<OperationErrorCodeOf<AdminClient, 'update.albums'>>().toEqualTypeOf<
+    'ACCESS_DENIED' | 'RESOURCE_NOT_FOUND'
   >()
 }
 

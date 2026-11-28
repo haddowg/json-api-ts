@@ -28,7 +28,8 @@ pnpm add @haddowg/json-api-query @tanstack/query-core
 The factories read only a client's resource accessors and its error codes, never its
 custom-action types (actions aren't cacheable resources), so the generated client passes straight
 through. When you need to name its type, for a context or a prop, keep every `Client` parameter,
-the generated `ErrorCode` included, so `error` keeps the server's codes rather than any string:
+the generated `ErrorCode` and `ErrorCodeByOperation` included, so `error` keeps the server's codes
+rather than any string:
 
 ```ts
 import type { Client } from '@haddowg/json-api-client'
@@ -37,13 +38,22 @@ import type {
   ActionTypes,
   Attributes,
   ErrorCode,
+  ErrorCodeByOperation,
   Links,
   ResourceMap,
   WriteAttributes,
 } from './api/music.gen'
 
 // The generated `createClient`'s return type.
-type ApiClient = Client<ResourceMap, Attributes, WriteAttributes, ActionTypes, ErrorCode, Links>
+type ApiClient = Client<
+  ResourceMap,
+  Attributes,
+  WriteAttributes,
+  ActionTypes,
+  ErrorCode,
+  Links,
+  ErrorCodeByOperation
+>
 
 const client: ApiClient = createClient({ baseUrl: 'https://music.example' })
 ```

@@ -232,7 +232,7 @@ protected readonly rename = injectMutation(() => this.writes.accounts.update())
 
 ### Errors
 
-A read's `error()` is typed `ReadError<ErrorCode> | null` and a write's `MutationError<ErrorCode> | null`, carrying the error codes the server documents (see [match on an error code](errors.md#match-on-an-error-code)): a `JsonApiError` for a non-2xx response, a `StructuralGuardError` for a response that isn't a JSON:API document, or any other `Error` for a transport failure.
+A read's `error()` is a `ReadError` and a write's a `MutationError`, each typed by the codes its operation raises (`ErrorCodeByOperation['fetchOne.albums']` for `reads.albums.get(id)`) (see [match on an error code](errors.md#match-on-an-error-code)): a `JsonApiError` for a non-2xx response, a `StructuralGuardError` for a response that isn't a JSON:API document, or any other `Error` for a transport failure.
 
 Templates can't use `instanceof`, so the standalone `jsonApiError` pipe narrows an error to its `JsonApiError`, or `undefined`. Add `JsonApiErrorPipe` to the component's `imports`. From [album-list.ts](../examples/angular-catalog/src/app/album-list.ts):
 
@@ -249,8 +249,10 @@ Templates can't use `instanceof`, so the standalone `jsonApiError` pipe narrows 
 A `422` arrives with the client's flat error paths, so `byPath()` keys match your form fields. In code, `asJsonApiError(error)` does the same and keeps the error's codes. From [typing.test.ts](../packages/angular/src/query/typing.test.ts):
 
 ```ts
-asJsonApiError(adminAlbum.error()) // JsonApiError<AdminErrorCode> | undefined
+asJsonApiError(adminAlbum.error()) // JsonApiError<'RESOURCE_NOT_FOUND'> | undefined, the codes the admin read raises
 ```
+
+A create's or update's error carries the write's input, so `fieldErrors(rename.error())` sorts it into field errors with its paths checked against that input. See [`fieldErrors()`](errors.md#fielderrors-errors-for-a-form).
 
 When you configure no `retry`, reads don't retry a `4xx` or a response that isn't a JSON:API document. See [typed errors and retries](tanstack-query.md#typed-errors-and-retries).
 

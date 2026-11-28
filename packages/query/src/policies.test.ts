@@ -1,15 +1,30 @@
 import {
   createClient,
+  type CreateInput,
   type DefaultActionTypes,
   type DefaultWriteAttributes,
-  type JsonApiError,
+  type FieldErrors,
+  fieldErrors,
+  JsonApiError,
+  type UpdateInput,
 } from '@haddowg/json-api-client'
-import { MutationObserver, QueryClient } from '@tanstack/query-core'
+import { MutationObserver, QueryClient, QueryObserver } from '@tanstack/query-core'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { BASE, descriptor, harness, ids, type Row, tick } from './lifecycle-harness.test-support'
 import { resourceKey } from './keys'
-import { createMutationApi, jsonApiMutationOptions, type MutationError } from './mutate'
-import { getQueryOptions, listQueryOptions, relationshipQueryOptions } from './read'
+import {
+  createMutationApi,
+  jsonApiMutationOptions,
+  type MutationError,
+  type WriteMutationError,
+} from './mutate'
+import {
+  createQueryApi,
+  getQueryOptions,
+  listQueryOptions,
+  type ReadError,
+  relationshipQueryOptions,
+} from './read'
 import { mutationKeyFor } from './upkeep'
 
 const bound = (h: ReturnType<typeof harness>) =>
@@ -341,10 +356,64 @@ describe('typing', () => {
     const qc = new QueryClient()
     const writes = createMutationApi(qc, typed, descriptor)
     const observer = new MutationObserver(qc, writes.albums.id('1').update())
-    expectTypeOf(observer.getCurrentResult().error).toEqualTypeOf<MutationError<ErrorCode> | null>()
+    const error = observer.getCurrentResult().error
+    expectTypeOf(error).toEqualTypeOf<WriteMutationError<
+      ErrorCode,
+      Record<never, never>,
+      'update.albums',
+      UpdateInput<D, DefaultWriteAttributes<D>, 'albums'>
+    > | null>()
+    expectTypeOf(error).toExtend<MutationError<ErrorCode> | null>()
     expectTypeOf<JsonApiError<ErrorCode>>().toExtend<MutationError<ErrorCode>>()
     const relation = new MutationObserver(qc, writes.albums.id('1').rel('tracks').add())
-    expectTypeOf(relation.getCurrentResult().error).toEqualTypeOf<MutationError<ErrorCode> | null>()
+    expectTypeOf(relation.getCurrentResult().error).toExtend<MutationError<ErrorCode> | null>()
+    const remove = new MutationObserver(qc, writes.albums.id('1').delete())
+    expectTypeOf(remove.getCurrentResult().error).toEqualTypeOf<MutationError<ErrorCode> | null>()
+  })
+
+  it('types each error by the operation that raised it, and a write error by its input', () => {
+    type ByOperation = {
+      'create.albums': 'RATE_LIMITED'
+      'addRelationship.albums.tracks': 'ALBUM_GONE'
+      'fetchOne.albums': 'ALBUM_GONE'
+    }
+    const byOperation = createClient<
+      D,
+      DefaultWriteAttributes<D>,
+      DefaultWriteAttributes<D>,
+      DefaultActionTypes,
+      ErrorCode,
+      Record<never, never>,
+      ByOperation
+    >(descriptor, { baseUrl: BASE })
+    const qc = new QueryClient()
+    const writes = createMutationApi(qc, byOperation, descriptor)
+
+    const create = new MutationObserver(qc, writes.albums.create()).getCurrentResult().error
+    if (create instanceof JsonApiError) {
+      expectTypeOf(create.errors[0]!.code).toEqualTypeOf<
+        'RATE_LIMITED' | (string & {}) | undefined
+      >()
+    }
+    expectTypeOf(fieldErrors(create)).toEqualTypeOf<
+      FieldErrors<CreateInput<D, DefaultWriteAttributes<D>, 'albums'>, 'RATE_LIMITED'> | undefined
+    >()
+    const add = new MutationObserver(qc, writes.albums.id('1').rel('tracks').add())
+    const added = fieldErrors(add.getCurrentResult().error)
+    added?.first('tracks[0]')
+    // @ts-expect-error the write's input holds only the relation it adds to
+    added?.first('artist')
+    // An operation the map doesn't list keeps every code.
+    const remove = new MutationObserver(qc, writes.albums.id('1').delete()).getCurrentResult().error
+    expectTypeOf(remove).toEqualTypeOf<MutationError<ErrorCode> | null>()
+
+    const reads = createQueryApi(byOperation)
+    expectTypeOf(
+      new QueryObserver(qc, reads.albums.get('1')).getCurrentResult().error,
+    ).toEqualTypeOf<ReadError<'ALBUM_GONE'> | null>()
+    expectTypeOf(
+      new QueryObserver(qc, reads.albums.list()).getCurrentResult().error,
+    ).toEqualTypeOf<ReadError<ErrorCode> | null>()
   })
 
   it('types into by the view’s sort tokens', () => {

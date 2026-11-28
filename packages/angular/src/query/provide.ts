@@ -25,8 +25,8 @@ import { JSON_API_CLIENT, type RegisteredClient } from '../provide'
  * the client's error codes typing each read's `error`.
  */
 export type JsonApiReads<C> =
-  C extends Client<infer D, infer A, infer _W, infer _Act, infer E, infer L>
-    ? QueryApi<D, WithLinks<A, L>, E>
+  C extends Client<infer D, infer A, infer _W, infer _Act, infer E, infer L, infer O>
+    ? QueryApi<D, WithLinks<A, L>, E, O>
     : never
 
 /**
@@ -34,8 +34,8 @@ export type JsonApiReads<C> =
  * with the client's error codes typing each write's `error`.
  */
 export type JsonApiWrites<C> =
-  C extends Client<infer D, infer A, infer W, infer _Act, infer E, infer L>
-    ? MutationApi<D, WithLinks<A, L>, W, E>
+  C extends Client<infer D, infer A, infer W, infer _Act, infer E, infer L, infer O>
+    ? MutationApi<D, WithLinks<A, L>, W, E, O>
     : never
 
 /** Options for {@link provideJsonApiQuery}. */

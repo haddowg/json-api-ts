@@ -18,7 +18,9 @@ import {
   type ApiDescriptor,
   type AtomicRecorder,
   type AtomicResult,
-  type Client,
+  type ErrorCodeCarrier,
+  type OperationCodes,
+  type WriteError,
   type CreateAttributesOf,
   type CreateInput,
   type CreateMethod,
@@ -53,7 +55,7 @@ import { stampedUnlessClient } from './freshness'
 import type { QueryKey } from './keys'
 import { assertUpkeepRuns } from './mutation-cache'
 import { scopeApi, type ScopeOption } from './scope'
-import type { ReadError, ResourceId } from './read'
+import type { OperationError, ReadError, ReadFailure, ReadGuardError, ResourceId } from './read'
 import {
   CUSTOM_MUTATION_KEY,
   JSON_API_HOOKS,
@@ -77,6 +79,30 @@ import { scopedKey } from './keys'
  * codes `C`, a structural guard failure, or any other `Error` (the same union a read's error is).
  */
 export type MutationError<C extends string = string> = ReadError<C>
+
+/**
+ * The error of write operation `Op`, such as `'create.albums'`: a {@link MutationError} typed by
+ * the codes `Op` raises, its {@link JsonApiError} tagged with the write's input `I` so
+ * `fieldErrors(error)` types the input's paths.
+ */
+export type WriteMutationError<C extends string, O, Op extends string, I> =
+  | WriteError<OperationCodes<C, O, Op>, I>
+  | ReadGuardError
+  | ReadFailure
+
+/** A relationship write's options, its error typed by `<verb>Relationship.<type>.<rel>` and tagged with the linkage `V` under `R`. */
+type RelationMutationOptions<
+  C extends string,
+  O,
+  Verb extends 'update' | 'add' | 'remove',
+  T extends string,
+  R extends string,
+  V,
+> = MutationOptions<
+  unknown,
+  V,
+  WriteMutationError<C, O, `${Verb}Relationship.${T}.${R}`, { [K in R]: V }>
+>
 
 /**
  * A typed TanStack `retry` callback. Mutation options declare it, optional and never set, so
@@ -161,15 +187,6 @@ function resourcePlan(
       : { attachTo: { type: attachTo.type, id: attachTo.id, rel: attachTo.rel } }),
   }
 }
-
-/**
- * The key the client carries its error-code union under. The client keeps the symbol private (a
- * type-only member), so it is recovered from the `Client` type.
- */
-type ErrorCodesKey = Extract<keyof Client<{}>, symbol>
-
-/** What a client carries of its error codes, which the factories infer to type `error`. */
-type ErrorCodes<C extends string> = { readonly [K in ErrorCodesKey]?: C }
 
 /**
  * The resource a create or update resolves to, its `$document.meta` typed by the members the
@@ -261,9 +278,14 @@ type WriteClient<D extends ApiDescriptor, A, W> = {
     : TypeWrites<D, A, W, T>
 }
 
-/** A {@link WriteClient} carrying the error codes `C` it rejects with. */
-type CodedWriteClient<D extends ApiDescriptor, A, W, C extends string> = WriteClient<D, A, W> &
-  ErrorCodes<C>
+/** A {@link WriteClient} carrying the error codes it rejects with. */
+type CodedWriteClient<
+  D extends ApiDescriptor,
+  A,
+  W,
+  C extends string = string,
+  O = unknown,
+> = WriteClient<D, A, W> & ErrorCodeCarrier<C, O>
 
 /** The accessor of `type`, read as a collection type's or a singleton's. */
 function writesOf<D extends ApiDescriptor, A, W, T extends TypeName<D>>(
@@ -496,9 +518,10 @@ export function createMutationOptions<
   const Wt extends WaitValue<D, T, 'create'> = undefined,
   const Cnt extends readonly ResourceCountToken<D, T, 'create'>[] = [],
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   descriptor: D,
   type: T,
   ...[opts]: OptionsArg<
@@ -508,7 +531,7 @@ export function createMutationOptions<
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
   CreateInput<D, W, T>,
-  MutationError<C>
+  WriteMutationError<C, O, `create.${T}`, CreateInput<D, W, T>>
 > {
   const accessor = writesOf(client, type)
   const options = (opts ?? {}) as CreateMutationOpts<D, W, T, Inc, F, Wt, Cnt, A>
@@ -555,9 +578,10 @@ export function updateMutationOptions<
   const Wt extends WaitValue<D, T, 'update'> = undefined,
   const Cnt extends readonly ResourceCountToken<D, T, 'update'>[] = [],
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   descriptor: D,
   type: T,
   id: ResourceId<D, T>,
@@ -568,7 +592,7 @@ export function updateMutationOptions<
 ): MutationOptions<
   WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
   UpdateVariables<D, W, T>,
-  MutationError<C>
+  WriteMutationError<C, O, `update.${T}`, UpdateVariables<D, W, T>>
 > {
   const accessor = writesOf(client, type)
   const resource: string | undefined = id
@@ -650,13 +674,14 @@ export function deleteMutationOptions<
   W,
   T extends TypeName<D>,
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   type: T,
   id: string,
   ...[opts]: DeleteMutationArgs<D, T, W>
-): MutationOptions<DeleteResult<D, T>, void, MutationError<C>> {
+): MutationOptions<DeleteResult<D, T>, void, OperationError<MutationError<C>, O, `delete.${T}`>> {
   const accessor = writesOf(client, type)
   const remove = accessor.id(id).delete as (opts?: unknown) => Promise<DeleteResult<D, T>>
   const optimistic = (opts as DeleteMutationOpts | undefined)?.optimistic as
@@ -747,15 +772,16 @@ export function setRelationshipMutationOptions<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   descriptor: D,
   type: T,
   id: ResourceId<D, T>,
   rel: R,
   opts?: RelationshipMutationOpts<LinkageRef<string> | null, D, T, R>,
-): MutationOptions<unknown, LinkageRef<string> | null, MutationError<C>> {
+): RelationMutationOptions<C, O, 'update', T, R, LinkageRef<string> | null> {
   return relationshipMutation(
     'set',
     type,
@@ -784,15 +810,16 @@ export function replaceRelationshipMutationOptions<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   descriptor: D,
   type: T,
   id: ResourceId<D, T>,
   rel: R,
   opts?: RelationshipMutationOpts<readonly LinkageRef<string>[], D, T, R>,
-): MutationOptions<unknown, readonly LinkageRef<string>[], MutationError<C>> {
+): RelationMutationOptions<C, O, 'update', T, R, readonly LinkageRef<string>[]> {
   return relationshipMutation(
     'replace',
     type,
@@ -822,14 +849,15 @@ export function addRelationshipMutationOptions<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   type: T,
   id: ResourceId<D, T>,
   rel: R,
   opts?: RelationshipMutationOpts<readonly LinkageRef<string>[], D, T, R>,
-): MutationOptions<unknown, readonly LinkageRef<string>[], MutationError<C>> {
+): RelationMutationOptions<C, O, 'add', T, R, readonly LinkageRef<string>[]> {
   return relationshipMutation(
     'add',
     type,
@@ -858,14 +886,15 @@ export function removeRelationshipMutationOptions<
   T extends TypeName<D>,
   R extends RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
 >(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   type: T,
   id: ResourceId<D, T>,
   rel: R,
   opts?: RelationshipMutationOpts<readonly LinkageRef<string>[], D, T, R>,
-): MutationOptions<unknown, readonly LinkageRef<string>[], MutationError<C>> {
+): RelationMutationOptions<C, O, 'remove', T, R, readonly LinkageRef<string>[]> {
   return relationshipMutation(
     'remove',
     type,
@@ -896,11 +925,21 @@ export function removeRelationshipMutationOptions<
  * on. Kept so existing calls compile; it will be removed in a future major.
  * @param _descriptor The descriptor, which types the batch's recorder.
  */
-export function atomicMutationOptions<D extends ApiDescriptor, A, W, C extends string = string>(
+export function atomicMutationOptions<
+  D extends ApiDescriptor,
+  A,
+  W,
+  C extends string = string,
+  O = Record<never, never>,
+>(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   _descriptor: D,
-): MutationOptions<AtomicResult[], (tx: AtomicRecorder<D, W>) => unknown, MutationError<C>> {
+): MutationOptions<
+  AtomicResult[],
+  (tx: AtomicRecorder<D, W>) => unknown,
+  OperationError<MutationError<C>, O, 'atomic.operations'>
+> {
   return planned({ verb: 'atomic' }, (build) =>
     // The client's `atomic` carries the precise per-op return type; the binding's loose
     // `AtomicResult[]` result is the common supertype (a caller wanting the positional tuple
@@ -1021,19 +1060,20 @@ export interface RelationMutationApi<
   T extends TypeName<D> = TypeName<D>,
   R extends RelationName<D, T> = RelationName<D, T>,
   C extends string = string,
+  O = Record<never, never>,
 > {
   add(
     opts?: RelationshipMutationOpts<readonly LinkageRef<string>[], D, T, R>,
-  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationError<C>>
+  ): RelationMutationOptions<C, O, 'add', T, R, readonly LinkageRef<string>[]>
   remove(
     opts?: RelationshipMutationOpts<readonly LinkageRef<string>[], D, T, R>,
-  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationError<C>>
+  ): RelationMutationOptions<C, O, 'remove', T, R, readonly LinkageRef<string>[]>
   replace(
     opts?: RelationshipMutationOpts<readonly LinkageRef<string>[], D, T, R>,
-  ): MutationOptions<unknown, readonly LinkageRef<string>[], MutationError<C>>
+  ): RelationMutationOptions<C, O, 'update', T, R, readonly LinkageRef<string>[]>
   set(
     opts?: RelationshipMutationOpts<LinkageRef<string> | null, D, T, R>,
-  ): MutationOptions<unknown, LinkageRef<string> | null, MutationError<C>>
+  ): RelationMutationOptions<C, O, 'update', T, R, LinkageRef<string> | null>
 }
 
 /** The id-scoped mutation option factories (`api.<type>.id(id).update(...)` etc.). */
@@ -1043,6 +1083,7 @@ export interface HandleMutationApi<
   W,
   T extends TypeName<D>,
   C extends string = string,
+  O = Record<never, never>,
 > {
   update<
     const Inc extends readonly IncludePath<D, T>[] = [],
@@ -1057,12 +1098,12 @@ export interface HandleMutationApi<
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     UpdateInput<D, W, T>,
-    MutationError<C>
+    WriteMutationError<C, O, `update.${T}`, UpdateInput<D, W, T>>
   >
   delete(
     ...opts: DeleteMutationArgs<D, T, W>
-  ): MutationOptions<DeleteResult<D, T>, void, MutationError<C>>
-  rel<R extends RelationName<D, T>>(name: R): RelationMutationApi<D, T, R, C>
+  ): MutationOptions<DeleteResult<D, T>, void, OperationError<MutationError<C>, O, `delete.${T}`>>
+  rel<R extends RelationName<D, T>>(name: R): RelationMutationApi<D, T, R, C, O>
 }
 
 /** The per-type mutation option factories, with `queryClient`/`client`/`descriptor`/`type` pre-applied. */
@@ -1072,6 +1113,7 @@ export interface TypeMutationApi<
   W,
   T extends TypeName<D>,
   C extends string = string,
+  O = Record<never, never>,
 > {
   create<
     const Inc extends readonly IncludePath<D, T>[] = [],
@@ -1086,7 +1128,7 @@ export interface TypeMutationApi<
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'create', WriteResource<D, A, T, Inc, F, Cnt, 'create'>, Wt>,
     CreateInput<D, W, T>,
-    MutationError<C>
+    WriteMutationError<C, O, `create.${T}`, CreateInput<D, W, T>>
   >
   /**
    * The update of any resource of the type, taking its id in the variables
@@ -1106,7 +1148,7 @@ export interface TypeMutationApi<
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     UpdateByIdVariables<D, W, T>,
-    MutationError<C>
+    WriteMutationError<C, O, `update.${T}`, UpdateByIdVariables<D, W, T>>
   >
   /**
    * The delete of any resource of the type, taking its id in the variables (`mutate({ id })`).
@@ -1114,8 +1156,12 @@ export interface TypeMutationApi<
    */
   delete(
     ...opts: DeleteMutationArgs<D, T, W, DeleteByIdVariables>
-  ): MutationOptions<DeleteResult<D, T>, DeleteByIdVariables, MutationError<C>>
-  id(id: string): HandleMutationApi<D, A, W, T, C>
+  ): MutationOptions<
+    DeleteResult<D, T>,
+    DeleteByIdVariables,
+    OperationError<MutationError<C>, O, `delete.${T}`>
+  >
+  id(id: string): HandleMutationApi<D, A, W, T, C, O>
 }
 
 /**
@@ -1128,6 +1174,7 @@ export interface SingletonMutationApi<
   W,
   T extends TypeName<D>,
   C extends string = string,
+  O = Record<never, never>,
 > {
   update<
     const Inc extends readonly IncludePath<D, T>[] = [],
@@ -1142,19 +1189,25 @@ export interface SingletonMutationApi<
   ): MutationOptions<
     WaitedWriteResult<D, A, T, 'update', WriteResource<D, A, T, Inc, F, Cnt, 'update'>, Wt>,
     SingletonUpdateInput<D, W, T>,
-    MutationError<C>
+    WriteMutationError<C, O, `update.${T}`, SingletonUpdateInput<D, W, T>>
   >
-  rel<R extends RelationName<D, T>>(name: R): RelationMutationApi<D, T, R, C>
+  rel<R extends RelationName<D, T>>(name: R): RelationMutationApi<D, T, R, C, O>
 }
 
 /**
  * The bound mutation API: one {@link TypeMutationApi} per wire type (`api.albums.create()`), or a
  * {@link SingletonMutationApi} for a singleton type.
  */
-export type MutationApi<D extends ApiDescriptor, A, W, C extends string = string> = {
+export type MutationApi<
+  D extends ApiDescriptor,
+  A,
+  W,
+  C extends string = string,
+  O = Record<never, never>,
+> = {
   [T in TypeName<D>]: D[T] extends { singleton: true }
-    ? SingletonMutationApi<D, A, W, T, C>
-    : TypeMutationApi<D, A, W, T, C>
+    ? SingletonMutationApi<D, A, W, T, C, O>
+    : TypeMutationApi<D, A, W, T, C, O>
 }
 
 /**
@@ -1171,12 +1224,18 @@ export type MutationApi<D extends ApiDescriptor, A, W, C extends string = string
  * @param queryClient Deprecated and ignored: the upkeep runs on the QueryClient the mutation runs
  * on. Kept so existing calls compile; it will be removed in a future major.
  */
-export function createMutationApi<D extends ApiDescriptor, A, W, C extends string = string>(
+export function createMutationApi<
+  D extends ApiDescriptor,
+  A,
+  W,
+  C extends string = string,
+  O = Record<never, never>,
+>(
   queryClient: QueryClient,
-  client: CodedWriteClient<D, A, W, C>,
+  client: CodedWriteClient<D, A, W, C, O>,
   descriptor: D,
   options: ScopeOption = {},
-): MutationApi<D, A, W, C> {
+): MutationApi<D, A, W, C, O> {
   return scopeApi(unscopedMutationApi(queryClient, client, descriptor), options.scope) as never
 }
 
