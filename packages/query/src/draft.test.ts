@@ -1,5 +1,6 @@
 import {
   type ApiDescriptor,
+  type Client,
   createClient,
   type TransportRequest,
   type TransportResponse,
@@ -10,7 +11,7 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/query-core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { type DraftQuery, openDraft } from './draft'
 import { installNormalization } from './install'
 import { JsonApiMutationCache } from './mutation-cache'
@@ -1061,6 +1062,55 @@ const renderedPivot = {
   },
 } as const satisfies ApiDescriptor
 
+/** The catalogue's attributes, as a generated client types them. */
+interface CatalogueAttributes {
+  albums: { title: string; year: number }
+  tracks: { title: string; duration: number }
+  artists: { name: string }
+}
+
+/** Album tracks with a write-optional `weight` beside the required `position`. */
+const weighted = {
+  ...renderedPivot,
+  albums: {
+    ...renderedPivot.albums,
+    relations: {
+      ...renderedPivot.albums.relations,
+      tracks: {
+        ...renderedPivot.albums.relations.tracks,
+        readPivot: { fields: { position: 'integer', weight: 'integer' } },
+        writePivot: { fields: { position: 'integer', weight: 'integer' }, required: ['position'] },
+      },
+    },
+  },
+} as const satisfies ApiDescriptor
+
+/** Album tracks whose write pivot requires nothing. */
+const unrequired = {
+  ...renderedPivot,
+  albums: {
+    ...renderedPivot.albums,
+    relations: {
+      ...renderedPivot.albums.relations,
+      tracks: {
+        ...renderedPivot.albums.relations.tracks,
+        writePivot: { fields: { position: 'integer' }, required: [] },
+      },
+    },
+  },
+} as const satisfies ApiDescriptor
+
+type WeightedLinkage = Awaited<
+  ReturnType<
+    ReturnType<Client<typeof weighted, CatalogueAttributes>['albums']['id']>['tracks']['get']
+  >
+>
+type UnrequiredLinkage = Awaited<
+  ReturnType<
+    ReturnType<Client<typeof unrequired, CatalogueAttributes>['albums']['id']>['tracks']['get']
+  >
+>
+
 describe('a pending member of a relation rendering its pivot on every member', () => {
   it('carries an empty pivot when the operation sent none', async () => {
     const { client, queryClient } = catalogue()
@@ -1108,6 +1158,87 @@ describe('a pending member of a relation rendering its pivot on every member', (
     expect(ids(members)).toEqual(['t1', 't4'])
     expect(members[1]!.$pivot).toEqual({})
     expect(members[1]!.$optimistic).toBe('pending')
+  })
+
+  it('leaves a field only the server sets undefined, as the pending type allows', async () => {
+    const stamped = {
+      ...renderedPivot,
+      albums: {
+        ...renderedPivot.albums,
+        relations: {
+          ...renderedPivot.albums.relations,
+          tracks: {
+            ...renderedPivot.albums.relations.tracks,
+            readPivot: { fields: { addedAt: 'date-time', position: 'integer' } },
+            writePivot: { fields: { position: 'integer' } },
+          },
+        },
+      },
+    } as const satisfies ApiDescriptor
+    type Attributes = {
+      albums: { title: string; year: number }
+      tracks: { title: string; duration: number }
+      artists: { name: string }
+    }
+    type Linkage = Awaited<
+      ReturnType<ReturnType<Client<typeof stamped, Attributes>['albums']['id']>['tracks']['get']>
+    >
+    const { client, queryClient } = catalogue()
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    await queryClient.fetchQuery(linkage)
+
+    openDraft(queryClient, stamped).attach('albums', '1', 'tracks', [
+      ref('t3', { $pivot: { position: 3 } }),
+    ])
+
+    const member = (dataOf(queryClient, linkage) as Linkage)[2]!
+    expectTypeOf(member.$pivot.addedAt).toEqualTypeOf<string | undefined>()
+    expect(member.$optimistic).toBe('pending')
+    if (member.$optimistic === 'pending') {
+      expectTypeOf(member.$pivot.position).toEqualTypeOf<number>()
+      expect(member.$pivot.position).toBe(3)
+      expect(member.$pivot.addedAt).toBeUndefined()
+      expect(member.$edge.meta.pivot.addedAt).toBeUndefined()
+    } else {
+      expectTypeOf(member.$pivot.addedAt).toEqualTypeOf<string>()
+    }
+  })
+
+  it('leaves a write-optional field the write left out undefined, as the pending type allows', async () => {
+    const { client, queryClient } = catalogue()
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    await queryClient.fetchQuery(linkage)
+
+    openDraft(queryClient, weighted).attach('albums', '1', 'tracks', [
+      ref('t3', { $pivot: { position: 3 } }),
+    ])
+
+    const member = (dataOf(queryClient, linkage) as WeightedLinkage)[2]!
+    expect(member.$optimistic).toBe('pending')
+    if (member.$optimistic === 'pending') {
+      expectTypeOf(member.$pivot.position).toEqualTypeOf<number>()
+      expectTypeOf(member.$pivot.weight).toEqualTypeOf<number | undefined>()
+      expect(member.$pivot.weight).toBeUndefined()
+    } else {
+      expectTypeOf(member.$pivot.weight).toEqualTypeOf<number>()
+    }
+  })
+
+  it('leaves every field undefined on an attach that sent no pivot, as the pending type allows', async () => {
+    const { client, queryClient } = catalogue()
+    const linkage = relationshipQueryOptions(client, 'albums', '1', 'tracks')
+    await queryClient.fetchQuery(linkage)
+
+    openDraft(queryClient, unrequired).attach('albums', '1', 'tracks', [ref('t3')])
+
+    const member = (dataOf(queryClient, linkage) as UnrequiredLinkage)[2]!
+    expect(member.$optimistic).toBe('pending')
+    if (member.$optimistic === 'pending') {
+      expectTypeOf(member.$pivot.position).toEqualTypeOf<number | undefined>()
+      expect(member.$pivot).toEqual({})
+    } else {
+      expectTypeOf(member.$pivot.position).toEqualTypeOf<number>()
+    }
   })
 
   it('leaves a relation without the mark as it was', async () => {

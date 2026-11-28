@@ -226,6 +226,25 @@ describe('typed into', () => {
     })
   })
 
+  it('types a loaded member a write holds pending apart, narrowed on $optimistic', () => {
+    draft().attach('playlists', 'p1', 'tracks', [{ type: 'tracks', id: 't1' }], {
+      into: () => (members) => {
+        const loaded = members[0]!
+        if (loaded.$optimistic === 'pending') {
+          // Only the pivot the earlier write sent: the server-set addedAt may be missing.
+          expectTypeOf(loaded.$pivot!.addedAt).toEqualTypeOf<string | undefined>()
+          expectTypeOf(loaded.$pivot!.position).toEqualTypeOf<number>()
+        } else {
+          expectTypeOf(loaded.$optimistic).toEqualTypeOf<undefined>()
+          expectTypeOf(loaded.$pivot!.addedAt).toEqualTypeOf<string>()
+        }
+        return -1
+      },
+    })
+    // An insert's rows and a relation without a pivot keep one shape.
+    expectTypeOf<DraftMember<'tracks', never>['$optimistic']>().toEqualTypeOf<unknown>()
+  })
+
   it("types a placed member's $pivot through the mutation factories", () => {
     const writes = createMutationApi(
       new QueryClient({ mutationCache: new JsonApiMutationCache() }),

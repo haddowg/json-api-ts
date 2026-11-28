@@ -83,6 +83,8 @@ playlist.$pending('tracks')
 // [{ type: 'tracks', id: 't7', member: { type: 'tracks', id: 't7', title: 'Lucky' } }]
 ```
 
+A pending member of a relation with a pivot carries the pivot values the write sent, and none the server sets. Where the server renders the pivot on every member, its type says so until `$optimistic` stops being `'pending'`; see [Materialisation](materialisation.md#reading-many-to-many-edge-data-via-pivot).
+
 `$pending(rel)` is part of every materialised resource's type, and the client returns `[]` from it when no cache layer is involved, so a hand-written mock typed as a resource (a test fixture, a story) needs a `$pending: () => []` stub.
 
 A parent's `$count(rel)` moves by the members a pending write added and removed. Both markers clear when the write settles, after its refetch.
@@ -100,7 +102,7 @@ writes.albums.create({
 // q.params.sort === '-createdAt' fails to compile where albums' lists take no such sort.
 ```
 
-On a relation with a pivot, the member and the loaded members carry a typed `$pivot`: the entering member the write pivot you sent (`WritePivotOf`), the loaded ones the read pivot their document rendered (`PivotFieldsOf`). Either is `undefined` when absent, as on any per-edge value, and on a relation without a pivot `$pivot` is always `undefined`. So a placement can order by a pivot field:
+On a relation with a pivot, the member and the loaded members carry a typed `$pivot`: the entering member the write pivot you sent (`WritePivotOf`), the loaded ones the read pivot their document rendered (`PivotFieldsOf`). Either is `undefined` when absent, as on any per-edge value, and on a relation without a pivot `$pivot` is always `undefined`. A loaded member a write still holds pending carries only the pivot that write sent, so where that can lack fields the read pivot requires, it is typed apart by `$optimistic`, as on the client's own members. So a placement can order by a pivot field:
 
 ```ts
 writes.playlists
