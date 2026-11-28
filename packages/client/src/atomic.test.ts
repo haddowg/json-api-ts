@@ -740,3 +740,77 @@ describe('client.atomic — capability', () => {
     expect('atomic' in client).toBe(true)
   })
 })
+
+describe('client.atomic — a relation rendering its pivot on every member', () => {
+  const pivoted = {
+    playlists: {
+      attributes: {},
+      relations: {
+        tracks: {
+          cardinality: 'many',
+          types: ['tracks'],
+          pivot: true,
+          readPivot: { fields: { addedAt: 'date-time', position: 'integer' } },
+          pivotRendered: true,
+          writePivot: { fields: { position: 'integer' } },
+          mutations: { add: true, remove: true, replace: true },
+        },
+        owner: {
+          cardinality: 'one',
+          types: ['tracks'],
+          identifierMeta: { fields: { role: 'string' }, additional: false },
+          mutations: { set: true },
+        },
+      },
+      paths: { update: '/playlists/{id}' },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+    tracks: {
+      attributes: {},
+      relations: {},
+      paths: { fetchOne: '/tracks/{id}' },
+      paginator: 'page',
+      clientId: 'forbidden',
+    },
+  } as const satisfies ApiDescriptor
+
+  it("types each relationship result as its relation's linkage, the pivot present", async () => {
+    const { transport } = atomicTransport(() => ({
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        'atomic:results': [
+          {
+            data: [
+              {
+                type: 'tracks',
+                id: '5',
+                meta: { pivot: { addedAt: '2026-11-28T09:00:00+00:00', position: 1 } },
+              },
+            ],
+          },
+          { data: { type: 'tracks', id: '6', meta: { role: 'curator' } } },
+        ],
+      }),
+    }))
+    const client = createClient(pivoted, {
+      baseUrl: BASE,
+      transport,
+      atomic: { path: '/operations' },
+    })
+    const [added, owner] = await client.atomic((tx) => [
+      tx
+        .rel({ type: 'playlists', id: 'p1' }, 'tracks')
+        .add([{ type: 'tracks', id: '5', $pivot: { position: 1 } }]),
+      tx.rel({ type: 'playlists', id: 'p1' }, 'owner').set({ type: 'tracks', id: '6' }),
+    ])
+    const member = added.data![0]!
+    expectTypeOf(member.$pivot.addedAt).toEqualTypeOf<string>()
+    expectTypeOf(member.$edge.meta.pivot.position).toEqualTypeOf<number>()
+    expect(member.$pivot.addedAt).toBe('2026-11-28T09:00:00+00:00')
+    expect(member.$edge.meta.pivot.position).toBe(1)
+    expectTypeOf(owner.data).toExtend<{ type: 'tracks' } | null | undefined>()
+    expect(owner.data?.$edge?.meta?.role).toBe('curator')
+  })
+})
